@@ -44,10 +44,26 @@ const corsOptions = {
     // Normalize origin (remove trailing slash)
     const normalizedOrigin = origin.replace(/\/$/, '');
 
-    // Check if origin is in allowed list (exact match or normalized)
+    // Check if origin is in allowed list (exact / www / non-www)
     const isAllowed = allowedOrigins.some(allowed => {
       const normalizedAllowed = allowed.replace(/\/$/, '');
-      return origin === allowed || normalizedOrigin === normalizedAllowed || origin === normalizedAllowed || normalizedOrigin === allowed;
+      if (
+        origin === allowed ||
+        normalizedOrigin === normalizedAllowed ||
+        origin === normalizedAllowed ||
+        normalizedOrigin === allowed
+      ) {
+        return true;
+      }
+      // Allow www and non-www variants of the same domain
+      if (normalizedAllowed.includes('www.')) {
+        const nonWww = normalizedAllowed.replace('www.', '');
+        if (normalizedOrigin === nonWww) return true;
+      } else {
+        const withWww = normalizedAllowed.replace(/^(https?:\/\/)/, '$1www.');
+        if (normalizedOrigin === withWww) return true;
+      }
+      return false;
     });
 
     if (isAllowed) {
