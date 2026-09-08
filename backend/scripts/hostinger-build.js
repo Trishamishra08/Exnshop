@@ -1,36 +1,48 @@
 'use strict';
 
 /**
- * Hostinger build entry. Never depends on bare `tsc` being on PATH.
- * Runtime uses server.js + tsx, so compile is optional.
+ * Hostinger build: compile TypeScript with tsc only.
+ * Never use tsx/esbuild (Hostinger blocks esbuild binary → EACCES → 503).
  */
 const fs = require('fs');
 const path = require('path');
-const { spawnSync } = require('child_process');
+const { spawnSync, execSync } = require('child_process');
 
 const root = path.join(__dirname, '..');
-const entry = path.join(root, 'server.js');
 const tscJs = path.join(root, 'node_modules', 'typescript', 'bin', 'tsc');
+const distEntry = path.join(root, 'dist', 'server.js');
 
-if (!fs.existsSync(entry)) {
-  console.error('[build] missing server.js');
+function ensureTypescript() {
+  if (fs.existsSync(tscJs)) return tscJs;
+  console.log('[build] installing typescript...');
+  execSync('npm install typescript --save --no-audit --no-fund', {
+    cwd: root,
+    stdio: 'inherit',
+    env: { ...process.env, NODE_ENV: 'development', npm_config_production: 'false' },
+  });
+  const resolved = path.join(root, 'node_modules', 'typescript', 'bin', 'tsc');
+  if (!fs.existsSync(resolved)) {
+    throw new Error('typescript install failed — tsc not found');
+  }
+  return resolved;
+}
+
+const bin = ensureTypescript();
+console.log('[build] compiling with tsc...');
+const result = spawnSync(process.execPath, [bin, '-p', 'tsconfig.json'], {
+  cwd: root,
+  stdio: 'inherit',
+});
+
+if (result.status !== 0) {
+  console.error('[build] tsc failed');
+  process.exit(result.status || 1);
+}
+
+if (!fs.existsSync(distEntry)) {
+  console.error('[build] tsc finished but dist/server.js is missing');
   process.exit(1);
 }
 
-// Optional compile if typescript is present (does not fail deploy if skipped)
-if (fs.existsSync(tscJs)) {
-  const result = spawnSync(process.execPath, [tscJs, '-p', 'tsconfig.json'], {
-    cwd: root,
-    stdio: 'inherit',
-  });
-  if (result.status === 0) {
-    console.log('[build] tsc OK');
-  } else {
-    console.warn('[build] tsc failed — continuing with tsx runtime (server.js)');
-  }
-} else {
-  console.log('[build] typescript not installed — using tsx runtime (server.js)');
-}
-
-console.log('[build] success');
+console.log('[build] OK -> dist/server.js');
 process.exit(0);

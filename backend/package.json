@@ -2,15 +2,12 @@
   "name": "olovely-backend",
   "version": "1.0.0",
   "description": "Olovely Backend API Server",
-  "main": "server.js",
-  "bin": {
-    "tsc": "./bin/tsc"
-  },
+  "main": "dist/server.js",
   "scripts": {
-    "postinstall": "node ./scripts/install-tsc-shim.js",
+    "postinstall": "node ./scripts/postinstall.js",
     "build": "node ./scripts/hostinger-build.js",
     "build:tsc": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
-    "start": "node server.js",
+    "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "test": "tsx test-auth.ts",
     "test:auth": "tsx src/scripts/testAuth.ts",
@@ -76,10 +73,10 @@
     "razorpay": "^2.9.6",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.3",
-    "tsx": "^4.7.0",
-    "typescript": "^7.0.2"
+    "typescript": "^5.9.3"
   },
   "devDependencies": {
-    "@types/socket.io-client": "^1.4.36"
+    "@types/socket.io-client": "^1.4.36",
+    "tsx": "^4.7.0"
   }
 }

@@ -125,42 +125,44 @@ app.use(notFound);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || "0.0.0.0";
 
 async function startServer() {
-  // Connect DB then ensure default admin exists
-  await connectDB();
-  await ensureDefaultAdmin();
-  await seedHeaderCategories();
-
-  // Initialize Firebase Admin SDK for push notifications
-  initializeFirebaseAdmin();
-
-  // Handle server errors gracefully (e.g., port already in use)
-  httpServer.on('error', (error: NodeJS.ErrnoException) => {
-    if (error.code === 'EADDRINUSE') {
+  // Listen FIRST so Hostinger proxy gets a live process (avoids 503 while DB connects)
+  httpServer.on("error", (error: NodeJS.ErrnoException) => {
+    if (error.code === "EADDRINUSE") {
       console.error(`\n\x1b[31m✗ Port ${PORT} is already in use!\x1b[0m`);
-      console.error(`\x1b[33m  → Another instance of the server may be running.\x1b[0m`);
-      console.error(`\x1b[33m  → Run: taskkill /f /im node.exe (Windows) or killall node (Mac/Linux)\x1b[0m`);
-      console.error(`\x1b[33m  → Or change PORT in .env file\x1b[0m\n`);
-      process.exit(1);
-    } else {
-      console.error('\n\x1b[31m✗ Server error:\x1b[0m', error);
       process.exit(1);
     }
+    console.error("\n\x1b[31m✗ Server error:\x1b[0m", error);
+    process.exit(1);
   });
 
-  // Hostinger (and most PaaS) need 0.0.0.0 — localhost-only binds cause 503
-  const HOST = process.env.HOST || "0.0.0.0";
+  await new Promise<void>((resolve) => {
+    httpServer.listen(Number(PORT), HOST, () => {
+      console.log("\n\x1b[32m✓\x1b[0m \x1b[1mExnshop Server Listening\x1b[0m");
+      console.log(`   \x1b[36mAddress:\x1b[0m http://${HOST}:${PORT}`);
+      console.log(
+        `   \x1b[36mEnvironment:\x1b[0m ${process.env.NODE_ENV || "development"}`
+      );
+      resolve();
+    });
+  });
 
-  httpServer.listen(Number(PORT), HOST, () => {
-    console.log("\n\x1b[32m✓\x1b[0m \x1b[1mExnshop Server Started\x1b[0m");
-    console.log(`   \x1b[36mListening:\x1b[0m http://${HOST}:${PORT}`);
-    console.log(
-      `   \x1b[36mEnvironment:\x1b[0m ${process.env.NODE_ENV || "development"}`
+  try {
+    await connectDB();
+    await ensureDefaultAdmin();
+    await seedHeaderCategories();
+    initializeFirebaseAdmin();
+    console.log(`   \x1b[36mSocket.IO:\x1b[0m ✓ Ready`);
+    console.log(`   [DEBUG] Fully started at: ${new Date().toISOString()}\n`);
+  } catch (err) {
+    console.error("\n\x1b[31m✗ Startup init failed (API is up but DB/features may be down)\x1b[0m");
+    console.error(err);
+    console.error(
+      "\x1b[33m  → Check Hostinger env vars (MONGODB_URI) and MongoDB Atlas Network Access (allow 0.0.0.0/0)\x1b[0m\n"
     );
-    console.log(`   \x1b[36mSocket.IO:\x1b[0m ✓ Ready for connections\n`);
-    console.log(`   [DEBUG] Server reloaded at: ${new Date().toISOString()}`);
-  });
+  }
 }
 
 startServer().catch((err) => {
