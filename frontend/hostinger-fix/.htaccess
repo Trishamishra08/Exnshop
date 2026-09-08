@@ -1,14 +1,21 @@
-# Apache / Hostinger — serve real files first, SPA fallback otherwise
+# Exnshop SPA - required for /admin, /seller, /delivery on Hostinger (LiteSpeed/Apache)
+Options -MultiViews
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
+  # Serve real files and folders as-is (JS/CSS/images)
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
+  # App routes -> index.html (React Router)
   RewriteRule ^ index.html [L]
 </IfModule>
+
+# Hostinger fallback when rewrite misses a deep link
+ErrorDocument 404 /index.html
 
 <IfModule mod_headers.c>
   <Files "index.html">
