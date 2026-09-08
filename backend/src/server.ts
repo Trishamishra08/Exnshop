@@ -149,9 +149,12 @@ async function startServer() {
     }
   });
 
-  httpServer.listen(PORT, () => {
-    console.log("\n\x1b[32m✓\x1b[0m \x1b[1mOlovely Server Started\x1b[0m");
-    console.log(`   \x1b[36mPort:\x1b[0m http://localhost:${PORT}`);
+  // Hostinger (and most PaaS) need 0.0.0.0 — localhost-only binds cause 503
+  const HOST = process.env.HOST || "0.0.0.0";
+
+  httpServer.listen(Number(PORT), HOST, () => {
+    console.log("\n\x1b[32m✓\x1b[0m \x1b[1mExnshop Server Started\x1b[0m");
+    console.log(`   \x1b[36mListening:\x1b[0m http://${HOST}:${PORT}`);
     console.log(
       `   \x1b[36mEnvironment:\x1b[0m ${process.env.NODE_ENV || "development"}`
     );
