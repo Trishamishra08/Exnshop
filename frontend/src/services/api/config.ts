@@ -1,8 +1,29 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from "axios";
 
-// Base API URL - adjust based on your backend URL
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1";
+/**
+ * Resolve API base URL.
+ * On the live Exnshop domain, never use localhost even if the build
+ * accidentally baked in local Vite env (common Hostinger misconfig).
+ */
+const resolveApiBaseUrl = (): string => {
+  const fromEnv =
+    import.meta.env.VITE_API_BASE_URL ||
+    import.meta.env.VITE_API_URL ||
+    "";
+
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "exnshop.in" || host === "www.exnshop.in") {
+      if (!fromEnv || fromEnv.includes("localhost") || fromEnv.includes("127.0.0.1")) {
+        return "https://api.exnshop.in/api/v1";
+      }
+    }
+  }
+
+  return fromEnv || "http://localhost:5000/api/v1";
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 export type UserPanel = 'admin' | 'seller' | 'delivery' | 'customer';
 
@@ -13,10 +34,18 @@ export const getSocketBaseURL = (): string => {
     import.meta.env.VITE_SOCKET_URL ||
     import.meta.env.VITE_API_URL ||
     import.meta.env.VITE_API_BASE_URL ||
-    "http://localhost:5000";
+    "";
 
-  // Strip trailing /api/v1 or /api to prevent Socket.io from interpreting path as a custom namespace
-  const socketUrl = rawUrl.replace(/\/api\/v\d+\/?$|\/api\/?$/, '');
+  let socketUrl = rawUrl.replace(/\/api\/v\d+\/?$|\/api\/?$/, "");
+
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host === "exnshop.in" || host === "www.exnshop.in") {
+      if (!socketUrl || socketUrl.includes("localhost") || socketUrl.includes("127.0.0.1")) {
+        return "https://api.exnshop.in";
+      }
+    }
+  }
 
   return socketUrl || "http://localhost:5000";
 };

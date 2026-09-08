@@ -1,7 +1,26 @@
 import { getAuthToken } from './api/config';
 
 const VAPID_KEY = import.meta.env.VITE_FIREBASE_VAPID_KEY || '';
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+
+const resolveApiBaseUrl = (): string => {
+    const fromEnv =
+        import.meta.env.VITE_API_BASE_URL ||
+        import.meta.env.VITE_API_URL ||
+        '';
+
+    if (typeof window !== 'undefined') {
+        const host = window.location.hostname;
+        if (host === 'exnshop.in' || host === 'www.exnshop.in') {
+            if (!fromEnv || fromEnv.includes('localhost') || fromEnv.includes('127.0.0.1')) {
+                return 'https://api.exnshop.in/api/v1';
+            }
+        }
+    }
+
+    return fromEnv || 'http://localhost:5000/api/v1';
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 type FirebaseMessagingModule = typeof import('./firebase');
 
