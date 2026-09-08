@@ -1,0 +1,211 @@
+import { ReactNode, useState, useCallback, useEffect, useRef } from 'react';
+import SellerHeader from './SellerHeader';
+import SellerSidebar from './SellerSidebar';
+import SellerBottomNav from './SellerBottomNav';
+import { useSellerSocket, SellerNotification } from '../hooks/useSellerSocket';
+import SellerNotificationAlert from './SellerNotificationAlert';
+import { getPendingOrderAlerts } from '../../../services/api/orderService';
+import { useRingtoneAlert } from '../../../hooks/useRingtoneAlert';
+
+interface SellerLayoutProps {
+  children: ReactNode;
+}
+
+const DISMISSED_ALERTS_KEY = 'seller_dismissed_order_alerts';
+const PENDING_ALERT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function getDismissedOrderIds(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(DISMISSED_ALERTS_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as string[];
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function rememberDismissedOrderId(orderId: string) {
+  const dismissed = getDismissedOrderIds();
+  dismissed.add(orderId);
+  sessionStorage.setItem(DISMISSED_ALERTS_KEY, JSON.stringify([...dismissed]));
+}
+
+function clearDismissedOrderId(orderId: string) {
+  const dismissed = getDismissedOrderIds();
+  if (!dismissed.delete(orderId)) return;
+  sessionStorage.setItem(DISMISSED_ALERTS_KEY, JSON.stringify([...dismissed]));
+}
+
+function isRecentAlert(notification: SellerNotification): boolean {
+  if (!notification.timestamp) return true;
+  const createdAt = new Date(notification.timestamp).getTime();
+  if (Number.isNaN(createdAt)) return true;
+  return Date.now() - createdAt <= PENDING_ALERT_MAX_AGE_MS;
+}
+
+function filterAlerts(alerts: SellerNotification[]): SellerNotification[] {
+  const dismissed = getDismissedOrderIds();
+  return alerts.filter(
+    (alert) => isRecentAlert(alert) && !dismissed.has(alert.orderId),
+  );
+}
+
+function mergeUniqueNotifications(
+  existing: SellerNotification[],
+  incoming: SellerNotification[],
+): SellerNotification[] {
+  const seen = new Set(existing.map((notification) => notification.orderId));
+  const merged = [...existing];
+
+  for (const notification of incoming) {
+    if (!seen.has(notification.orderId)) {
+      seen.add(notification.orderId);
+      merged.push(notification);
+    }
+  }
+
+  return merged;
+}
+
+export default function SellerLayout({ children }: SellerLayoutProps) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [activeNotification, setActiveNotification] = useState<SellerNotification | null>(null);
+  const [notificationQueue, setNotificationQueue] = useState<SellerNotification[]>([]);
+  const hasRehydratedRef = useRef(false);
+
+  // Count total actionable pending orders
+  const actionableCount = (activeNotification ? 1 : 0) + notificationQueue.length;
+  const { autoplayBlocked, enableAndPlaySound } = useRingtoneAlert('/assets/sound/seller_alert.mp3', actionableCount > 0);
+
+  const showNextNotification = useCallback((queue: SellerNotification[]) => {
+    const [next, ...rest] = queue;
+    setActiveNotification(next ?? null);
+    setNotificationQueue(rest);
+  }, []);
+
+  const enqueueNotification = useCallback((notification: SellerNotification) => {
+    if (!isRecentAlert(notification)) return;
+    clearDismissedOrderId(notification.orderId);
+
+    setActiveNotification((current) => {
+      if (!current) {
+        return notification;
+      }
+
+      setNotificationQueue((queue) => mergeUniqueNotifications(queue, [notification]));
+      return current;
+    });
+  }, []);
+
+  const handleNotificationReceived = useCallback((notification: SellerNotification) => {
+    enqueueNotification(notification);
+  }, [enqueueNotification]);
+
+  const rehydratePendingAlerts = useCallback(async () => {
+    try {
+      const response = await getPendingOrderAlerts();
+      const alerts = filterAlerts(response.data ?? []);
+
+      if (alerts.length === 0) {
+        return;
+      }
+
+      setActiveNotification((current) => {
+        if (current) {
+          setNotificationQueue((queue) => mergeUniqueNotifications(queue, alerts));
+          return current;
+        }
+
+        const [first, ...rest] = alerts;
+        setNotificationQueue(rest);
+        return first;
+      });
+    } catch (error) {
+      console.error('Failed to rehydrate seller order alerts:', error);
+    }
+  }, []);
+
+  useSellerSocket(handleNotificationReceived);
+
+  useEffect(() => {
+    if (hasRehydratedRef.current) {
+      return;
+    }
+    hasRehydratedRef.current = true;
+    rehydratePendingAlerts();
+  }, [rehydratePendingAlerts]);
+
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  const closeNotification = () => {
+    if (activeNotification?.orderId) {
+      rememberDismissedOrderId(activeNotification.orderId);
+    }
+    showNextNotification(notificationQueue);
+  };
+
+  const handleNotificationResolved = () => {
+    if (activeNotification?.orderId) {
+      clearDismissedOrderId(activeNotification.orderId);
+    }
+    setActiveNotification(null);
+    showNextNotification(notificationQueue);
+    rehydratePendingAlerts();
+  };
+
+  return (
+    <div className="flex min-h-screen bg-neutral-50 flex-col">
+      {/* Autoplay blocked fallback banner */}
+      {autoplayBlocked && (
+        <div className="bg-amber-500 text-white px-4 py-2 flex items-center justify-between text-sm font-semibold z-[10001] shrink-0">
+          <span>🔔 Incoming order ringtone blocked by browser. Click to enable sound!</span>
+          <button
+            onClick={enableAndPlaySound}
+            className="bg-white text-amber-800 px-3 py-1 rounded shadow hover:bg-neutral-100 font-bold transition-transform active:scale-95 ml-3"
+          >
+            Enable Sound
+          </button>
+        </div>
+      )}
+
+      <div className="flex flex-1 min-h-screen bg-neutral-50 relative overflow-x-hidden">
+        {/* Real-time Notification Alert */}
+        <SellerNotificationAlert
+          notification={activeNotification}
+          onClose={closeNotification}
+          onResolved={handleNotificationResolved}
+        />
+
+        {/* Sidebar - Desktop Only */}
+        <div
+          className={`fixed left-0 top-0 h-screen z-50 transition-transform duration-300 ease-in-out hidden lg:block ${
+            isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          <SellerSidebar onClose={() => setIsSidebarOpen(false)} />
+        </div>
+
+        {/* Main Content */}
+        <div
+          className={`flex-1 flex flex-col transition-all duration-300 min-w-0 ${
+            isSidebarOpen ? 'lg:ml-64' : 'ml-0'
+          }`}
+        >
+          {/* Header */}
+          <SellerHeader onMenuClick={toggleSidebar} isSidebarOpen={isSidebarOpen} />
+
+          {/* Page Content */}
+          <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 pb-24 lg:pb-6 bg-neutral-50 min-w-0">
+            {children}
+          </main>
+
+          {/* Mobile Bottom Navigation */}
+          <SellerBottomNav />
+        </div>
+      </div>
+    </div>
+  );
+}
