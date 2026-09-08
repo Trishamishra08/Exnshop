@@ -1,7 +1,6 @@
-import { initializeApp } from "firebase/app";
-import { getMessaging, getToken, onMessage } from "firebase/messaging";
+import { initializeApp, FirebaseApp } from "firebase/app";
+import { getMessaging, getToken, onMessage, Messaging } from "firebase/messaging";
 
-// Firebase configuration from environment variables
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
@@ -12,24 +11,23 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "",
 };
 
-// Initialize Firebase
-let app;
-try {
-  app = initializeApp(firebaseConfig);
-} catch (error) {
-  console.error("Firebase initialization failed:", error);
-}
+const isFirebaseConfigured = Boolean(firebaseConfig.projectId && firebaseConfig.apiKey && firebaseConfig.appId);
 
-// Initialize Firebase Cloud Messaging
-let messaging: any = null;
+let app: FirebaseApp | undefined;
+let messaging: Messaging | null = null;
 
-if (app) {
+if (isFirebaseConfigured) {
   try {
-    messaging = getMessaging(app);
+    app = initializeApp(firebaseConfig);
+    try {
+      messaging = getMessaging(app);
+    } catch (error) {
+      console.warn("Firebase Messaging not supported in this browser:", error);
+    }
   } catch (error) {
-    console.warn("Firebase Messaging not supported in this browser:", error);
+    console.error("Firebase initialization failed:", error);
   }
 }
 
-export { messaging, getToken, onMessage };
+export { messaging, getToken, onMessage, isFirebaseConfigured };
 export default app;

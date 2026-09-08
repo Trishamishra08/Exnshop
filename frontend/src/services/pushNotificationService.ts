@@ -245,6 +245,10 @@ export async function setupForegroundNotificationHandler(
  */
 export async function initializePushNotifications(): Promise<void> {
     try {
+        if (!import.meta.env.VITE_FIREBASE_PROJECT_ID) {
+            console.log('Push notifications skipped (Firebase not configured)');
+            return;
+        }
         await registerServiceWorker();
         console.log('Push notifications initialized');
     } catch (error) {

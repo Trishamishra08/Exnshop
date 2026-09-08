@@ -100,8 +100,9 @@ app.set("io", io);
 
 // Routes
 app.get("/", (_req: Request, res: Response) => {
+  const appName = process.env.APP_NAME || "Exnshop";
   res.json({
-    message: "Olovely API Server is running!",
+    message: `${appName} API Server is running!`,
     version: "1.0.0",
     socketIO: "Listening for WebSocket connections",
   });
