@@ -1,24 +1,27 @@
-# Exnshop SPA - required for /admin, /seller, /delivery on Hostinger (LiteSpeed/Apache)
+# Exnshop SPA — Hostinger / LiteSpeed
+# Critical: do NOT skip directories (-d). Empty admin/seller/delivery folders
+# on the server would otherwise return 404 and break panel routes.
+
 Options -MultiViews
+DirectoryIndex index.html
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
-  # Serve real files and folders as-is (JS/CSS/images)
-  RewriteCond %{REQUEST_FILENAME} -f [OR]
-  RewriteCond %{REQUEST_FILENAME} -d
+  # Never rewrite real files (js/css/images/fonts)
+  RewriteCond %{REQUEST_FILENAME} -f
   RewriteRule ^ - [L]
 
-  # App routes -> index.html (React Router)
+  # All app routes (including /admin /seller /delivery) -> SPA
   RewriteRule ^ index.html [L]
 </IfModule>
 
-# Hostinger fallback when rewrite misses a deep link
+# If rewrite misses, still serve the SPA
 ErrorDocument 404 /index.html
 
 <IfModule mod_headers.c>
-  <Files "index.html">
+  <FilesMatch "^(index\.html|404\.html)$">
     Header set Cache-Control "no-cache, no-store, must-revalidate"
-  </Files>
+  </FilesMatch>
 </IfModule>

@@ -37,6 +37,7 @@
     "seed:45-categories": "tsx src/scripts/seed45Categories.ts",
     "seed:essential-categories": "tsx src/scripts/seedEssentialCategories.ts",
     "seed:production": "tsx src/scripts/seedProductionBootstrap.ts",
+    "seed:panel-users": "tsx src/scripts/ensurePanelUsers.ts",
     "verify:45-categories": "tsx src/scripts/verify45Categories.ts",
     "sync:header-categories": "tsx src/scripts/syncHeaderCategories.ts"
   },
