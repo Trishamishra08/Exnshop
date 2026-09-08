@@ -4,7 +4,7 @@
   "description": "Olovely Backend API Server",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc",
+    "build": "node ./node_modules/typescript/bin/tsc",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "test": "tsx test-auth.ts",
@@ -72,10 +72,10 @@
     "razorpay": "^2.9.6",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.3",
-    "tsx": "^4.7.0"
+    "tsx": "^4.7.0",
+    "typescript": "^5.7.2"
   },
   "devDependencies": {
-    "@types/socket.io-client": "^1.4.36",
-    "typescript": "^5.7.2"
+    "@types/socket.io-client": "^1.4.36"
   }
 }
