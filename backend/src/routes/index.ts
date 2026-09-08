@@ -1,4 +1,5 @@
 import { Router } from "express";
+import mongoose from "mongoose";
 import adminAuthRoutes from "./adminAuthRoutes";
 import sellerAuthRoutes from "./sellerAuthRoutes";
 import dashboardRoutes from "./dashboardRoutes";
@@ -57,9 +58,24 @@ const router = Router();
 
 // Health check route
 router.get("/health", (_req, res) => {
-  res.json({
-    status: "OK",
-    message: "API is healthy",
+  const mongoState = mongoose.connection.readyState;
+  // 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
+  const mongoLabel =
+    mongoState === 1
+      ? "connected"
+      : mongoState === 2
+        ? "connecting"
+        : mongoState === 3
+          ? "disconnecting"
+          : "disconnected";
+
+  const ok = mongoState === 1;
+  res.status(ok ? 200 : 503).json({
+    status: ok ? "OK" : "DEGRADED",
+    message: ok
+      ? "API is healthy"
+      : "API is up but MongoDB is not connected — check MONGODB_URI and Atlas Network Access (allow 0.0.0.0/0)",
+    mongo: mongoLabel,
     timestamp: new Date().toISOString(),
   });
 });

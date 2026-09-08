@@ -10,7 +10,11 @@ const connectDB = async (): Promise<void> => {
   }
 
   mongoose.set('autoIndex', false);
-  const conn = await mongoose.connect(mongoUri);
+  mongoose.set('bufferTimeoutMS', 20000);
+
+  const conn = await mongoose.connect(mongoUri, {
+    serverSelectionTimeoutMS: 15000,
+  });
 
   console.log('\n\x1b[32m✓\x1b[0m \x1b[1mMongoDB Connected Successfully\x1b[0m');
   console.log(`   \x1b[36mHost:\x1b[0m ${conn.connection.host}`);
