@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "description": "Olovely Backend API Server",
   "main": "server.js",
+  "bin": {
+    "tsc": "./bin/tsc"
+  },
   "scripts": {
-    "build": "node -e \"console.log('[build] OK - Hostinger uses tsx runtime (server.js), no tsc required')\"",
+    "postinstall": "node ./scripts/install-tsc-shim.js",
+    "build": "node ./scripts/hostinger-build.js",
     "build:tsc": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
     "start": "node server.js",
     "dev": "tsx watch src/server.ts",

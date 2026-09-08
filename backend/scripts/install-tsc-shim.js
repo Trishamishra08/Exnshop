@@ -1,0 +1,92 @@
+'use strict';
+
+/**
+ * Ensures a portable `tsc` shim exists for Hostinger builds that call bare `tsc`.
+ * Paths are resolved at runtime (never bake in absolute host paths).
+ */
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const { execSync } = require('child_process');
+
+const root = path.join(__dirname, '..');
+const tscJs = path.join(root, 'node_modules', 'typescript', 'bin', 'tsc');
+
+const PORTABLE_SHIM = `#!/usr/bin/env node
+'use strict';
+const path = require('path');
+const fs = require('fs');
+const { spawnSync, execSync } = require('child_process');
+
+// Resolve package root whether this file lives in /, /bin, or a home bin copy
+let root = __dirname;
+if (path.basename(root) === 'bin') root = path.join(root, '..');
+// Home-bin copies cannot resolve the app; prefer cwd (Hostinger build dir)
+const candidates = [
+  path.join(process.cwd(), 'node_modules', 'typescript', 'bin', 'tsc'),
+  path.join(root, 'node_modules', 'typescript', 'bin', 'tsc'),
+];
+
+function findTsc() {
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+let target = findTsc();
+if (!target) {
+  execSync('npm install typescript --save --no-audit --no-fund', {
+    cwd: process.cwd(),
+    stdio: 'inherit',
+    env: { ...process.env, NODE_ENV: 'development', npm_config_production: 'false' },
+  });
+  target = findTsc();
+}
+
+if (!target) {
+  console.error('tsc shim: typescript not found');
+  process.exit(1);
+}
+
+const result = spawnSync(process.execPath, [target, ...process.argv.slice(2)], {
+  cwd: process.cwd(),
+  stdio: 'inherit',
+});
+process.exit(result.status == null ? 1 : result.status);
+`;
+
+function ensureTypescript() {
+  if (fs.existsSync(tscJs)) return;
+  console.log('[postinstall] typescript missing — installing as production dependency...');
+  execSync('npm install typescript --save --no-audit --no-fund', {
+    cwd: root,
+    stdio: 'inherit',
+    env: { ...process.env, NODE_ENV: 'development', npm_config_production: 'false' },
+  });
+}
+
+function writeShim(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+  const shimPath = path.join(dir, 'tsc');
+  fs.writeFileSync(shimPath, PORTABLE_SHIM);
+  try {
+    fs.chmodSync(shimPath, 0o755);
+  } catch (_) {
+    /* ignore on Windows */
+  }
+  console.log('[postinstall] tsc shim ->', shimPath);
+}
+
+ensureTypescript();
+writeShim(path.join(root, 'bin'));
+writeShim(root);
+
+try {
+  writeShim(path.join(os.homedir(), 'bin'));
+  writeShim(path.join(os.homedir(), '.local', 'bin'));
+} catch (_) {
+  /* sandbox / permission */
+}
+
+console.log('[postinstall] OK — entry file is server.js (tsx runtime)');
