@@ -4,7 +4,7 @@
   "description": "Olovely Backend API Server",
   "main": "dist/server.js",
   "scripts": {
-    "build": "node ./node_modules/typescript/bin/tsc",
+    "build": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
     "test": "tsx test-auth.ts",
@@ -35,7 +35,7 @@
     "seed:45-categories": "tsx src/scripts/seed45Categories.ts",
     "verify:45-categories": "tsx src/scripts/verify45Categories.ts",
     "sync:header-categories": "tsx src/scripts/syncHeaderCategories.ts",
-    "postinstall": "npm run build"
+    "postinstall": "node ./node_modules/typescript/bin/tsc -p tsconfig.json"
   },
   "keywords": [
     "express",
@@ -73,7 +73,7 @@
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.3",
     "tsx": "^4.7.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.9.3"
   },
   "devDependencies": {
     "@types/socket.io-client": "^1.4.36"
