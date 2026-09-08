@@ -8,7 +8,7 @@ import { cache } from "../../../utils/cache";
 // Get all categories (public) - with caching
 export const getCategories = async (_req: Request, res: Response) => {
   try {
-    const cacheKey = "customer-categories-list-v2";
+    const cacheKey = "customer-categories-list-v3";
 
     // Try cache first
     let categories = cache.get(cacheKey);
@@ -16,6 +16,7 @@ export const getCategories = async (_req: Request, res: Response) => {
     if (!categories) {
       categories = await Category.find({
         status: "Active", // Only return active categories
+        $or: [{ parentId: null }, { parentId: { $exists: false } }],
       })
         .sort({ order: 1 })
         .select("name image icon description color slug _id headerCategoryId order translations")
@@ -140,7 +141,7 @@ export const getCategoriesWithSubs = async (_req: Request, res: Response) => {
 export const getCategoryById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const cacheKey = `customer-category-${id}`;
+    const cacheKey = `customer-category-v2-${id}`;
 
     // Try cache first
     const cached = cache.get(cacheKey);
@@ -154,6 +155,15 @@ export const getCategoryById = async (req: Request, res: Response) => {
     console.log(`[getCategoryById] Looking for category with id/slug: ${id}`);
     let category;
 
+    // Common frontend/admin slug aliases
+    const SLUG_ALIASES: Record<string, string[]> = {
+      "fruits-veg": ["fruits-veg", "fruits-vegetables", "vegetables-fruits"],
+      "fruits-vegetables": ["fruits-vegetables", "fruits-veg", "vegetables-fruits"],
+      grocery: ["grocery", "all-grocery-mart"],
+      snacks: ["snacks", "snacks-munchies"],
+    };
+    const slugCandidates = SLUG_ALIASES[id] || [id];
+
     // Try to find by ObjectId first (only active categories for public endpoint)
     if (mongoose.Types.ObjectId.isValid(id)) {
       category = await Category.findOne({
@@ -164,9 +174,8 @@ export const getCategoryById = async (req: Request, res: Response) => {
 
     // If not found by ID, try by slug (case-insensitive, only active categories)
     if (!category) {
-      // Try exact slug match first
       category = await Category.findOne({
-        slug: id,
+        slug: { $in: slugCandidates },
         status: "Active",
       }).lean();
 

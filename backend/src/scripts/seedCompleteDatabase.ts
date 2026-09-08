@@ -37,7 +37,8 @@ const CATEGORIES_DATA = [
   },
   {
     name: 'Fruits & Vegetables',
-    slug: 'fruits-vegetables',
+    // Must match frontend route /category/fruits-veg
+    slug: 'fruits-veg',
     headerSlug: 'fruits-vegetables',
     image: '/assets/category-fruits-veg.png',
     order: 3,
@@ -699,14 +700,14 @@ async function seedCompleteDatabase() {
     { _id: sellerId },
     {
       $set: {
-        sellerName: 'Olovely Supermart',
-        storeName: 'Olovely Supermart',
-        email: 'seller@olovely.com',
+        sellerName: 'Exnshop Supermart',
+        storeName: 'Exnshop Supermart',
+        email: 'seller@exnshop.com',
         mobile: '9999999999',
         category: 'Grocery',
         categories: ['Grocery', 'Dairy, Bread & Eggs', 'Snacks & Munchies', 'Fruits & Vegetables', 'Personal Care', 'Cleaning Essentials'],
         city: 'Indore',
-        address: 'Indore City, Madhya Pradesh, 452001',
+        address: 'Chhoti Gwaltoli, Indore, Madhya Pradesh, 452001',
         status: 'Approved',
         isShopOpen: true,
         serviceRadiusKm: 500,
@@ -917,7 +918,7 @@ async function seedCompleteDatabase() {
   // 7. Shops / Stores
   await db.collection('shops').deleteMany({});
   const SHOPS_DATA = [
-    { storeId: 'supermarket-essentials', name: 'Olovely Supermart', image: '/assets/shopbystore/fashion.jpg', order: 1 },
+    { storeId: 'supermarket-essentials', name: 'Exnshop Supermart', image: '/assets/shopbystore/fashion.jpg', order: 1 },
     { storeId: 'dairy-farm-fresh', name: 'Daily Dairy & Bakery', image: '/assets/shopbystore/pet.jpg', order: 2 },
     { storeId: 'snack-refreshment', name: 'Snack & Munchies Hub', image: '/assets/shopbystore/sports.jpg', order: 3 },
     { storeId: 'organic-green', name: 'Farm Fresh Organic', image: '/assets/shopbystore/pharma.jpg', order: 4 },
