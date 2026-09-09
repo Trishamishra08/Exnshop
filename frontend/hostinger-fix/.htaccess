@@ -1,27 +1,38 @@
-# Exnshop SPA — Hostinger / LiteSpeed
-# Critical: do NOT skip directories (-d). Empty admin/seller/delivery folders
-# on the server would otherwise return 404 and break panel routes.
+# Exnshop SPA — Hostinger (Apache / LiteSpeed)
+# Upload the FULL dist/ folder (including assets/ and this .htaccess).
+# Enable "Show hidden files" in File Manager before uploading.
 
-Options -MultiViews
 DirectoryIndex index.html
+
+# Correct MIME types (prevents module-script failures on some hosts)
+<IfModule mod_mime.c>
+  AddType application/javascript .js .mjs
+  AddType text/css .css
+  AddType application/wasm .wasm
+</IfModule>
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
-  # Never rewrite real files (js/css/images/fonts)
+  # CRITICAL: never rewrite Vite build assets or static file extensions.
+  # Otherwise the server returns index.html (text/html) for .js → MIME error.
+  RewriteRule ^assets/ - [L]
+  RewriteRule \.(?:js|mjs|css|map|json|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|eot|webmanifest|txt|xml|mp4|webm|wasm|lottie)$ - [L,NC]
+
+  # Serve any other existing file as-is
   RewriteCond %{REQUEST_FILENAME} -f
   RewriteRule ^ - [L]
 
-  # All app routes (including /admin /seller /delivery) -> SPA
+  # Keep route stub folders that already contain index.html
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteCond %{REQUEST_FILENAME}/index.html -f
+  RewriteRule ^ - [L]
+
+  # Client-side routes only → SPA
   RewriteRule ^ index.html [L]
 </IfModule>
 
-# If rewrite misses, still serve the SPA
-ErrorDocument 404 /index.html
-
-<IfModule mod_headers.c>
-  <FilesMatch "^(index\.html|404\.html)$">
-    Header set Cache-Control "no-cache, no-store, must-revalidate"
-  </FilesMatch>
-</IfModule>
+# Do NOT use ErrorDocument 404 → index.html / 404.html here.
+# That makes missing .js files return HTML and triggers:
+# "Expected a JavaScript module but the server responded with MIME type text/html"
