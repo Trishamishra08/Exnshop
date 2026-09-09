@@ -2,6 +2,7 @@ import { ReactNode, useEffect, useRef, useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import FloatingCartPill from './FloatingCartPill';
+import SiteFooter from './SiteFooter';
 import { useLocation as useLocationContext } from '../hooks/useLocation';
 import LocationPermissionRequest from './LocationPermissionRequest';
 import { useThemeContext } from '../context/ThemeContext';
@@ -60,13 +61,25 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   // Check if location is required for current route
   const requiresLocation = () => {
-    const publicRoutes = ['/login', '/signup', '/seller/login', '/seller/signup', '/delivery/login', '/delivery/signup', '/admin/login', '/language-selection'];
-    // Don't require location on login/signup/language-selection pages
+    const publicRoutes = [
+      '/login',
+      '/signup',
+      '/seller/login',
+      '/seller/signup',
+      '/delivery/login',
+      '/delivery/signup',
+      '/admin/login',
+      '/language-selection',
+      '/about-us',
+      '/privacy-policy',
+      '/terms-and-conditions',
+      '/refund-policy',
+      '/customer-policy',
+      '/faq',
+    ];
     if (publicRoutes.includes(location.pathname)) {
       return false;
     }
-    // Require location for ALL routes (not just authenticated users)
-    // This ensures location is mandatory for everyone visiting the platform
     return true;
   };
 
@@ -210,6 +223,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
   // Hide search bar everywhere as requested by user
   const showSearchBar = false;
   const showFooter = !isCheckoutPage && !isProductDetailPage && !isAuthPage;
+  const isPolicyOrInfoPage = [
+    '/about-us',
+    '/privacy-policy',
+    '/terms-and-conditions',
+    '/refund-policy',
+    '/customer-policy',
+    '/faq',
+  ].includes(location.pathname);
+  const showSiteFooter = !isCheckoutPage && !isAuthPage && !isCartPage;
 
   // Standalone onboarding routes bypass AppLayout chrome completely
   if (location.pathname === "/language-selection") {
@@ -481,7 +503,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
           )}
 
           {/* Scrollable Main Content */}
-          <main ref={mainRef} className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide pb-24 md:pb-8">
+          <main
+            ref={mainRef}
+            className={`flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide ${
+              showFooter ? 'pb-24 md:pb-0' : 'pb-4'
+            }`}
+          >
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={isLocationEnabled && userLocation ? 'content' : 'location-check'}
@@ -490,12 +517,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
                 className="w-full max-w-full"
-                style={{ minHeight: '100%' }}
+                style={{ minHeight: isPolicyOrInfoPage ? undefined : '100%' }}
               >
-                {/* Main Content */}
                 {children}
               </motion.div>
             </AnimatePresence>
+
+            {showSiteFooter && <SiteFooter />}
           </main>
 
           {/* Floating Cart Pill */}
