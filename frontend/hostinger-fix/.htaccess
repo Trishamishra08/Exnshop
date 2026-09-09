@@ -1,38 +1,44 @@
 # Exnshop SPA — Hostinger (Apache / LiteSpeed)
-# Upload the FULL dist/ folder (including assets/ and this .htaccess).
-# Enable "Show hidden files" in File Manager before uploading.
+# Upload the FULL dist/ folder together (index.html + assets/ + this .htaccess).
+# Never upload only index.html — hashed JS/CSS names change every build.
 
 DirectoryIndex index.html
 
-# Correct MIME types (prevents module-script failures on some hosts)
 <IfModule mod_mime.c>
   AddType application/javascript .js .mjs
   AddType text/css .css
   AddType application/wasm .wasm
+  AddType image/svg+xml .svg
+</IfModule>
+
+<IfModule mod_headers.c>
+  # HTML must NEVER be cached — stale HTML points at deleted hashed assets → 404
+  <FilesMatch "\.(html|htm)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+
+  # Hashed Vite assets are safe to cache long-term
+  <FilesMatch "\.(js|mjs|css|woff2?|ttf|eot|png|jpe?g|gif|svg|webp|ico|wasm)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
 </IfModule>
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
-  # CRITICAL: never rewrite Vite build assets or static file extensions.
-  # Otherwise the server returns index.html (text/html) for .js → MIME error.
+  # Never rewrite Vite build assets or static extensions
   RewriteRule ^assets/ - [L]
   RewriteRule \.(?:js|mjs|css|map|json|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|eot|webmanifest|txt|xml|mp4|webm|wasm|lottie)$ - [L,NC]
 
-  # Serve any other existing file as-is
   RewriteCond %{REQUEST_FILENAME} -f
   RewriteRule ^ - [L]
 
-  # Keep route stub folders that already contain index.html
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteCond %{REQUEST_FILENAME}/index.html -f
   RewriteRule ^ - [L]
 
-  # Client-side routes only → SPA
   RewriteRule ^ index.html [L]
 </IfModule>
-
-# Do NOT use ErrorDocument 404 → index.html / 404.html here.
-# That makes missing .js files return HTML and triggers:
-# "Expected a JavaScript module but the server responded with MIME type text/html"

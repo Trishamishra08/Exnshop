@@ -98,6 +98,12 @@ if (!fs.existsSync(path.join(dist, ".htaccess"))) {
   process.exit(1);
 }
 
-console.log(
-  `spa-fallback: Hostinger ready — .htaccess, ${stubs.length} route stubs, ${assetCount} assets (no SPA 404.html)`
+// Help verify deploy: these exact names must exist on the server after upload
+const entryRefs = [...html.matchAll(/\/assets\/(index-[A-Za-z0-9_-]+\.(?:js|css))/g)].map(
+  (m) => m[1]
 );
+
+console.log(
+  `spa-fallback: Hostinger ready — .htaccess, ${stubs.length} route stubs, ${assetCount} assets`
+);
+console.log(`spa-fallback: entry assets → ${[...new Set(entryRefs)].join(", ")}`);
