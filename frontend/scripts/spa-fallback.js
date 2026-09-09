@@ -14,13 +14,17 @@ if (!fs.existsSync(indexHtml)) {
 
 const html = fs.readFileSync(indexHtml, "utf8");
 
-// Hostinger serves 404.html for missing paths when rewrite fails / ErrorDocument fires
-fs.writeFileSync(path.join(dist, "404.html"), html);
+// Remove SPA-as-404.html if a previous build created it.
+// Hostinger serves 404.html for ANY missing file (including .js), which causes:
+// "Failed to load module script ... MIME type of text/html"
+const spaAs404 = path.join(dist, "404.html");
+if (fs.existsSync(spaAs404)) {
+  fs.unlinkSync(spaAs404);
+}
 
-// Physical folders so DirectoryIndex can serve the SPA even if rewrite is off.
-// Dynamic segments (/product/:id, /orders/:id, etc.) still need .htaccess or 404.html.
+// Physical folders so DirectoryIndex can serve the SPA when rewrite is limited.
+// Dynamic segments (/product/:id, /orders/:id) still need .htaccess rewrite.
 const stubs = [
-  // Panels
   "admin",
   "admin/login",
   "seller",
@@ -31,7 +35,6 @@ const stubs = [
   "delivery/login",
   "delivery/signup",
   "delivery/under-review",
-  // Customer / shared static routes
   "login",
   "language-selection",
   "user",
@@ -72,22 +75,29 @@ for (const stub of stubs) {
   fs.writeFileSync(path.join(dir, "index.html"), html);
 }
 
-// Vite copies public/.htaccess, but assert + overwrite so deploy always has it
 if (!fs.existsSync(publicHtaccess)) {
   console.error("spa-fallback: public/.htaccess missing");
   process.exit(1);
 }
 fs.copyFileSync(publicHtaccess, path.join(dist, ".htaccess"));
 
-// Sanity check — fail the build if Hostinger essentials are missing
-const required = [".htaccess", "404.html", "index.html"];
-for (const file of required) {
-  if (!fs.existsSync(path.join(dist, file))) {
-    console.error(`spa-fallback: missing required file dist/${file}`);
-    process.exit(1);
-  }
+const assetsDir = path.join(dist, "assets");
+if (!fs.existsSync(assetsDir)) {
+  console.error("spa-fallback: dist/assets missing — build output incomplete");
+  process.exit(1);
+}
+
+const assetCount = fs.readdirSync(assetsDir).length;
+if (assetCount < 1) {
+  console.error("spa-fallback: dist/assets is empty");
+  process.exit(1);
+}
+
+if (!fs.existsSync(path.join(dist, ".htaccess"))) {
+  console.error("spa-fallback: missing dist/.htaccess");
+  process.exit(1);
 }
 
 console.log(
-  `spa-fallback: Hostinger ready — 404.html, .htaccess, ${stubs.length} route stubs`
+  `spa-fallback: Hostinger ready — .htaccess, ${stubs.length} route stubs, ${assetCount} assets (no SPA 404.html)`
 );
