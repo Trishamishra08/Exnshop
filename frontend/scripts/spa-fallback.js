@@ -5,18 +5,22 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dist = path.resolve(__dirname, "../dist");
 const indexHtml = path.join(dist, "index.html");
+const publicHtaccess = path.resolve(__dirname, "../public/.htaccess");
 
 if (!fs.existsSync(indexHtml)) {
   console.error("spa-fallback: dist/index.html missing — run vite build first");
   process.exit(1);
 }
 
-// LiteSpeed / static hosts often use 404.html as SPA fallback
-fs.copyFileSync(indexHtml, path.join(dist, "404.html"));
+const html = fs.readFileSync(indexHtml, "utf8");
 
-// Physical entry folders so /admin /seller /delivery work even when
-// rewrite rules are missing (common on Hostinger when empty dirs exist).
+// Hostinger serves 404.html for missing paths when rewrite fails / ErrorDocument fires
+fs.writeFileSync(path.join(dist, "404.html"), html);
+
+// Physical folders so DirectoryIndex can serve the SPA even if rewrite is off.
+// Dynamic segments (/product/:id, /orders/:id, etc.) still need .htaccess or 404.html.
 const stubs = [
+  // Panels
   "admin",
   "admin/login",
   "seller",
@@ -27,19 +31,63 @@ const stubs = [
   "delivery/login",
   "delivery/signup",
   "delivery/under-review",
+  // Customer / shared static routes
+  "login",
+  "language-selection",
+  "user",
+  "user/home",
+  "search",
+  "orders",
+  "order-again",
+  "account",
+  "account/wallet",
+  "notifications",
+  "about-us",
+  "privacy-policy",
+  "terms-and-conditions",
+  "refund-policy",
+  "customer-policy",
+  "faq",
+  "wishlist",
+  "categories",
+  "address-book",
+  "checkout",
+  "checkout/address",
+  "cart",
+  "addresses",
+  "store",
+  "store/spiritual",
+  "store/pharma",
+  "store/e-gifts",
+  "store/pet",
+  "store/sports",
+  "store/fashion-basics",
+  "store/toy",
+  "store/hobby",
 ];
 
 for (const stub of stubs) {
   const dir = path.join(dist, stub);
   fs.mkdirSync(dir, { recursive: true });
-  fs.copyFileSync(indexHtml, path.join(dir, "index.html"));
+  fs.writeFileSync(path.join(dir, "index.html"), html);
 }
 
-// Ensure .htaccess is present (Vite copies public/, but assert anyway)
-const htaccessSrc = path.resolve(__dirname, "../public/.htaccess");
-const htaccessDest = path.join(dist, ".htaccess");
-if (fs.existsSync(htaccessSrc)) {
-  fs.copyFileSync(htaccessSrc, htaccessDest);
+// Vite copies public/.htaccess, but assert + overwrite so deploy always has it
+if (!fs.existsSync(publicHtaccess)) {
+  console.error("spa-fallback: public/.htaccess missing");
+  process.exit(1);
+}
+fs.copyFileSync(publicHtaccess, path.join(dist, ".htaccess"));
+
+// Sanity check — fail the build if Hostinger essentials are missing
+const required = [".htaccess", "404.html", "index.html"];
+for (const file of required) {
+  if (!fs.existsSync(path.join(dist, file))) {
+    console.error(`spa-fallback: missing required file dist/${file}`);
+    process.exit(1);
+  }
 }
 
-console.log(`spa-fallback: wrote 404.html + ${stubs.length} panel entry stubs`);
+console.log(
+  `spa-fallback: Hostinger ready — 404.html, .htaccess, ${stubs.length} route stubs`
+);

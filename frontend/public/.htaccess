@@ -1,27 +1,25 @@
-# Exnshop SPA — Hostinger / LiteSpeed
-# Critical: do NOT skip directories (-d). Empty admin/seller/delivery folders
-# on the server would otherwise return 404 and break panel routes.
+# Exnshop SPA — Hostinger (Apache / LiteSpeed)
+# Upload the FULL dist/ folder to public_html, including this hidden .htaccess.
+# In File Manager: enable "Show hidden files" before uploading.
 
-Options -MultiViews
 DirectoryIndex index.html
+
+# Hostinger uses 404.html as the custom error page (build copies SPA into it)
+ErrorDocument 404 /404.html
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
 
-  # Never rewrite real files (js/css/images/fonts)
+  # Serve real files as-is (js, css, images, fonts, etc.)
   RewriteCond %{REQUEST_FILENAME} -f
   RewriteRule ^ - [L]
 
-  # All app routes (including /admin /seller /delivery) -> SPA
-  RewriteRule ^ index.html [L]
-</IfModule>
+  # Keep directories that already have index.html (route stubs from build)
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteCond %{REQUEST_FILENAME}/index.html -f
+  RewriteRule ^ - [L]
 
-# If rewrite misses, still serve the SPA
-ErrorDocument 404 /index.html
-
-<IfModule mod_headers.c>
-  <FilesMatch "^(index\.html|404\.html)$">
-    Header set Cache-Control "no-cache, no-store, must-revalidate"
-  </FilesMatch>
+  # All other routes (incl. /product/123, /orders/abc) → SPA
+  RewriteRule . /index.html [L]
 </IfModule>
