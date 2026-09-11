@@ -27,7 +27,7 @@ async function seed() {
   if (policy) {
     policy.title = "Terms & Conditions";
     policy.content = EXNSHOP_TERMS_AND_CONDITIONS;
-    policy.version = "2.1";
+    policy.version = "2.2";
     policy.isActive = true;
     await policy.save();
     console.log("Updated Terms & Conditions:", policy._id);
@@ -36,7 +36,7 @@ async function seed() {
       type: "customer",
       title: "Terms & Conditions",
       content: EXNSHOP_TERMS_AND_CONDITIONS,
-      version: "2.1",
+      version: "2.2",
       isActive: true,
     });
     console.log("Created Terms & Conditions:", policy._id);

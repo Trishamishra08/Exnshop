@@ -102,6 +102,7 @@ export default function SiteFooter() {
             <div className="space-y-3 text-sm text-neutral-300">
               <div>
                 <p className="text-xs text-neutral-500 mb-1">{EXNSHOP_ABOUT.office.label}</p>
+                <p className="font-medium text-white mb-1">{EXNSHOP_ABOUT.office.legalName}</p>
                 <p className="leading-relaxed">{address}</p>
               </div>
               <p>
@@ -129,7 +130,7 @@ export default function SiteFooter() {
       <div className="border-t border-neutral-800">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-xs text-neutral-500 text-center sm:text-left">
-            © {year} ExnShop Commerce Pvt Ltd. All rights reserved.
+            © {year} {EXNSHOP_ABOUT.office.legalName}. All rights reserved.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-neutral-500">
             <Link to="/privacy-policy" className="hover:text-white transition-colors">
