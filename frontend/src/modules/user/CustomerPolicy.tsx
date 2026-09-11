@@ -6,6 +6,16 @@ import {
   EXNSHOP_PRIVACY_POLICY,
 } from '../../constants/exnshopTermsPolicy';
 
+const LEGAL_NAME = 'EXNSHOP TECHNOLOGY PRIVATE LIMITED';
+
+/** Fix stale API/DB text that still uses the old company name */
+function withLegalCompanyName(content: string): string {
+  return content
+    .replace(/ExnShop Commerce Pvt\.?\s*Ltd\.?/gi, LEGAL_NAME)
+    .replace(/Exnshop Commerce Private Limited/gi, LEGAL_NAME)
+    .replace(/ExnShop Commerce Private Limited/gi, LEGAL_NAME);
+}
+
 interface PolicyData {
   _id?: string;
   title: string;
@@ -48,6 +58,7 @@ export default function CustomerPolicy() {
       try {
         setLoading(true);
 
+        // Always use local Privacy Policy (correct legal name)
         if (kind === 'privacy') {
           if (!cancelled) {
             setPolicy({
@@ -58,12 +69,30 @@ export default function CustomerPolicy() {
           return;
         }
 
+        // Prefer local Terms so Contact Us always shows the correct legal name
+        if (kind === 'terms') {
+          if (!cancelled) {
+            setPolicy({
+              title: TITLES.terms,
+              content: EXNSHOP_TERMS_AND_CONDITIONS,
+            });
+          }
+          // Still try to refresh API/DB in background (non-blocking)
+          api.get('/customer/policy').catch(() => undefined);
+          return;
+        }
+
         const response = await api.get('/customer/policy');
         if (response.data?.success && response.data?.data?.content) {
+          let content = withLegalCompanyName(String(response.data.data.content));
+          if (/ExnShop Commerce|Olovely|10 Minute App/i.test(content)) {
+            content = FALLBACKS[kind];
+          }
           if (!cancelled) {
             setPolicy({
               ...response.data.data,
-              title: kind === 'customer' ? TITLES.customer : response.data.data.title || TITLES.terms,
+              title: TITLES.customer,
+              content,
             });
           }
         } else if (!cancelled) {

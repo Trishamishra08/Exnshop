@@ -90,15 +90,15 @@ router.get("/policy", async (_req, res) => {
     const needsSeed =
       !policy ||
       !policy.content ||
-      /Olovely|10 Minute App/i.test(policy.content) ||
-      policy.version !== "2.1" ||
+      /Olovely|10 Minute App|ExnShop Commerce Pvt Ltd/i.test(policy.content) ||
+      policy.version !== "2.2" ||
       policy.title !== "Terms & Conditions";
 
     if (needsSeed) {
       if (policy) {
         policy.title = "Terms & Conditions";
         policy.content = EXNSHOP_TERMS_AND_CONDITIONS;
-        policy.version = "2.1";
+        policy.version = "2.2";
         policy.isActive = true;
         await policy.save();
       } else {
@@ -106,7 +106,7 @@ router.get("/policy", async (_req, res) => {
           type: "customer",
           title: "Terms & Conditions",
           content: EXNSHOP_TERMS_AND_CONDITIONS,
-          version: "2.1",
+          version: "2.2",
           isActive: true,
         });
       }
@@ -116,7 +116,11 @@ router.get("/policy", async (_req, res) => {
       if (settings) {
         settings.termsOfService = EXNSHOP_TERMS_AND_CONDITIONS;
         settings.customerAppPolicy = EXNSHOP_TERMS_AND_CONDITIONS;
-        if (!settings.refundPolicy || /Olovely|10 Minute App/i.test(settings.refundPolicy) || settings.refundPolicy === EXNSHOP_TERMS_AND_CONDITIONS) {
+        if (
+          !settings.refundPolicy ||
+          /Olovely|10 Minute App|ExnShop Commerce Pvt Ltd/i.test(settings.refundPolicy) ||
+          settings.refundPolicy === EXNSHOP_TERMS_AND_CONDITIONS
+        ) {
           settings.refundPolicy = EXNSHOP_REFUND_POLICY;
           settings.returnPolicy = EXNSHOP_REFUND_POLICY;
         }
@@ -142,7 +146,7 @@ router.get("/refund-policy", async (_req, res) => {
     let settings = await AppSettings.findOne();
     const needsSeed =
       !settings?.refundPolicy ||
-      /Olovely|10 Minute App/i.test(settings.refundPolicy) ||
+      /Olovely|10 Minute App|ExnShop Commerce Pvt Ltd/i.test(settings.refundPolicy) ||
       settings.refundPolicy === EXNSHOP_TERMS_AND_CONDITIONS ||
       (!settings.refundPolicy.includes("1. Overview") &&
         !settings.refundPolicy.includes("Refund Eligibility"));

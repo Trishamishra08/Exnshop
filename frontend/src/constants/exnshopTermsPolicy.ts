@@ -1,6 +1,6 @@
 /** ExnShop Terms & Conditions — https://www.exnshop.in/terms */
 export const EXNSHOP_TERMS_AND_CONDITIONS = `1. Acceptance of Terms
-These Terms & Conditions (“Terms”) govern your access to and use of the ExnShop B2B marketplace (the “Platform”) operated by ExnShop Commerce Pvt Ltd (“ExnShop”, “we”, “us”). By registering, browsing or transacting on the Platform, you accept these Terms in full. If you do not agree, please do not use the Platform.
+These Terms & Conditions (“Terms”) govern your access to and use of the ExnShop B2B marketplace (the “Platform”) operated by EXNSHOP TECHNOLOGY PRIVATE LIMITED (“ExnShop”, “we”, “us”). By registering, browsing or transacting on the Platform, you accept these Terms in full. If you do not agree, please do not use the Platform.
 
 2. Definitions
 Platform — the ExnShop website and services.
@@ -65,7 +65,7 @@ These Terms are governed by and construed in accordance with the laws of India.
 We may revise these Terms at any time. Updated Terms will be posted on this page with the revised date. Continued use of the Platform after changes constitutes acceptance of the revised Terms.
 
 17. Contact Us
-ExnShop Commerce Pvt Ltd
+EXNSHOP TECHNOLOGY PRIVATE LIMITED
 C 119 Sector 2, Noida, Gautam Buddha Nagar, Uttar Pradesh, India, 201301
 CIN: U63120UW2026PTC256257
 Contact No: 6399376602
@@ -129,7 +129,7 @@ Fintech services (DMT, AEPS, RECHARGE, BBPS) are transactional services provided
 
 11. Contact Us
 For any refund-related queries, please contact us at:
-ExnShop Commerce Pvt Ltd
+EXNSHOP TECHNOLOGY PRIVATE LIMITED
 C 119 Sector 2, Noida, Gautam Buddha Nagar, Uttar Pradesh, India, 201301
 CIN: U63120UW2026PTC256257
 Contact No: 6399376602
@@ -140,7 +140,7 @@ https://www.exnshop.in/terms`;
 
 /** ExnShop Privacy Policy — https://exnshop.in/privacy-policy */
 export const EXNSHOP_PRIVACY_POLICY = `1. Introduction
-ExnShop Commerce Pvt Ltd (“ExnShop”, “we”, “us”) respects your privacy. This Privacy Policy explains how we collect, use, store and protect your personal information when you use the ExnShop website and related services (the “Platform”).
+EXNSHOP TECHNOLOGY PRIVATE LIMITED (“ExnShop”, “we”, “us”) respects your privacy. This Privacy Policy explains how we collect, use, store and protect your personal information when you use the ExnShop website and related services (the “Platform”).
 
 2. Information We Collect
 We may collect:
@@ -189,7 +189,7 @@ We may update this Privacy Policy from time to time. The revised version will be
 
 12. Contact Us
 For privacy-related questions or requests:
-ExnShop Commerce Pvt Ltd
+EXNSHOP TECHNOLOGY PRIVATE LIMITED
 C 119 Sector 2, Noida, Gautam Buddha Nagar, Uttar Pradesh, India, 201301
 CIN: U63120UW2026PTC256257
 Contact No: 6399376602

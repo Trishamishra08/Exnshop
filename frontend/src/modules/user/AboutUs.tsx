@@ -104,6 +104,7 @@ export default function AboutUs() {
             {EXNSHOP_ABOUT.office.label}
           </h3>
           <div className="space-y-2 text-sm text-neutral-700">
+            <p className="font-semibold text-neutral-900">{EXNSHOP_ABOUT.office.legalName}</p>
             <p>{address}</p>
             <p>
               <span className="font-semibold text-neutral-900">CIN:</span>{' '}
@@ -199,7 +200,7 @@ export default function AboutUs() {
 
         <div className="text-center">
           <p className="text-xs text-neutral-500">
-            © {new Date().getFullYear()} ExnShop Commerce Pvt Ltd. All rights reserved.
+            © {new Date().getFullYear()} {EXNSHOP_ABOUT.office.legalName}. All rights reserved.
           </p>
           <p className="text-xs text-neutral-400 mt-1">
             Source:{' '}

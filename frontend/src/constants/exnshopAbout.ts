@@ -43,6 +43,7 @@ Today ExnShop serves businesses across 28 states, with fintech services layered 
   ctaTitle: 'Ready to trade the ExnShop way?',
   ctaText: 'Join verified buyers and sellers sourcing smarter across India.',
   office: {
+    legalName: 'EXNSHOP TECHNOLOGY PRIVATE LIMITED',
     label: 'Registered Office',
     address: 'C 119 Sector 2, Noida, Gautam Buddha Nagar, Uttar Pradesh, India, 201301',
     cin: 'U63120UW2026PTC256257',

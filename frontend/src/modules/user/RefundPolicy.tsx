@@ -3,6 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/api/config';
 import { EXNSHOP_REFUND_POLICY } from '../../constants/exnshopTermsPolicy';
 
+const LEGAL_NAME = 'EXNSHOP TECHNOLOGY PRIVATE LIMITED';
+
+function withLegalCompanyName(content: string): string {
+  return content
+    .replace(/ExnShop Commerce Pvt\.?\s*Ltd\.?/gi, LEGAL_NAME)
+    .replace(/Exnshop Commerce Private Limited/gi, LEGAL_NAME)
+    .replace(/ExnShop Commerce Private Limited/gi, LEGAL_NAME);
+}
+
 interface PolicyData {
   title: string;
   content: string;
@@ -13,29 +22,38 @@ export default function RefundPolicy() {
   const navigate = useNavigate();
   const [policy, setPolicy] = useState<PolicyData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
   useEffect(() => {
     const fetchRefundPolicy = async () => {
       try {
         setLoading(true);
-        setError('');
         const response = await api.get('/customer/refund-policy');
-        if (response.data?.success && response.data?.data) {
-          setPolicy(response.data.data);
-        } else {
+        const apiContent = response.data?.data?.content
+          ? withLegalCompanyName(String(response.data.data.content))
+          : '';
+
+        // Use local policy if API is missing or still has old/legacy branding
+        if (
+          !apiContent ||
+          /ExnShop Commerce|Olovely|10 Minute App/i.test(apiContent)
+        ) {
           setPolicy({
             title: 'Refund & Cancellation Policy',
             content: EXNSHOP_REFUND_POLICY,
           });
+        } else {
+          setPolicy({
+            title: response.data.data.title || 'Refund & Cancellation Policy',
+            content: apiContent,
+            updatedAt: response.data.data.updatedAt,
+          });
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error('Failed to fetch refund policy:', err);
         setPolicy({
           title: 'Refund & Cancellation Policy',
           content: EXNSHOP_REFUND_POLICY,
         });
-        setError('');
       } finally {
         setLoading(false);
       }
@@ -80,18 +98,8 @@ export default function RefundPolicy() {
       <div className="px-4 md:px-6 lg:px-8 py-6 max-w-3xl mx-auto">
         {loading ? (
           <div className="py-20 text-center">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4" />
             <p className="text-sm text-neutral-600">Loading refund policy...</p>
-          </div>
-        ) : error ? (
-          <div className="py-12 text-center bg-red-50 rounded-2xl p-6 border border-red-100">
-            <p className="text-sm font-semibold text-red-700 mb-1">{error}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-primary text-white text-xs font-bold rounded-lg hover:bg-primary-dark transition-colors"
-            >
-              Retry
-            </button>
           </div>
         ) : (
           <div className="bg-white">
