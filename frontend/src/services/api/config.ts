@@ -13,11 +13,11 @@ const resolveApiBaseUrl = (): string => {
 
   if (typeof window !== "undefined") {
     const host = window.location.hostname;
+    // Always override for exnshop.io — regardless of what was baked in .env.production
     if (host === "exnshop.io" || host === "www.exnshop.io") {
-      if (!fromEnv || fromEnv.includes("localhost") || fromEnv.includes("127.0.0.1")) {
-        return "https://exnshop.io/api/v1";
-      }
+      return "https://exnshop.io/api/v1";
     }
+    // Fallback safety for exnshop.in if env accidentally baked localhost
     if (host === "exnshop.in" || host === "www.exnshop.in") {
       if (!fromEnv || fromEnv.includes("localhost") || fromEnv.includes("127.0.0.1")) {
         return "https://api.exnshop.in/api/v1";
@@ -45,11 +45,11 @@ export const getSocketBaseURL = (): string => {
 
   if (typeof window !== "undefined") {
     const host = window.location.hostname;
+    // Always override for exnshop.io — regardless of what was baked in .env.production
     if (host === "exnshop.io" || host === "www.exnshop.io") {
-      if (!socketUrl || socketUrl.includes("localhost") || socketUrl.includes("127.0.0.1")) {
-        return "https://exnshop.io";
-      }
+      return "https://exnshop.io";
     }
+    // Fallback safety for exnshop.in if env accidentally baked localhost
     if (host === "exnshop.in" || host === "www.exnshop.in") {
       if (!socketUrl || socketUrl.includes("localhost") || socketUrl.includes("127.0.0.1")) {
         return "https://api.exnshop.in";
