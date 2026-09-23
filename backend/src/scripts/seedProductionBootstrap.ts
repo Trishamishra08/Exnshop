@@ -254,7 +254,7 @@ async function main() {
   await mongoose.disconnect();
 
   console.log("\n🎉 Production bootstrap complete.\n");
-  console.log("Next: Redeploy exnshop.io so in-memory category cache refreshes.");
+  console.log("Next: Redeploy api.exnshop.in so in-memory category cache refreshes.");
 }
 
 main().catch(async (err) => {

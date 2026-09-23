@@ -10,9 +10,14 @@ const resolveApiBaseUrl = (): string => {
 
     if (typeof window !== 'undefined') {
         const host = window.location.hostname;
-        if (host === 'exnshop.in' || host === 'www.exnshop.in') {
+        if (host === 'exnshop.io' || host === 'www.exnshop.io') {
             if (!fromEnv || fromEnv.includes('localhost') || fromEnv.includes('127.0.0.1')) {
                 return 'https://exnshop.io/api/v1';
+            }
+        }
+        if (host === 'exnshop.in' || host === 'www.exnshop.in') {
+            if (!fromEnv || fromEnv.includes('localhost') || fromEnv.includes('127.0.0.1')) {
+                return 'https://api.exnshop.in/api/v1';
             }
         }
     }
@@ -208,7 +213,7 @@ export async function setupForegroundNotificationHandler(
         if (isOrderAlert) {
             try {
                 const audio = new Audio('/assets/sound/delivery-alert.mp3');
-                audio.play().catch(() => {});
+                audio.play().catch(() => { });
             } catch {
                 // Ignore audio autoplay restrictions if user hasn't interacted
             }
