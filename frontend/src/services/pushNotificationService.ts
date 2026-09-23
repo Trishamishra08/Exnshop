@@ -10,14 +10,11 @@ const resolveApiBaseUrl = (): string => {
 
     if (typeof window !== 'undefined') {
         const host = window.location.hostname;
-        // exnshop.io and exnshop.in share the same backend (api.exnshop.in)
-        if (
-            host === 'exnshop.io' || host === 'www.exnshop.io' ||
-            host === 'exnshop.in' || host === 'www.exnshop.in'
-        ) {
-            if (!fromEnv || fromEnv.includes('localhost') || fromEnv.includes('127.0.0.1')) {
-                return 'https://api.exnshop.in/api/v1';
-            }
+        if (host === 'exnshop.io' || host === 'www.exnshop.io') {
+            return 'https://exnshop.io/api/v1';
+        }
+        if (host === 'exnshop.in' || host === 'www.exnshop.in') {
+            return 'https://api.exnshop.in/api/v1';
         }
     }
 
