@@ -9,7 +9,7 @@ export default function DeliveryLogin() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
-  const [mobileNumber, setMobileNumber] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('8839044030');
   const [sessionId, setSessionId] = useState('');
   const [showOTP, setShowOTP] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -161,7 +161,7 @@ export default function DeliveryLogin() {
             <div className="space-y-4">
               <div className="text-center">
                 <p className="text-sm text-neutral-600 mb-2">
-                  Enter the 4-digit OTP sent to
+                  Enter the 6-digit OTP sent to
                 </p>
                 <p className="text-sm font-semibold text-neutral-800">+91 {mobileNumber}</p>
               </div>

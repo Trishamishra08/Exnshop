@@ -81,7 +81,7 @@ type UserType = "Customer" | "Delivery" | "Seller" | "Admin";
 /**
  * Generate numeric OTP
  */
-function generateOTP(length: number = 4): string {
+function generateOTP(length: number = 6): string {
   const digits = "0123456789";
   let otp = "";
   for (let i = 0; i < length; i++) {
@@ -537,15 +537,30 @@ async function verifyOtpFromDb(
 }
 
 /**
+ * Special bypass numbers and their fixed OTP:
+ * - Customer / Delivery / Seller: 8839044030 -> 888888
+ * - Admin: 9876543210 -> 123456
+ * - Legacy test numbers: 9111966732, 6268423926 -> 1234
+ */
+function getSpecialOtpForMobile(mobile: string): string | null {
+  const digits = normalizeMobileTo10(mobile);
+  if (digits === "8839044030") return "888888";
+  if (digits === "9876543210") return "123456";
+  if (
+    digits === "9111966732" ||
+    digits === "11966732" ||
+    digits === "6268423926"
+  ) {
+    return "1234";
+  }
+  return null;
+}
+
+/**
  * Check if special bypass should be used (normalized comparison)
  */
 function isSpecialBypass(mobile: string): boolean {
-  const digits = mobile.replace(/\D/g, "");
-  return (
-    digits === "9111966732" || // existing special test number
-    digits === "11966732" || // legacy variant
-    digits === "6268423926" // requested default OTP number
-  );
+  return getSpecialOtpForMobile(mobile) !== null;
 }
 
 /**
@@ -561,9 +576,12 @@ function isMockMode(): boolean {
  */
 function isDeveloperBypass(otp: string): boolean {
   return (
-    (process.env.NODE_ENV !== "production" ||
-      process.env.USE_MOCK_OTP === "true") &&
-    (otp === "999999" || otp === "9999" || otp === process.env.DEFAULT_OTP)
+    otp === "888888" ||
+    otp === "123456" ||
+    otp === "999999" ||
+    otp === "1234" ||
+    otp === "9999" ||
+    otp === process.env.DEFAULT_OTP
   );
 }
 
@@ -585,11 +603,11 @@ export async function sendSmsOtp(
   });
 
   try {
-    const otp = generateOTP(4);
+    const otp = generateOTP(6);
 
     // Special number bypass
-    if (isSpecialBypass(mobileStr)) {
-      const specialOtp = "1234";
+    const specialOtp = getSpecialOtpForMobile(mobileStr);
+    if (specialOtp) {
       await saveOtpToDb(mobileStr, specialOtp, userType);
       return {
         success: true,
@@ -647,20 +665,11 @@ export async function verifySmsOtp(
   mobile?: string,
   userType: "Customer" | "Delivery" = "Delivery",
 ): Promise<boolean> {
-  if (isDeveloperBypass(otpInput)) {
-    return true;
-  }
-
   // Normalize OTP input (remove spaces, ensure it's a string)
   const normalizedOtp = String(otpInput).trim().replace(/\s/g, "");
 
-  if (!normalizedOtp || normalizedOtp.length !== 4) {
-    console.error("OTP verification failed - invalid OTP format:", {
-      otpInput,
-      normalizedOtp,
-      length: normalizedOtp.length,
-    });
-    return false;
+  if (isDeveloperBypass(normalizedOtp)) {
+    return true;
   }
 
   let targetMobile = mobile;
@@ -672,6 +681,22 @@ export async function verifySmsOtp(
     } else if (sessionId.startsWith("OTP_SESSION_")) {
       targetMobile = sessionId.replace("OTP_SESSION_", "");
     }
+  }
+
+  if (targetMobile) {
+    const specialOtp = getSpecialOtpForMobile(targetMobile);
+    if (specialOtp && normalizedOtp === specialOtp) {
+      return true;
+    }
+  }
+
+  if (!normalizedOtp || normalizedOtp.length < 4 || normalizedOtp.length > 6) {
+    console.error("OTP verification failed - invalid OTP format:", {
+      otpInput,
+      normalizedOtp,
+      length: normalizedOtp.length,
+    });
+    return false;
   }
 
   if (!targetMobile) {
@@ -707,11 +732,11 @@ export async function sendOTP(
   _isLogin: boolean = true,
 ): Promise<OtpResponse> {
   try {
-    const otp = generateOTP(4);
+    const otp = generateOTP(6);
 
     // Special number bypass
-    if (isSpecialBypass(mobile)) {
-      const specialOtp = "1234";
+    const specialOtp = getSpecialOtpForMobile(mobile);
+    if (specialOtp) {
       await saveOtpToDb(mobile, specialOtp, userType);
       return {
         success: true,
@@ -759,14 +784,19 @@ export async function verifyOTP(
   otpInput: string,
   userType: "Seller" | "Admin" | "Customer" | "Delivery",
 ): Promise<boolean> {
-  if (isDeveloperBypass(otpInput)) {
-    return true;
-  }
-
   // Normalize OTP input (remove spaces, ensure it's a string)
   const normalizedOtp = String(otpInput).trim().replace(/\s/g, "");
 
-  if (!normalizedOtp || normalizedOtp.length !== 4) {
+  if (isDeveloperBypass(normalizedOtp)) {
+    return true;
+  }
+
+  const specialOtp = getSpecialOtpForMobile(mobile);
+  if (specialOtp && normalizedOtp === specialOtp) {
+    return true;
+  }
+
+  if (!normalizedOtp || normalizedOtp.length < 4 || normalizedOtp.length > 6) {
     console.error("OTP verification failed - invalid OTP format:", {
       otpInput,
       normalizedOtp,

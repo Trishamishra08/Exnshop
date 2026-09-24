@@ -9,7 +9,7 @@ export default function Login() {
   const navigate = useNavigate();
   const { login } = useAuth();
   const { setLanguage } = useLanguage();
-  const [mobileNumber, setMobileNumber] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('8839044030');
   const [showOTP, setShowOTP] = useState(false);
   const [sessionId, setSessionId] = useState('');
   const [loading, setLoading] = useState(false);
@@ -226,7 +226,7 @@ export default function Login() {
                   Verify Mobile Number
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 font-normal mt-1">
-                  Enter the 4-digit code sent to{' '}
+                  Enter the 6-digit code sent to{' '}
                   <span className="font-bold text-blue-700">+91 {mobileNumber}</span>
                 </p>
               </div>

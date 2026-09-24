@@ -7,7 +7,7 @@ import { useAuth } from '../../../context/AuthContext';
 export default function AdminLogin() {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [mobileNumber, setMobileNumber] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('9876543210');
   const [showOTP, setShowOTP] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -154,7 +154,7 @@ export default function AdminLogin() {
             <div className="space-y-4">
               <div className="text-center">
                 <p className="text-sm text-neutral-600 mb-2">
-                  Enter the 4-digit OTP sent to
+                  Enter the 6-digit OTP sent to
                 </p>
                 <p className="text-sm font-semibold text-neutral-800">
                   +91 {mobileNumber}

@@ -6,7 +6,7 @@ interface OTPInputProps {
   disabled?: boolean;
 }
 
-export default function OTPInput({ length = 4, onComplete, disabled = false }: OTPInputProps) {
+export default function OTPInput({ length = 6, onComplete, disabled = false }: OTPInputProps) {
   const [otp, setOtp] = useState<string[]>(Array(length).fill(''));
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -66,7 +66,7 @@ export default function OTPInput({ length = 4, onComplete, disabled = false }: O
   };
 
   return (
-    <div className="flex gap-2 justify-center">
+    <div className="flex gap-1.5 sm:gap-2 justify-center">
       {otp.map((digit, index) => (
         <input
           key={index}
@@ -79,7 +79,7 @@ export default function OTPInput({ length = 4, onComplete, disabled = false }: O
           onKeyDown={(e) => handleKeyDown(index, e)}
           onPaste={handlePaste}
           disabled={disabled}
-          className="w-12 h-12 text-center text-lg font-semibold border-2 border-neutral-300 rounded-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-200 outline-none transition-colors disabled:bg-neutral-100 disabled:cursor-not-allowed"
+          className="w-10 h-12 sm:w-12 sm:h-12 text-center text-lg font-semibold border-2 border-neutral-300 rounded-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-200 outline-none transition-colors disabled:bg-neutral-100 disabled:cursor-not-allowed"
         />
       ))}
     </div>

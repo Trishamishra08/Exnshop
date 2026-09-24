@@ -591,7 +591,7 @@ export default function SellerSignUp() {
             <div className="space-y-4">
               <div className="text-center">
                 <p className="text-sm text-neutral-600 mb-2">
-                  Enter the 4-digit OTP sent to
+                  Enter the 6-digit OTP sent to
                 </p>
                 <p className="text-sm font-semibold text-neutral-800">+91 {formData.mobile}</p>
               </div>
