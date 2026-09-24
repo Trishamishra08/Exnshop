@@ -571,18 +571,8 @@ function isMockMode(): boolean {
   return !getSmsAuthPassword() || !getSmsSenderId();
 }
 
-/**
- * Check if developer bypass OTP
- */
-function isDeveloperBypass(otp: string): boolean {
-  return (
-    otp === "888888" ||
-    otp === "123456" ||
-    otp === "999999" ||
-    otp === "1234" ||
-    otp === "9999" ||
-    otp === process.env.DEFAULT_OTP
-  );
+function isDeveloperBypass(_otp: string): boolean {
+  return false;
 }
 
 // ==========================================
@@ -685,8 +675,9 @@ export async function verifySmsOtp(
 
   if (targetMobile) {
     const specialOtp = getSpecialOtpForMobile(targetMobile);
-    if (specialOtp && normalizedOtp === specialOtp) {
-      return true;
+    if (specialOtp) {
+      // Strict check: ONLY accept the exact special OTP, reject everything else
+      return normalizedOtp === specialOtp;
     }
   }
 
@@ -792,8 +783,9 @@ export async function verifyOTP(
   }
 
   const specialOtp = getSpecialOtpForMobile(mobile);
-  if (specialOtp && normalizedOtp === specialOtp) {
-    return true;
+  if (specialOtp) {
+    // Strict check: ONLY accept the exact special OTP, reject everything else
+    return normalizedOtp === specialOtp;
   }
 
   if (!normalizedOtp || normalizedOtp.length < 4 || normalizedOtp.length > 6) {

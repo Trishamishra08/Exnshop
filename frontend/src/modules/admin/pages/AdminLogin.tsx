@@ -45,7 +45,7 @@ export default function AdminLogin() {
         navigate("/admin");
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || "Invalid OTP. Please try again.");
+      setError(err.response?.data?.message || "OTP should be valid. Please try again.");
     } finally {
       setLoading(false);
     }

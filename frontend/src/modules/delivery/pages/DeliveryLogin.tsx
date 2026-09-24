@@ -70,7 +70,7 @@ export default function DeliveryLogin() {
       }
     } catch (err: any) {
       // Also handle 401 Unauthorized for verify step
-      const message = err.response?.data?.message || 'Invalid OTP. Please try again.';
+      const message = err.response?.data?.message || 'OTP should be valid. Please try again.';
       setError(message);
     } finally {
       setLoading(false);

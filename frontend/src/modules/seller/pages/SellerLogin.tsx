@@ -65,7 +65,7 @@ export default function SellerLogin() {
       }
     } catch (err: any) {
       // On error, show error message and stay on the same page
-      setError(err.response?.data?.message || 'Invalid OTP. Please try again.');
+      setError(err.response?.data?.message || 'OTP should be valid. Please try again.');
       setLoading(false);
     }
   };

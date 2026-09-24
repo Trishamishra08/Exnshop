@@ -63,7 +63,7 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
   if (!isValid) {
     return res.status(401).json({
       success: false,
-      message: "Invalid or expired OTP",
+      message: "OTP should be valid. Please try again.",
     });
   }
 

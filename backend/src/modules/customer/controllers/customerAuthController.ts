@@ -80,7 +80,7 @@ export const verifySmsOtp = asyncHandler(
     if (!isValid) {
       return res.status(401).json({
         success: false,
-        message: "Invalid or expired OTP",
+        message: "OTP should be valid. Please try again.",
       });
     }
 
