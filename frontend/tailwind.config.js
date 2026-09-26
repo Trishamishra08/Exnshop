@@ -37,6 +37,12 @@ export default {
           yellow: '#FFD700',
         },
         cream: '#EEF3FF',
+        // E-Commerce (Shop All) mode accent — red/maroon, distinct from Quick's blue
+        ecommerce: {
+          DEFAULT: '#C1121F',
+          dark: '#8F0E17',
+          light: '#E23F4C',
+        },
         // Remap legacy green brand utilities to Exnshop blue
         green: {
           50: '#EEF3FF',

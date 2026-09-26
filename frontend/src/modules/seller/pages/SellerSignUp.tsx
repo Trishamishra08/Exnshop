@@ -33,6 +33,7 @@ export default function SellerSignUp() {
     branch: '',
     accountNumber: '',
     ifsc: '',
+    channels: ['Quick'] as ('Quick' | 'ECommerce')[],
   });
   const [showOTP, setShowOTP] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -80,6 +81,16 @@ export default function SellerSignUp() {
     }
   };
 
+  const toggleChannel = (channel: 'Quick' | 'ECommerce') => {
+    setFormData(prev => {
+      const exists = prev.channels.includes(channel);
+      const nextChannels = exists
+        ? prev.channels.filter(c => c !== channel)
+        : [...prev.channels, channel];
+      return { ...prev, channels: nextChannels };
+    });
+  };
+
   const toggleCategory = (cat: string) => {
     setFormData(prev => {
       const exists = prev.categories.includes(cat);
@@ -116,6 +127,10 @@ export default function SellerSignUp() {
     }
     if (formData.categories.length === 0) {
       setError('Please select at least one category');
+      return;
+    }
+    if (formData.channels.length === 0) {
+      setError('Please select at least one commerce channel (Quick Commerce or E-Commerce)');
       return;
     }
     if (!formData.address && !formData.searchLocation) {
@@ -162,6 +177,7 @@ export default function SellerSignUp() {
         latitude: formData.latitude,
         longitude: formData.longitude,
         serviceRadiusKm: formData.serviceRadiusKm,
+        channels: formData.channels,
       });
 
       if (response.success) {
@@ -351,6 +367,44 @@ export default function SellerSignUp() {
                   )}
                   {formData.categories.length === 0 && categories.length > 0 && (
                     <p className="text-xs text-red-600 mt-1">Select at least one category</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    Sell Via <span className="text-red-500">*</span>
+                    <span className="text-xs font-normal text-neutral-500 ml-1">(select one or both)</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleChannel('Quick')}
+                      disabled={loading}
+                      className={`flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-lg border text-left transition-colors ${
+                        formData.channels.includes('Quick')
+                          ? 'bg-teal-50 border-teal-500 ring-1 ring-teal-500'
+                          : 'bg-white border-neutral-300 hover:bg-neutral-50'
+                      }`}
+                    >
+                      <span className="text-sm font-semibold text-neutral-900">Quick Commerce</span>
+                      <span className="text-xs text-neutral-500">Instant delivery from your store</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => toggleChannel('ECommerce')}
+                      disabled={loading}
+                      className={`flex flex-col items-start gap-0.5 px-3 py-2.5 rounded-lg border text-left transition-colors ${
+                        formData.channels.includes('ECommerce')
+                          ? 'bg-teal-50 border-teal-500 ring-1 ring-teal-500'
+                          : 'bg-white border-neutral-300 hover:bg-neutral-50'
+                      }`}
+                    >
+                      <span className="text-sm font-semibold text-neutral-900">E-Commerce</span>
+                      <span className="text-xs text-neutral-500">Standard shipping via Shiprocket</span>
+                    </button>
+                  </div>
+                  {formData.channels.length === 0 && (
+                    <p className="text-xs text-red-600 mt-1">Select at least one commerce channel</p>
                   )}
                 </div>
 

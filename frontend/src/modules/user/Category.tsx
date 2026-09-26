@@ -10,6 +10,7 @@ import {
 import { useLocation as useLocationContext } from "../../hooks/useLocation";
 import { useTranslation } from "../../hooks/useTranslation";
 import { getIconByName } from "../../utils/iconLibrary";
+import { useCommerceMode } from "../../context/CommerceModeContext";
 
 export default function CategoryPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +18,7 @@ export default function CategoryPage() {
   const [searchParams] = useSearchParams();
   const { location: userLocation } = useLocationContext();
   const { t, getTranslatedField } = useTranslation();
+  const { mode } = useCommerceMode();
 
   const [category, setCategory] = useState<ApiCategory | null>(null);
   const [subcategories, setSubcategories] = useState<ApiCategory[]>([]);
@@ -158,7 +160,7 @@ export default function CategoryPage() {
     setLoading(true);
     setError(null);
     try {
-      const params: any = { category: category?._id || id };
+      const params: any = { category: category?._id || id, mode: mode === 'ECommerce' ? 'ecommerce' : 'quick' };
       if (selectedSubcategory !== "all") {
         params.subcategory = selectedSubcategory;
       }
@@ -192,7 +194,7 @@ export default function CategoryPage() {
     if (id) {
       fetchProducts();
     }
-  }, [id, selectedSubcategory, category?._id, userLocation]);
+  }, [id, selectedSubcategory, category?._id, userLocation, mode]);
 
   // Sync selectedFilters with appliedFilters when modal opens
   useEffect(() => {

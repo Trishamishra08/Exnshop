@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getSettlementOrders, type SettlementOrderItem } from '../../../services/api/admin/adminOrderService';
+import { useAdminMode } from '../context/AdminModeContext';
 
 export default function AdminSettlement() {
+  const { mode } = useAdminMode();
   const [orders, setOrders] = useState<SettlementOrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
@@ -15,6 +17,7 @@ export default function AdminSettlement() {
         const res = await getSettlementOrders({
           page,
           limit: 15,
+          channel: mode,
         });
         if (res.success && res.data) {
           setOrders(res.data.orders);
@@ -28,7 +31,7 @@ export default function AdminSettlement() {
       }
     };
     fetchData();
-  }, [page]);
+  }, [page, mode]);
 
   const formatDate = (d: string) => {
     if (!d) return '—';

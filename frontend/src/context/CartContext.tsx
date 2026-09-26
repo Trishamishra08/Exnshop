@@ -2,6 +2,7 @@ import { createContext, useContext, useState, ReactNode, useMemo, useEffect, use
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { useLocation } from '../hooks/useLocation';
+import { useCommerceMode } from './CommerceModeContext';
 import { Cart, CartItem } from '../types/cart';
 import { Product } from '../types/domain';
 import {
@@ -13,7 +14,8 @@ import {
 } from '../services/api/customerCartService';
 import { calculateProductPrice } from '../utils/priceUtils';
 
-const CART_STORAGE_KEY = 'saved_cart';
+const getCartStorageKey = (mode: 'Quick' | 'ECommerce') =>
+  mode === 'ECommerce' ? 'saved_cart_ecommerce' : 'saved_cart_quick';
 
 interface AddToCartEvent {
   product: Product;
@@ -44,9 +46,12 @@ interface ExtendedCartItem extends CartItem {
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  // Initialize state from localStorage for persistence on refresh
+  const { mode } = useCommerceMode();
+  const modeRef = useRef(mode);
+
+  // Initialize state from localStorage for persistence on refresh (scoped to the active commerce mode)
   const [items, setItems] = useState<ExtendedCartItem[]>(() => {
-    const saved = localStorage.getItem(CART_STORAGE_KEY);
+    const saved = localStorage.getItem(getCartStorageKey(mode));
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -98,7 +103,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       clearTimeout(saveCartTimeoutRef.current);
     }
     saveCartTimeoutRef.current = setTimeout(() => {
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
+      localStorage.setItem(getCartStorageKey(mode), JSON.stringify(items));
     }, 500); // 500ms debounce
 
     return () => {
@@ -106,7 +111,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         clearTimeout(saveCartTimeoutRef.current);
       }
     };
-  }, [items]);
+  }, [items, mode]);
 
   // Helper to sync cart from API
   const fetchCart = useCallback(async (
@@ -132,7 +137,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const response = await getCart({
         latitude: queryLat,
         longitude: queryLng,
-        deliveryOption: deliveryOption
+        deliveryOption: deliveryOption,
+        channel: mode
       });
       if (response && response.data && response.data.items) {
         const newItems = mapApiItemsToState(response.data.items);
@@ -164,7 +170,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, user?.userType]);
+  }, [isAuthenticated, user?.userType, mode]);
 
   // Load cart on auth change
   useEffect(() => {
@@ -175,6 +181,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }
   }, [isAuthenticated, user?.userType, fetchCart]);
+
+  // When the active commerce mode changes, switch to that mode's own cart
+  // (separate cart per mode — never merges Quick and E-Commerce items)
+  useEffect(() => {
+    if (modeRef.current === mode) return;
+    modeRef.current = mode;
+
+    if (isAuthenticated && user?.userType === 'Customer') {
+      fetchCart();
+    } else {
+      const saved = localStorage.getItem(getCartStorageKey(mode));
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setItems(Array.isArray(parsed) ? parsed.filter((item: any) => item?.product) : []);
+        } catch {
+          setItems([]);
+        }
+      } else {
+        setItems([]);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   // Sync localStorage items to backend on mount (one-time sync)
   useEffect(() => {
@@ -200,7 +230,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
                   item.quantity,
                   variation,
                   location?.latitude,
-                  location?.longitude
+                  location?.longitude,
+                  undefined,
+                  mode
                 );
               } catch (itemErr) {
                 // Silently skip stale/unserviceable local items during initial auth sync
@@ -369,7 +401,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
           1,
           variation,
           location?.latitude,
-          location?.longitude
+          location?.longitude,
+          undefined,
+          mode
         );
         if (response && response.data && response.data.items) {
           // Atomic update from server response
@@ -418,7 +452,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         const response = await apiRemoveFromCart(
           itemToRemove.id as string,
           location?.latitude,
-          location?.longitude
+          location?.longitude,
+          undefined,
+          mode
         );
         if (response && response.data && response.data.items) {
           setItems(mapApiItemsToState(response.data.items));
@@ -512,7 +548,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
           itemToUpdate.id as string,
           quantity,
           location?.latitude,
-          location?.longitude
+          location?.longitude,
+          undefined,
+          mode
         );
         if (response && response.data && response.data.items) {
           setItems(mapApiItemsToState(response.data.items));
@@ -538,7 +576,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const clearCart = async () => {
     setItems([]);
     try {
-      await apiClearCart();
+      await apiClearCart(mode);
     } catch (error) {
       console.error("Clear cart failed", error);
       await fetchCart();

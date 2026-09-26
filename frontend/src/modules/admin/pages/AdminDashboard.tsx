@@ -22,10 +22,12 @@ import {
   type TodaySales,
 } from "../../../services/api/admin/adminDashboardService";
 import { getFinancialDashboard, WalletStats } from "../../../services/api/admin/adminWalletService";
+import { useAdminMode } from "../context/AdminModeContext";
 
 export default function AdminDashboard() {
   const { isAuthenticated, token } = useAuth();
   const { t } = useLanguage();
+  const { mode } = useAdminMode();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [newOrders, setNewOrders] = useState<RecentOrder[]>([]);
   const [topSellers, setTopSellers] = useState<TopSeller[]>([]);
@@ -71,14 +73,14 @@ export default function AdminDashboard() {
           todaySalesResponse,
           financeStatsResponse,
         ] = await Promise.all([
-          getDashboardStats(),
-          getRecentOrders(10),
-          getTopSellers(10),
-          getSalesByLocation(),
-          getSalesAnalytics("day"), // Use daily data for the sales line chart
-          getOrderAnalytics("month"),
-          getOrderAnalytics("day"),
-          getTodaySales(),
+          getDashboardStats(mode),
+          getRecentOrders(10, mode),
+          getTopSellers(10, mode),
+          getSalesByLocation(mode),
+          getSalesAnalytics("day", mode), // Use daily data for the sales line chart
+          getOrderAnalytics("month", mode),
+          getOrderAnalytics("day", mode),
+          getTodaySales(mode),
           getFinancialDashboard(),
         ]);
 
@@ -132,7 +134,7 @@ export default function AdminDashboard() {
     };
 
     fetchDashboardData();
-  }, [isAuthenticated, token]);
+  }, [isAuthenticated, token, mode]);
 
   // Icons for KPI cards
   const userIcon = (

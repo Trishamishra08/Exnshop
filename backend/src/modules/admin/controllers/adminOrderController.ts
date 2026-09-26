@@ -28,9 +28,14 @@ export const getAllOrders = asyncHandler(
       dateFrom,
       dateTo,
       search,
+      channel,
     } = req.query;
 
     const query: any = { status: { $ne: "Pending" } };
+
+    if (channel === "Quick" || channel === "ECommerce") {
+      query.channel = channel;
+    }
 
     if (status) {
       if (status === "Tracking") {
@@ -102,8 +107,11 @@ export const getAllOrders = asyncHandler(
  */
 export const getSettlementOrders = asyncHandler(
   async (req: Request, res: Response) => {
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, channel } = req.query;
     const match: any = { status: "Delivered", paymentMethod: "COD" };
+    if (channel === "Quick" || channel === "ECommerce") {
+      match.channel = channel;
+    }
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
     const limitNum = parseInt(limit as string);
 
@@ -529,7 +537,7 @@ export const assignDeliveryBoy = asyncHandler(
 export const getOrdersByStatus = asyncHandler(
   async (req: Request, res: Response) => {
     const { status } = req.params;
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, channel } = req.query;
 
     const validStatuses = [
       "Received",
@@ -564,15 +572,20 @@ export const getOrdersByStatus = asyncHandler(
       ? { $in: ["Out for Delivery", "Out For Delivery"] }
       : matchedStatus;
 
+    const byStatusQuery: any = { status: statusQuery };
+    if (channel === "Quick" || channel === "ECommerce") {
+      byStatusQuery.channel = channel;
+    }
+
     const [orders, total] = await Promise.all([
-      Order.find({ status: statusQuery })
+      Order.find(byStatusQuery)
         .populate("customer", "name email phone")
         .populate("deliveryBoy", "name mobile")
         .populate("items")
         .sort({ orderDate: -1 })
         .skip(skip)
         .limit(parseInt(limit as string)),
-      Order.countDocuments({ status: statusQuery }),
+      Order.countDocuments(byStatusQuery),
     ]);
 
     return res.status(200).json({
@@ -826,10 +839,13 @@ export const processReturnRequest = asyncHandler(
  */
 export const exportOrders = asyncHandler(
   async (req: Request, res: Response) => {
-    const { status, dateFrom, dateTo } = req.query;
+    const { status, dateFrom, dateTo, channel } = req.query;
 
     const query: any = {};
     if (status) query.status = status;
+    if (channel === "Quick" || channel === "ECommerce") {
+      query.channel = channel;
+    }
     if (dateFrom || dateTo) {
       query.orderDate = {};
       if (dateFrom) query.orderDate.$gte = new Date(dateFrom as string);
@@ -880,5 +896,108 @@ export const exportOrders = asyncHandler(
       `attachment; filename=orders_${Date.now()}.csv`,
     );
     res.send(csvContent);
+  },
+);
+
+/**
+ * List E-Commerce channel orders for manual shipment management
+ * (stand-in admin UI until Shiprocket is connected and automates this)
+ */
+export const getShipmentOrders = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { page = 1, limit = 10, status, search } = req.query;
+
+    const query: any = { channel: "ECommerce", status: { $ne: "Pending" } };
+
+    if (status) {
+      query.status = status;
+    }
+    if (search) {
+      query.$or = [
+        { orderNumber: { $regex: search as string, $options: "i" } },
+        { customerName: { $regex: search as string, $options: "i" } },
+        { "shiprocket.awbCode": { $regex: search as string, $options: "i" } },
+      ];
+    }
+
+    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+
+    const [orders, total] = await Promise.all([
+      Order.find(query)
+        .populate("customer", "name email phone")
+        .sort({ orderDate: -1 })
+        .skip(skip)
+        .limit(parseInt(limit as string)),
+      Order.countDocuments(query),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      message: "Shipment orders fetched successfully",
+      data: orders,
+      pagination: {
+        page: parseInt(page as string),
+        limit: parseInt(limit as string),
+        total,
+        pages: Math.ceil(total / parseInt(limit as string)),
+      },
+    });
+  },
+);
+
+const SHIPMENT_STATUSES = ["Processed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"];
+
+/**
+ * Manually update shipment details (courier, AWB, tracking URL) and/or the
+ * order status for an E-Commerce order. This is the manual fallback admins
+ * use until the real Shiprocket integration automates it via webhook.
+ */
+export const updateShipment = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { courierName, awbCode, trackingUrl, orderStatus } = req.body;
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+    if (order.channel !== "ECommerce") {
+      return res.status(400).json({
+        success: false,
+        message: "Shipment management only applies to E-Commerce channel orders",
+      });
+    }
+
+    if (orderStatus) {
+      const matchedStatus = SHIPMENT_STATUSES.find(
+        (s) => s.toLowerCase() === String(orderStatus).toLowerCase()
+      );
+      if (!matchedStatus) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid status. Must be one of: ${SHIPMENT_STATUSES.join(", ")}`,
+        });
+      }
+      order.status = matchedStatus as typeof order.status;
+      if (matchedStatus === "Delivered") {
+        order.deliveredAt = new Date();
+      }
+    }
+
+    order.shiprocket = {
+      ...order.shiprocket,
+      ...(courierName !== undefined && { courierName }),
+      ...(awbCode !== undefined && { awbCode }),
+      ...(trackingUrl !== undefined && { trackingUrl }),
+      ...(orderStatus && { status: orderStatus }),
+    };
+
+    await order.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Shipment updated successfully",
+      data: order,
+    });
   },
 );

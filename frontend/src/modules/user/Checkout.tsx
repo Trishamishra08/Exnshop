@@ -7,6 +7,7 @@ import { useLocation as useLocationContext } from "../../hooks/useLocation";
 import { useToast } from "../../context/ToastContext";
 import { useAuth } from "../../context/AuthContext";
 import { useAppSettings } from "../../context/AppSettingsContext";
+import { useCommerceMode } from "../../context/CommerceModeContext";
 
 // import { products } from '../../data/products'; // Removed
 import { OrderAddress, Order } from "../../types/order";
@@ -77,11 +78,20 @@ export default function Checkout() {
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [useWallet, setUseWallet] = useState<boolean>(false);
 
+  const { mode } = useCommerceMode();
+
   // Delivery Option State
   const [deliveryOption, setDeliveryOption] = useState<"Instant" | "Standard">(
     "Standard",
   );
   const hasSkippedInitialCartRefreshRef = useRef(false);
+
+  // E-Commerce orders always ship "Standard" (via Shiprocket) — there's no instant/local rider option
+  useEffect(() => {
+    if (mode === "ECommerce" && deliveryOption !== "Standard") {
+      setDeliveryOption("Standard");
+    }
+  }, [mode, deliveryOption]);
 
   // Refresh cart delivery fee when selected address or delivery option changes
   useEffect(() => {
@@ -319,13 +329,14 @@ export default function Checkout() {
                   (product.categoryId as any).id;
           }
 
+          const modeParam = mode === "ECommerce" ? "ecommerce" : "quick";
           if (catId) {
-            response = await getProducts({ category: catId, limit: 10 });
+            response = await getProducts({ category: catId, limit: 10, mode: modeParam });
           } else {
-            response = await getProducts({ limit: 10, sort: "popular" });
+            response = await getProducts({ limit: 10, sort: "popular", mode: modeParam });
           }
         } else {
-          response = await getProducts({ limit: 10, sort: "popular" });
+          response = await getProducts({ limit: 10, sort: "popular", mode: mode === "ECommerce" ? "ecommerce" : "quick" });
         }
 
         if (response && response.data) {
@@ -1739,7 +1750,8 @@ export default function Checkout() {
         </div>
       )}
 
-      {/* Delivery Option Selection */}
+      {/* Delivery Option Selection — Quick Commerce only (E-Commerce always ships Standard via Shiprocket) */}
+      {mode === "Quick" && (
       <div className="px-4 md:px-6 lg:px-8 py-3 border-b border-neutral-200">
         <h2 className="text-sm font-bold text-neutral-900 mb-3">
           Select Delivery Option
@@ -1804,6 +1816,7 @@ export default function Checkout() {
           </button>
         </div>
       </div>
+      )}
 
       {/* Wallet Balance Usage Toggle */}
       <div className="px-4 md:px-6 lg:px-8 py-3 border-b border-neutral-200 bg-emerald-50/40">

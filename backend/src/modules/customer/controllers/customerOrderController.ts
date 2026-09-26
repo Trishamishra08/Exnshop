@@ -18,6 +18,7 @@ import Coupon from "../../../models/Coupon";
 import Return from "../../../models/Return";
 import { debitWallet } from "../../../services/walletManagementService";
 import { commitCouponUsage } from "../../../services/couponService";
+import { createShiprocketOrder } from "../../../services/shiprocketService";
 
 // Create a new order
 export const createOrder = async (req: Request, res: Response) => {
@@ -35,7 +36,7 @@ export const createOrder = async (req: Request, res: Response) => {
       session = null;
     }
 
-    const { items, address, paymentMethod, fees, deliveryOption, couponCode, tipAmount, giftPackaging, useWallet } = req.body;
+    const { items, address, paymentMethod, fees, deliveryOption, couponCode, tipAmount, giftPackaging, useWallet, channel } = req.body;
     const userId = req.user!.userId;
 
     // Log incoming request for debugging (development mode only)
@@ -177,6 +178,7 @@ export const createOrder = async (req: Request, res: Response) => {
       paymentStatus: "Pending",
       status: (paymentMethod === "Online" || paymentMethod === "razorpay") ? "Pending" : "Received",
       deliveryOption: deliveryOption || "Standard",
+      channel: channel === "ECommerce" ? "ECommerce" : "Quick",
       subtotal: 0,
       tax: 0,
       shipping: fees?.deliveryFee || 0,
@@ -429,8 +431,11 @@ export const createOrder = async (req: Request, res: Response) => {
       });
     }
 
-    // Validate all sellers can deliver to user's location
-    if (sellerIds.size > 0) {
+    // Validate all sellers can deliver to user's location.
+    // This service-radius check only applies to Quick Commerce (instant, local delivery) —
+    // E-Commerce orders ship nationally via Shiprocket, so radius doesn't apply.
+    const orderChannel = channel === "ECommerce" ? "ECommerce" : "Quick";
+    if (orderChannel === "Quick" && sellerIds.size > 0) {
       const uniqueSellerIds = Array.from(sellerIds).map(
         (id) => new mongoose.Types.ObjectId(id),
       );
@@ -779,6 +784,27 @@ Final Total: ₹${computedFinalTotal.toFixed(2)}`);
       } catch (custNotifErr) {
         console.error("Error triggering customer order notification:", custNotifErr);
       }
+    }
+
+    // For confirmed E-Commerce orders, push the shipment to Shiprocket (non-blocking — never fails order creation)
+    if (
+      newOrder.channel === "ECommerce" &&
+      (newOrder.paymentStatus === "Paid" || newOrder.paymentMethod === "COD")
+    ) {
+      createShiprocketOrder(newOrder)
+        .then(async (result) => {
+          if (result.success) {
+            newOrder.shiprocket = {
+              orderId: result.orderId,
+              shipmentId: result.shipmentId,
+              status: result.isMock ? "Mock: Order Created" : "Order Created",
+            };
+            await newOrder.save();
+          } else {
+            console.error(`[Shiprocket] Failed to create shipment for order ${newOrder.orderNumber}:`, result.message);
+          }
+        })
+        .catch((err) => console.error("[Shiprocket] Unexpected error creating shipment:", err));
     }
 
     return res.status(201).json({

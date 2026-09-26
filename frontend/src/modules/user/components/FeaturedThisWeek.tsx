@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { getProducts } from '../../../services/api/customerProductService';
 import { useTranslation } from '../../../hooks/useTranslation';
+import { useCommerceMode } from '../../../context/CommerceModeContext';
 
 interface FeaturedCard {
   id: string;
@@ -31,6 +32,7 @@ const featuredCards: FeaturedCard[] = [
 
 export default function FeaturedThisWeek() {
   const { t, getTranslatedField } = useTranslation();
+  const { mode } = useCommerceMode();
   const [currentProductIndex, setCurrentProductIndex] = useState(0);
   const [newlyLaunchedProducts, setNewlyLaunchedProducts] = useState<any[]>([]);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -38,7 +40,7 @@ export default function FeaturedThisWeek() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await getProducts({ limit: 6 });
+        const res = await getProducts({ limit: 6, mode: mode === 'ECommerce' ? 'ecommerce' : 'quick' });
         if (res.success && res.data) {
           setNewlyLaunchedProducts(res.data);
         }
@@ -56,7 +58,7 @@ export default function FeaturedThisWeek() {
       }
     };
     fetchProducts();
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     if (newlyLaunchedProducts.length > 1) {

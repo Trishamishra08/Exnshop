@@ -3,6 +3,8 @@ import api from "../config";
 
 import { ApiResponse } from "./types";
 
+export type CommerceChannel = "Quick" | "ECommerce";
+
 export interface DashboardStats {
   totalUser: number;
   totalCategory: number;
@@ -62,11 +64,12 @@ export interface TodaySales {
 /**
  * Get dashboard statistics
  */
-export const getDashboardStats = async (): Promise<
-  ApiResponse<DashboardStats>
-> => {
+export const getDashboardStats = async (
+  channel?: CommerceChannel
+): Promise<ApiResponse<DashboardStats>> => {
   const response = await api.get<ApiResponse<DashboardStats>>(
-    "/admin/dashboard/stats"
+    "/admin/dashboard/stats",
+    { params: { channel } }
   );
   return response.data;
 };
@@ -75,12 +78,13 @@ export const getDashboardStats = async (): Promise<
  * Get sales analytics
  */
 export const getSalesAnalytics = async (
-  period?: "day" | "week" | "month" | "year"
+  period?: "day" | "week" | "month" | "year",
+  channel?: CommerceChannel
 ): Promise<ApiResponse<SalesAnalytics>> => {
   const response = await api.get<ApiResponse<SalesAnalytics>>(
     "/admin/dashboard/analytics",
     {
-      params: { period },
+      params: { period, channel },
     }
   );
   return response.data;
@@ -90,12 +94,13 @@ export const getSalesAnalytics = async (
  * Get top sellers
  */
 export const getTopSellers = async (
-  limit?: number
+  limit?: number,
+  channel?: CommerceChannel
 ): Promise<ApiResponse<TopSeller[]>> => {
   const response = await api.get<ApiResponse<TopSeller[]>>(
     "/admin/dashboard/top-sellers",
     {
-      params: { limit },
+      params: { limit, channel },
     }
   );
   return response.data;
@@ -105,12 +110,13 @@ export const getTopSellers = async (
  * Get recent orders
  */
 export const getRecentOrders = async (
-  limit?: number
+  limit?: number,
+  channel?: CommerceChannel
 ): Promise<ApiResponse<RecentOrder[]>> => {
   const response = await api.get<ApiResponse<RecentOrder[]>>(
     "/admin/dashboard/recent-orders",
     {
-      params: { limit },
+      params: { limit, channel },
     }
   );
   return response.data;
@@ -119,11 +125,12 @@ export const getRecentOrders = async (
 /**
  * Get sales by location
  */
-export const getSalesByLocation = async (): Promise<
-  ApiResponse<SalesByLocation[]>
-> => {
+export const getSalesByLocation = async (
+  channel?: CommerceChannel
+): Promise<ApiResponse<SalesByLocation[]>> => {
   const response = await api.get<ApiResponse<SalesByLocation[]>>(
-    "/admin/dashboard/sales-by-location"
+    "/admin/dashboard/sales-by-location",
+    { params: { channel } }
   );
   return response.data;
 };
@@ -131,9 +138,12 @@ export const getSalesByLocation = async (): Promise<
 /**
  * Get today's sales
  */
-export const getTodaySales = async (): Promise<ApiResponse<TodaySales>> => {
+export const getTodaySales = async (
+  channel?: CommerceChannel
+): Promise<ApiResponse<TodaySales>> => {
   const response = await api.get<ApiResponse<TodaySales>>(
-    "/admin/dashboard/today-sales"
+    "/admin/dashboard/today-sales",
+    { params: { channel } }
   );
   return response.data;
 };
@@ -142,12 +152,13 @@ export const getTodaySales = async (): Promise<ApiResponse<TodaySales>> => {
  * Get order analytics
  */
 export const getOrderAnalytics = async (
-  period?: "day" | "month"
+  period?: "day" | "month",
+  channel?: CommerceChannel
 ): Promise<ApiResponse<SalesAnalytics>> => {
   const response = await api.get<ApiResponse<SalesAnalytics>>(
     "/admin/dashboard/order-analytics",
     {
-      params: { period },
+      params: { period, channel },
     }
   );
   return response.data;

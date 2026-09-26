@@ -160,6 +160,10 @@ router.patch("/orders/:id/status", orderController.updateOrderStatus);
 router.patch("/orders/:id/assign-delivery", orderController.assignDeliveryBoy);
 router.get("/orders/export/csv", orderController.exportOrders);
 
+// ==================== Shipment Routes (E-Commerce channel, manual pre-Shiprocket) ====================
+router.get("/shipments", orderController.getShipmentOrders);
+router.patch("/shipments/:id", orderController.updateShipment);
+
 // ==================== Return Request Routes ====================
 router.get("/return-requests", orderController.getReturnRequests);
 router.get("/return-requests/:id", orderController.getReturnRequestById);

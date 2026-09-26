@@ -5,6 +5,7 @@ import SubCategory from "../../../models/SubCategory";
 import mongoose from "mongoose";
 import { findSellersWithinRange } from "../../../utils/locationHelper";
 import AppSettings from "../../../models/AppSettings";
+import Seller from "../../../models/Seller";
 
 // Get products with filtering options (public)
 export const getProducts = async (req: Request, res: Response) => {
@@ -22,6 +23,7 @@ export const getProducts = async (req: Request, res: Response) => {
       minDiscount,
       latitude, // User location latitude
       longitude, // User location longitude
+      mode, // Commerce mode: "quick" | "ecommerce"
     } = req.query;
 
     const query: any = {
@@ -34,21 +36,27 @@ export const getProducts = async (req: Request, res: Response) => {
       ],
     };
 
+    // Commerce channel filtering — only show products from sellers enabled for this mode
+    const channel = mode === "ecommerce" ? "ECommerce" : "Quick";
+    const channelSellerIds = await Seller.find({ channels: channel }).distinct("_id");
+    const channelSellerIdSet = new Set(channelSellerIds.map((id) => id.toString()));
+
     // Location-based filtering
     const userLat = latitude ? parseFloat(latitude as string) : null;
     const userLng = longitude ? parseFloat(longitude as string) : null;
 
-    let nearbySellerIds: mongoose.Types.ObjectId[] = [];
+    let nearbySellerIds: mongoose.Types.ObjectId[] = channelSellerIds as mongoose.Types.ObjectId[];
     if (userLat && userLng && !isNaN(userLat) && !isNaN(userLng)) {
-      // Find sellers within user's location range
-      nearbySellerIds = await findSellersWithinRange(userLat, userLng);
+      // Find sellers within user's location range, scoped to the active commerce channel
+      const nearby = await findSellersWithinRange(userLat, userLng);
+      nearbySellerIds = nearby.filter((id) => channelSellerIdSet.has(id.toString()));
+    }
 
-      if (nearbySellerIds.length > 0) {
-        // Filter products by sellers within range for normal in-range browsing
-        query.seller = { $in: nearbySellerIds };
-      }
-      // When nearbySellerIds is empty (no sellers in area), we do NOT restrict query.seller to []
-      // allowing customers to browse the full catalog with isAvailable: false
+    if (nearbySellerIds.length > 0) {
+      query.seller = { $in: nearbySellerIds };
+    } else {
+      // No sellers at all in this channel — return an empty result set rather than the full catalog
+      query.seller = { $in: [] };
     }
 
     // Helper to resolve category/subcategory ID from slug or ID
@@ -220,7 +228,8 @@ export const getProducts = async (req: Request, res: Response) => {
 export const getProductById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { latitude, longitude } = req.query; // User location
+    const { latitude, longitude, mode } = req.query; // User location + commerce mode
+    const channel = mode === "ecommerce" ? "ECommerce" : "Quick";
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -323,12 +332,18 @@ export const getProductById = async (req: Request, res: Response) => {
       similarProductsQuery.category = categoryId;
     }
 
-    // Filter similar products by location when sellers are in range
+    // Filter similar products by commerce channel, and by location when sellers are in range
+    const channelSellerIds = await Seller.find({ channels: channel }).distinct("_id");
+    const channelSellerIdSet = new Set(channelSellerIds.map((sid) => sid.toString()));
+    let similarSellerIds: mongoose.Types.ObjectId[] = channelSellerIds as mongoose.Types.ObjectId[];
     if (userLat && userLng && !isNaN(userLat) && !isNaN(userLng)) {
-      const nearbySellerIds = await findSellersWithinRange(userLat, userLng);
-      if (nearbySellerIds.length > 0) {
-        similarProductsQuery.seller = { $in: nearbySellerIds };
-      }
+      const nearby = await findSellersWithinRange(userLat, userLng);
+      similarSellerIds = nearby.filter((sid) => channelSellerIdSet.has(sid.toString()));
+    }
+    if (similarSellerIds.length > 0) {
+      similarProductsQuery.seller = { $in: similarSellerIds };
+    } else {
+      similarProductsQuery.seller = { $in: [] };
     }
 
     const similarProducts = await Product.find(similarProductsQuery)

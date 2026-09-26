@@ -14,6 +14,7 @@ export default function Login() {
   const [sessionId, setSessionId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [bgImgOk, setBgImgOk] = useState(true);
 
   const handleContinue = async () => {
     if (mobileNumber.length !== 10) return;
@@ -82,19 +83,18 @@ export default function Login() {
         backgroundColor: '#FFFFFF',
       }}
     >
-      {/* Subtle Soft Background Ambient Gradient Accents */}
-      <div
-        className="absolute -top-24 -right-24 w-80 h-80 rounded-full pointer-events-none opacity-40 blur-3xl"
-        style={{ background: '#EFF6FF' }}
-      />
-      <div
-        className="absolute top-1/3 -left-20 w-72 h-72 rounded-full pointer-events-none opacity-40 blur-3xl"
-        style={{ background: '#F0FDF4' }}
-      />
-      <div
-        className="absolute -bottom-10 right-4 w-72 h-72 rounded-full pointer-events-none opacity-40 blur-3xl"
-        style={{ background: '#FEF3C7' }}
-      />
+      {/* Full-page grocery/veggies background illustration (matches reference login design) */}
+      {bgImgOk && (
+        <img
+          src="/login_bg.png"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0"
+          loading="eager"
+          decoding="async"
+          onError={() => setBgImgOk(false)}
+        />
+      )}
 
       {/* Top Bar / Clean Circular Back Button */}
       <div className="w-full max-w-sm sm:max-w-md mx-auto flex items-center justify-between relative z-10 pt-1 pb-2">
@@ -124,11 +124,23 @@ export default function Login() {
 
           {/* Brand Tagline & Delivery Highlights */}
           <div className="space-y-0.5">
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
-              Shop Smart, Live Better
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              Shop Smart,{' '}
+              <span className="relative inline-block text-blue-600">
+                Live Better
+                <svg
+                  className="absolute left-0 -bottom-1 w-full"
+                  height="6"
+                  viewBox="0 0 100 6"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  <path d="M1 4 Q 25 1 50 3 T 99 3" stroke="#f59e0b" strokeWidth="2" fill="none" strokeLinecap="round" />
+                </svg>
+              </span>
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 font-medium tracking-wide">
-              Fast grocery & daily essentials delivery
+              Fast grocery & daily essentials delivered
             </p>
 
             {/* Quick Feature Badges (Lightweight Tinted Pills on White) */}
@@ -154,7 +166,7 @@ export default function Login() {
             <>
               {/* Form Header */}
               <div className="mb-4 text-center">
-                <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                   Log in
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 font-normal mt-1">
@@ -213,7 +225,12 @@ export default function Login() {
                       Sending OTP...
                     </span>
                   ) : (
-                    'Continue'
+                    <span className="inline-flex items-center gap-2">
+                      Continue
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M5 12h14M13 6l6 6-6 6" />
+                      </svg>
+                    </span>
                   )}
                 </button>
               </div>
@@ -222,7 +239,7 @@ export default function Login() {
             <>
               {/* OTP Verification Header */}
               <div className="w-full mb-4 text-center">
-                <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+                <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                   Verify Mobile Number
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 font-normal mt-1">

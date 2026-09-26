@@ -28,9 +28,11 @@ export const getHomeContent = async (
   longitude?: number,
   useCache: boolean = true,
   cacheTTL: number = 5 * 60 * 1000, // 5 minutes
-  skipLoader: boolean = false
+  skipLoader: boolean = false,
+  mode: 'Quick' | 'ECommerce' = 'Quick'
 ): Promise<HomeContentResponse> => {
-  const cacheKey = `home-content-${headerCategorySlug || 'all'}-${latitude || 0}-${longitude || 0}`;
+  const modeParam = mode === 'ECommerce' ? 'ecommerce' : 'quick';
+  const cacheKey = `home-content-${headerCategorySlug || 'all'}-${latitude || 0}-${longitude || 0}-${modeParam}`;
 
   const fetchFn = async () => {
     const params: any = headerCategorySlug ? { headerCategorySlug } : {};
@@ -38,6 +40,7 @@ export const getHomeContent = async (
       params.latitude = latitude;
       params.longitude = longitude;
     }
+    params.mode = modeParam;
     const response = await api.get<HomeContentResponse>("/customer/home", {
       params,
       skipLoader
@@ -58,9 +61,10 @@ export const getHomeContent = async (
 export const getStoreProducts = async (
   storeId: string,
   latitude?: number,
-  longitude?: number
+  longitude?: number,
+  mode: 'Quick' | 'ECommerce' = 'Quick'
 ): Promise<any> => {
-  const params: any = {};
+  const params: any = { mode: mode === 'ECommerce' ? 'ecommerce' : 'quick' };
   if (latitude !== undefined && longitude !== undefined) {
     params.latitude = latitude;
     params.longitude = longitude;

@@ -3,6 +3,7 @@ import { getAllSellers, updateSellerStatus, deleteSeller, Seller as SellerType, 
 import { getHeaderCategoriesAdmin, HeaderCategory } from '../../../services/api/headerCategoryService';
 import SellerServiceMap from '../components/SellerServiceMap';
 import ConfirmationModal from '../../../components/ConfirmationModal';
+import { useAdminMode } from '../context/AdminModeContext';
 
 interface Seller {
     _id: string;
@@ -100,6 +101,7 @@ const FALLBACK_LOGO =
     );
 
 export default function AdminManageSellerList() {
+    const { mode } = useAdminMode();
     const [sellers, setSellers] = useState<Seller[]>([]);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -134,7 +136,7 @@ export default function AdminManageSellerList() {
             try {
                 setLoading(true);
                 setError('');
-                const response = await getAllSellers();
+                const response = await getAllSellers({ channel: mode });
                 if (response.success && response.data) {
                     const mappedSellers = response.data.map(mapSellerToFrontend);
                     setSellers(mappedSellers);
@@ -157,7 +159,7 @@ export default function AdminManageSellerList() {
         };
 
         fetchSellers();
-    }, []);
+    }, [mode]);
 
     const handleSort = (column: string) => {
         if (sortColumn === column) {

@@ -35,6 +35,7 @@ export interface CreateOrderData {
         platformFee: number;
     };
     deliveryOption?: 'Instant' | 'Standard';
+    channel?: 'Quick' | 'ECommerce';
 }
 
 export interface OrderResponse {

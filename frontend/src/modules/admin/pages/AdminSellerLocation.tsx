@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getAllSellers, Seller as SellerType } from '../../../services/api/sellerService';
 import SellerServiceMap from '../components/SellerServiceMap';
+import { useAdminMode } from '../context/AdminModeContext';
 
 interface Seller {
   _id: string;
@@ -18,6 +19,7 @@ interface Seller {
 }
 
 export default function AdminSellerLocation() {
+  const { mode } = useAdminMode();
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [selectedSeller, setSelectedSeller] = useState<Seller | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -26,7 +28,7 @@ export default function AdminSellerLocation() {
   useEffect(() => {
     const fetchSellers = async () => {
       try {
-        const response = await getAllSellers();
+        const response = await getAllSellers({ channel: mode });
         // Handle ApiResponse format: { success: boolean, data: Seller[] }
         if (response.success && response.data) {
           const mappedSellers: Seller[] = response.data.map((seller: SellerType) => ({
@@ -62,7 +64,7 @@ export default function AdminSellerLocation() {
     };
 
     fetchSellers();
-  }, []);
+  }, [mode]);
 
   // Filter sellers based on search and status
   const filteredSellers = sellers.filter((seller) => {

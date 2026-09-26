@@ -4,11 +4,13 @@ import ProductCard from './components/ProductCard';
 import { getProducts } from '../../services/api/customerProductService';
 import { Product } from '../../types/domain';
 import { useLocation } from '../../hooks/useLocation';
+import { useCommerceMode } from '../../context/CommerceModeContext';
 
 export default function Search() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { location } = useLocation();
+  const { mode } = useCommerceMode();
   const searchQuery = searchParams.get('q') || '';
   const [searchInput, setSearchInput] = useState(searchQuery);
   const [searchResults, setSearchResults] = useState<Product[]>([]);
@@ -48,7 +50,7 @@ export default function Search() {
 
       setLoading(true);
       try {
-        const params: any = { search: q };
+        const params: any = { search: q, mode: mode === 'ECommerce' ? 'ecommerce' : 'quick' };
         // Include user location for seller service radius filtering
         if (location?.latitude && location?.longitude) {
           params.latitude = location.latitude;
@@ -65,7 +67,7 @@ export default function Search() {
     };
 
     fetchProducts();
-  }, [searchParams, location]);
+  }, [searchParams, location, mode]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,6 +1,7 @@
 import { useState, ReactNode } from 'react';
 import AdminSidebar from './AdminSidebar';
 import AdminHeader from './AdminHeader';
+import { AdminModeProvider } from '../context/AdminModeContext';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -14,6 +15,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   };
 
   return (
+    <AdminModeProvider>
     <div className="flex min-h-screen bg-neutral-50 overflow-x-hidden">
       {/* Overlay for mobile */}
       {isSidebarOpen && (
@@ -45,6 +47,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 bg-neutral-50 min-w-0">{children}</main>
       </div>
     </div>
+    </AdminModeProvider>
   );
 }
 

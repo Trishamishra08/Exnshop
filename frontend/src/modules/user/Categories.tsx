@@ -4,6 +4,9 @@ import { getHeaderCategoriesPublic, HeaderCategory } from "../../services/api/he
 import { getCategories, Category as ApiCategory } from "../../services/api/customerProductService";
 import { getIconByName } from "../../utils/iconLibrary";
 import { useTranslation } from "../../hooks/useTranslation";
+import { useLocation } from "../../hooks/useLocation";
+import { useAppSettings } from "../../context/AppSettingsContext";
+import { appConfig } from "../../services/configService";
 import { motion, AnimatePresence } from "framer-motion";
 import "./styles/Categories.css";
 
@@ -11,9 +14,29 @@ interface GroupedCategory extends HeaderCategory {
   categories: ApiCategory[];
 }
 
+// Soft pastel backgrounds cycling through category sections (matches mockup)
+const SECTION_BG_COLORS = ["#e9f9ee", "#fff7e8", "#eaf3ff", "#fdeef1", "#f3ecff"];
+
 export default function Categories() {
   const navigate = useNavigate();
   const { t, getTranslatedField } = useTranslation();
+  const { location: userLocation } = useLocation();
+  const { settings: appSettings } = useAppSettings();
+
+  const deliveryTime =
+    appSettings?.estimatedDeliveryTime || appConfig.estimatedDeliveryTime || "12–15 mins";
+  const cleanDeliveryTime = deliveryTime.toLowerCase().replace("delivery", "").trim();
+
+  const addressLabel = useMemo(() => {
+    if (userLocation?.address) return userLocation.address;
+    if (userLocation?.city && userLocation?.state) return `${userLocation.city}, ${userLocation.state}`;
+    if (userLocation?.city) return userLocation.city;
+    return t("customer.deliverTo", "Deliver to");
+  }, [userLocation, t]);
+
+  const openLocationModal = () => {
+    window.dispatchEvent(new CustomEvent("openLocationChangeModal"));
+  };
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -231,7 +254,7 @@ export default function Categories() {
         <p className="text-sm text-slate-500 mb-5 max-w-xs">{error}</p>
         <button
           onClick={() => window.location.reload()}
-          className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold shadow-sm transition-all text-sm active:scale-95 cursor-pointer"
+          className="px-6 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-xl font-semibold shadow-sm transition-all text-sm active:scale-95 cursor-pointer"
         >
           {t("common.retry", "Retry")}
         </button>
@@ -241,10 +264,41 @@ export default function Categories() {
 
   return (
     <div className="categories-container font-sans">
+      {/* 0. Delivery / Address Banner (matches Home hero, dynamic location + ETA) */}
+      <div
+        className="px-4 pt-3 pb-6 flex flex-col gap-1.5"
+        style={{ background: "linear-gradient(to bottom, #b3d4ff 0%, #d6e8ff 70%, transparent 100%)" }}
+      >
+        <div className="inline-flex items-center gap-1.5 bg-white/85 border border-white rounded-full px-2.5 py-1 shadow-sm w-fit">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="flex-shrink-0">
+            <path d="M13 2L4.09 12.69a1 1 0 0 0 .77 1.64H11l-1 7.31a1 1 0 0 0 1.79.63L20.91 11.3a1 1 0 0 0-.77-1.64H14l1-7.3a1 1 0 0 0-1.79-.63L13 2z" fill="#FF8C00" stroke="#FF8C00" strokeWidth="0.5" />
+          </svg>
+          <span className="text-xs font-semibold text-neutral-800">
+            {t("customer.deliveringInShort", "Delivering in")} {cleanDeliveryTime}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={openLocationModal}
+          className="flex items-center gap-1.5 max-w-full cursor-pointer group text-left"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 text-blue-700">
+            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <circle cx="12" cy="9" r="2.5" stroke="currentColor" strokeWidth="2" />
+          </svg>
+          <span className="font-semibold text-neutral-900 text-sm truncate group-hover:text-blue-700 transition-colors">
+            {addressLabel}
+          </span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 text-neutral-700">
+            <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      </div>
+
       {/* 1. Page Header: Title + Subtitle + Search Field */}
-      <div className="bg-white px-4 pt-4 pb-3 border-b border-slate-100/90 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+      <div className="bg-white px-4 pt-4 pb-3 -mt-4 rounded-t-3xl relative z-10 border-b border-slate-100/90 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
         <div className="flex flex-col mb-3">
-          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-tight">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">
             {t("common.categories", "Categories")}
           </h1>
           <p className="text-slate-500 font-medium text-xs mt-0.5">
@@ -264,7 +318,7 @@ export default function Categories() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={t("customer.searchCategories", "Search categories...")}
-            className="w-full pl-9 pr-9 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white text-slate-800 placeholder-slate-400 text-xs sm:text-sm rounded-xl border border-slate-200/90 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
+            className="w-full pl-9 pr-9 py-2 bg-slate-50 hover:bg-slate-100/80 focus:bg-white text-slate-800 placeholder-slate-400 text-xs sm:text-sm rounded-xl border border-slate-200/90 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
           />
           {searchQuery && (
             <button
@@ -289,7 +343,7 @@ export default function Categories() {
             </span>
             <button
               onClick={handleClearSearch}
-              className="text-emerald-600 hover:text-emerald-700 font-semibold cursor-pointer"
+              className="text-primary hover:text-primary-dark font-semibold cursor-pointer"
             >
               {t("common.clear", "Clear")}
             </button>
@@ -303,20 +357,20 @@ export default function Categories() {
           ref={tabsContainerRef}
           className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-0.5"
         >
-          {/* "All" Tab */}
+          {/* "All" Tab — icon-over-label square chip */}
           <button
             ref={(el) => {
               if (el) tabRefs.current.set("all", el);
               else tabRefs.current.delete("all");
             }}
             onClick={() => handleTabClick("all")}
-            className={`tab-pill flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition-all flex-shrink-0 ${
+            className={`flex flex-col items-center justify-center gap-1 w-16 h-16 rounded-2xl text-xs font-semibold cursor-pointer transition-all flex-shrink-0 ${
               activeTab === "all"
-                ? "bg-emerald-600 text-white shadow-sm shadow-emerald-200 border border-emerald-600"
-                : "bg-slate-100/90 text-slate-700 hover:bg-slate-200/80 border border-slate-200/60"
+                ? "bg-primary text-white shadow-md scale-105"
+                : "bg-primary/10 text-primary hover:bg-primary/15"
             }`}
           >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
               <rect x="3" y="3" width="7" height="7" rx="1.5" />
               <rect x="14" y="3" width="7" height="7" rx="1.5" />
               <rect x="14" y="14" width="7" height="7" rx="1.5" />
@@ -325,7 +379,7 @@ export default function Categories() {
             <span>{t("common.all", "All")}</span>
           </button>
 
-          {/* Dynamic Published Header Categories */}
+          {/* Dynamic Published Header Categories — icon-beside-label chip, wraps to 2 lines */}
           {allGroups.map((group) => {
             const isTabActive = activeTab === group._id || activeTab === group.slug;
             return (
@@ -341,24 +395,17 @@ export default function Categories() {
                   }
                 }}
                 onClick={() => handleTabClick(group._id)}
-                className={`tab-pill flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition-all flex-shrink-0 ${
+                className={`flex items-center gap-2 px-3 h-16 rounded-2xl text-xs font-semibold cursor-pointer transition-all flex-shrink-0 max-w-[130px] ${
                   isTabActive
-                    ? "bg-emerald-600 text-white shadow-sm shadow-emerald-200 border border-emerald-600"
-                    : "bg-slate-100/90 text-slate-700 hover:bg-slate-200/80 border border-slate-200/60"
+                    ? "bg-primary text-white shadow-md scale-105"
+                    : "bg-primary/10 text-primary hover:bg-primary/15"
                 }`}
               >
-                <span className="w-3.5 h-3.5 flex items-center justify-center flex-shrink-0 text-current [&>svg]:w-3.5 [&>svg]:h-3.5">
+                <span className="flex-shrink-0 [&>svg]:w-5 [&>svg]:h-5">
                   {getIconByName(group.iconName)}
                 </span>
-                <span>{getTranslatedField(group, "name") || group.name}</span>
-                <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
-                    isTabActive
-                      ? "bg-emerald-700/80 text-white"
-                      : "bg-slate-200/80 text-slate-600"
-                  }`}
-                >
-                  {group.categories.length}
+                <span className="text-left leading-tight line-clamp-2">
+                  {getTranslatedField(group, "name") || group.name}
                 </span>
               </button>
             );
@@ -367,27 +414,30 @@ export default function Categories() {
       </div>
 
       {/* 3. Category Sections List Area */}
-      <div className="categories-scroll-area px-3 sm:px-4 py-4 space-y-6 sm:space-y-8">
+      <div className="categories-scroll-area px-3 sm:px-4 py-4 space-y-4">
         <AnimatePresence mode="popLayout">
-          {filteredGroups.map((group, groupIndex) => (
+          {filteredGroups.map((group, groupIndex) => {
+            const sectionBg = SECTION_BG_COLORS[groupIndex % SECTION_BG_COLORS.length];
+            return (
             <motion.section
               key={group._id}
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.3, delay: groupIndex * 0.05 }}
-              className="space-y-3"
+              className="rounded-2xl p-3 sm:p-4"
+              style={{ background: sectionBg }}
             >
               {/* Section Header with Icon, Name, Count Badge, and 'View all >' */}
-              <div className="flex items-center justify-between pb-0.5">
+              <div className="flex items-center justify-between pb-3">
                 <div className="flex items-center gap-2">
-                  <div className="text-emerald-600 flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5">
+                  <div className="text-primary flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5">
                     {getIconByName(group.iconName)}
                   </div>
-                  <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-none">
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-none">
                     {getTranslatedField(group, "name") || group.name}
                   </h2>
-                  <span className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[11px] font-semibold px-2 py-0.5 rounded-full">
+                  <span className="bg-white/80 text-slate-600 text-[11px] font-semibold px-2 py-0.5 rounded-full">
                     {group.categories.length === 1
                       ? `1 category`
                       : `${group.categories.length} categories`}
@@ -397,9 +447,9 @@ export default function Categories() {
                 {activeTab === "all" && (
                   <button
                     onClick={() => handleTabClick(group._id)}
-                    className="text-emerald-700 hover:text-emerald-800 text-xs font-bold flex items-center gap-0.5 cursor-pointer hover:underline"
+                    className="text-primary hover:text-primary-dark text-xs font-bold flex items-center gap-0.5 cursor-pointer hover:underline"
                   >
-                    <span>View all</span>
+                    <span>View All</span>
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                     </svg>
@@ -420,7 +470,7 @@ export default function Categories() {
                       className="group flex flex-col items-center cursor-pointer active:scale-95 select-none"
                     >
                       {/* Soft rounded container for image - full fit with no padding */}
-                      <div className="aspect-square w-full rounded-2xl bg-[#ecf7f6] border border-teal-100/40 flex items-center justify-center overflow-hidden p-0 shadow-2xs group-hover:shadow-sm transition-all duration-200 relative">
+                      <div className="aspect-square w-full rounded-2xl bg-white flex items-center justify-center overflow-hidden p-0 shadow-sm group-hover:shadow-md transition-all duration-200 relative">
                         {category.image ? (
                           <img
                             src={category.image}
@@ -438,18 +488,25 @@ export default function Categories() {
 
                         {/* Fallback Icon Container */}
                         <div
-                          className={`w-full h-full text-2xl sm:text-3xl text-emerald-700/80 ${
+                          className={`w-full h-full text-2xl sm:text-3xl text-primary/80 ${
                             category.image ? "hidden" : "flex"
                           } items-center justify-center`}
                         >
                           {category.icon || "📦"}
+                        </div>
+
+                        {/* Chevron badge overlapping the tile's bottom-right corner */}
+                        <div className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full bg-white shadow-sm flex items-center justify-center text-primary">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
+                          </svg>
                         </div>
                       </div>
 
                       {/* Category Name below container - max 2 lines, clean line-wrapping */}
                       <div
                         title={catName}
-                        className="mt-1.5 text-center text-sm font-bold text-neutral-900 leading-tight line-clamp-2 w-full break-words px-0.5 group-hover:text-emerald-700 transition-colors"
+                        className="mt-1.5 text-center text-sm font-bold text-neutral-900 leading-tight line-clamp-2 w-full break-words px-0.5 group-hover:text-primary transition-colors"
                       >
                         {catName}
                       </div>
@@ -458,7 +515,8 @@ export default function Categories() {
                 })}
               </div>
             </motion.section>
-          ))}
+            );
+          })}
         </AnimatePresence>
 
         {/* 7. Empty State for Search */}
@@ -477,7 +535,7 @@ export default function Categories() {
             </p>
             <button
               onClick={handleClearSearch}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
+              className="px-5 py-2 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
             >
               {t("customer.clearSearch", "Clear Search")}
             </button>
@@ -500,7 +558,7 @@ export default function Categories() {
             </p>
             <button
               onClick={() => window.location.reload()}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer"
+              className="px-5 py-2 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer"
             >
               {t("common.retry", "Retry")}
             </button>

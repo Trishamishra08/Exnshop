@@ -152,7 +152,7 @@ async function fetchSectionData(
 
       // If we have a user location and nearby sellers, filter products by seller service radius.
       // Otherwise, show all products but mark availability status.
-      if (hasUserLocation && nearbySellerIds && nearbySellerIds.length > 0) {
+      if (nearbySellerIds && nearbySellerIds.length > 0) {
         query.seller = { $in: nearbySellerIds };
       }
 
@@ -270,7 +270,7 @@ async function fetchSectionData(
 
 // Get Home Page Content
 export const getHomeContent = async (req: Request, res: Response) => {
-  const { headerCategorySlug, latitude, longitude } = req.query; // Get header category slug and location from query params
+  const { headerCategorySlug, latitude, longitude, mode } = req.query; // Get header category slug, location, and commerce mode from query params
 
   try {
     // Find sellers within user's location range
@@ -283,12 +283,18 @@ export const getHomeContent = async (req: Request, res: Response) => {
       !isNaN(userLat) &&
       !isNaN(userLng);
 
+    // Resolve which sellers sell through the requested commerce channel (default "Quick")
+    const channel = mode === "ecommerce" ? "ECommerce" : "Quick";
+    const channelSellerIds = await Seller.find({ channels: channel }).distinct("_id");
+    const channelSellerIdSet = new Set(channelSellerIds.map((id) => id.toString()));
+
     let nearbySellerIds: mongoose.Types.ObjectId[] = [];
     if (hasUserLocation) {
-      nearbySellerIds = await findSellersWithinRange(userLat, userLng);
+      const nearby = await findSellersWithinRange(userLat, userLng);
+      nearbySellerIds = nearby.filter((id) => channelSellerIdSet.has(id.toString()));
     } else {
-      // If no location provided, return empty sellers list to enforce filtering
-      nearbySellerIds = [];
+      // If no location provided, still scope to the active commerce channel
+      nearbySellerIds = channelSellerIds as mongoose.Types.ObjectId[];
     }
 
     // 1. Featured / Bestsellers - Get bestseller cards from admin configuration
@@ -323,7 +329,7 @@ export const getHomeContent = async (req: Request, res: Response) => {
           };
 
           // When location is known and sellers are in range, prefer preview images for in-range sellers.
-          if (hasUserLocation && nearbySellerIds.length > 0) {
+          if (nearbySellerIds.length > 0) {
             productQuery.seller = { $in: nearbySellerIds };
           }
 
@@ -441,7 +447,7 @@ export const getHomeContent = async (req: Request, res: Response) => {
       })
       // Show in-range products when sellers exist; when no sellers in range or no location, show preview products
       .filter((p: any) => {
-        if (hasUserLocation && nearbySellerIds.length > 0) {
+        if (nearbySellerIds.length > 0) {
           return p.isAvailable === true;
         }
         return true;
@@ -471,7 +477,7 @@ export const getHomeContent = async (req: Request, res: Response) => {
             _id: { $in: validProdIds.slice(0, 4) },
             status: "Active",
             publish: true,
-            ...(hasUserLocation && nearbySellerIds.length > 0 ? { seller: { $in: nearbySellerIds } } : {}),
+            ...(nearbySellerIds.length > 0 ? { seller: { $in: nearbySellerIds } } : {}),
           })
             .select("mainImage")
             .lean();
@@ -494,7 +500,7 @@ export const getHomeContent = async (req: Request, res: Response) => {
     );
 
     // When location is known and sellers are in range, filter shops that have in-range products.
-    const visibleShops = (hasUserLocation && nearbySellerIds.length > 0)
+    const visibleShops = (nearbySellerIds.length > 0)
       ? shops.filter((s: any) => Array.isArray(s.productImages) && s.productImages.length > 0)
       : shops;
 
@@ -523,7 +529,7 @@ export const getHomeContent = async (req: Request, res: Response) => {
     };
 
     // When location is known and sellers are in range, prefer preview images for in-range sellers.
-    if (hasUserLocation && nearbySellerIds.length > 0) {
+    if (nearbySellerIds.length > 0) {
       foodProductsQuery.seller = { $in: nearbySellerIds };
     }
 
@@ -764,7 +770,7 @@ export const getHomeContent = async (req: Request, res: Response) => {
           })
           // When sellers are in range, prefer in-range products; otherwise show preview products
           .filter((p: any) => {
-            if (hasUserLocation && nearbySellerIds.length > 0) {
+            if (nearbySellerIds.length > 0) {
               return p.isAvailable === true;
             }
             return true;
@@ -816,7 +822,10 @@ export const getHomeContent = async (req: Request, res: Response) => {
 export const getStoreProducts = async (req: Request, res: Response) => {
   try {
     const { storeId } = req.params;
-    const { latitude, longitude } = req.query; // User location for filtering
+    const { latitude, longitude, mode } = req.query; // User location + commerce mode for filtering
+    const channel = mode === "ecommerce" ? "ECommerce" : "Quick";
+    const channelSellerIds = await Seller.find({ channels: channel }).distinct("_id");
+    const channelSellerIdSet = new Set(channelSellerIds.map((id) => id.toString()));
     let query: any = {
       status: "Active",
       publish: true,
@@ -944,16 +953,17 @@ export const getStoreProducts = async (req: Request, res: Response) => {
 
     console.log(`[getStoreProducts] User location: lat=${userLat}, lng=${userLng}`);
 
-    let nearbySellerIds: mongoose.Types.ObjectId[] = [];
+    let nearbySellerIds: mongoose.Types.ObjectId[] = channelSellerIds as mongoose.Types.ObjectId[];
     if (userLat && userLng && !isNaN(userLat) && !isNaN(userLng)) {
-      nearbySellerIds = await findSellersWithinRange(userLat, userLng);
+      const nearby = await findSellersWithinRange(userLat, userLng);
+      nearbySellerIds = nearby.filter((id) => channelSellerIdSet.has(id.toString()));
       console.log(`[getStoreProducts] Found ${nearbySellerIds.length} sellers within range`);
+    }
 
-      if (nearbySellerIds.length > 0) {
-        // Filter products by sellers within range
-        query.seller = { $in: nearbySellerIds };
-        console.log(`[getStoreProducts] Added seller filter to query`);
-      }
+    if (nearbySellerIds.length > 0) {
+      // Filter products by sellers within range and active commerce channel
+      query.seller = { $in: nearbySellerIds };
+      console.log(`[getStoreProducts] Added seller filter to query`);
     }
 
     console.log(`[getStoreProducts] Final query:`, JSON.stringify(query, null, 2));

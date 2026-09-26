@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useLanguage } from "../../../context/LanguageContext";
+import { useAdminMode } from "../context/AdminModeContext";
 
 interface SubMenuItem {
   label: string;
@@ -28,7 +29,158 @@ interface AdminSidebarProps {
   onClose?: () => void;
 }
 
-const menuSections: MenuSection[] = [
+const deliveryBoyItem: MenuItem = {
+  label: "Delivery Boy",
+  path: "/admin/delivery-boy",
+  hasSubmenu: true,
+  icon: (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round">
+      <path d="M17 21V19C17 17.9391 16.5786 16.9217 15.8284 16.1716C15.0783 15.4214 14.0609 15 13 15H5C3.93913 15 2.92172 15.4214 2.17157 16.1716C1.42143 16.9217 1 17.9391 1 19V21"></path>
+      <circle cx="9" cy="7" r="4"></circle>
+      <path d="M23 21V19C22.9993 18.1137 22.7044 17.2528 22.1614 16.5523C21.6184 15.8519 20.8581 15.3516 20 15.13"></path>
+      <path d="M16 3.13C16.8604 3.35031 17.623 3.85071 18.1676 4.55232C18.7122 5.25392 19.0078 6.11683 19.0078 7.005C19.0078 7.89318 18.7122 8.75608 18.1676 9.45769C17.623 10.1593 16.8604 10.6597 16 10.88"></path>
+      <path d="M20 7H22M21 6V8"></path>
+    </svg>
+  ),
+  submenuItems: [
+    {
+      label: "Manage Delivery Boy",
+      path: "/admin/delivery-boy/manage",
+      icon: (
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round">
+          <rect x="1" y="3" width="15" height="13"></rect>
+          <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+          <circle cx="5.5" cy="18.5" r="2.5"></circle>
+          <circle cx="18.5" cy="18.5" r="2.5"></circle>
+          <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z"></path>
+          <path d="M14 2V8H20"></path>
+          <path d="M8 11H16M8 15H12"></path>
+        </svg>
+      ),
+    },
+    {
+      label: "Manual Assignment",
+      path: "/admin/delivery-boy/manual-assign",
+      icon: (
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+          <circle cx="9" cy="7" r="4"></circle>
+          <polyline points="16 11 18 13 22 9"></polyline>
+        </svg>
+      ),
+    },
+    {
+      label: "Fund Transfer",
+      path: "/admin/delivery-boy/fund-transfer",
+      icon: (
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M12 6V12M12 18V12"></path>
+          <path d="M8 12H16"></path>
+          <path d="M8 8L12 4L16 8"></path>
+          <path d="M8 16L12 20L16 16"></path>
+          <path d="M16 8L12 4L8 8"></path>
+          <path d="M16 16L12 20L8 16"></path>
+        </svg>
+      ),
+    },
+    {
+      label: "Cash Collection",
+      path: "/admin/delivery-boy/cash-collection",
+      icon: (
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M12 6V12M12 18V12"></path>
+          <path d="M8 12H16"></path>
+          <path d="M12 18L10 20L12 22L14 20L12 18Z"></path>
+          <path d="M10 20H14"></path>
+          <path d="M12 20V22"></path>
+        </svg>
+      ),
+    },
+    {
+      label: "Delivery Tracking",
+      path: "/admin/delivery-tracking",
+      icon: (
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+          <circle cx="12" cy="10" r="3"></circle>
+        </svg>
+      ),
+    },
+  ],
+};
+
+const shipmentsItem: MenuItem = {
+  label: "Shipments",
+  path: "/admin/shipments",
+  icon: (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round">
+      <path d="M16.5 9.4L7.5 4.21"></path>
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+      <line x1="12" y1="22.08" x2="12" y2="12"></line>
+    </svg>
+  ),
+};
+
+const getMenuSections = (mode: "Quick" | "ECommerce"): MenuSection[] => [
   {
     title: "Product Section",
     items: [
@@ -321,135 +473,7 @@ const menuSections: MenuSection[] = [
           </svg>
         ),
       },
-      {
-        label: "Delivery Boy",
-        path: "/admin/delivery-boy",
-        hasSubmenu: true,
-        icon: (
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round">
-            <path d="M17 21V19C17 17.9391 16.5786 16.9217 15.8284 16.1716C15.0783 15.4214 14.0609 15 13 15H5C3.93913 15 2.92172 15.4214 2.17157 16.1716C1.42143 16.9217 1 17.9391 1 19V21"></path>
-            <circle cx="9" cy="7" r="4"></circle>
-            <path d="M23 21V19C22.9993 18.1137 22.7044 17.2528 22.1614 16.5523C21.6184 15.8519 20.8581 15.3516 20 15.13"></path>
-            <path d="M16 3.13C16.8604 3.35031 17.623 3.85071 18.1676 4.55232C18.7122 5.25392 19.0078 6.11683 19.0078 7.005C19.0078 7.89318 18.7122 8.75608 18.1676 9.45769C17.623 10.1593 16.8604 10.6597 16 10.88"></path>
-            <path d="M20 7H22M21 6V8"></path>
-          </svg>
-        ),
-        submenuItems: [
-          {
-            label: "Manage Delivery Boy",
-            path: "/admin/delivery-boy/manage",
-            icon: (
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round">
-                <rect x="1" y="3" width="15" height="13"></rect>
-                <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
-                <circle cx="5.5" cy="18.5" r="2.5"></circle>
-                <circle cx="18.5" cy="18.5" r="2.5"></circle>
-                <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z"></path>
-                <path d="M14 2V8H20"></path>
-                <path d="M8 11H16M8 15H12"></path>
-              </svg>
-            ),
-          },
-          {
-            label: "Manual Assignment",
-            path: "/admin/delivery-boy/manual-assign",
-            icon: (
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-                <circle cx="9" cy="7" r="4"></circle>
-                <polyline points="16 11 18 13 22 9"></polyline>
-              </svg>
-            ),
-          },
-          {
-            label: "Fund Transfer",
-            path: "/admin/delivery-boy/fund-transfer",
-            icon: (
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <path d="M12 6V12M12 18V12"></path>
-                <path d="M8 12H16"></path>
-                <path d="M8 8L12 4L16 8"></path>
-                <path d="M8 16L12 20L16 16"></path>
-                <path d="M16 8L12 4L8 8"></path>
-                <path d="M16 16L12 20L8 16"></path>
-              </svg>
-            ),
-          },
-          {
-            label: "Cash Collection",
-            path: "/admin/delivery-boy/cash-collection",
-            icon: (
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <path d="M12 6V12M12 18V12"></path>
-                <path d="M8 12H16"></path>
-                <path d="M12 18L10 20L12 22L14 20L12 18Z"></path>
-                <path d="M10 20H14"></path>
-                <path d="M12 20V22"></path>
-              </svg>
-            ),
-          },
-          {
-            label: "Delivery Tracking",
-            path: "/admin/delivery-tracking",
-            icon: (
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-                <circle cx="12" cy="10" r="3"></circle>
-              </svg>
-            ),
-          },
-        ],
-      },
+      ...(mode === "ECommerce" ? [shipmentsItem] : [deliveryBoyItem]),
     ],
   },
   {
@@ -990,8 +1014,11 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useLanguage();
+  const { mode, setMode } = useAdminMode();
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+
+  const menuSections = getMenuSections(mode);
 
   const isActive = (path: string) => {
     if (path === "/admin") {
@@ -1068,6 +1095,7 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
       "Seller Location": "admin.sellerLocation",
       "Coupon": "admin.coupon",
       "Delivery Boy": "admin.deliveryBoy",
+      "Shipments": "admin.shipments",
       "Manage Delivery Boy": "admin.deliveryBoy",
       "Manual Assignment": "admin.manualAssign",
       "Fund Transfer": "admin.fundTransfer",
@@ -1131,6 +1159,34 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
             />
           </svg>
         </button>
+      </div>
+
+      {/* Quick Commerce / E-Commerce Mode Toggle */}
+      <div className="px-4 pt-4 pb-2 border-b border-teal-600">
+        <div className="flex items-center bg-teal-800 rounded-full p-1 gap-0.5">
+          <button
+            type="button"
+            onClick={() => setMode("Quick")}
+            className={`flex-1 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+              mode === "Quick"
+                ? "bg-primary text-white shadow-sm"
+                : "text-teal-200 hover:text-white"
+            }`}
+          >
+            Quick
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("ECommerce")}
+            className={`flex-1 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+              mode === "ECommerce"
+                ? "bg-[#c1121f] text-white shadow-sm"
+                : "text-teal-200 hover:text-white"
+            }`}
+          >
+            E-Commerce
+          </button>
+        </div>
       </div>
 
       {/* Search Bar */}

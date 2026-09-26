@@ -203,6 +203,7 @@ export interface GetProductsParams {
   seller?: string;
   status?: "Active" | "Inactive" | "Pending" | "Rejected";
   publish?: boolean;
+  channel?: "Quick" | "ECommerce";
 }
 
 export interface BulkImportProductsData {

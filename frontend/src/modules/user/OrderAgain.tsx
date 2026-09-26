@@ -7,6 +7,7 @@ import { useTranslation } from '../../hooks/useTranslation';
 import { getProducts } from '../../services/api/customerProductService';
 import WishlistButton from '../../components/WishlistButton';
 import { calculateProductPrice } from '../../utils/priceUtils';
+import { useCommerceMode } from '../../context/CommerceModeContext';
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
@@ -38,6 +39,7 @@ export default function OrderAgain() {
   const { orders } = useOrders();
   const { cart, addToCart, updateQuantity } = useCart();
   const { t } = useTranslation();
+  const { mode } = useCommerceMode();
   const navigate = useNavigate();
   const [addedOrders, setAddedOrders] = useState<Set<string>>(new Set());
 
@@ -79,7 +81,7 @@ export default function OrderAgain() {
   useEffect(() => {
     const fetchBestsellers = async () => {
       try {
-        const response = await getProducts({ sort: 'popular', limit: 6 });
+        const response = await getProducts({ sort: 'popular', limit: 6, mode: mode === 'ECommerce' ? 'ecommerce' : 'quick' });
         if (response.success && response.data) {
           const mapped = (response.data as any[]).map(p => {
             // Clean product name - remove description suffixes
@@ -102,7 +104,7 @@ export default function OrderAgain() {
       }
     };
     fetchBestsellers();
-  }, []);
+  }, [mode]);
 
   const hasOrders = orders && orders.length > 0;
 

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Suspense, lazy, startTransition } from "react";
 import { CartProvider } from "./context/CartContext";
+import { CommerceModeProvider } from "./context/CommerceModeContext";
 import { OrdersProvider } from "./context/OrdersContext";
 import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -261,6 +262,9 @@ const AdminShopByStore = lazyWithRetry(
 const AdminAllOrders = lazyWithRetry(
   () => import("./modules/admin/pages/AdminAllOrders"), "AdminAllOrders"
 );
+const AdminShipments = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminShipments"), "AdminShipments"
+);
 const AdminPendingOrders = lazyWithRetry(
   () => import("./modules/admin/pages/AdminPendingOrders"), "AdminPendingOrders"
 );
@@ -398,6 +402,7 @@ function App() {
                 <LocationProvider>
                   <ToastProvider>
                     <WishlistProvider>
+                      <CommerceModeProvider>
                       <CartProvider>
                         <OrdersProvider>
                           <BrowserRouter
@@ -849,6 +854,10 @@ function App() {
                                         element={<AdminAllOrders />}
                                       />
                                       <Route
+                                        path="shipments"
+                                        element={<AdminShipments />}
+                                      />
+                                      <Route
                                         path="orders/pending"
                                         element={<AdminPendingOrders />}
                                       />
@@ -1066,6 +1075,7 @@ function App() {
                         </BrowserRouter>
                       </OrdersProvider>
                     </CartProvider>
+                    </CommerceModeProvider>
                   </WishlistProvider>
                 </ToastProvider>
               </LocationProvider>

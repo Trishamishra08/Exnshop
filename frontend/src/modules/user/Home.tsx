@@ -12,10 +12,12 @@ import { useLocation } from "../../hooks/useLocation";
 import PageLoader from "../../components/PageLoader";
 import { useThemeContext } from "../../context/ThemeContext";
 import { useTranslation } from "../../hooks/useTranslation";
+import { useCommerceMode } from "../../context/CommerceModeContext";
 
 export default function Home() {
   const navigate = useNavigate();
   const { location } = useLocation();
+  const { mode } = useCommerceMode();
   const { activeCategory, setActiveCategory } = useThemeContext();
   const { t, getTranslatedField } = useTranslation();
   const activeTab = activeCategory; // mapping for existing code compatibility
@@ -63,7 +65,11 @@ export default function Home() {
         const response = await getHomeContent(
           slug,
           location?.latitude,
-          location?.longitude
+          location?.longitude,
+          true,
+          5 * 60 * 1000,
+          false,
+          mode
         );
         if (response.success && response.data) {
           setHomeData(response.data);
@@ -82,7 +88,7 @@ export default function Home() {
 
     fetchData();
 
-  }, [location?.latitude, location?.longitude, activeTab]);
+  }, [location?.latitude, location?.longitude, activeTab, mode]);
 
   // Restore scroll position when returning to this page
   useEffect(() => {
@@ -195,11 +201,11 @@ export default function Home() {
   }
 
   return (
-    <div className="bg-white min-h-screen pb-20 md:pb-0" ref={contentRef}>
-      {/* Hero Header with Gradient and Tabs */}
+    <div className="bg-[#f7fbff] min-h-screen pb-20 md:pb-0" ref={contentRef}>
+      {/* Hero Header with location, search and category circles */}
       <HomeHero activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {/* Promo Strip */}
+      {/* Promo Banner + Crazy Deals + Features */}
       <PromoStrip activeTab={activeTab} />
 
       {/* LOWEST PRICES EVER Section */}
@@ -210,7 +216,7 @@ export default function Home() {
 
       {/* Main content */}
       <div
-        className="bg-neutral-50 -mt-2 pt-1 space-y-5 md:space-y-8 md:pt-4">
+        className="bg-[#f7fbff] -mt-2 pt-1 space-y-5 md:space-y-8 md:pt-4">
 
 
         {/* Bestseller Cards Section - Render modern Bestseller Cards */}

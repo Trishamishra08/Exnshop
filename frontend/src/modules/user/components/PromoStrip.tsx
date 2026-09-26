@@ -6,7 +6,7 @@ import { getHomeContent } from "../../../services/api/customerHomeService";
 import { getSubcategories } from "../../../services/api/categoryService";
 import { apiCache } from "../../../utils/apiCache";
 import { useLocation } from "../../../hooks/useLocation";
-import { calculateProductPrice } from "../../../utils/priceUtils";
+import { useCommerceMode } from "../../../context/CommerceModeContext";
 import { useTranslation } from "../../../hooks/useTranslation";
 
 interface PromoCard {
@@ -17,8 +17,20 @@ interface PromoCard {
   categoryId?: string;
   slug?: string;
   bgColor?: string;
-  subcategoryImages?: string[]; // Array of subcategory image URLs
+  subcategoryImages?: string[];
 }
+
+// Soft pastel backgrounds cycling through the Crazy Deals grid (matches mockup)
+const DEAL_BG_COLORS = [
+  "#fff7e8",
+  "#eaf3ff",
+  "#e9f9ee",
+  "#fdeef1",
+  "#f3ecff",
+  "#fff7e8",
+  "#eaf3ff",
+  "#e9f9ee",
+];
 
 // Comprehensive Icon mappings for each category and keyword fallback
 const getCategoryIcons = (categoryId: string, categoryTitle: string = ""): string[] => {
@@ -26,7 +38,6 @@ const getCategoryIcons = (categoryId: string, categoryTitle: string = ""): strin
   const titleNorm = (categoryTitle || "").toLowerCase();
 
   const iconMap: Record<string, string[]> = {
-    // Fashion & Footwear
     "foot-wear-ladies": ["👠", "👡", "🥿", "👢"],
     "foot-wear-mens": ["👞", "👟", "🥾", "🩴"],
     "ladies-wear-fashion": ["👗", "👚", "👘", "🥻"],
@@ -36,8 +47,6 @@ const getCategoryIcons = (categoryId: string, categoryTitle: string = ""): strin
     "handicraft-hosiery-item": ["🧶", "🧵", "🧦", "🧤"],
     "ladies-jean-bag-purse": ["👜", "👛", "🎒", "👝"],
     fashion: ["👕", "👗", "👠", "👜"],
-
-    // Grocery & Fresh
     "vegetable-fruits-fresh": ["🥬", "🥕", "🍅", "🍎"],
     "fruits-vegetable-juice": ["🧃", "🍊", "🍍", "🍉"],
     "fruits-veg": ["🥬", "🥕", "🍅", "🥒"],
@@ -58,14 +67,10 @@ const getCategoryIcons = (categoryId: string, categoryTitle: string = ""): strin
     "breakfast-instant": ["🍜", "☕", "🥛", "🍞"],
     "atta-rice": ["🌾", "🍚", "🫘", "🫒"],
     snacks: ["🍿", "🍪", "🥨", "🍫"],
-
-    // Personal & Beauty
     "cosmetics-item-bath-body": ["💄", "🧴", "🧼", "💅"],
     "skins-face-hair": ["✨", "🧴", "💇‍♀️", "💆"],
     "baby-care-products": ["🍼", "👶", "🧸", "🧴"],
     "personal-care": ["🧴", "💧", "🧼", "💄"],
-
-    // Electronics & Home
     "electronics-all-items": ["📱", "💻", "⌚", "🎧"],
     "ac-fridge-tv-electronics": ["📺", "❄️", "🖥️", "⚡"],
     "mobile-item-accessories": ["📱", "🔌", "🔋", "🎧"],
@@ -76,8 +81,6 @@ const getCategoryIcons = (categoryId: string, categoryTitle: string = ""): strin
     "kitchen-item-vasan-bhandar": ["🍳", "🔪", "🍽️", "🥘"],
     "cleaners-refill-item": ["🧹", "🧽", "🧼", "🧴"],
     household: ["🧹", "🧽", "🧼", "🧴"],
-
-    // Miscellaneous
     "toys-sports-item": ["🧸", "⚽", "🎮", "🛹"],
     "yoga-jim-item": ["🧘", "🏋️", "🏃", "🥊"],
     sports: ["⚽", "🏀", "🏋️", "🎾"],
@@ -87,13 +90,14 @@ const getCategoryIcons = (categoryId: string, categoryTitle: string = ""): strin
     "puja-item": ["🪔", "🔔", "🌺", "🥥"],
     "festival-item": ["🎉", "✨", "🎁", "🪔"],
     "travel-item": ["🧳", "🎒", "✈️", "🗺️"],
+    "home-essentials": ["🧹", "🧽", "🧼", "🧴"],
+    "home-essentials-cleaners": ["🧹", "🧽", "🧴", "🧺"],
   };
 
   if (iconMap[normalized]) {
     return iconMap[normalized];
   }
 
-  // Keyword heuristic matching if exact slug doesn't match
   const searchStr = `${normalized} ${titleNorm}`;
   if (searchStr.includes("foot") || searchStr.includes("shoe") || searchStr.includes("heel") || searchStr.includes("sandal")) {
     return searchStr.includes("men") ? ["👞", "👟", "🥾", "🩴"] : ["👠", "👡", "🥿", "👢"];
@@ -134,8 +138,31 @@ const getCategoryIcons = (categoryId: string, categoryTitle: string = ""): strin
   if (searchStr.includes("toy") || searchStr.includes("kid") || searchStr.includes("baby")) {
     return ["🧸", "🍼", "👶", "🎮"];
   }
+  if (searchStr.includes("clean") || searchStr.includes("home") || searchStr.includes("essential") || searchStr.includes("household")) {
+    return ["🧹", "🧽", "🧼", "🧴"];
+  }
 
   return ["✨", "🛍️", "🏷️", "⭐"];
+};
+
+// Positions subcategory photos so they read as one overlapping collage (matches mockup)
+const getCollageLayout = (count: number, index: number) => {
+  if (count <= 1) {
+    return { size: "w-full h-full", pos: "inset-0", z: "z-10" };
+  }
+  if (count === 2) {
+    const layouts = [
+      { size: "w-[58%] h-[82%]", pos: "bottom-0 left-0", z: "z-10" },
+      { size: "w-[58%] h-[82%]", pos: "bottom-0 right-0", z: "z-20" },
+    ];
+    return layouts[index] || layouts[0];
+  }
+  const layouts = [
+    { size: "w-[46%] h-[58%]", pos: "bottom-0 left-0", z: "z-10" },
+    { size: "w-[46%] h-[58%]", pos: "bottom-0 left-[26%]", z: "z-20" },
+    { size: "w-[50%] h-[76%]", pos: "bottom-0 right-0", z: "z-30" },
+  ];
+  return layouts[index] || layouts[0];
 };
 
 interface PromoStripProps {
@@ -144,36 +171,26 @@ interface PromoStripProps {
 
 export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
   const { location } = useLocation();
+  const { mode } = useCommerceMode();
   const { t, getTranslatedField } = useTranslation();
   const theme = getTheme(activeTab);
   const navigate = useNavigate();
   const [categoryCards, setCategoryCards] = useState<PromoCard[]>([]);
-  const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
   const [headingText, setHeadingText] = useState(theme.bannerText);
   const [saleTextValue, setSaleTextValue] = useState(theme.saleText);
   const [dateRange, setDateRange] = useState("");
   const [crazyDealsTitle, setCrazyDealsTitle] = useState("CRAZY DEALS");
   const [subcategoryImagesMap, setSubcategoryImagesMap] = useState<Record<string, string[]>>({});
   const containerRef = useRef<HTMLDivElement>(null);
-  const snowflakesRef = useRef<HTMLDivElement>(null);
-  const housefullRef = useRef<HTMLDivElement>(null);
-  const saleRef = useRef<HTMLDivElement>(null);
-  const dateRef = useRef<HTMLDivElement>(null);
-  const [currentProductIndex, setCurrentProductIndex] = useState(0);
-  const priceContainerRef = useRef<HTMLDivElement>(null);
-  const productNameRef = useRef<HTMLDivElement>(null);
-  const productImageRef = useRef<HTMLDivElement>(null);
+  const bannerTextRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [hasData, setHasData] = useState(false);
+  const [bannerImgOk, setBannerImgOk] = useState(true);
 
   // Fetch subcategory images for category cards - DEFERRED for faster initial load
   const fetchSubcategoryImages = useCallback(async (cards: PromoCard[]) => {
-    // Defer subcategory image fetching to not block initial render
-    // Load them after a short delay to prioritize main content
     setTimeout(async () => {
       const imagesMap: Record<string, string[]> = {};
-
-      // Fetch images in batches to avoid overwhelming the network
       const batchSize = 2;
       for (let i = 0; i < cards.length; i += batchSize) {
         const batch = cards.slice(i, i + batchSize);
@@ -181,7 +198,6 @@ export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
           batch.map(async (card) => {
             const categoryId = card.categoryId;
             if (!categoryId) return;
-
             try {
               const response = await getSubcategories(categoryId, { limit: 4 });
               if (response.success && response.data) {
@@ -189,79 +205,64 @@ export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
                   .filter((subcat) => subcat.subcategoryImage)
                   .map((subcat) => subcat.subcategoryImage!)
                   .slice(0, 4);
-
                 if (images.length > 0) {
                   imagesMap[card.id] = images;
                 }
               }
             } catch (error) {
-              // Silently fail - emoji fallback will be used
               console.error(`Error fetching subcategories for category ${categoryId}:`, error);
             }
           })
         );
-        // Small delay between batches to prevent network congestion
         if (i + batchSize < cards.length) {
           await new Promise(resolve => setTimeout(resolve, 50));
         }
       }
-
       setSubcategoryImagesMap(imagesMap);
-    }, 300); // 300ms delay - allows main content to render first
+    }, 300);
   }, []);
 
   useEffect(() => {
     const fetchData = async () => {
-      // Check cache first before showing loading state
       const cacheKey = `home-content-${activeTab || 'all'}`;
       const cachedData = apiCache.getSync(cacheKey);
-
-      // Only show loading if data is not cached
       if (!cachedData) {
         setLoading(true);
       }
 
       try {
-        // Pass activeTab (header category slug) and location to filter categories
-        // Use cache with 5 minute TTL for faster loading
         const response = await getHomeContent(
           activeTab,
           location?.latitude,
           location?.longitude,
           true,
-          5 * 60 * 1000
+          5 * 60 * 1000,
+          false,
+          mode
         );
 
-        // Reset current product index when fetching new data
-        setCurrentProductIndex(0);
-
         let fetchedCards: PromoCard[] = [];
-        let fetchedProducts: any[] = [];
         let newHeadingText = theme.bannerText;
         let newSaleTextValue = theme.saleText;
         let newDateRange = "";
 
         if (response.success && response.data) {
-          // 1. Check for PromoStrip data from backend (highest priority)
           if (response.data.promoStrip && response.data.promoStrip.isActive) {
             const promoStrip = response.data.promoStrip;
             newHeadingText = promoStrip.heading || newHeadingText;
             newSaleTextValue = promoStrip.saleText || newSaleTextValue;
-            // Set CRAZY DEALS title from PromoStrip
             if (promoStrip.crazyDealsTitle) {
               setCrazyDealsTitle(promoStrip.crazyDealsTitle);
             } else {
               setCrazyDealsTitle("CRAZY DEALS");
             }
 
-            // Format date range
             if (promoStrip.startDate && promoStrip.endDate) {
               const start = new Date(promoStrip.startDate);
               const end = new Date(promoStrip.endDate);
               newDateRange = `${start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase()} - ${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase()}`;
             }
 
-            // Map category cards from PromoStrip
             if (promoStrip.categoryCards && promoStrip.categoryCards.length > 0) {
               fetchedCards = promoStrip.categoryCards
                 .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
@@ -271,93 +272,47 @@ export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
                     id: card._id || card.categoryId?._id || card.categoryId,
                     badge: card.badge || `Up to ${card.discountPercentage || 0}% OFF`,
                     title: card.title || category?.name || "",
-                    categoryId: category?._id || card.categoryId, // Use _id for fetching subcategories
-                    slug: category?.slug || card.categoryId, // Use slug for navigation
+                    categoryId: category?._id || card.categoryId,
+                    slug: category?.slug || card.categoryId,
                     imageUrl: category?.image,
                     bgColor: "bg-yellow-50",
                   };
                 });
             }
-
-            // Map featured products from PromoStrip
-            if (promoStrip.featuredProducts && promoStrip.featuredProducts.length > 0) {
-              fetchedProducts = promoStrip.featuredProducts.map((p: any) => {
-                const product = typeof p === 'object' ? p : null;
-                const price = Number(product?.price) || 0;
-                const mrp = Number(product?.mrp) || Number(product?.compareAtPrice) || 0;
-                const originalPrice = mrp > 0 ? mrp : (price > 0 ? Math.round(price * 1.2) : 999);
-                const discountedPrice = price > 0 ? price : 499;
-
-                // Try multiple image field names and fallbacks
-                const imageUrl =
-                  product?.mainImage ||
-                  product?.mainImageUrl ||
-                  product?.image ||
-                  product?.imageUrl ||
-                  (product?.galleryImageUrls && product.galleryImageUrls.length > 0 ? product.galleryImageUrls[0] : null) ||
-                  (product?.galleryImages && product.galleryImages.length > 0 ? product.galleryImages[0] : null) ||
-                  null;
-
-                // Always prioritize productName to avoid showing category names
-                const productName = product?.productName || product?.name || "Product";
-
-                return {
-                  id: product?._id || p,
-                  _id: product?._id || p,
-                  name: productName,
-                  productName: productName, // Always use productName, never category name
-                  price: price,
-                  mrp: mrp,
-                  originalPrice: isNaN(originalPrice) ? 999 : originalPrice,
-                  discountedPrice: isNaN(discountedPrice) ? 499 : discountedPrice,
-                  imageUrl: imageUrl,
-                };
-              });
-            }
-          }
-          // 2. Fallback to promoCards if no PromoStrip
-          else if (response.data.promoCards && response.data.promoCards.length > 0) {
+          } else if (response.data.promoCards && response.data.promoCards.length > 0) {
             fetchedCards = response.data.promoCards;
-          }
-          // 3. Fallback to categories if no promo cards
-          else if (
+          } else if (
             response.data.categories &&
             response.data.categories.length > 0
           ) {
             fetchedCards = response.data.categories
-              .slice(0, 4)
+              .slice(0, 6)
               .map((c: any) => ({
                 id: c._id || c.id,
                 badge: "Up to 50% OFF",
                 title: c.name,
                 categoryId: c.slug || c._id,
+                slug: c.slug,
                 bgColor: c.color || "bg-yellow-50",
               }));
           }
-
-
         }
 
         setCategoryCards(fetchedCards);
-        setFeaturedProducts(fetchedProducts);
         setHeadingText(newHeadingText);
         setSaleTextValue(newSaleTextValue);
         setDateRange(newDateRange);
-        // Reset CRAZY DEALS title if no PromoStrip data
         if (!response.data?.promoStrip || !response.data.promoStrip.isActive) {
           setCrazyDealsTitle("CRAZY DEALS");
         }
-        setHasData(fetchedCards.length > 0 || fetchedProducts.length > 0);
+        setHasData(fetchedCards.length > 0);
 
-        // Fetch subcategory images AFTER setting hasData to true
-        // This allows the main content to render immediately
         if (fetchedCards.length > 0) {
           fetchSubcategoryImages(fetchedCards);
         }
       } catch (error) {
         console.error("Error fetching home content for PromoStrip:", error);
         setCategoryCards([]);
-        setFeaturedProducts([]);
         setHasData(false);
       } finally {
         setLoading(false);
@@ -365,26 +320,16 @@ export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
     };
     fetchData();
 
-    // REMOVED: Polling every 30 seconds causes unnecessary re-renders and API calls
-    // If real-time updates are needed, consider using WebSockets or Server-Sent Events
-    // For now, data will only refresh when activeTab changes
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, theme.bannerText, theme.saleText]);
+  }, [activeTab, theme.bannerText, theme.saleText, mode]);
 
-  // Reset product index when activeTab changes or featuredProducts change
-  useEffect(() => {
-    setCurrentProductIndex(0);
-  }, [activeTab, featuredProducts.length]);
-
+  // Card entrance animation
   useLayoutEffect(() => {
     if (!hasData) return;
     const container = containerRef.current;
     if (!container) return;
 
     let ctx: gsap.Context | null = null;
-
-    // Defer card animation to prioritize content rendering
     const timeoutId = setTimeout(() => {
       ctx = gsap.context(() => {
         const cards = container.querySelectorAll(".promo-card");
@@ -395,622 +340,328 @@ export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
             {
               y: 0,
               opacity: 1,
-              duration: 0.4, // Reduced duration
-              stagger: 0.05, // Reduced stagger
-              ease: "power2.out", // Simpler easing
+              duration: 0.4,
+              stagger: 0.05,
+              ease: "power2.out",
             }
           );
         }
       }, container);
-    }, 100); // Start animation 100ms after render
+    }, 100);
 
     return () => {
       clearTimeout(timeoutId);
-      if (ctx) {
-        ctx.revert();
-      }
+      if (ctx) ctx.revert();
     };
   }, [hasData]);
 
-  // Snowflake animation - DEFERRED for faster initial load
+  // Banner text entrance animation
   useLayoutEffect(() => {
-    if (!hasData) return;
-    const snowflakesContainer = snowflakesRef.current;
-    if (!snowflakesContainer) return;
-
-    // Defer animation start to prioritize content rendering
+    const el = bannerTextRef.current;
+    if (!el) return;
     const timeoutId = setTimeout(() => {
-      const snowflakes = snowflakesContainer.querySelectorAll(".snowflake");
-
-      snowflakes.forEach((snowflake, index) => {
-        const delay = index * 0.3;
-        const duration = 3 + Math.random() * 2; // 3-5 seconds
-        const xOffset = (Math.random() - 0.5) * 40; // Random horizontal drift
-
-        gsap.set(snowflake, {
-          y: -20,
-          x: xOffset,
-          opacity: 0.8 + Math.random() * 0.2, // 0.8-1.0 opacity for better visibility
-          scale: 0.6 + Math.random() * 0.4, // 0.6-1.0 scale for better visibility
-        });
-
-        gsap.to(snowflake, {
-          y: "+=200",
-          x: `+=${xOffset}`,
-          duration: duration,
-          delay: delay,
-          ease: "none",
-          repeat: -1,
-        });
-      });
-    }, 200); // Start animation 200ms after render
-
+      gsap.fromTo(
+        el,
+        { scale: 0.9, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.55, ease: "back.out(1.6)" }
+      );
+    }, 120);
     return () => {
       clearTimeout(timeoutId);
-      const snowflakes = snowflakesContainer.querySelectorAll(".snowflake");
-      snowflakes.forEach((snowflake) => {
-        gsap.killTweensOf(snowflake);
-      });
+      gsap.killTweensOf(el);
     };
-  }, [hasData]);
+  }, [headingText, saleTextValue]);
 
-  // HOUSEFULL SALE animation - SIMPLIFIED and DEFERRED for faster load
-  useLayoutEffect(() => {
-    if (!hasData) return;
-    const housefullContainer = housefullRef.current;
-    const saleText = saleRef.current;
-    const dateText = dateRef.current;
-    if (!housefullContainer) return;
-
-    // Defer animation start to prioritize content rendering
-    const timeoutId = setTimeout(() => {
-      const letters = housefullContainer.querySelectorAll(".housefull-letter");
-
-      // Simplified animation - single entrance animation instead of loop
-      gsap.set([housefullContainer, saleText, dateText], {
-        scale: 0.8,
-        opacity: 0,
-      });
-
-      gsap.to([housefullContainer, saleText, dateText], {
-        scale: 1,
-        opacity: 1,
-        duration: 0.5,
-        ease: "back.out(1.7)",
-      });
-
-      // Simplified letter animation - only run once
-      gsap.to(letters, {
-        y: -10,
-        duration: 0.15,
-        stagger: 0.04,
-        ease: "power2.out",
-        yoyo: true,
-        repeat: 1,
-      });
-    }, 150); // Start animation 150ms after render
-
-    return () => {
-      clearTimeout(timeoutId);
-      const letters = housefullContainer.querySelectorAll(".housefull-letter");
-      gsap.killTweensOf([housefullContainer, saleText, dateText, letters]);
-    };
-  }, [hasData]);
-
-  // Product rotation animation
-  useEffect(() => {
-    if (featuredProducts.length <= 1) return;
-    const interval = setInterval(() => {
-      setCurrentProductIndex((prev) => (prev + 1) % featuredProducts.length);
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [featuredProducts.length]);
-
-  // Reset product index when featuredProducts change
-  useEffect(() => {
-    if (featuredProducts.length > 0 && currentProductIndex >= featuredProducts.length) {
-      setCurrentProductIndex(0);
-    }
-  }, [featuredProducts.length, currentProductIndex]);
-
-  // Animate product change
-  useEffect(() => {
-    const elements = [
-      priceContainerRef.current,
-      productNameRef.current,
-      productImageRef.current,
-    ];
-    if (elements.some((el) => !el)) return;
-
-    const tween = gsap.to(elements, {
-      opacity: 0,
-      x: -30,
-      duration: 0.3,
-      ease: "power2.in",
-      onComplete: () => {
-        const currentElements = [
-          priceContainerRef.current,
-          productNameRef.current,
-          productImageRef.current,
-        ];
-        if (currentElements.some((el) => !el)) return;
-
-        gsap.set(currentElements, {
-          x: 30,
-          opacity: 0,
-        });
-
-        gsap.to(currentElements, {
-          opacity: 1,
-          x: 0,
-          duration: 0.4,
-          ease: "power2.out",
-        });
-      },
-    });
-
-    return () => {
-      tween.kill();
-    };
-  }, [currentProductIndex]);
-
-  const currentProduct = featuredProducts.length > 0 ? featuredProducts[currentProductIndex] : null;
-
-  // Show minimal loading state - render faster
-  if (loading) {
-    return (
-      <div
-        className="relative"
-        style={{
-          background: `linear-gradient(to bottom, ${theme.primary[0]}, ${theme.primary[1]}, ${theme.primary[2]}, ${theme.primary[3]}, ${theme.primary[3]})`,
-          paddingTop: "12px",
-          paddingBottom: "0px",
-          marginTop: 0,
-          minHeight: "200px"
-        }}>
-        <div className="h-[200px] w-full bg-transparent animate-pulse rounded-lg mx-0 mt-4" />
-      </div>
-    );
-  }
-
-  // Show "No active promotions" only if there are no cards AND no products
-  if (!hasData || (categoryCards.length === 0 && featuredProducts.length === 0)) {
-    return (
-      <div className="text-center py-6 text-neutral-400 text-sm">
-        No active promotions
-      </div>
-    );
-  }
-
-  // If no featured products but we have category cards, use a fallback product
-  const displayProduct = currentProduct || {
-    id: 'fallback',
-    name: 'Special Offers',
-    originalPrice: 999,
-    discountedPrice: 499,
-    imageUrl: undefined,
-  };
-
-  // Calculate prices from actual product data using utility
-  const { displayPrice, mrp } = calculateProductPrice(displayProduct);
-
-  // Fallback prices if product data is incomplete
-  const finalDiscountedPrice = displayPrice > 0 ? displayPrice : (Number.isFinite(displayProduct.discountedPrice) ? displayProduct.discountedPrice : 499);
-  const finalOriginalPrice = mrp > 0 ? mrp : (Number.isFinite(displayProduct.originalPrice) ? displayProduct.originalPrice : 999);
-
-  // Ensure prices are valid numbers
-  const safeOriginalPrice = Number.isFinite(finalOriginalPrice) ? Math.round(finalOriginalPrice) : 999;
-  const safeDiscountedPrice = Number.isFinite(finalDiscountedPrice) ? Math.round(finalDiscountedPrice) : 499;
-
-  // Helper function to handle product navigation
-  const handleProductClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-
-    // Get product ID - handle both string and ObjectId formats
-    const productId = displayProduct?.id || displayProduct?._id;
-
-    if (productId && productId !== 'fallback') {
-      // Convert to string if it's an object
-      const idString = typeof productId === 'string' ? productId : String(productId);
-      if (idString && idString !== 'fallback' && idString.length > 0) {
-        navigate(`/product/${idString}`);
+  // Helper to extract max discount % from badges for the banner seal
+  const maxDiscount = (() => {
+    let max = 0;
+    for (const card of categoryCards) {
+      const match = (card.badge || "").match(/(\d+)\s*%/);
+      if (match) {
+        const n = parseInt(match[1], 10);
+        if (n > max) max = n;
       }
     }
-  };
+    return max > 0 ? max : 55;
+  })();
+
+  const showCrazyDeals = !loading && categoryCards.length > 0;
 
   return (
-    <div
-      className="relative"
-      style={{
-        background: `linear-gradient(to bottom, ${theme.primary[0]}, ${theme.primary[1]}, ${theme.primary[2]}, ${theme.primary[3]}, ${theme.primary[3]})`,
-        paddingTop: "12px",
-        paddingBottom: "0px",
-        marginTop: 0,
-      }}>
-      {/* HOUSEFULL SALE Banner */}
-      <div
-        className="px-4 mb-3 text-center relative"
-        style={{ minHeight: "80px" }}>
-        {/* Snowflakes Container */}
+    <div className="bg-[#f7fbff]">
+      {/* ============ HERO BANNER (homebanner.png) ============ */}
+      <div className="px-4 pt-3 md:px-6 md:pt-4">
         <div
-          ref={snowflakesRef}
-          className="absolute inset-0 pointer-events-none overflow-hidden"
-          style={{ top: 0, bottom: "auto", height: "100px" }}>
-          {/* Left side snowflakes */}
-          {[...Array(8)].map((_, i) => (
-            <div
-              key={`left-${i}`}
-              className="snowflake absolute"
-              style={{
-                left: `${5 + (i % 4) * 12}%`,
-                top: `${Math.floor(i / 4) * 30}px`,
-              }}>
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                style={{
-                  filter: "drop-shadow(0 0 2px rgba(255, 255, 255, 0.9))",
-                }}>
-                <path
-                  d="M12 1V5M12 19V23M3 12H1M23 12H21M20.5 20.5L18.5 18.5M20.5 3.5L18.5 5.5M3.5 20.5L5.5 18.5M3.5 3.5L5.5 5.5M18.5 18.5L16.5 16.5M18.5 5.5L16.5 7.5M5.5 18.5L7.5 16.5M5.5 5.5L7.5 7.5"
-                  stroke="rgba(255, 255, 255, 1)"
-                  strokeWidth="1.2"
-                  strokeLinecap="round"
-                />
-                <circle cx="12" cy="12" r="1.8" fill="rgba(255, 255, 255, 1)" />
-              </svg>
-            </div>
-          ))}
-          {/* Right side snowflakes */}
-          {[...Array(8)].map((_, i) => (
-            <div
-              key={`right-${i}`}
-              className="snowflake absolute"
-              style={{
-                right: `${5 + (i % 4) * 12}%`,
-                top: `${Math.floor(i / 4) * 30}px`,
-              }}>
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                style={{
-                  filter: "drop-shadow(0 0 2px rgba(255, 255, 255, 0.9))",
-                }}>
-                <path
-                  d="M12 1V5M12 19V23M3 12H1M23 12H21M20.5 20.5L18.5 18.5M20.5 3.5L18.5 5.5M3.5 20.5L5.5 18.5M3.5 3.5L5.5 5.5M18.5 18.5L16.5 16.5M18.5 5.5L16.5 7.5M5.5 18.5L7.5 16.5M5.5 5.5L7.5 7.5"
-                  stroke="rgba(255, 255, 255, 1)"
-                  strokeWidth="1.2"
-                  strokeLinecap="round"
-                />
-                <circle cx="12" cy="12" r="1.8" fill="rgba(255, 255, 255, 1)" />
-              </svg>
-            </div>
-          ))}
-        </div>
+          className="relative rounded-2xl overflow-hidden shadow-sm select-none"
+          style={{
+            background: "linear-gradient(135deg, #0056FF 0%, #2b7cff 55%, #55a3ff 100%)",
+            minHeight: "150px",
+          }}
+        >
+          {/* Banner image */}
+          {bannerImgOk ? (
+            <img
+              src="/homebanner.png"
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 w-full h-full object-cover object-right"
+              loading="eager"
+              decoding="async"
+              onError={() => setBannerImgOk(false)}
+            />
+          ) : null}
 
-        <div className="relative z-10">
-          <div className="flex items-center justify-center gap-3 mb-0">
-            {/* Left Lightning Bolt */}
-            <svg
-              width="28"
-              height="36"
-              viewBox="0 0 24 30"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="flex-shrink-0">
-              <path
-                d="M13 2L3 14H12L11 22L21 10H12L13 2Z"
-                fill="#FFD700"
-                stroke="#FFA500"
-                strokeWidth="0.5"
-              />
-            </svg>
-
-            {/* HOUSEFULL Text */}
-            <h1
-              ref={housefullRef}
-              className="text-3xl font-black text-white"
-              style={
-                {
-                  fontFamily: '"Poppins", sans-serif',
-                  letterSpacing: "1.5px",
-                  lineHeight: "1.1",
-                  textShadow:
-                    `-2px -2px 0 ${theme.accentColor}, 2px -2px 0 ${theme.accentColor}, -2px 2px 0 ${theme.accentColor}, 2px 2px 0 ${theme.accentColor}, ` +
-                    `-2px 0px 0 ${theme.accentColor}, 2px 0px 0 ${theme.accentColor}, 0px -2px 0 ${theme.accentColor}, 0px 2px 0 ${theme.accentColor}, ` +
-                    `-1px -1px 0 ${theme.accentColor}, 1px -1px 0 ${theme.accentColor}, -1px 1px 0 ${theme.accentColor}, 1px 1px 0 ${theme.accentColor}, ` +
-                    "0px 2px 0px rgba(0, 0, 0, 0.8), 0px 4px 0px rgba(0, 0, 0, 0.6), " +
-                    "0px 6px 0px rgba(0, 0, 0, 0.4), 0px 8px 8px rgba(0, 0, 0, 0.3), " +
-                    "2px 2px 2px rgba(0, 0, 0, 0.5)",
-                } as React.CSSProperties
-              }>
-              {headingText.split("").map((letter, index) => (
-                <span key={index} className="housefull-letter inline-block">
-                  {letter}
-                </span>
-              ))}
-            </h1>
-
-            {/* Right Lightning Bolt */}
-            <svg
-              width="28"
-              height="36"
-              viewBox="0 0 24 30"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="flex-shrink-0"
-              style={{ transform: "scaleX(-1)" }}>
-              <path
-                d="M13 2L3 14H12L11 22L21 10H12L13 2Z"
-                fill="#FFD700"
-                stroke="#FFA500"
-                strokeWidth="0.5"
-              />
-            </svg>
-          </div>
-
-          {/* SALE Text */}
+          {/* Left-side content overlay */}
           <div
-            className="flex justify-center mb-0.5"
-            style={{ marginTop: "-3px" }}>
-            <h2
-              ref={saleRef}
-              className="text-xl font-black text-white"
-              style={
-                {
+            ref={bannerTextRef}
+            className="relative z-10 flex flex-col justify-center gap-1 px-4 sm:px-6 py-5 sm:py-7"
+            style={{ maxWidth: "72%" }}
+          >
+            <div className="flex items-center gap-1.5">
+              <svg width="18" height="24" viewBox="0 0 24 30" fill="none" aria-hidden="true">
+                <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" fill="#FFD700" stroke="#FFA500" strokeWidth="0.5" />
+              </svg>
+              <h2
+                className="font-black text-white leading-none"
+                style={{
                   fontFamily: '"Poppins", sans-serif',
-                  letterSpacing: "1.5px",
-                  textShadow:
-                    `-1.5px -1.5px 0 ${theme.accentColor}, 1.5px -1.5px 0 ${theme.accentColor}, -1.5px 1.5px 0 ${theme.accentColor}, 1.5px 1.5px 0 ${theme.accentColor}, ` +
-                    `-1.5px 0px 0 ${theme.accentColor}, 1.5px 0px 0 ${theme.accentColor}, 0px -1.5px 0 ${theme.accentColor}, 0px 1.5px 0 ${theme.accentColor}, ` +
-                    `-1px -1px 0 ${theme.accentColor}, 1px -1px 0 ${theme.accentColor}, -1px 1px 0 ${theme.accentColor}, 1px 1px 0 ${theme.accentColor}, ` +
-                    "0px 2px 0px rgba(0, 0, 0, 0.8), 0px 4px 0px rgba(0, 0, 0, 0.6), " +
-                    "0px 6px 0px rgba(0, 0, 0, 0.4), 0px 8px 8px rgba(0, 0, 0, 0.3), " +
-                    "2px 2px 2px rgba(0, 0, 0, 0.5)",
-                } as React.CSSProperties
-              }>
+                  fontSize: "clamp(22px, 6vw, 40px)",
+                  letterSpacing: "1px",
+                  textShadow: "0 2px 6px rgba(0,0,0,0.35)",
+                  fontStyle: "italic",
+                }}
+              >
+                {headingText}
+              </h2>
+            </div>
+            <h3
+              className="font-black leading-none"
+              style={{
+                fontFamily: '"Poppins", sans-serif',
+                fontSize: "clamp(20px, 5.5vw, 36px)",
+                letterSpacing: "1px",
+                color: "#FFE14D",
+                textShadow: "0 2px 6px rgba(0,0,0,0.35)",
+                fontStyle: "italic",
+                marginTop: "-2px",
+              }}
+            >
               {saleTextValue}
-            </h2>
+            </h3>
+            <p
+              className="text-white/95 font-semibold leading-snug mt-1"
+              style={{ fontSize: "clamp(11px, 2.8vw, 14px)", textShadow: "0 1px 3px rgba(0,0,0,0.3)" }}
+            >
+              {t("home.bannerSubtitle", "Daily essentials at unbeatable prices")}
+            </p>
+
+            {/* Discount seal */}
+            <div className="mt-2 inline-flex">
+              <div
+                className="bg-[#FFD700] text-[#c1121f] font-black rounded-full flex items-center justify-center text-center shadow-md"
+                style={{ width: "72px", height: "72px", lineHeight: 1.05, fontSize: "11px", padding: "6px" }}
+              >
+                <span>
+                  UP TO
+                  <br />
+                  <span style={{ fontSize: "18px" }}>{maxDiscount}%</span>
+                  <br />
+                  OFF
+                </span>
+              </div>
+            </div>
           </div>
 
-          {/* Dates */}
+          {/* Carousel dots (decorative single-slide indicator) */}
+          <div className="absolute bottom-2.5 left-4 z-10 flex gap-1.5" aria-hidden="true">
+            <span className="w-2 h-2 rounded-full bg-white" />
+            <span className="w-2 h-2 rounded-full bg-white/45" />
+            <span className="w-2 h-2 rounded-full bg-white/45" />
+          </div>
+
+          {/* Date range chip if configured */}
           {dateRange && (
-            <div
-              ref={dateRef}
-              className="font-bold text-xs text-center mt-1"
-              style={{ color: theme.textColor }}>
+            <div className="absolute top-2.5 right-3 z-10 bg-white/90 text-neutral-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
               {dateRange}
             </div>
           )}
         </div>
       </div>
 
-      {/* Main Content: Crazy Deals + Category Cards */}
-      <div className="px-4 mt-2">
-        <div ref={containerRef} className="flex gap-2">
-          {/* Crazy Deals Section - Left */}
-          <div className="flex-shrink-0 w-[105px] sm:w-[120px] promo-card">
-            <div
-              className="h-full rounded-lg p-1.5 flex flex-col items-center justify-between relative overflow-hidden"
-              style={{
-                background: `radial-gradient(circle at center, rgba(255, 255, 255, 0.15), transparent 60%), linear-gradient(to bottom, ${theme.primary[0]}, ${theme.primary[1]}, ${theme.primary[2]})`,
-                minHeight: "135px",
-              }}>
-              {/* CRAZY DEALS - Two lines, bigger */}
-              <div className="text-center mb-1.5" style={{ marginTop: "4px" }}>
-                <div
-                  className="text-white font-black leading-tight"
-                  style={{
-                    fontSize: "15px",
-                    fontFamily: "sans-serif",
-                    textShadow:
-                      "2px 2px 4px rgba(0, 0, 0, 0.8), 1px 1px 2px rgba(0, 0, 0, 0.9)",
-                    letterSpacing: "0.5px",
-                  }}>
-                  {crazyDealsTitle.split(" ").map((word, idx) => (
-                    <div key={idx}>{word}</div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Price Banners - Compact */}
-              <div
-                ref={priceContainerRef}
-                className="flex flex-col items-center mb-0.5 relative">
-                {/* Original Price - Darker Gray, Smaller Banner */}
-                <div
-                  className="bg-neutral-600 rounded px-1.5 inline-block relative z-10"
-                  style={{
-                    height: "fit-content",
-                    lineHeight: "1",
-                    paddingTop: "2px",
-                    paddingBottom: "2px",
-                  }}>
-                  <span className="text-white text-[10px] font-medium line-through leading-none">
-                    ₹{safeOriginalPrice}
-                  </span>
-                </div>
-                {/* Discounted Price - Bright Green Banner */}
-                <div
-                  className="bg-green-500 rounded px-2 inline-block relative -mt-0.5 z-20"
-                  style={{
-                    height: "fit-content",
-                    lineHeight: "1",
-                    paddingTop: "2px",
-                    paddingBottom: "2px",
-                  }}>
-                  <span className="text-white text-xs font-bold leading-none">
-                    ₹{safeDiscountedPrice}
-                  </span>
-                </div>
-              </div>
-
-              {/* Product Name - Compact - Clickable */}
-              <div
-                ref={productNameRef}
-                onClick={handleProductClick}
-                className="text-neutral-900 font-black text-[11px] sm:text-xs text-center mb-1 cursor-pointer hover:underline line-clamp-2 leading-tight"
-                title={getTranslatedField(displayProduct, "name") || displayProduct.productName || displayProduct.name}>
-                {getTranslatedField(displayProduct, "name") || displayProduct.productName || displayProduct.name}
-              </div>
-
-              {/* Product Thumbnail - Bottom Center, sized to container */}
-              <div
-                ref={productImageRef}
-                className="flex-1 flex items-end justify-center w-full"
-                style={{ minHeight: "65px", maxHeight: "85px" }}>
-                <div
-                  onClick={handleProductClick}
-                  className="w-16 h-20 sm:w-18 sm:h-22 rounded flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
-                  style={{ background: "transparent" }}>
-                  {displayProduct.imageUrl ? (
-                    <img
-                      src={displayProduct.imageUrl}
-                      alt={displayProduct.name}
-                      className="w-full h-full object-contain"
-                      loading="lazy"
-                      decoding="async"
-                      style={{
-                        mixBlendMode: "normal",
-                        backgroundColor: "transparent",
-                      }}
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        // Hide broken image and show fallback
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                        const parent = target.parentElement;
-                        if (parent && !parent.querySelector('.product-fallback')) {
-                          const fallback = document.createElement('div');
-                          fallback.className = 'product-fallback w-full h-full bg-gradient-to-b from-yellow-100 to-yellow-50 flex items-center justify-center';
-                          const icon = document.createElement('div');
-                          icon.className = 'w-7 h-9 bg-yellow-200 rounded-sm relative';
-                          icon.innerHTML = `
-                            <div class="absolute top-0 left-1/2 transform -translate-x-1/2 w-2.5 h-2.5 bg-blue-400 rounded-full"></div>
-                            <div class="absolute bottom-0 left-0 right-0 h-1.5 bg-white/80"></div>
-                          `;
-                          fallback.appendChild(icon);
-                          parent.appendChild(fallback);
-                        }
-                      }}
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-b from-yellow-100 to-yellow-50 flex items-center justify-center">
-                      <div className="w-7 h-9 bg-yellow-200 rounded-sm relative">
-                        <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-2.5 h-2.5 bg-blue-400 rounded-full"></div>
-                        <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-white/80"></div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+      {/* ============ CRAZY DEALS ============ */}
+      <div className="px-4 mt-4 md:px-6">
+        <div ref={containerRef} className="bg-white rounded-2xl shadow-sm border border-neutral-100 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="flex items-center gap-1.5 text-lg md:text-xl font-black text-neutral-900 tracking-tight">
+              <span aria-hidden="true">🔥</span>
+              {getTranslatedField({ title: crazyDealsTitle }, "title") || crazyDealsTitle}
+            </h2>
+            <button
+              type="button"
+              onClick={() => navigate("/categories")}
+              className="flex items-center gap-1 text-primary font-bold text-sm hover:underline"
+            >
+              {t("common.viewAll", "View All")}
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14M13 6l6 6-6 6" />
+              </svg>
+            </button>
           </div>
 
-          {/* Category Cards Grid - Right */}
-          <div className="flex-1 grid grid-cols-2 gap-2">
-            {categoryCards.map((card) => {
-              // Use subcategory images from the map if available, otherwise check card.subcategoryImages, then fallback to emoji icons
-              const subcategoryImages = subcategoryImagesMap[card.id] || card.subcategoryImages || [];
-              const hasSubcategoryImages = subcategoryImages.length > 0;
-              const categoryIcons = getCategoryIcons(card.slug || card.categoryId || "", card.title || "");
+          {loading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="rounded-xl h-32 bg-neutral-100 animate-pulse" />
+              ))}
+            </div>
+          ) : showCrazyDeals ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+              {categoryCards.map((card, index) => {
+                const subcategoryImages = subcategoryImagesMap[card.id] || card.subcategoryImages || [];
+                const hasSubcategoryImages = subcategoryImages.length > 0;
+                const categoryIcons = getCategoryIcons(card.slug || card.categoryId || "", card.title || "");
+                const bg = DEAL_BG_COLORS[index % DEAL_BG_COLORS.length];
 
-              return (
-                <div key={card.id} className="promo-card">
+                return (
                   <Link
+                    key={card.id}
                     to={card.slug || card.categoryId ? `/category/${card.slug || card.categoryId}` : "#"}
-                    className="group rounded-lg transition-all duration-300 hover:shadow-md active:scale-[0.98] h-full flex flex-col overflow-hidden relative"
-                    style={{
-                      minHeight: "135px",
-                      background: "rgba(255, 247, 237, 0.9)", // Very light orange
-                    }}>
-                    {/* Green Discount Banner - Only around text, centered at top */}
-                    <div
-                      className="w-full flex justify-center"
-                      style={{ paddingTop: "0", paddingBottom: "2px" }}>
-                      <div className="bg-green-600 text-white text-[11px] sm:text-xs font-black px-2 py-0.5 rounded tracking-tight text-center inline-block">
+                    className="promo-card group relative rounded-xl overflow-hidden flex flex-col min-h-[140px] transition-shadow hover:shadow-md active:scale-[0.98]"
+                    style={{ background: bg }}
+                  >
+                    {/* Orange discount badge */}
+                    <div className="px-2.5 pt-2.5">
+                      <span className="inline-block bg-[#ff5b2e] text-white text-[10px] sm:text-[11px] font-black px-2 py-0.5 rounded-md shadow-sm">
                         {card.badge}
-                      </div>
+                      </span>
                     </div>
 
-                    <div
-                      className="px-1.5 pb-1.5 flex flex-col flex-1 justify-between"
-                      style={{ paddingTop: "2px" }}>
-                      {/* Category Title */}
-                      <div
-                        className="text-neutral-900 font-bold text-center"
-                        style={{
-                          fontSize: "14px",
-                          lineHeight: "1.25",
-                          marginBottom: "4px",
-                        }}>
+                    {/* Title */}
+                    <div className="px-2.5 mt-1.5">
+                      <span className="text-[13px] sm:text-sm font-extrabold text-neutral-900 leading-tight line-clamp-2">
                         {getTranslatedField(card, "title") || card.title}
-                      </div>
+                      </span>
+                    </div>
 
-                      {/* Subcategory / Product Images or Category Icons - Horizontal Layout */}
-                      <div
-                        className="flex items-center justify-center gap-1.5 overflow-hidden"
-                        style={{ marginTop: "auto", minHeight: "56px" }}>
-                        {hasSubcategoryImages
-                          ? // Display subcategory or product images as icons
-                          subcategoryImages.slice(0, 4).map((imageUrl, idx) => (
-                            <div
-                              key={idx}
-                              className={`flex-shrink-0 bg-white rounded-xl flex items-center justify-center overflow-hidden border border-amber-200/70 shadow-2xs ${
-                                subcategoryImages.length === 1 ? "w-16 h-16 sm:w-18 sm:h-18" : "w-10 h-10 sm:w-11 sm:h-11"
-                              }`}>
+                    {/* Product image collage + arrow */}
+                    <div className="relative mt-auto flex-1 min-h-[74px] px-2.5 pb-2.5">
+                      {hasSubcategoryImages ? (
+                        <div className="relative w-full h-full">
+                          {subcategoryImages.slice(0, 3).map((imageUrl, idx) => {
+                            const shown = subcategoryImages.slice(0, 3);
+                            const layout = getCollageLayout(shown.length, idx);
+                            return (
                               <img
+                                key={idx}
                                 src={imageUrl}
-                                alt={`Item ${idx + 1}`}
-                                className="w-full h-full object-cover object-top"
+                                alt=""
+                                className={`absolute object-cover rounded-lg shadow-md ring-2 ring-white ${layout.size} ${layout.pos} ${layout.z}`}
                                 loading="lazy"
                                 decoding="async"
                                 onError={(e) => {
-                                  // Fallback to emoji if image fails to load
-                                  const target = e.target as HTMLImageElement;
-                                  target.style.display = "none";
-                                  const parent = target.parentElement;
-                                  if (parent) {
-                                    parent.innerHTML = categoryIcons[idx] || "✨";
-                                    parent.style.fontSize = "24px";
-                                    parent.style.display = "flex";
-                                    parent.style.alignItems = "center";
-                                    parent.style.justifyContent = "center";
-                                  }
+                                  (e.target as HTMLImageElement).style.visibility = "hidden";
                                 }}
                               />
-                            </div>
-                          ))
-                          : // Fallback to theme category icons
-                          categoryIcons.slice(0, 4).map((icon, idx) => (
-                            <div
-                              key={idx}
-                              className="flex-shrink-0 bg-white/70 rounded-xl flex items-center justify-center overflow-hidden border border-amber-100 shadow-2xs"
-                              style={{
-                                width: "40px",
-                                height: "40px",
-                                fontSize: "24px",
-                              }}>
-                              {icon}
-                            </div>
-                          ))}
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="flex items-end justify-end h-full">
+                          <span className="text-3xl opacity-70" aria-hidden="true">
+                            {categoryIcons[0] || "✨"}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Blue circular arrow overlapping the collage */}
+                      <div className="absolute bottom-2.5 right-2.5 z-40 w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M5 12h14M13 6l6 6-6 6" />
+                        </svg>
                       </div>
                     </div>
                   </Link>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-neutral-400 text-sm text-center py-4">
+              {t("home.noPromotions", "No active promotions")}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* ============ FEATURES STRIP ============ */}
+      <div className="px-4 mt-3 md:px-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-neutral-100 px-2 py-3.5">
+          <div className="grid grid-cols-4">
+            <FeatureItem
+              icon={
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="9" cy="9" r="2" />
+                  <circle cx="15" cy="15" r="2" />
+                  <path d="M19 5L5 19" />
+                </svg>
+              }
+              label={t("home.featureOffers", "Special Offers")}
+            />
+            <FeatureItem
+              icon={
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7v5l3 2" />
+                </svg>
+              }
+              label={t("home.featureDelivery", "12–15 Mins Delivery")}
+            />
+            <FeatureItem
+              icon={
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <path d="M9 12l2 2 4-4" />
+                </svg>
+              }
+              label={t("home.featureQuality", "Best Quality")}
+            />
+            <FeatureItem
+              icon={
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="5" width="20" height="14" rx="2" />
+                  <path d="M2 10h20" />
+                </svg>
+              }
+              label={t("home.featurePayments", "Safe & Easy Payments")}
+              isLast
+            />
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function FeatureItem({
+  icon,
+  label,
+  isLast,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  isLast?: boolean;
+}) {
+  return (
+    <div
+      className={`flex flex-col items-center gap-1.5 px-1 ${
+        isLast ? "" : "border-r border-neutral-100"
+      }`}
+    >
+      <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+        {icon}
+      </div>
+      <span className="text-[10px] sm:text-[11px] font-bold text-neutral-700 text-center leading-tight">
+        {label}
+      </span>
     </div>
   );
 }

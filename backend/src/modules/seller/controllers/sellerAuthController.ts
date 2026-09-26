@@ -130,6 +130,22 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
+  // Validate commerce channel(s) — seller must sell through Quick, E-Commerce, or both
+  const validChannels = ["Quick", "ECommerce"];
+  const channels: string[] =
+    Array.isArray(req.body.channels) &&
+    req.body.channels.length > 0 &&
+    req.body.channels.every((c: string) => validChannels.includes(c))
+      ? req.body.channels
+      : [];
+
+  if (channels.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Please select at least one commerce channel (Quick Commerce or E-Commerce)",
+    });
+  }
+
   // Validate location is provided
   const latitude = req.body.latitude ? parseFloat(req.body.latitude) : null;
   const longitude = req.body.longitude ? parseFloat(req.body.longitude) : null;
@@ -219,6 +235,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
       Array.isArray(req.body.categories) && req.body.categories.length > 0
         ? req.body.categories
         : [category],
+    channels,
   });
 
   // Generate token

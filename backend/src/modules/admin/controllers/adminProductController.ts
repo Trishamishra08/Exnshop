@@ -935,6 +935,7 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
     seller,
     status,
     publish,
+    channel,
   } = req.query;
 
   const query: any = {};
@@ -949,6 +950,13 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
   if (subcategory) query.subcategory = subcategory;
   if (brand) query.brand = brand;
   if (seller) query.seller = seller;
+
+  if (channel === "Quick" || channel === "ECommerce") {
+    const channelSellerIds = await Seller.find({ channels: channel }).distinct("_id");
+    query.seller = query.seller
+      ? { $eq: query.seller, $in: channelSellerIds }
+      : { $in: channelSellerIds };
+  }
 
   // Only filter by status if explicitly provided
   // All products show by default (no approval workflow)

@@ -15,6 +15,7 @@ import { useAppSettings } from '../../context/AppSettingsContext';
 import Button from '../../components/ui/button';
 import Badge from '../../components/ui/badge';
 import { getProductById } from '../../services/api/customerProductService';
+import { useCommerceMode } from '../../context/CommerceModeContext';
 import WishlistButton from '../../components/WishlistButton';
 import StarRating from '../../components/ui/StarRating';
 import {
@@ -37,6 +38,7 @@ export default function ProductDetail() {
   const { location } = useLocation();
   const { startLoading, stopLoading } = useLoading();
   const { settings: appSettings } = useAppSettings();
+  const { mode } = useCommerceMode();
   const addButtonRef = useRef<HTMLButtonElement>(null);
   const [isProductDetailsExpanded, setIsProductDetailsExpanded] =
     useState(false);
@@ -79,7 +81,8 @@ export default function ProductDetail() {
         const response = await getProductById(
           id,
           location?.latitude,
-          location?.longitude
+          location?.longitude,
+          mode === 'ECommerce' ? 'ecommerce' : 'quick'
         );
         if (response.success && response.data) {
           const productData = response.data as any;
@@ -133,7 +136,7 @@ export default function ProductDetail() {
 
 
     fetchProduct();
-  }, [id, location?.latitude, location?.longitude]);
+  }, [id, location?.latitude, location?.longitude, mode]);
 
   useEffect(() => {
     const fetchReviews = async () => {

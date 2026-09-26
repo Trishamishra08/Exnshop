@@ -80,6 +80,16 @@ export interface Order {
   cancellationReason?: string;
   cancelledAt?: string;
   cancelledBy?: string | { firstName: string; lastName: string };
+  channel?: "Quick" | "ECommerce";
+  shiprocket?: {
+    orderId?: string;
+    shipmentId?: string;
+    awbCode?: string;
+    courierName?: string;
+    trackingUrl?: string;
+    status?: string;
+    pickupScheduledAt?: string;
+  };
   createdAt?: string;
   updatedAt?: string;
 }
@@ -93,6 +103,7 @@ export interface GetOrdersParams {
   dateFrom?: string;
   dateTo?: string;
   search?: string;
+  channel?: "Quick" | "ECommerce";
 }
 
 export interface UpdateOrderStatusData {
@@ -133,6 +144,7 @@ export interface ExportOrdersParams {
   status?: string;
   dateFrom?: string;
   dateTo?: string;
+  channel?: "Quick" | "ECommerce";
 }
 
 /**
@@ -152,7 +164,7 @@ export const getAllOrders = async (
  */
 export const getOrdersByStatus = async (
   status: string,
-  params?: { page?: number; limit?: number },
+  params?: { page?: number; limit?: number; channel?: "Quick" | "ECommerce" },
 ): Promise<ApiResponse<Order[]>> => {
   const response = await api.get<ApiResponse<Order[]>>(
     `/admin/orders/status/${status}`,
@@ -247,6 +259,7 @@ export const getSettlementOrders = async (params?: {
   page?: number;
   limit?: number;
   paymentMethod?: string;
+  channel?: "Quick" | "ECommerce";
 }): Promise<
   ApiResponse<{
     orders: SettlementOrderItem[];
@@ -324,5 +337,46 @@ export const exportOrders = async (
     params,
     responseType: "blob",
   });
+  return response.data;
+};
+
+export interface GetShipmentsParams {
+  page?: number;
+  limit?: number;
+  status?: string;
+  search?: string;
+}
+
+export interface UpdateShipmentData {
+  courierName?: string;
+  awbCode?: string;
+  trackingUrl?: string;
+  orderStatus?: "Processed" | "Shipped" | "Out for Delivery" | "Delivered" | "Cancelled";
+}
+
+/**
+ * List E-Commerce channel orders for manual shipment management
+ * (until Shiprocket is connected and automates this)
+ */
+export const getShipmentOrders = async (
+  params?: GetShipmentsParams,
+): Promise<ApiResponse<Order[]>> => {
+  const response = await api.get<ApiResponse<Order[]>>("/admin/shipments", {
+    params,
+  });
+  return response.data;
+};
+
+/**
+ * Manually update shipment details (courier, AWB, tracking URL) and/or status
+ */
+export const updateShipment = async (
+  id: string,
+  data: UpdateShipmentData,
+): Promise<ApiResponse<Order>> => {
+  const response = await api.patch<ApiResponse<Order>>(
+    `/admin/shipments/${id}`,
+    data,
+  );
   return response.data;
 };

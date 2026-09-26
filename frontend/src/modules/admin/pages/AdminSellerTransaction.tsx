@@ -7,6 +7,7 @@ import {
 import { getAllSellers as getSellers } from "../../../services/api/sellerService";
 import { useAuth } from "../../../context/AuthContext";
 import { useToast } from "../../../context/ToastContext";
+import { useAdminMode } from "../context/AdminModeContext";
 
 interface Transaction {
   id: string;
@@ -33,6 +34,7 @@ interface Seller {
 export default function AdminSellerTransaction() {
   const { isAuthenticated, token } = useAuth();
   const { showToast } = useToast();
+  const { mode } = useAdminMode();
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [selectedSeller, setSelectedSeller] = useState("all");
@@ -64,8 +66,8 @@ export default function AdminSellerTransaction() {
 
     const fetchSellers = async () => {
       try {
-        // Fetch all sellers (not just approved) as requested
-        const response = await getSellers();
+        // Fetch all sellers (not just approved) as requested, scoped to the active commerce mode
+        const response = await getSellers({ channel: mode });
         if (response.success && response.data) {
           setSellers(
             response.data.map((seller) => ({
@@ -82,7 +84,7 @@ export default function AdminSellerTransaction() {
     };
 
     fetchSellers();
-  }, [isAuthenticated, token]);
+  }, [isAuthenticated, token, mode]);
 
   // Fetch transactions based on selected seller
   useEffect(() => {
@@ -101,6 +103,7 @@ export default function AdminSellerTransaction() {
           userType: "SELLER",
           page: 1,      // Frontend holds all state memory, but we can make it dynamic if we rely fully on backend pagination. Wait, existing code buffers it on frontend. Let's fetch a chunk.
           limit: selectedSeller === "all" ? 500 : entriesPerPage,
+          channel: mode,
         };
 
         if (selectedSeller !== "all") {
@@ -154,6 +157,7 @@ export default function AdminSellerTransaction() {
     isAuthenticated,
     token,
     sellers,
+    mode,
   ]);
 
   const handleSort = (column: string) => {

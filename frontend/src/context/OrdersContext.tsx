@@ -4,6 +4,7 @@ import {
   useEffect,
 } from "react";
 import { useAuth } from "./AuthContext";
+import { useCommerceMode } from "./CommerceModeContext";
 import { Order } from "../types/order";
 import { createOrder, getMyOrders } from "../services/api/customerOrderService";
 import { OrdersContext } from "./ordersContext.types";
@@ -51,6 +52,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const { isAuthenticated, user, updateUser } = useAuth();
+  const { mode } = useCommerceMode();
 
   const fetchOrders = async () => {
     // Ensure userType is set - if user is authenticated but userType is missing, assume Customer
@@ -131,6 +133,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
         tipAmount: order.tipAmount,
         giftPackaging: order.giftPackaging,
         useWallet: order.useWallet,
+        channel: mode,
       };
 
       const response = await createOrder(payload);

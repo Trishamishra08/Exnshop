@@ -5,6 +5,7 @@ import {
   type Order,
 } from "../../../services/api/admin/adminOrderService";
 import { useAuth } from "../../../context/AuthContext";
+import { useAdminMode } from "../context/AdminModeContext";
 import AssignDeliveryBoyModal from "../components/AssignDeliveryBoyModal";
 
 type SortField =
@@ -20,6 +21,7 @@ type SortDirection = "asc" | "desc";
 
 export default function AdminPendingOrders() {
   const { isAuthenticated, token } = useAuth();
+  const { mode } = useAdminMode();
   const [orders, setOrders] = useState<Order[]>([]);
   const [dateRange, setDateRange] = useState("");
   const [seller, setSeller] = useState("All Sellers");
@@ -50,6 +52,7 @@ export default function AdminPendingOrders() {
         const params: any = {
           page: currentPage,
           limit: parseInt(entriesPerPage),
+          channel: mode,
         };
 
         if (searchQuery) {
@@ -94,6 +97,7 @@ export default function AdminPendingOrders() {
     entriesPerPage,
     searchQuery,
     dateRange,
+    mode,
   ]);
 
   const handleClearDate = () => {
@@ -277,7 +281,7 @@ export default function AdminPendingOrders() {
             onClick={() => {
               setCurrentPage(1);
               setLoading(true);
-              getOrdersByStatus("Pending", { page: 1, limit: parseInt(entriesPerPage) })
+              getOrdersByStatus("Pending", { page: 1, limit: parseInt(entriesPerPage), channel: mode })
                 .then(res => { if (res.success) setOrders(res.data); })
                 .finally(() => setLoading(false));
             }}
@@ -744,6 +748,7 @@ export default function AdminPendingOrders() {
               const params: any = {
                 page: currentPage,
                 limit: parseInt(entriesPerPage),
+                channel: mode,
               };
               if (searchQuery) params.search = searchQuery;
               const response = await getOrdersByStatus("Pending", params);

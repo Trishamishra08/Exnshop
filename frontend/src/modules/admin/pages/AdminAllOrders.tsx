@@ -5,6 +5,7 @@ import {
   type Order,
 } from "../../../services/api/admin/adminOrderService";
 import { useAuth } from "../../../context/AuthContext";
+import { useAdminMode } from "../context/AdminModeContext";
 
 type SortField =
   | "orderId"
@@ -19,6 +20,7 @@ type SortDirection = "asc" | "desc";
 
 export default function AdminAllOrders() {
   const { isAuthenticated, token } = useAuth();
+  const { mode } = useAdminMode();
   const [orders, setOrders] = useState<Order[]>([]);
   const [dateRange, setDateRange] = useState("");
   const [seller, setSeller] = useState("All Sellers");
@@ -47,6 +49,7 @@ export default function AdminAllOrders() {
         const params: any = {
           page: currentPage,
           limit: parseInt(entriesPerPage),
+          channel: mode,
         };
 
         if (status !== "All Status" && status !== "Payment Pending") {
@@ -96,6 +99,7 @@ export default function AdminAllOrders() {
     status,
     searchQuery,
     dateRange,
+    mode,
   ]);
 
   const handleClearDate = () => {
@@ -304,7 +308,7 @@ export default function AdminAllOrders() {
             onClick={() => {
               setCurrentPage(1);
               setLoading(true);
-              getAllOrders({ page: 1, limit: parseInt(entriesPerPage) })
+              getAllOrders({ page: 1, limit: parseInt(entriesPerPage), channel: mode })
                 .then(res => { if (res.success) setOrders(res.data); })
                 .finally(() => setLoading(false));
             }}

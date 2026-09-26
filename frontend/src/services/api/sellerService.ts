@@ -49,6 +49,7 @@ export interface Seller {
 export interface GetAllSellersParams {
   status?: "Approved" | "Pending" | "Rejected";
   search?: string;
+  channel?: "Quick" | "ECommerce";
 }
 
 export interface CreateSellerData {

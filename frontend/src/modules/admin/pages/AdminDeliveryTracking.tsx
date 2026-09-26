@@ -6,6 +6,7 @@ import {
   type OrderItem,
 } from "../../../services/api/admin/adminOrderService";
 import { useAuth } from "../../../context/AuthContext";
+import { useAdminMode } from "../context/AdminModeContext";
 
 type SortField =
   | "orderId"
@@ -18,6 +19,7 @@ type SortDirection = "asc" | "desc";
 export default function AdminDeliveryTracking() {
   const navigate = useNavigate();
   const { isAuthenticated, token } = useAuth();
+  const { mode } = useAdminMode();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +44,7 @@ export default function AdminDeliveryTracking() {
           page: currentPage,
           limit: parseInt(entriesPerPage),
           status: "Tracking", // Use the special tracking status we added to the backend
+          channel: mode,
         };
 
         if (searchQuery) {
@@ -64,7 +67,7 @@ export default function AdminDeliveryTracking() {
     };
 
     fetchTrackingOrders();
-  }, [isAuthenticated, token, currentPage, entriesPerPage, searchQuery]);
+  }, [isAuthenticated, token, currentPage, entriesPerPage, searchQuery, mode]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {

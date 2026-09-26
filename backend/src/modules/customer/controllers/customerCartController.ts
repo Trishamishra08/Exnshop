@@ -9,6 +9,12 @@ import AppSettings from '../../../models/AppSettings';
 import { getRoadDistances } from '../../../services/mapService';
 import Seller from '../../../models/Seller';
 
+// Resolve the active commerce channel from query (GET) or body (mutations), defaulting to "Quick"
+const getChannel = (req: Request): 'Quick' | 'ECommerce' => {
+    const raw = (req.body?.channel || req.query?.channel || 'Quick') as string;
+    return raw === 'ECommerce' ? 'ECommerce' : 'Quick';
+};
+
 // Helper to calculate item price matching frontend logic
 const calculateItemPrice = (product: any, variationSelector: any) => {
     let variation = null;
@@ -148,6 +154,7 @@ export const getCart = async (req: Request, res: Response) => {
     try {
         const userId = req.user?.userId;
         const { latitude, longitude } = req.query;
+        const channel = getChannel(req);
 
         // Parse location
         const userLat = latitude ? parseFloat(latitude as string) : null;
@@ -160,7 +167,7 @@ export const getCart = async (req: Request, res: Response) => {
             nearbySellerIds = await findSellersWithinRange(userLat, userLng);
         }
 
-        let cart = await Cart.findOne({ customer: userId }).populate({
+        let cart = await Cart.findOne({ customer: userId, channel }).populate({
             path: 'items',
             populate: {
                 path: 'product',
@@ -169,7 +176,7 @@ export const getCart = async (req: Request, res: Response) => {
         });
 
         if (!cart) {
-            cart = await Cart.create({ customer: userId, items: [], total: 0 });
+            cart = await Cart.create({ customer: userId, channel, items: [], total: 0 });
             return res.status(200).json({ success: true, data: cart });
         }
 
@@ -235,6 +242,7 @@ export const addToCart = async (req: Request, res: Response) => {
         const userId = req.user?.userId;
         const { productId, quantity = 1, variation } = req.body;
         const { latitude, longitude } = req.query;
+        const channel = getChannel(req);
 
         if (!productId) {
             return res.status(400).json({ success: false, message: 'Product ID is required' });
@@ -266,6 +274,14 @@ export const addToCart = async (req: Request, res: Response) => {
             });
         }
 
+        // Check seller sells through the requested commerce channel
+        if (seller && Array.isArray(seller.channels) && !seller.channels.includes(channel)) {
+            return res.status(403).json({
+                success: false,
+                message: `This product is not available in ${channel === 'ECommerce' ? 'Shop All' : 'Quick'} mode.`
+            });
+        }
+
         const nearbySellerIds = await findSellersWithinRange(userLat, userLng);
         const isAvailable = nearbySellerIds.some(id => id.toString() === (seller._id || seller).toString());
 
@@ -276,10 +292,10 @@ export const addToCart = async (req: Request, res: Response) => {
             });
         }
 
-        // Get or create cart
-        let cart = await Cart.findOne({ customer: userId });
+        // Get or create cart (scoped to the active commerce channel)
+        let cart = await Cart.findOne({ customer: userId, channel });
         if (!cart) {
-            cart = await Cart.create({ customer: userId, items: [], total: 0 });
+            cart = await Cart.create({ customer: userId, channel, items: [], total: 0 });
         }
 
         // Check if item already exists in cart
@@ -352,6 +368,7 @@ export const updateCartItem = async (req: Request, res: Response) => {
         const { itemId } = req.params;
         const { quantity } = req.body;
         const { latitude, longitude } = req.query;
+        const channel = getChannel(req);
 
         if (quantity < 1) {
             return res.status(400).json({ success: false, message: 'Quantity must be at least 1' });
@@ -370,7 +387,7 @@ export const updateCartItem = async (req: Request, res: Response) => {
 
         const nearbySellerIds = await findSellersWithinRange(userLat, userLng);
 
-        const cart = await Cart.findOne({ customer: userId });
+        const cart = await Cart.findOne({ customer: userId, channel });
         if (!cart) {
             return res.status(404).json({ success: false, message: 'Cart not found' });
         }
@@ -439,12 +456,13 @@ export const removeFromCart = async (req: Request, res: Response) => {
         const userId = req.user?.userId;
         const { itemId } = req.params;
         const { latitude, longitude } = req.query;
+        const channel = getChannel(req);
 
         // Parse location
         const userLat = latitude ? parseFloat(latitude as string) : null;
         const userLng = longitude ? parseFloat(longitude as string) : null;
 
-        const cart = await Cart.findOne({ customer: userId });
+        const cart = await Cart.findOne({ customer: userId, channel });
         if (!cart) {
             return res.status(404).json({ success: false, message: 'Cart not found' });
         }
@@ -506,7 +524,8 @@ export const removeFromCart = async (req: Request, res: Response) => {
 export const clearCart = async (req: Request, res: Response) => {
     try {
         const userId = req.user?.userId;
-        const cart = await Cart.findOne({ customer: userId });
+        const channel = getChannel(req);
+        const cart = await Cart.findOne({ customer: userId, channel });
 
         if (cart) {
             await CartItem.deleteMany({ cart: cart._id });

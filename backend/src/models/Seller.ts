@@ -76,6 +76,9 @@ export interface ISeller extends Document {
   logo?: string;
   isShopOpen: boolean;
 
+  // Commerce channel(s) this seller sells through
+  channels: ('Quick' | 'ECommerce')[];
+
   createdAt: Date;
   updatedAt: Date;
   // FCM Push Notification Tokens
@@ -316,6 +319,18 @@ const SellerSchema = new Schema<ISeller>(
     isShopOpen: {
       type: Boolean,
       default: true,
+    },
+    // Commerce channel(s) this seller sells through
+    channels: {
+      type: [String],
+      enum: ['Quick', 'ECommerce'],
+      default: ['Quick'],
+      validate: {
+        validator: function (v: string[]) {
+          return Array.isArray(v) && v.length > 0;
+        },
+        message: 'At least one commerce channel must be selected',
+      },
     },
     // FCM Push Notification Tokens
     fcmTokens: {

@@ -137,6 +137,20 @@ export interface IOrder extends Document {
   tipAmount: number;
   giftPackaging: boolean;
 
+  // Commerce channel this order was placed under
+  channel: "Quick" | "ECommerce";
+
+  // Shiprocket shipment tracking (ECommerce channel only)
+  shiprocket?: {
+    orderId?: string;
+    shipmentId?: string;
+    awbCode?: string;
+    courierName?: string;
+    trackingUrl?: string;
+    status?: string;
+    pickupScheduledAt?: Date;
+  };
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -498,6 +512,20 @@ const OrderSchema = new Schema<IOrder>(
       type: Boolean,
       default: false,
     },
+    channel: {
+      type: String,
+      enum: ["Quick", "ECommerce"],
+      default: "Quick",
+    },
+    shiprocket: {
+      orderId: { type: String, trim: true },
+      shipmentId: { type: String, trim: true },
+      awbCode: { type: String, trim: true },
+      courierName: { type: String, trim: true },
+      trackingUrl: { type: String, trim: true },
+      status: { type: String, trim: true },
+      pickupScheduledAt: { type: Date },
+    },
   },
   {
     timestamps: true,
@@ -522,6 +550,7 @@ OrderSchema.index({ status: 1 });
 OrderSchema.index({ orderDate: -1 });
 OrderSchema.index({ sellerConfirmationStatus: 1, deliveryAssignmentStatus: 1 });
 OrderSchema.index({ deliveryBoy: 1 });
+OrderSchema.index({ channel: 1 });
 
 const Order =
   (mongoose.models.Order as mongoose.Model<IOrder>) ||

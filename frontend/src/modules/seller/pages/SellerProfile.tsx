@@ -29,6 +29,7 @@ interface SellerProfileData {
   categories?: string[];
   status?: string;
   isShopOpen?: boolean;
+  channels?: ('Quick' | 'ECommerce')[];
   logo?: string;
   commission?: number;
   balance?: number;
@@ -53,6 +54,7 @@ export default function SellerProfile() {
     city: '',
     serviceRadiusKm: '10',
     logo: '',
+    channels: ['Quick'] as ('Quick' | 'ECommerce')[],
   });
   const [savingProfile, setSavingProfile] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -84,6 +86,7 @@ export default function SellerProfile() {
           city: res.data.city || '',
           serviceRadiusKm: (res.data.serviceRadiusKm || 10).toString(),
           logo: res.data.logo || '',
+          channels: res.data.channels && res.data.channels.length > 0 ? res.data.channels : ['Quick'],
         });
       }
     } catch (err: any) {
@@ -157,6 +160,10 @@ export default function SellerProfile() {
       showToast('Service radius must be between 0.1 and 300 km', 'error');
       return;
     }
+    if (editFormData.channels.length === 0) {
+      showToast('Select at least one commerce channel (Quick Commerce or E-Commerce)', 'error');
+      return;
+    }
 
     try {
       setSavingProfile(true);
@@ -167,6 +174,7 @@ export default function SellerProfile() {
         city: editFormData.city,
         serviceRadiusKm: radius,
         logo: editFormData.logo,
+        channels: editFormData.channels,
       });
 
       if (res.success && res.data) {
@@ -761,6 +769,38 @@ export default function SellerProfile() {
                       className="w-full px-3.5 py-2 rounded-xl border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                       placeholder="10"
                     />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Sell Via
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['Quick', 'ECommerce'] as const).map((ch) => {
+                      const active = editFormData.channels.includes(ch);
+                      return (
+                        <button
+                          key={ch}
+                          type="button"
+                          onClick={() =>
+                            setEditFormData((prev) => ({
+                              ...prev,
+                              channels: active
+                                ? prev.channels.filter((c) => c !== ch)
+                                : [...prev.channels, ch],
+                            }))
+                          }
+                          className={`px-3 py-2 rounded-xl border text-xs font-semibold transition-colors ${
+                            active
+                              ? 'bg-teal-50 border-teal-500 text-teal-700 ring-1 ring-teal-500'
+                              : 'bg-white border-neutral-300 text-neutral-600 hover:bg-neutral-50'
+                          }`}
+                        >
+                          {ch === 'Quick' ? 'Quick Commerce' : 'E-Commerce'}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 

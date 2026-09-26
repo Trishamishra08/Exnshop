@@ -8,14 +8,21 @@ import {
   getTopSellers,
   getRecentOrders,
   getSalesByLocation,
+  CommerceChannel,
 } from "../../../services/dashboardService";
+
+// Resolve the requested commerce channel filter, undefined = no filter (all channels)
+const resolveChannel = (req: Request): CommerceChannel | undefined => {
+  const channel = req.query.channel;
+  return channel === "Quick" || channel === "ECommerce" ? channel : undefined;
+};
 
 /**
  * Get dashboard statistics
  */
 export const getDashboardStatsController = asyncHandler(
-  async (_req: Request, res: Response) => {
-    const stats = await getDashboardStats();
+  async (req: Request, res: Response) => {
+    const stats = await getDashboardStats(resolveChannel(req));
 
     return res.status(200).json({
       success: true,
@@ -36,7 +43,7 @@ export const getSalesAnalyticsController = asyncHandler(
       ? (period as "day" | "week" | "month" | "year")
       : "month";
 
-    const analytics = await getSalesAnalytics(analyticsPeriod);
+    const analytics = await getSalesAnalytics(analyticsPeriod, resolveChannel(req));
 
     return res.status(200).json({
       success: true,
@@ -52,7 +59,7 @@ export const getSalesAnalyticsController = asyncHandler(
 export const getTopSellersController = asyncHandler(
   async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 10;
-    const topSellers = await getTopSellers(limit);
+    const topSellers = await getTopSellers(limit, resolveChannel(req));
 
     return res.status(200).json({
       success: true,
@@ -68,7 +75,7 @@ export const getTopSellersController = asyncHandler(
 export const getRecentOrdersController = asyncHandler(
   async (req: Request, res: Response) => {
     const limit = parseInt(req.query.limit as string) || 10;
-    const orders = await getRecentOrders(limit);
+    const orders = await getRecentOrders(limit, resolveChannel(req));
 
     return res.status(200).json({
       success: true,
@@ -82,8 +89,8 @@ export const getRecentOrdersController = asyncHandler(
  * Get sales by location
  */
 export const getSalesByLocationController = asyncHandler(
-  async (_req: Request, res: Response) => {
-    const salesByLocation = await getSalesByLocation();
+  async (req: Request, res: Response) => {
+    const salesByLocation = await getSalesByLocation(resolveChannel(req));
 
     return res.status(200).json({
       success: true,
@@ -97,8 +104,8 @@ export const getSalesByLocationController = asyncHandler(
  * Get today's sales
  */
 export const getTodaySalesController = asyncHandler(
-  async (_req: Request, res: Response) => {
-    const todaySales = await getTodaySales();
+  async (req: Request, res: Response) => {
+    const todaySales = await getTodaySales(resolveChannel(req));
     return res.status(200).json({
       success: true,
       message: "Today's sales fetched successfully",
@@ -118,7 +125,7 @@ export const getOrderAnalyticsController = asyncHandler(
       ? (period as "day" | "month")
       : "month";
 
-    const analytics = await getOrderAnalytics(analyticsPeriod);
+    const analytics = await getOrderAnalytics(analyticsPeriod, resolveChannel(req));
 
     return res.status(200).json({
       success: true,

@@ -34,6 +34,7 @@ import customerTrackingRoutes from "../modules/customer/routes/trackingRoutes";
 import deliveryTrackingRoutes from "../modules/delivery/routes/trackingRoutes";
 import fcmTokenRoutes from "./fcmTokenRoutes";
 import paymentRoutes from "./paymentRoutes";
+import shiprocketRoutes from "./shiprocketRoutes";
 import sellerWalletRoutes from "./sellerWalletRoutes";
 import deliveryWalletRoutes from "./deliveryWalletRoutes";
 import adminWithdrawalRoutes from "./adminWithdrawalRoutes";
@@ -194,6 +195,9 @@ router.use("/seller/taxes", taxRoutes);
 
 // Payment routes (Razorpay integration)
 router.use("/payment", paymentRoutes);
+
+// Webhooks (Shiprocket tracking updates for E-Commerce channel orders)
+router.use("/webhooks", shiprocketRoutes);
 
 // Seller wallet routes (protected, seller only)
 router.use("/seller/wallet-new", authenticate, requireUserType("Seller"), sellerWalletRoutes);

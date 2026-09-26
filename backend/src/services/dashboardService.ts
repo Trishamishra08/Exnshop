@@ -6,6 +6,12 @@ import Order from "../models/Order";
 // import OrderItem from "../models/OrderItem";
 // import Seller from "../models/Seller";
 
+export type CommerceChannel = "Quick" | "ECommerce";
+
+// Builds a Mongo match fragment for the given commerce channel, or {} for no filter
+const channelMatch = (channel?: CommerceChannel) =>
+  channel === "Quick" || channel === "ECommerce" ? { channel } : {};
+
 export interface DashboardStats {
   totalUser: number;
   totalCategory: number;
@@ -37,7 +43,7 @@ export interface TopSeller {
 /**
  * Get dashboard statistics
  */
-export const getDashboardStats = async (): Promise<DashboardStats> => {
+export const getDashboardStats = async (channel?: CommerceChannel): Promise<DashboardStats> => {
   try {
     const [
       totalUser,
@@ -58,18 +64,19 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
       Category.countDocuments({ parentId: { $ne: null } }),
       SubCategory.countDocuments(),
       Product.countDocuments({ status: "Active" }),
-      Order.countDocuments({ status: { $ne: "Pending" } }),
-      Order.countDocuments({ status: "Delivered" }),
+      Order.countDocuments({ status: { $ne: "Pending" }, ...channelMatch(channel) }),
+      Order.countDocuments({ status: "Delivered", ...channelMatch(channel) }),
       Order.countDocuments({
         status: { $in: ["Received", "Accepted", "Processed", "Shipped", "Out for Delivery", "Out For Delivery"] },
+        ...channelMatch(channel),
       }),
-      Order.countDocuments({ status: "Cancelled" }),
+      Order.countDocuments({ status: "Cancelled", ...channelMatch(channel) }),
       Order.aggregate([
-        { $match: { status: "Delivered", paymentStatus: "Paid" } },
+        { $match: { status: "Delivered", paymentStatus: "Paid", ...channelMatch(channel) } },
         { $group: { _id: null, total: { $sum: { $ifNull: ["$total", 0] } } } },
       ]),
       Order.aggregate([
-        { $match: { status: "Delivered", paymentStatus: "Paid" } },
+        { $match: { status: "Delivered", paymentStatus: "Paid", ...channelMatch(channel) } },
         { $group: { _id: null, avg: { $avg: { $ifNull: ["$total", 0] } } } },
       ]),
       Product.find({ status: "Active" }).select("stock variations").lean(),
@@ -128,7 +135,8 @@ export const getDashboardStats = async (): Promise<DashboardStats> => {
  * Get sales analytics data for charts
  */
 export const getSalesAnalytics = async (
-  period: "day" | "week" | "month" | "year" = "month"
+  period: "day" | "week" | "month" | "year" = "month",
+  channel?: CommerceChannel
 ): Promise<{ thisPeriod: SalesData[]; lastPeriod: SalesData[] }> => {
   try {
     const now = new Date();
@@ -179,6 +187,7 @@ export const getSalesAnalytics = async (
             status: "Delivered",
             paymentStatus: "Paid",
             orderDate: { $gte: startDate },
+            ...channelMatch(channel),
           },
         },
         {
@@ -195,6 +204,7 @@ export const getSalesAnalytics = async (
             status: "Delivered",
             paymentStatus: "Paid",
             orderDate: { $gte: lastPeriodStart, $lt: startDate },
+            ...channelMatch(channel),
           },
         },
         {
@@ -228,7 +238,8 @@ export const getSalesAnalytics = async (
  * Get order analytics (order counts by period)
  */
 export const getOrderAnalytics = async (
-  period: "day" | "month" = "month"
+  period: "day" | "month" = "month",
+  channel?: CommerceChannel
 ): Promise<{ thisPeriod: SalesData[]; lastPeriod: SalesData[] }> => {
   try {
     const now = new Date();
@@ -250,6 +261,7 @@ export const getOrderAnalytics = async (
       Order.find({
         orderDate: { $gte: startDate },
         status: { $ne: "Pending" },
+        ...channelMatch(channel),
       })
         .select("orderDate")
         .lean()
@@ -257,6 +269,7 @@ export const getOrderAnalytics = async (
       Order.find({
         orderDate: { $gte: lastPeriodStart, $lt: startDate },
         status: { $ne: "Pending" },
+        ...channelMatch(channel),
       })
         .select("orderDate")
         .lean()
@@ -361,7 +374,7 @@ export const getOrderAnalytics = async (
 /**
  * Get today's sales total and comparison with last week same day
  */
-export const getTodaySales = async (): Promise<{ salesToday: number; salesLastWeekSameDay: number }> => {
+export const getTodaySales = async (channel?: CommerceChannel): Promise<{ salesToday: number; salesLastWeekSameDay: number }> => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -378,7 +391,8 @@ export const getTodaySales = async (): Promise<{ salesToday: number; salesLastWe
       {
         $match: {
           orderDate: { $gte: today, $lt: tomorrow },
-          status: { $ne: "Pending" }
+          status: { $ne: "Pending" },
+          ...channelMatch(channel),
         }
       },
       {
@@ -394,7 +408,8 @@ export const getTodaySales = async (): Promise<{ salesToday: number; salesLastWe
       {
         $match: {
           orderDate: { $gte: lastWeekSameDay, $lt: lastWeekNextDay },
-          status: { $ne: "Pending" }
+          status: { $ne: "Pending" },
+          ...channelMatch(channel),
         }
       },
       {
@@ -422,7 +437,8 @@ export const getTodaySales = async (): Promise<{ salesToday: number; salesLastWe
  * Get top sellers by revenue
  */
 export const getTopSellers = async (
-  limit: number = 10
+  limit: number = 10,
+  channel?: CommerceChannel
 ): Promise<TopSeller[]> => {
   try {
     const topSellers = await Order.aggregate([
@@ -430,6 +446,7 @@ export const getTopSellers = async (
         $match: {
           status: "Delivered",
           paymentStatus: "Paid",
+          ...channelMatch(channel),
         },
       },
       {
@@ -506,9 +523,9 @@ export const getTopSellers = async (
 /**
  * Get recent orders
  */
-export const getRecentOrders = async (limit: number = 10) => {
+export const getRecentOrders = async (limit: number = 10, channel?: CommerceChannel) => {
   try {
-    const orders = await Order.find({ status: { $ne: "Pending" } })
+    const orders = await Order.find({ status: { $ne: "Pending" }, ...channelMatch(channel) })
       .populate("customer", "name email phone")
       .populate("deliveryBoy", "name mobile")
       .sort({ orderDate: -1 })
@@ -538,13 +555,14 @@ export const getRecentOrders = async (limit: number = 10) => {
 /**
  * Get sales by location
  */
-export const getSalesByLocation = async () => {
+export const getSalesByLocation = async (channel?: CommerceChannel) => {
   try {
     const salesByLocation = await Order.aggregate([
       {
         $match: {
           status: "Delivered",
           paymentStatus: "Paid",
+          ...channelMatch(channel),
         },
       },
       {

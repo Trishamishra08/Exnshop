@@ -38,6 +38,7 @@ export interface RegisterData {
   latitude?: string;
   longitude?: string;
   serviceRadiusKm?: string | number;
+  channels: ('Quick' | 'ECommerce')[]; // commerce channel(s) this seller sells through
 }
 
 export interface RegisterResponse {

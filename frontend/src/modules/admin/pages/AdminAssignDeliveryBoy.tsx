@@ -9,10 +9,12 @@ import {
     type DeliveryBoy,
 } from "../../../services/api/admin/adminDeliveryService";
 import { useAuth } from "../../../context/AuthContext";
+import { useAdminMode } from "../context/AdminModeContext";
 import AssignDeliveryBoyModal from "../components/AssignDeliveryBoyModal";
 
 export default function AdminAssignDeliveryBoy() {
     const { isAuthenticated, token } = useAuth();
+    const { mode } = useAdminMode();
     const [orders, setOrders] = useState<Order[]>([]);
     const [deliveryBoys, setDeliveryBoys] = useState<DeliveryBoy[]>([]);
     const [loading, setLoading] = useState(true);
@@ -29,8 +31,8 @@ export default function AdminAssignDeliveryBoy() {
 
             // Fetch "Received" and "Accepted" orders as they usually need assignment
             const [receivedRes, acceptedRes, deliveryBoysRes] = await Promise.all([
-                getOrdersByStatus("Received"),
-                getOrdersByStatus("Accepted"),
+                getOrdersByStatus("Received", { channel: mode }),
+                getOrdersByStatus("Accepted", { channel: mode }),
                 getDeliveryBoys({ status: "Active", available: "Available", isOnline: true }),
             ]);
 
@@ -70,7 +72,7 @@ export default function AdminAssignDeliveryBoy() {
         }
 
         fetchData();
-    }, [isAuthenticated, token]);
+    }, [isAuthenticated, token, mode]);
 
     const filteredOrders = orders.filter((order) => {
         const q = String(searchQuery || "").toLowerCase();

@@ -7,12 +7,15 @@ import { asyncHandler } from "../../../utils/asyncHandler";
  */
 export const getAllSellers = asyncHandler(
   async (req: Request, res: Response) => {
-    const { status, search } = req.query;
+    const { status, search, channel } = req.query;
 
     // Build query
     const query: any = {};
     if (status) {
       query.status = status;
+    }
+    if (channel === "Quick" || channel === "ECommerce") {
+      query.channels = channel;
     }
     if (search) {
       query.$or = [

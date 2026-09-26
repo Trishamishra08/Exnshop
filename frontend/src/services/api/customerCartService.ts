@@ -32,10 +32,13 @@ export interface CartResponse {
     data: Cart;
 }
 
+export type CommerceChannel = 'Quick' | 'ECommerce';
+
 export interface CartLocationParams {
     latitude?: number;
     longitude?: number;
     deliveryOption?: string;
+    channel?: CommerceChannel;
 }
 
 /**
@@ -49,7 +52,7 @@ export const getCart = async (params?: CartLocationParams): Promise<CartResponse
 /**
  * Add item to cart
  */
-export const addToCart = async (productId: string, quantity: number = 1, variation?: string, latitude?: number, longitude?: number, deliveryOption?: string): Promise<CartResponse> => {
+export const addToCart = async (productId: string, quantity: number = 1, variation?: string, latitude?: number, longitude?: number, deliveryOption?: string, channel?: CommerceChannel): Promise<CartResponse> => {
     const params: any = {};
     if (latitude !== undefined && longitude !== undefined) {
         params.latitude = latitude;
@@ -62,7 +65,8 @@ export const addToCart = async (productId: string, quantity: number = 1, variati
         productId,
         quantity,
         variation,
-        deliveryOption
+        deliveryOption,
+        channel
     }, { params });
     return response.data;
 };
@@ -70,7 +74,7 @@ export const addToCart = async (productId: string, quantity: number = 1, variati
 /**
  * Update cart item quantity
  */
-export const updateCartItem = async (itemId: string, quantity: number, latitude?: number, longitude?: number, deliveryOption?: string): Promise<CartResponse> => {
+export const updateCartItem = async (itemId: string, quantity: number, latitude?: number, longitude?: number, deliveryOption?: string, channel?: CommerceChannel): Promise<CartResponse> => {
     const params: any = {};
     if (latitude !== undefined && longitude !== undefined) {
         params.latitude = latitude;
@@ -79,14 +83,14 @@ export const updateCartItem = async (itemId: string, quantity: number, latitude?
     if (deliveryOption) {
         params.deliveryOption = deliveryOption;
     }
-    const response = await api.put<CartResponse>(`/customer/cart/item/${itemId}`, { quantity, deliveryOption }, { params });
+    const response = await api.put<CartResponse>(`/customer/cart/item/${itemId}`, { quantity, deliveryOption, channel }, { params });
     return response.data;
 };
 
 /**
  * Remove item from cart
  */
-export const removeFromCart = async (itemId: string, latitude?: number, longitude?: number, deliveryOption?: string): Promise<CartResponse> => {
+export const removeFromCart = async (itemId: string, latitude?: number, longitude?: number, deliveryOption?: string, channel?: CommerceChannel): Promise<CartResponse> => {
     const params: any = {};
     if (latitude !== undefined && longitude !== undefined) {
         params.latitude = latitude;
@@ -94,6 +98,9 @@ export const removeFromCart = async (itemId: string, latitude?: number, longitud
     }
     if (deliveryOption) {
         params.deliveryOption = deliveryOption;
+    }
+    if (channel) {
+        params.channel = channel;
     }
     const response = await api.delete<CartResponse>(`/customer/cart/item/${itemId}`, { params });
     return response.data;
@@ -102,7 +109,7 @@ export const removeFromCart = async (itemId: string, latitude?: number, longitud
 /**
  * Clear cart
  */
-export const clearCart = async (): Promise<CartResponse> => {
-    const response = await api.delete<CartResponse>('/customer/cart');
+export const clearCart = async (channel?: CommerceChannel): Promise<CartResponse> => {
+    const response = await api.delete<CartResponse>('/customer/cart', { params: channel ? { channel } : undefined });
     return response.data;
 };

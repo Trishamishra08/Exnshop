@@ -30,6 +30,7 @@ export interface GetProductsParams {
     limit?: number;
     latitude?: number; // User location latitude
     longitude?: number; // User location longitude
+    mode?: 'quick' | 'ecommerce'; // Commerce channel filter
 }
 
 export interface ProductListResponse {
@@ -67,11 +68,14 @@ export const getProducts = async (params?: GetProductsParams): Promise<ProductLi
  * Get product details by ID (Public)
  * Location (latitude/longitude) is required to verify product availability
  */
-export const getProductById = async (id: string, latitude?: number, longitude?: number): Promise<ProductDetailResponse> => {
+export const getProductById = async (id: string, latitude?: number, longitude?: number, mode?: 'quick' | 'ecommerce'): Promise<ProductDetailResponse> => {
     const params: any = {};
     if (latitude !== undefined && longitude !== undefined) {
         params.latitude = latitude;
         params.longitude = longitude;
+    }
+    if (mode) {
+        params.mode = mode;
     }
     const response = await api.get<ProductDetailResponse>(`/customer/products/${id}`, { params });
     return response.data;

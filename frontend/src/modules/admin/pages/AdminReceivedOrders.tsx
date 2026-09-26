@@ -2,12 +2,14 @@ import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getOrdersByStatus, type Order } from '../../../services/api/admin/adminOrderService';
 import { useAuth } from '../../../context/AuthContext';
+import { useAdminMode } from '../context/AdminModeContext';
 
 type SortField = 'orderId' | 'customerDetails' | 'address' | 'deliveryDate' | 'orderDate' | 'status' | 'deliveryBoyStatus' | 'amount';
 type SortDirection = 'asc' | 'desc';
 
 export default function AdminReceivedOrders() {
   const { isAuthenticated, token } = useAuth();
+  const { mode } = useAdminMode();
   const [orders, setOrders] = useState<Order[]>([]);
   const [dateRange, setDateRange] = useState('');
   const [seller, setSeller] = useState('All Sellers');
@@ -35,6 +37,7 @@ export default function AdminReceivedOrders() {
         const params: any = {
           page: currentPage,
           limit: parseInt(entriesPerPage),
+          channel: mode,
         };
 
         if (searchQuery) {
@@ -73,7 +76,7 @@ export default function AdminReceivedOrders() {
     };
 
     fetchOrders();
-  }, [isAuthenticated, token, currentPage, entriesPerPage, searchQuery, dateRange]);
+  }, [isAuthenticated, token, currentPage, entriesPerPage, searchQuery, dateRange, mode]);
 
   const handleClearDate = () => {
     setDateRange('');
@@ -244,7 +247,7 @@ export default function AdminReceivedOrders() {
             onClick={() => {
               setCurrentPage(1);
               setLoading(true);
-              getOrdersByStatus('Received', { page: 1, limit: parseInt(entriesPerPage) })
+              getOrdersByStatus('Received', { page: 1, limit: parseInt(entriesPerPage), channel: mode })
                 .then(res => { if (res.success) setOrders(res.data); })
                 .finally(() => setLoading(false));
             }}

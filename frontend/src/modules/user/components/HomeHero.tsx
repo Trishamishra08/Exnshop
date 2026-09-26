@@ -1,8 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useLayoutEffect, useRef, useState, useEffect, useMemo } from 'react';
 import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { getTheme } from '../../../utils/themes';
 import { useLocation } from '../../../hooks/useLocation';
 import { appConfig } from '../../../services/configService';
 import { getCategories } from '../../../services/api/customerProductService';
@@ -11,8 +9,8 @@ import { getHeaderCategoriesPublic } from '../../../services/api/headerCategoryS
 import { getIconByName } from '../../../utils/iconLibrary';
 import { useAppSettings } from '../../../context/AppSettingsContext';
 import { useTranslation } from '../../../hooks/useTranslation';
-
-gsap.registerPlugin(ScrollTrigger);
+import { useCart } from '../../../context/CartContext';
+import { useCommerceMode } from '../../../context/CommerceModeContext';
 
 interface HomeHeroProps {
   activeTab?: string;
@@ -23,15 +21,18 @@ interface Tab {
   id: string;
   label: string;
   icon: React.ReactNode;
+  imageUrl?: string;
 }
 
 const ALL_TAB: Tab = {
   id: 'all',
   label: 'All',
   icon: (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M3 9L12 2L21 9V20C21 20.5304 20.7893 21.0391 20.4142 21.4142C20.0391 21.7893 19.5304 22 19 22H5C4.46957 22 3.96086 21.7893 3.58579 21.4142C3.21071 21.0391 3 20.5304 3 20V9Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M9 22V12H15V22" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="3" y="3" width="7" height="7" rx="1.5" fill="currentColor" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" fill="currentColor" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" fill="currentColor" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" fill="currentColor" />
     </svg>
   ),
 };
@@ -40,7 +41,7 @@ const MORE_TAB: Tab = {
   id: 'more-categories',
   label: 'More',
   icon: (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="3" width="7" height="7" rx="1.5" />
       <rect x="14" y="3" width="7" height="7" rx="1.5" />
       <rect x="14" y="14" width="7" height="7" rx="1.5" />
@@ -52,22 +53,38 @@ const MORE_TAB: Tab = {
 export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroProps) {
   const { settings: appSettings } = useAppSettings();
   const { t, getTranslatedField } = useTranslation();
+  const { cart } = useCart();
+  const { mode, setMode } = useCommerceMode();
   const [tabs, setTabs] = useState<Tab[]>([ALL_TAB, MORE_TAB]);
+  const cartCount = cart?.itemCount || 0;
 
   useEffect(() => {
     const fetchHeaderCategories = async () => {
       try {
         const cats = await getHeaderCategoriesPublic();
         if (cats && cats.length > 0) {
+          const mapSlugToImage = (slug: string) => {
+            switch(slug) {
+              case 'grocery': return '/grocery_icon.jpg';
+              case 'fruits-vegetables': return '/fruits_veg_icon.jpg';
+              case 'dairy-milk': return '/dairy_icon.jpg';
+              case 'snacks-drinks': return '/snacks_icon.jpg';
+              case 'home-furniture': return '/home_essentials_icon.jpg';
+              case 'beauty': return '/personal_care_icon.jpg';
+              default: return undefined;
+            }
+          };
+
           const mapped = cats
             .filter(c => c.slug !== 'all' && c.status === 'Published')
             .sort((a, b) => (a.order || 0) - (b.order || 0))
             .map(c => ({
               id: c.slug,
               label: getTranslatedField(c, "name") || c.name,
-              icon: getIconByName(c.iconName)
+              icon: getIconByName(c.iconName),
+              imageUrl: mapSlugToImage(c.slug)
             }));
-          setTabs([ALL_TAB, ...mapped, MORE_TAB]);
+          setTabs([ALL_TAB, ...mapped]);
         } else {
           setTabs([ALL_TAB, MORE_TAB]);
         }
@@ -88,25 +105,29 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
   const [currentSearchIndex, setCurrentSearchIndex] = useState(0);
   const [, setIsSticky] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
-  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0 });
 
   // Format location display text - only show if user has provided location
   const locationDisplayText = useMemo(() => {
     if (userLocation?.address) {
-      // Use the full address if available
       return userLocation.address;
     }
-    // Fallback to city, state format if available
     if (userLocation?.city && userLocation?.state) {
       return `${userLocation.city}, ${userLocation.state}`;
     }
-    // Fallback to city only
     if (userLocation?.city) {
       return userLocation.city;
     }
-    // No default - return empty string if no location provided
     return '';
   }, [userLocation]);
+
+  // Short label for the top bar (city only, like mockup "Indore")
+  const shortLocationLabel = useMemo(() => {
+    if (userLocation?.city) return userLocation.city;
+    if (locationDisplayText) {
+      return locationDisplayText.length > 18 ? `${locationDisplayText.slice(0, 18)}…` : locationDisplayText;
+    }
+    return t('customer.deliverTo', 'Deliver to');
+  }, [userLocation, locationDisplayText, t]);
 
   const [categories, setCategories] = useState<Category[]>([]);
 
@@ -131,7 +152,6 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
   // Search suggestions based on active tab or fetched categories
   const searchSuggestions = useMemo(() => {
     if (activeTab === 'all' && categories.length > 0) {
-      // Use real category names for 'all' tab suggestions
       return categories.slice(0, 8).map(c => c.name.toLowerCase());
     }
 
@@ -156,8 +176,8 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
         return ['home decor', 'cleaners', 'kitchen items', 'stationery', 'furniture', 'pooja items'];
       case 'toys-sports':
         return ['toys', 'cricket bat', 'football', 'board games', 'gym equipment', 'yoga mat'];
-      default: // 'all'
-        return ['atta', 'milk', 'dal', 'chips', 'fresh fruits', 'oil', 'tea', 'vegetables'];
+      default:
+        return ['atta', 'rice', 'dal', 'milk', 'chips', 'fresh fruits', 'oil', 'tea', 'vegetables'];
     }
   }, [activeTab, categories]);
 
@@ -197,7 +217,6 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
       if (topSectionRef.current && stickyRef.current) {
         const topSectionBottom = topSectionRef.current.getBoundingClientRect().bottom;
         const topSectionHeight = topSectionRef.current.offsetHeight;
-        // When the top section has scrolled up, transition to white
         const progress = Math.min(Math.max(1 - (topSectionBottom / topSectionHeight), 0), 1);
         setScrollProgress(progress);
         setIsSticky(topSectionBottom <= 0);
@@ -205,12 +224,12 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll(); // Check initial state
+    handleScroll();
 
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Update sliding indicator position when activeTab changes and scroll to active tab
+  // Keep active tab visible in the horizontal scroller
   useEffect(() => {
     const updateIndicator = (shouldScroll = true) => {
       const activeTabButton = tabRefs.current.get(activeTab);
@@ -218,38 +237,20 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
 
       if (activeTabButton && container) {
         try {
-          // Use offsetLeft for position relative to container (not affected by scroll)
-          // This ensures the indicator stays aligned even when container scrolls
-          const left = activeTabButton.offsetLeft;
-          const width = activeTabButton.offsetWidth;
-
-          // Ensure valid values
-          if (width > 0) {
-            setIndicatorStyle({ left, width });
-          }
-
-          // Scroll the container to bring the active tab into view (only when tab changes)
           if (shouldScroll) {
             const containerScrollLeft = container.scrollLeft;
             const containerWidth = container.offsetWidth;
-            const buttonLeft = left;
-            const buttonWidth = width;
-            const buttonRight = buttonLeft + buttonWidth;
-
-            // Calculate scroll position to center the button or keep it visible
-            const scrollPadding = 20; // Padding from edges
+            const buttonLeft = activeTabButton.offsetLeft;
+            const buttonRight = buttonLeft + activeTabButton.offsetWidth;
+            const scrollPadding = 20;
             let targetScrollLeft = containerScrollLeft;
 
-            // If button is on the left side and partially or fully hidden
             if (buttonLeft < containerScrollLeft + scrollPadding) {
               targetScrollLeft = buttonLeft - scrollPadding;
-            }
-            // If button is on the right side and partially or fully hidden
-            else if (buttonRight > containerScrollLeft + containerWidth - scrollPadding) {
+            } else if (buttonRight > containerScrollLeft + containerWidth - scrollPadding) {
               targetScrollLeft = buttonRight - containerWidth + scrollPadding;
             }
 
-            // Smooth scroll to the target position
             if (targetScrollLeft !== containerScrollLeft) {
               container.scrollTo({
                 left: Math.max(0, targetScrollLeft),
@@ -258,18 +259,15 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
             }
           }
         } catch (error) {
-          console.warn('Error updating indicator:', error);
+          console.warn('Error scrolling active tab into view:', error);
         }
       }
     };
 
-    // Update immediately with scroll
     updateIndicator(true);
-
-    // Also update after delays to handle any layout shifts and ensure smooth animation
     const timeout1 = setTimeout(() => updateIndicator(true), 50);
     const timeout2 = setTimeout(() => updateIndicator(true), 150);
-    const timeout3 = setTimeout(() => updateIndicator(false), 300); // Last update without scroll to avoid conflicts
+    const timeout3 = setTimeout(() => updateIndicator(false), 300);
 
     return () => {
       clearTimeout(timeout1);
@@ -284,31 +282,59 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
       return;
     }
     onTabChange?.(tabId);
-    // Don't scroll - keep page at current position
   };
 
-  const theme = getTheme(activeTab || 'all');
-  const heroGradient = `linear-gradient(to bottom right, ${theme.primary[0]}, ${theme.primary[1]}, ${theme.primary[2]})`;
-
-  // Helper to convert RGB to RGBA
-  const rgbToRgba = (rgb: string, alpha: number) => {
-    return rgb.replace('rgb', 'rgba').replace(')', `, ${alpha})`);
+  const openLocationModal = () => {
+    window.dispatchEvent(new CustomEvent('openLocationChangeModal'));
   };
+
+  const deliveryTime =
+    appSettings?.estimatedDeliveryTime || appConfig.estimatedDeliveryTime || '12–15 mins';
+  const cleanDeliveryTime = deliveryTime.toLowerCase().replace('delivery', '').trim();
 
   return (
     <div
       ref={heroRef}
+      className="relative"
       style={{
-        background: heroGradient,
+        background: mode === 'ECommerce'
+          ? 'linear-gradient(to bottom, #f3c2c7 0%, #f7dade 45%, #fdf3f4 100%)'
+          : 'linear-gradient(to bottom, #b3d4ff 0%, #d6e8ff 45%, #f0f7ff 100%)',
+        fontFamily: '"Poppins", sans-serif',
         paddingBottom: 0,
         marginBottom: 0,
+        transition: 'background 0.3s ease',
       }}
     >
-      {/* Top section with logo on left, delivery info and name on right - NOT sticky */}
+      {/* Quick / Shop All commerce mode switcher */}
+      <div className="px-4 md:px-6 lg:px-8 pt-2 flex justify-center">
+        <div className="inline-flex items-center bg-white/70 backdrop-blur-sm rounded-full p-1 gap-1 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setMode('Quick')}
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1 ${
+              mode === 'Quick' ? 'bg-primary text-white shadow-sm' : 'text-neutral-600'
+            }`}
+          >
+            ⚡ {t('customer.modeQuick', 'Quick')}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('ECommerce')}
+            className={`px-4 py-1.5 rounded-full text-xs font-bold transition-colors ${
+              mode === 'ECommerce' ? 'bg-ecommerce text-white shadow-sm' : 'text-neutral-600'
+            }`}
+          >
+            {t('customer.modeShopAll', 'Shop All')}
+          </button>
+        </div>
+      </div>
+
+      {/* Top bar: logo + location + bell + cart */}
       <div>
         <div ref={topSectionRef} className="px-4 md:px-6 lg:px-8 pt-2 md:pt-3 pb-1">
-          <div className="flex items-center gap-3 mb-1.5">
-            {/* Left: App Logo - Solid white background with fixed compact size */}
+          <div className="flex items-center gap-3">
+            {/* Logo */}
             <div
               className="bg-white rounded-2xl p-1 shadow-sm border border-white/90 flex items-center justify-center flex-shrink-0 overflow-hidden"
               style={{
@@ -329,74 +355,110 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
                   objectFit: 'contain',
                 }}
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = '/exnshop_logo.png';
+                  (e.target as HTMLImageElement).src = '/logo512.png';
                 }}
               />
             </div>
 
-            {/* Right: Text content (App Name, Delivery Time, Location) */}
-            <div className="flex-1 min-w-0 pr-1">
-              {/* Service name - dynamic */}
-              <div className="text-neutral-800 font-bold text-[11px] md:text-xs tracking-tight truncate leading-tight">
-                {appSettings?.appName && !/olovely/i.test(appSettings.appName)
-                  ? appSettings.appName
-                  : 'Exnshop'}
+            {/* Location + delivery pill */}
+            <div className="flex-1 min-w-0">
+              <button
+                type="button"
+                onClick={openLocationModal}
+                className="flex items-center gap-1 max-w-full cursor-pointer group"
+                title={locationDisplayText || t('customer.deliverTo', 'Deliver to')}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 text-primary">
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <circle cx="12" cy="9" r="2.5" stroke="currentColor" strokeWidth="2" />
+                </svg>
+                <span className="font-bold text-neutral-900 text-sm md:text-base truncate group-hover:text-primary transition-colors">
+                  {shortLocationLabel}
+                </span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 text-neutral-700">
+                  <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+
+              {/* Delivery time pill */}
+              <div className="mt-1 inline-flex items-center gap-1.5 bg-white/85 border border-white rounded-full px-2.5 py-1 shadow-sm max-w-[90%] md:max-w-full">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="flex-shrink-0">
+                  <path d="M13 2L4.09 12.69a1 1 0 0 0 .77 1.64H11l-1 7.31a1 1 0 0 0 1.79.63L20.91 11.3a1 1 0 0 0-.77-1.64H14l1-7.3a1 1 0 0 0-1.79-.63L13 2z" fill="#FF8C00" stroke="#FF8C00" strokeWidth="0.5" />
+                </svg>
+                <span className="text-[11px] md:text-xs font-semibold text-neutral-800 truncate">
+                  {t('customer.deliveringInShort', 'Delivery in')} {cleanDeliveryTime}
+                </span>
               </div>
-              {/* Delivery time - large, bold */}
-              <div className="text-neutral-950 font-black text-2xl md:text-xl leading-tight my-0.5">
-                {appSettings?.estimatedDeliveryTime || appConfig.estimatedDeliveryTime || '12-15 mins'}
-              </div>
-              {/* Location with dropdown indicator - only show if location is provided */}
-              {locationDisplayText && (
-                <div
-                  onClick={() => {
-                    window.dispatchEvent(new CustomEvent('openLocationChangeModal'));
-                  }}
-                  className="text-neutral-800 hover:text-neutral-950 cursor-pointer text-[10px] md:text-xs inline-flex items-center gap-1 leading-tight transition-colors py-0.5 select-none"
-                  title="Click to change location"
-                >
-                  <span className="line-clamp-1 font-medium" title={locationDisplayText}>{locationDisplayText}</span>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0">
-                    <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </div>
-              )}
+            </div>
+
+            {/* Bell + Cart */}
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => navigate('/notifications')}
+                aria-label={t('common.notifications', 'Notifications')}
+                className="relative w-10 h-10 md:w-11 md:h-11 rounded-full bg-white shadow-sm border border-white flex items-center justify-center hover:shadow-md active:scale-95 transition-all"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1a2e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigate('/cart')}
+                aria-label={t('common.cart', 'Cart')}
+                className="relative w-10 h-10 md:w-11 md:h-11 rounded-full bg-white shadow-sm border border-white flex items-center justify-center hover:shadow-md active:scale-95 transition-all"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1a2e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="9" cy="21" r="1" />
+                  <circle cx="20" cy="21" r="1" />
+                  <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+                </svg>
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-orange-500 text-white text-[10px] font-bold flex items-center justify-center shadow-md">
+                    {cartCount > 99 ? '99+' : cartCount}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Sticky section: Search Bar and Category Tabs - Always sticky */}
+      {/* Sticky section: Search Bar and Category Circles */}
       <div
         ref={stickyRef}
         className="sticky top-0 z-50"
         style={{
           ...(scrollProgress >= 0.1 && {
-            background: `linear-gradient(to bottom right,
-              ${rgbToRgba(theme.primary[0], 1 - scrollProgress)},
-              ${rgbToRgba(theme.primary[1], 1 - scrollProgress)},
-              ${rgbToRgba(theme.primary[2], 1 - scrollProgress)}),
+            background: `linear-gradient(to bottom,
+              rgba(232, 242, 255, ${1 - scrollProgress}),
+              rgba(247, 251, 255, ${1 - scrollProgress})),
               rgba(255, 255, 255, ${scrollProgress})`,
             boxShadow: `0 4px 6px -1px rgba(0, 0, 0, ${scrollProgress * 0.1})`,
             transition: 'background 0.1s ease-out, box-shadow 0.1s ease-out',
           }),
         }}
       >
-        <div className="px-4 md:px-6 lg:px-8 pt-2 md:pt-2 pb-2 md:pb-2">
-          {/* Search Bar */}
+        {/* Search Bar */}
+        <div className="px-4 md:px-6 lg:px-8 pt-1 md:pt-2 pb-1">
           <div
             onClick={() => navigate('/search')}
-            className="w-full md:w-auto md:max-w-xl md:mx-auto rounded-xl shadow-lg px-3 py-2 md:px-3 md:py-1.5 flex items-center gap-2 cursor-pointer hover:shadow-xl transition-all duration-300 mb-2 md:mb-1.5 bg-white"
+            className="w-full rounded-2xl shadow-sm px-4 py-2.5 flex items-center gap-3 cursor-pointer hover:shadow-md transition-all duration-300 bg-white border border-neutral-100"
             style={{
-              backgroundColor: scrollProgress > 0.1 ? `rgba(249, 250, 251, ${scrollProgress})` : 'white',
-              border: scrollProgress > 0.1 ? `1px solid rgba(229, 231, 235, ${scrollProgress})` : 'none',
+              boxShadow: scrollProgress > 0.3
+                ? '0 1px 3px rgba(0,0,0,0.08)'
+                : '0 2px 8px rgba(0,86,255,0.08)',
             }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 md:w-4 md:h-4">
-              <circle cx="11" cy="11" r="8" stroke={scrollProgress > 0.5 ? "#9ca3af" : "#6b7280"} strokeWidth="2" />
-              <path d="m21 21-4.35-4.35" stroke={scrollProgress > 0.5 ? "#9ca3af" : "#6b7280"} strokeWidth="2" strokeLinecap="round" />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 text-neutral-500">
+              <circle cx="11" cy="11" r="8" stroke="currentColor" strokeWidth="2" />
+              <path d="m21 21-4.35-4.35" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
-            <div className="flex-1 relative h-4 md:h-4 overflow-hidden">
+            <div className="flex-1 relative h-5 overflow-hidden">
               {searchSuggestions.map((suggestion, index) => {
                 const isActive = index === currentSearchIndex;
                 const prevIndex = (currentSearchIndex - 1 + searchSuggestions.length) % searchSuggestions.length;
@@ -412,51 +474,40 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
                         : 'translate-y-full opacity-0'
                       }`}
                   >
-                    <span className={`text-xs md:text-xs`} style={{ color: scrollProgress > 0.5 ? '#9ca3af' : '#6b7280' }}>
-                      Search &apos;{suggestion}&apos;
+                    <span className="text-sm text-neutral-400 truncate">
+                      {index === 0
+                        ? t('customer.searchPlaceholder', 'Search for atta, rice, dal, milk…')
+                        : `Search for ${suggestion}…`}
                     </span>
                   </div>
                 );
               })}
             </div>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="flex-shrink-0 md:w-4 md:h-4">
-              <path d="M12 1C13.1 1 14 1.9 14 3C14 4.1 13.1 5 12 5C10.9 5 10 4.1 10 3C10 1.9 10.9 1 12 1Z" fill={scrollProgress > 0.5 ? "#9ca3af" : "#6b7280"} />
-              <path d="M19 10V17C19 18.1 18.1 19 17 19H7C5.9 19 5 18.1 5 17V10" stroke={scrollProgress > 0.5 ? "#9ca3af" : "#6b7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M12 11V17" stroke={scrollProgress > 0.5 ? "#9ca3af" : "#6b7280"} strokeWidth="2" strokeLinecap="round" />
-              <path d="M8 11V17" stroke={scrollProgress > 0.5 ? "#9ca3af" : "#6b7280"} strokeWidth="2" strokeLinecap="round" />
-              <path d="M16 11V17" stroke={scrollProgress > 0.5 ? "#9ca3af" : "#6b7280"} strokeWidth="2" strokeLinecap="round" />
+            {/* Scan icon (decorative, matches mockup) */}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 text-neutral-500">
+              <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+              <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+              <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+              <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+              <line x1="7" y1="12" x2="17" y2="12" />
             </svg>
           </div>
         </div>
 
-        {/* Category Tabs */}
-        <div className="border-b border-neutral-400/40 w-full" style={{ paddingBottom: 0 }}>
+        {/* Category Circles */}
+        <div className="w-full">
           <div
             ref={tabsContainerRef}
-            className="relative flex gap-2 md:gap-3 overflow-x-auto scrollbar-hide -mx-4 md:mx-0 px-4 md:px-6 lg:px-8 md:justify-center scroll-smooth"
-            style={{ paddingBottom: '12px' }}
-            data-padding-bottom="md:8px"
+            className="relative flex gap-2 md:gap-4 overflow-x-auto scrollbar-hide -mx-4 md:mx-0 px-4 md:px-6 lg:px-8 md:justify-center scroll-smooth py-2"
           >
-            {/* Sliding Indicator */}
-            {indicatorStyle.width > 0 && (
-              <div
-                className="absolute bottom-0 h-1 bg-neutral-900 rounded-t-md transition-all duration-300 ease-out pointer-events-none"
-                style={{
-                  left: `${indicatorStyle.left}px`,
-                  width: `${indicatorStyle.width}px`,
-                  transition: 'left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  zIndex: 0,
-                }}
-              />
-            )}
-
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
-              const tabColor = isActive
-                ? 'text-neutral-900'
-                : scrollProgress > 0.5
-                  ? 'text-neutral-600'
-                  : 'text-neutral-800';
+              const tabLabel =
+                tab.id === 'all'
+                  ? t('common.all', 'All')
+                  : tab.id === 'more-categories'
+                    ? t('common.more', 'More')
+                    : tab.label;
 
               return (
                 <button
@@ -469,32 +520,36 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
                     }
                   }}
                   onClick={() => handleTabClick(tab.id)}
-                  className={`flex-shrink-0 flex flex-col md:flex-row items-center justify-center min-w-[50px] md:min-w-fit md:px-3 py-1 md:py-1.5 relative ${tabColor} z-10`}
-                  style={{
-                    transition: 'color 0.3s ease-out',
-                  }}
+                  className="flex-shrink-0 flex flex-col items-center gap-1.5 min-w-[64px] md:min-w-[72px] group"
                   type="button"
                 >
-                  <div className={`mb-0.5 md:hidden w-6 h-6 flex items-center justify-center ${tabColor}`} style={{
-                    transition: 'color 0.3s ease-out, transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    transform: isActive ? 'scale(1.1)' : 'scale(1)',
-                  }}>
-                    {tab.icon}
+                  <div
+                    className={`w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center transition-all duration-200 overflow-hidden ${
+                      isActive && tab.id === 'all'
+                        ? 'bg-blue-600 text-white border-4 border-blue-400 shadow-lg scale-105'
+                        : tab.id === 'all'
+                        ? 'bg-blue-500 text-white shadow-md border-4 border-blue-300/50'
+                        : isActive
+                        ? 'bg-white shadow-lg scale-105 ring-2 ring-primary ring-offset-1'
+                        : 'bg-white shadow-sm border border-neutral-100 group-hover:shadow-md group-hover:-translate-y-0.5'
+                    }`}
+                  >
+                    {tab.imageUrl ? (
+                      <img src={tab.imageUrl} alt={tabLabel} className="w-[85%] h-[85%] object-contain" />
+                    ) : (
+                      <span className={tab.id === 'all' ? 'text-white' : isActive ? 'text-primary' : 'text-neutral-700'}>
+                        {tab.icon}
+                      </span>
+                    )}
                   </div>
                   <span
-                    className={`text-xs md:text-sm md:whitespace-nowrap ${isActive ? 'font-bold' : 'font-semibold'}`}
-                    style={{
-                      transition: 'font-weight 0.3s ease-out',
-                    }}
+                    className={`text-[11px] md:text-xs text-center leading-tight max-w-[68px] line-clamp-2 ${isActive ? 'text-primary font-bold' : 'text-neutral-700 font-semibold'
+                    }`}
                   >
-                    {tab.id === 'all'
-                      ? t('common.all', 'All')
-                      : tab.id === 'more-categories'
-                        ? t('common.more', 'More')
-                        : tab.label}
+                    {tabLabel}
                   </span>
                 </button>
-              )
+              );
             })}
           </div>
         </div>
@@ -502,4 +557,3 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
     </div>
   );
 }
-

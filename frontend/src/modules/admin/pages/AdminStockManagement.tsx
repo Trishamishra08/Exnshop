@@ -10,6 +10,7 @@ import {
 import { useAuth } from "../../../context/AuthContext";
 import { useToast } from "../../../context/ToastContext";
 import ConfirmationModal from "../../../components/ConfirmationModal";
+import { useAdminMode } from "../context/AdminModeContext";
 
 interface ProductVariation {
   id: string;
@@ -44,6 +45,7 @@ export default function AdminStockManagement() {
   const initialStock = getInitialStock(stockParam);
   const { isAuthenticated, token } = useAuth();
   const { showToast } = useToast();
+  const { mode } = useAdminMode();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -82,6 +84,7 @@ export default function AdminStockManagement() {
       // Fetch products
       const params: any = {
         limit: 1000, // Fetch all products (increase if you have more than 1000)
+        channel: mode,
       };
 
       if (searchTerm) {
@@ -130,6 +133,7 @@ export default function AdminStockManagement() {
     searchTerm,
     filterCategory,
     filterStatus,
+    mode,
   ]);
 
   const confirmDelete = async () => {
