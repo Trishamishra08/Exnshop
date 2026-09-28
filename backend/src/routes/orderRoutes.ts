@@ -5,7 +5,6 @@ import {
   getOrderCODBreakdown,
   getOrderEarningBreakdownSeller,
   getSettlementOrders,
-  markOrderCODPaidSeller,
   updateOrderStatus,
   getPendingOrderAlerts,
   getAvailableDeliveryPartners,
@@ -38,8 +37,8 @@ router.get("/:id/cod-breakdown", getOrderCODBreakdown);
 // Earning breakdown for any order (COD or Online): your earning, delivery (Self / delivery partner)
 router.get("/:id/earning-breakdown", getOrderEarningBreakdownSeller);
 
-// Seller marks COD as paid to admin (order leaves pending settlement list)
-router.patch("/:id/mark-cod-paid", markOrderCODPaidSeller);
+// Note: sellers cannot mark COD as paid — that reconciliation is admin/delivery-agent
+// driven only (see admin cash collection flow). See markOrderCODPaidSeller removal.
 
 // Update order status (support both PATCH and PUT)
 router.patch("/:id/status", updateOrderStatus);

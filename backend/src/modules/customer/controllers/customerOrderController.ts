@@ -663,10 +663,19 @@ Final Total: ₹${computedFinalTotal.toFixed(2)}`);
       }
     }
 
+    // GST is admin-managed via AppSettings (gstEnabled/gstRate) and is calculated
+    // on the taxable value of goods (product subtotal after discount) — delivery
+    // fees, platform fees, tips, and gift packaging are not taxed.
+    const gstRate = settings?.gstEnabled ? Number(settings.gstRate) || 0 : 0;
+    const taxableAmount = Math.max(0, productSubtotalForCoupon - discountAmount);
+    const gstAmount = Number(((taxableAmount * gstRate) / 100).toFixed(2));
+    newOrder.tax = gstAmount;
+
     const finalTotal = Math.max(
       0,
       productSubtotalForCoupon -
         discountAmount +
+        gstAmount +
         platformFee +
         deliveryFee +
         finalTipAmount +
@@ -890,6 +899,7 @@ export const getMyOrders = async (req: Request, res: Response) => {
         fees: {
           platformFee: orderObj.platformFee || 0,
           deliveryFee: orderObj.shipping || 0,
+          gst: orderObj.tax || 0,
         },
         // Keep original fields for backward compatibility
         subtotal: orderObj.subtotal,
@@ -1002,6 +1012,7 @@ export const getOrderById = async (req: Request, res: Response) => {
       fees: {
         platformFee: orderObj.platformFee || 0,
         deliveryFee: orderObj.shipping || 0,
+        gst: orderObj.tax || 0,
       },
       // Keep original fields for backward compatibility
       subtotal: orderObj.subtotal,

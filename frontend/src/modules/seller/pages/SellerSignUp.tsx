@@ -417,11 +417,17 @@ export default function SellerSignUp() {
                       <GoogleMapsAutocomplete
                         value={formData.searchLocation}
                         onChange={(address: string, lat: number, lng: number, placeName: string, components?: { city?: string; state?: string }) => {
+                          const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
                           setFormData(prev => ({
                             ...prev,
                             searchLocation: address,
-                            latitude: lat.toString(),
-                            longitude: lng.toString(),
+                            // Manual typing (no place selected yet) reports NaN — don't
+                            // overwrite existing coordinates with garbage in that case.
+                            // The pin map below always lets sellers set/confirm the
+                            // exact location manually regardless of autocomplete.
+                            ...(hasCoords
+                              ? { latitude: lat.toString(), longitude: lng.toString() }
+                              : {}),
                             address: address,
                             city: components?.city || prev.city,
                           }));
@@ -471,31 +477,27 @@ export default function SellerSignUp() {
                     </button>
                   </div>
 
-                  {formData.latitude && formData.longitude ? (
-                    <div className="mt-4 animate-fadeIn">
-                       <p className="text-sm font-medium text-neutral-700 mb-2">
-                        Exact Location <span className="text-teal-600 text-xs font-normal">(Move the map to place the pin on your store's entrance)</span>
-                      </p>
-                      <LocationPickerMap
-                        initialLat={parseFloat(formData.latitude)}
-                        initialLng={parseFloat(formData.longitude)}
-                        onLocationSelect={(lat, lng) => {
-                          setFormData(prev => ({
-                            ...prev,
-                            latitude: lat.toString(),
-                            longitude: lng.toString()
-                          }));
-                        }}
-                      />
+                  <div className="mt-4 animate-fadeIn">
+                    <p className="text-sm font-medium text-neutral-700 mb-2">
+                      Exact Location <span className="text-teal-600 text-xs font-normal">(Didn't find your address above? Drag the map/pin to your store's entrance to set it manually)</span>
+                    </p>
+                    <LocationPickerMap
+                      initialLat={parseFloat(formData.latitude) || 0}
+                      initialLng={parseFloat(formData.longitude) || 0}
+                      onLocationSelect={(lat, lng) => {
+                        setFormData(prev => ({
+                          ...prev,
+                          latitude: lat.toString(),
+                          longitude: lng.toString()
+                        }));
+                      }}
+                    />
+                    {formData.latitude && formData.longitude && (
                       <p className="mt-1 text-xs text-neutral-500 text-center">
                         Selected Coordinates: {formData.latitude}, {formData.longitude}
                       </p>
-                    </div>
-                  ) : (
-                    <div className="mt-2 text-xs text-neutral-500 bg-neutral-50 p-2 rounded border border-neutral-100 text-center">
-                      Search for a location or use the location button to view the map and set exact coordinates.
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 <div>

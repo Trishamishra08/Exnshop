@@ -1,36 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getSettlementOrders, markOrderCODPaid, type SettlementOrderItem } from '../../../services/api/orderService';
-import { useToast } from '../../../context/ToastContext';
+import { getSettlementOrders, type SettlementOrderItem } from '../../../services/api/orderService';
 
 export default function SellerSettlement() {
   const navigate = useNavigate();
-  const { showToast } = useToast();
   const [orders, setOrders] = useState<SettlementOrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(0);
   const [settlementFilter, setSettlementFilter] = useState<'pending' | 'settled' | 'all'>('pending'); // pending = only unpaid COD (hat jata hai after pay)
-  const [markingId, setMarkingId] = useState<string | null>(null);
-
-  const handleMarkPaidToAdmin = async (orderId: string) => {
-    setMarkingId(orderId);
-    try {
-      const res = await markOrderCODPaid(orderId);
-      if (res.success) {
-        setOrders((prev) => prev.filter(({ order }) => order._id !== orderId));
-        setTotal((t) => Math.max(0, t - 1));
-        showToast('Marked as paid to admin', 'success');
-      } else {
-        showToast(res.message || 'Failed to mark as paid', 'error');
-      }
-    } catch (err: any) {
-      showToast(err.response?.data?.message || 'Failed to mark as paid', 'error');
-    } finally {
-      setMarkingId(null);
-    }
-  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -65,7 +44,7 @@ export default function SellerSettlement() {
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-neutral-900">Settlement</h1>
-          <p className="text-neutral-600 mt-1">Only <strong>delivered</strong> COD orders appear here. If an order is missing, mark it as &quot;Delivered&quot; first from the order detail page. Pending = not yet paid to admin — use &quot;Mark paid to admin&quot; after you pay.</p>
+          <p className="text-neutral-600 mt-1">Only <strong>delivered</strong> COD orders appear here. Cash collection and admin settlement are handled by the delivery partner and admin — this view is for your reference only. Pending = admin hasn&apos;t confirmed receiving this COD cash yet.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <select
@@ -129,24 +108,12 @@ export default function SellerSettlement() {
                       )}
                     </td>
                     <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        {settlementFilter === 'pending' && (
-                          <button
-                            type="button"
-                            onClick={() => handleMarkPaidToAdmin(order._id)}
-                            disabled={markingId === order._id}
-                            className="px-2 py-1 bg-amber-600 text-white rounded text-xs font-medium hover:bg-amber-700 disabled:opacity-50"
-                          >
-                            {markingId === order._id ? '…' : 'Mark paid to admin'}
-                          </button>
-                        )}
-                        <button
-                          onClick={() => navigate(`/seller/orders/${order._id}`)}
-                          className="text-teal-600 hover:text-teal-700 text-sm font-medium"
-                        >
-                          View
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => navigate(`/seller/orders/${order._id}`)}
+                        className="text-teal-600 hover:text-teal-700 text-sm font-medium"
+                      >
+                        View
+                      </button>
                     </td>
                   </tr>
                 ))}

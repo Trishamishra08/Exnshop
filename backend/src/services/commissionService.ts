@@ -388,9 +388,11 @@ export const distributeCommissions = async (orderId: string) => {
 
     for (const comm of commissionsToProcess) {
       let itemDeadline = new Date(deliveredAt.getTime() + 7 * 24 * 60 * 60 * 1000);
+      let itemIsReturnable = true;
       if (comm.orderItem) {
         const item = await OrderItem.findById(comm.orderItem).session(session);
         if (item) {
+          itemIsReturnable = item.isReturnable !== false;
           const windowDays = item.returnWindowDays ?? 7;
           itemDeadline = new Date(deliveredAt.getTime() + windowDays * 24 * 60 * 60 * 1000);
           item.returnDeadline = itemDeadline;
@@ -398,7 +400,9 @@ export const distributeCommissions = async (orderId: string) => {
         }
       }
 
-      const isHoldActive = itemDeadline.getTime() > Date.now();
+      // Non-returnable items are settled to the seller immediately on delivery —
+      // there is no return window to protect against, so no escrow hold applies.
+      const isHoldActive = itemIsReturnable && itemDeadline.getTime() > Date.now();
       if (isHoldActive) {
         comm.status = "OnHold";
         comm.onHoldUntil = itemDeadline;

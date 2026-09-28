@@ -19,6 +19,8 @@ export interface AppSettingsData {
   deliveryCharges?: number;
   freeDeliveryThreshold?: number;
   minimumOrderValue?: number;
+  gstEnabled?: boolean;
+  gstRate?: number;
   deliveryConfig?: {
     isDistanceBased?: boolean;
     baseCharge?: number;

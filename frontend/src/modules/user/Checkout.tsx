@@ -516,10 +516,24 @@ export default function Checkout() {
   // Calculate tip amount (use custom tip if custom tip input is shown, otherwise use selected tip)
   const finalTipAmount = showCustomTipInput ? customTipAmount : tipAmount || 0;
   const giftPackagingFee = giftPackaging ? 30 : 0;
+
+  // GST is admin-managed (AppSettingsContext -> gstEnabled/gstRate) and is applied
+  // on the taxable value of goods (product subtotal after coupon discount).
+  // Delivery fee, handling fee, tip, and gift packaging are not taxed.
+  // Mirrors the calculation performed server-side in customerOrderController.
+  const gstRate = appSettings.gstEnabled ? Number(appSettings.gstRate) || 0 : 0;
+  const gstAmount = Number(
+    (
+      (Math.max(0, discountedTotal - currentCouponDiscount) * gstRate) /
+      100
+    ).toFixed(2),
+  );
+
   const grandTotal = Math.max(
     0,
     discountedTotal -
       currentCouponDiscount +
+      gstAmount +
       handlingCharge +
       deliveryCharge +
       finalTipAmount +
@@ -972,15 +986,15 @@ export default function Checkout() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4"
+            className="fixed inset-0 z-[90] bg-black/50 flex flex-col sm:items-center sm:justify-center sm:p-4"
             onClick={() => setShowMapPicker(false)}>
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-xl overflow-hidden w-full max-w-lg shadow-xl"
+              className="bg-white overflow-hidden w-full h-full sm:h-auto sm:max-h-[85vh] sm:rounded-xl sm:max-w-lg shadow-xl flex flex-col"
               onClick={(e) => e.stopPropagation()}>
-              <div className="p-4 border-b flex justify-between items-center">
+              <div className="p-4 border-b flex justify-between items-center shrink-0">
                 <h3 className="font-bold text-neutral-900">
                   Pin Delivery Location
                 </h3>
@@ -997,26 +1011,31 @@ export default function Checkout() {
                 </button>
               </div>
 
-              <GoogleMapsLocationPicker
-                initialLat={
-                  mapLocation?.lat ||
-                  userLocation?.latitude ||
-                  selectedAddress?.latitude ||
-                  0
-                }
-                initialLng={
-                  mapLocation?.lng ||
-                  userLocation?.longitude ||
-                  selectedAddress?.longitude ||
-                  0
-                }
-                onLocationSelect={(lat, lng, address) =>
-                  setMapLocation({ lat, lng, address })
-                }
-                height="300px"
-              />
+              <div className="flex-1 min-h-0 sm:flex-none sm:h-[300px]">
+                <GoogleMapsLocationPicker
+                  initialLat={
+                    mapLocation?.lat ||
+                    userLocation?.latitude ||
+                    selectedAddress?.latitude ||
+                    0
+                  }
+                  initialLng={
+                    mapLocation?.lng ||
+                    userLocation?.longitude ||
+                    selectedAddress?.longitude ||
+                    0
+                  }
+                  onLocationSelect={(lat, lng, address) =>
+                    setMapLocation({ lat, lng, address })
+                  }
+                  height="100%"
+                />
+              </div>
 
-              <div className="p-4 bg-white border-t">
+              <div
+                className="p-4 bg-white border-t shrink-0"
+                style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+              >
                 <p className="text-xs text-neutral-500 mb-3 text-center">
                   Move the map to set your exact delivery location
                 </p>
@@ -1190,14 +1209,74 @@ export default function Checkout() {
 
       {/* Saved Address Section */}
       <div className="px-4 md:px-6 lg:px-8 py-2 md:py-3 border-b border-neutral-200">
-        <div className="mb-2">
-          <h3 className="text-xs font-semibold text-neutral-900 mb-0.5">
-            Delivery Address
-          </h3>
-          <p className="text-[10px] text-neutral-600">
-            Set precise location for faster delivery
-          </p>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div>
+            <h3 className="text-xs font-semibold text-neutral-900 mb-0.5">
+              Delivery Address
+            </h3>
+            <p className="text-[10px] text-neutral-600">
+              Set precise location for faster delivery
+            </p>
+          </div>
+          {selectedAddress && (
+            <button
+              onClick={() =>
+                navigate("/checkout/address", {
+                  state: { editAddress: selectedAddress },
+                })
+              }
+              className="shrink-0 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline"
+            >
+              Change
+            </button>
+          )}
         </div>
+
+        {/* Selected Address Details */}
+        {selectedAddress ? (
+          <div className="mb-2.5 bg-neutral-50 border border-neutral-200 rounded-xl p-3">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <span className="text-xs font-bold text-neutral-900">
+                {selectedAddress.name || user?.name || "You"}
+              </span>
+              {selectedAddress.phone && (
+                <span className="text-[11px] text-neutral-500">
+                  {selectedAddress.phone}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-neutral-700 leading-relaxed">
+              {[
+                selectedAddress.flat,
+                selectedAddress.street,
+                selectedAddress.city,
+                selectedAddress.state,
+                selectedAddress.pincode,
+              ]
+                .filter(Boolean)
+                .join(", ")}
+            </p>
+          </div>
+        ) : (
+          <button
+            onClick={() => navigate("/checkout/address")}
+            className="w-full mb-2.5 flex items-center justify-center gap-2 text-sm font-bold px-4 py-3.5 rounded-xl border-2 border-dashed border-neutral-300 text-neutral-600 hover:border-green-400 hover:text-green-700 hover:bg-green-50/50 transition-colors"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Add Delivery Address
+          </button>
+        )}
 
         {/* Set Location on Map Button */}
         <div className="mt-2.5">
@@ -2029,6 +2108,35 @@ export default function Checkout() {
             </div>
           )}
 
+          {/* GST */}
+          {gstAmount > 0 && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg">
+                  <path
+                    d="M9 14l2 2 4-4M7 3h10a2 2 0 0 1 2 2v14l-3-2-2 2-2-2-2 2-2-2-3 2V5a2 2 0 0 1 2-2z"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                  />
+                </svg>
+                <span className="text-xs text-neutral-700">
+                  GST ({gstRate}%)
+                </span>
+              </div>
+              <span className="text-xs font-medium text-neutral-900">
+                ₹{gstAmount.toFixed(2)}
+              </span>
+            </div>
+          )}
+
           {/* Tip amount */}
           {finalTipAmount > 0 && (
             <div className="flex items-center justify-between">
@@ -2521,7 +2629,10 @@ export default function Checkout() {
       </Sheet>
 
       {/* Bottom Sticky Button */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 z-[60] shadow-lg">
+      <div
+        className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 z-[60] shadow-lg"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)' }}
+      >
         {!meetsMinimumOrder && (
           <div className="px-4 py-2 text-xs text-center text-amber-800 bg-amber-50 border-b border-amber-100">
             Minimum order ₹{minimumOrderValue.toLocaleString("en-IN")}. Add ₹
@@ -2548,16 +2659,9 @@ export default function Checkout() {
           </button>
         ) : (
           <button
-            onClick={() => {
-              // Prioritize current GPS location
-              setMapLocation({
-                lat: userLocation?.latitude || 0,
-                lng: userLocation?.longitude || 0,
-              });
-              setShowMapPicker(true);
-            }}
+            onClick={() => navigate("/checkout/address")}
             className="w-full bg-green-600 text-white py-3 px-4 font-bold text-sm uppercase tracking-wide hover:bg-green-700 transition-colors">
-            Set location on map to proceed
+            Add delivery address to proceed
           </button>
         )}
       </div>

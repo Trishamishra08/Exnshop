@@ -5,7 +5,12 @@ import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import OTPInput from '../../components/OTPInput';
 
-export default function Login() {
+interface LoginProps {
+  mode?: 'login' | 'signup';
+}
+
+export default function Login({ mode = 'login' }: LoginProps) {
+  const isSignup = mode === 'signup';
   const navigate = useNavigate();
   const { login } = useAuth();
   const { setLanguage } = useLanguage();
@@ -167,10 +172,12 @@ export default function Login() {
               {/* Form Header */}
               <div className="mb-4 text-center">
                 <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                  Log in
+                  {isSignup ? 'Sign up' : 'Log in'}
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 font-normal mt-1">
-                  Enter your mobile number to continue
+                  {isSignup
+                    ? 'Enter your mobile number to create an account'
+                    : 'Enter your mobile number to continue'}
                 </p>
               </div>
 
@@ -234,6 +241,17 @@ export default function Login() {
                   )}
                 </button>
               </div>
+
+              {/* Login / Sign up Toggle */}
+              <p className="text-xs sm:text-sm text-slate-500 text-center font-medium">
+                {isSignup ? 'Already have an account?' : 'New to Exnshop?'}{' '}
+                <span
+                  onClick={() => navigate(isSignup ? '/login' : '/signup')}
+                  className="text-blue-700 font-semibold hover:underline cursor-pointer"
+                >
+                  {isSignup ? 'Log in' : 'Sign up'}
+                </span>
+              </p>
             </>
           ) : (
             <>

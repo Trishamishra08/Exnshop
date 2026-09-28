@@ -15,6 +15,10 @@ export default function AdminBillingSettings() {
     const [minimumOrderValue, setMinimumOrderValue] = useState<number>(0);
     const [deliveryCharges, setDeliveryCharges] = useState<number>(0);
 
+    // Tax (GST)
+    const [gstEnabled, setGstEnabled] = useState<boolean>(false);
+    const [gstRate, setGstRate] = useState<number>(0);
+
     // Distance Based Config
     const [isDistanceBased, setIsDistanceBased] = useState(false);
     const [baseCharge, setBaseCharge] = useState<number>(0);
@@ -43,6 +47,8 @@ export default function AdminBillingSettings() {
                 setFreeDeliveryThreshold(data.freeDeliveryThreshold || 0);
                 setMinimumOrderValue(data.minimumOrderValue || 0);
                 setDeliveryCharges(data.deliveryCharges || 0);
+                setGstEnabled(data.gstEnabled || false);
+                setGstRate(data.gstRate || 0);
 
                 if (data.deliveryConfig) {
                     setIsDistanceBased(data.deliveryConfig.isDistanceBased || false);
@@ -77,6 +83,8 @@ export default function AdminBillingSettings() {
                 freeDeliveryThreshold,
                 minimumOrderValue,
                 deliveryCharges,
+                gstEnabled,
+                gstRate,
                 deliveryConfig: {
                     isDistanceBased,
                     baseCharge,
@@ -208,6 +216,54 @@ export default function AdminBillingSettings() {
                             </p>
                         </div>
                     </div>
+                </div>
+
+                {/* Tax (GST) Section */}
+                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-2">Tax (GST)</h2>
+                    <p className="text-sm text-gray-500 mb-6">
+                        When enabled, GST is calculated on the product subtotal (after any coupon discount) and shown
+                        to customers as a separate line item at checkout.
+                    </p>
+
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:bg-gray-100/50 transition-all mb-4">
+                        <div className="flex-1 pr-4">
+                            <h3 className="text-sm font-semibold text-gray-900 mb-0.5">Enable GST</h3>
+                            <p className="text-xs text-gray-500">Turn on to charge GST on customer orders.</p>
+                        </div>
+
+                        <label className="relative inline-flex items-center cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={gstEnabled}
+                                onChange={(e) => setGstEnabled(e.target.checked)}
+                                className="sr-only peer"
+                            />
+                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                        </label>
+                    </div>
+
+                    {gstEnabled && (
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-md">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                GST Rate (%)
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="100"
+                                    step="0.01"
+                                    value={gstRate === 0 ? '' : gstRate}
+                                    onChange={(e) => setGstRate(e.target.value === '' ? 0 : Number(e.target.value))}
+                                    className="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                                    placeholder="e.g. 5"
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500">Applied to the product subtotal on every order.</p>
+                        </motion.div>
+                    )}
                 </div>
 
                 {/* Delivery Configuration Section */}

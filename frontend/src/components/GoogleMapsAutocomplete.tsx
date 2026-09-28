@@ -181,7 +181,11 @@ export default function GoogleMapsAutocomplete({
         value={inputValue}
         onChange={(e) => {
           setInputValue(e.target.value);
-          onChange(e.target.value, 0, 0, e.target.value);
+          // Manual typing hasn't resolved real coordinates yet — pass NaN rather
+          // than fabricating 0,0 (which downstream code could mistake for a real,
+          // validly-selected location and silently save a corrupted address).
+          // Callers should leave latitude/longitude untouched when they see NaN.
+          onChange(e.target.value, NaN, NaN, e.target.value);
         }}
         placeholder={placeholder}
         className={`w-full px-3 py-2 border border-neutral-300 rounded-lg placeholder:text-neutral-400 focus:outline-none focus:border-blue-600 bg-white ${className}`}

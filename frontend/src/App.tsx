@@ -424,6 +424,17 @@ function App() {
                             }
                           />
 
+                          <Route
+                            path="/signup"
+                            element={
+                              <PublicRoute userType="Customer">
+                                <Suspense fallback={<PageLoader />}>
+                                  <Login mode="signup" />
+                                </Suspense>
+                              </PublicRoute>
+                            }
+                          />
+
                           {/* First-Login Language Selection (Standalone Onboarding Route - OUTSIDE AppLayout) */}
                           <Route
                             path="/language-selection"

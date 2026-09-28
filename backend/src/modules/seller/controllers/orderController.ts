@@ -299,43 +299,6 @@ export const getOrderEarningBreakdownSeller = asyncHandler(
 );
 
 /**
- * Seller marks COD as paid to admin (order will leave pending settlement list)
- */
-export const markOrderCODPaidSeller = asyncHandler(
-  async (req: Request, res: Response) => {
-    const sellerId = (req as any).user.userId;
-    const { id } = req.params;
-    const hasItems = await OrderItem.findOne({ order: id, seller: sellerId });
-    if (!hasItems) {
-      return res.status(404).json({ success: false, message: "Order not found" });
-    }
-    const order = await Order.findById(id).select("paymentMethod status codPaidToAdminAt");
-    if (!order) {
-      return res.status(404).json({ success: false, message: "Order not found" });
-    }
-    if (order.paymentMethod !== "COD") {
-      return res.status(400).json({ success: false, message: "Only COD orders can be marked as paid" });
-    }
-    if (order.status !== "Delivered") {
-      return res.status(400).json({
-        success: false,
-        message: "Only delivered orders appear in settlement. Mark the order as Delivered first, then you can mark as paid to admin.",
-      });
-    }
-    if (order.codPaidToAdminAt) {
-      return res.status(400).json({ success: false, message: "COD for this order is already marked as paid" });
-    }
-    order.codPaidToAdminAt = new Date();
-    await order.save();
-    return res.status(200).json({
-      success: true,
-      message: "Marked as paid to admin. This order will no longer appear in your pending settlement list.",
-      data: { orderId: order._id, codPaidToAdminAt: order.codPaidToAdminAt },
-    });
-  },
-);
-
-/**
  * Get order by ID with populated order items, customer, and delivery info
  */
 export const getOrderById = asyncHandler(

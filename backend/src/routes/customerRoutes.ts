@@ -26,9 +26,54 @@ router.get("/app-settings", async (_req, res) => {
         customerAppPolicy: EXNSHOP_TERMS_AND_CONDITIONS,
       });
     }
+    // Only expose fields that are safe for a public, unauthenticated endpoint —
+    // never leak payment gateway secrets, SMS gateway credentials, etc.
+    const publicSettings = {
+      appName: settings.appName,
+      appLogo: settings.appLogo,
+      appFavicon: settings.appFavicon,
+      estimatedDeliveryTime: settings.estimatedDeliveryTime,
+      contactEmail: settings.contactEmail,
+      contactPhone: settings.contactPhone,
+      supportEmail: settings.supportEmail,
+      supportPhone: settings.supportPhone,
+      companyAddress: settings.companyAddress,
+      companyCity: settings.companyCity,
+      companyState: settings.companyState,
+      companyPincode: settings.companyPincode,
+      companyCountry: settings.companyCountry,
+      paymentMethods: settings.paymentMethods,
+      platformFee: settings.platformFee,
+      deliveryCharges: settings.deliveryCharges,
+      freeDeliveryThreshold: settings.freeDeliveryThreshold,
+      minimumOrderValue: settings.minimumOrderValue,
+      deliveryConfig: settings.deliveryConfig
+        ? {
+            isDistanceBased: settings.deliveryConfig.isDistanceBased,
+            baseCharge: settings.deliveryConfig.baseCharge,
+            baseDistance: settings.deliveryConfig.baseDistance,
+            kmRate: settings.deliveryConfig.kmRate,
+            deliveryBoyKmRate: settings.deliveryConfig.deliveryBoyKmRate,
+            // googleMapsKey intentionally omitted — not for public consumption
+          }
+        : undefined,
+      gstEnabled: settings.gstEnabled,
+      gstRate: settings.gstRate,
+      privacyPolicy: settings.privacyPolicy,
+      termsOfService: settings.termsOfService,
+      returnPolicy: settings.returnPolicy,
+      refundPolicy: settings.refundPolicy,
+      customerAppPolicy: settings.customerAppPolicy,
+      returnConfig: settings.returnConfig,
+      faq: settings.faq,
+      homeSections: settings.homeSections,
+      features: settings.features,
+      aboutUs: settings.aboutUs,
+    };
+
     return res.status(200).json({
       success: true,
-      data: settings,
+      data: publicSettings,
     });
   } catch (err: any) {
     return res.status(500).json({

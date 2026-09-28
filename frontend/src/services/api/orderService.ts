@@ -229,8 +229,6 @@ export const getSettlementOrders = async (params?: {
   return response.data;
 };
 
-/** Seller marks COD as paid to admin (order leaves pending settlement list) */
-export const markOrderCODPaid = async (orderId: string): Promise<ApiResponse<{ orderId: string; codPaidToAdminAt: string }>> => {
-  const response = await api.patch<ApiResponse<{ orderId: string; codPaidToAdminAt: string }>>(`/orders/${orderId}/mark-cod-paid`);
-  return response.data;
-};
+// Note: sellers cannot mark COD orders as paid to admin — that reconciliation is
+// admin/delivery-agent driven only (see admin cash collection flow). This page is
+// read-only status for sellers.
