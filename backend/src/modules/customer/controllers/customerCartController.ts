@@ -91,13 +91,14 @@ const calculateDeliveryStuff = async (total: number, items: any[], userLat: numb
             // No rider fee for E-commerce — ships via courier separately.
             estimatedDeliveryFee = 0;
         }
-        // Check free delivery threshold
-        else if (freeDeliveryThreshold > 0 && total >= freeDeliveryThreshold) {
-            estimatedDeliveryFee = 0;
-        }
-        // Standard Delivery: Always Fixed Price
+        // Standard Delivery: Always Fixed Price, waived above the free-delivery
+        // threshold. This waiver is Standard-only — Instant is a premium,
+        // rider-dispatched service and always carries its own distance-based
+        // fee below, regardless of cart value.
         else if (deliveryOption === 'Standard') {
-            estimatedDeliveryFee = settings?.deliveryCharges ?? 0;
+            estimatedDeliveryFee = (freeDeliveryThreshold > 0 && total >= freeDeliveryThreshold)
+                ? 0
+                : (settings?.deliveryCharges ?? 0);
         }
         // Instant Delivery: Distance Based (if config exists)
         else if (deliveryOption === 'Instant' && settings?.deliveryConfig) {

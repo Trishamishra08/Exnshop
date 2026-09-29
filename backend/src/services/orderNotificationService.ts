@@ -501,6 +501,51 @@ export async function notifyDeliveryBoysOfNewOrder(
     }
 }
 
+/**
+ * Dispatches a Quick-commerce order to nearby delivery partners the moment
+ * it's confirmed (COD/Wallet: right at placement; Online: right after
+ * payment capture) — customers shouldn't have to wait for a seller to
+ * manually accept before a rider gets a request. Safe to call from multiple
+ * places (order creation, payment capture, seller-acceptance fallback) since
+ * it no-ops once the order has already been dispatched/assigned, or if the
+ * seller/admin has explicitly opted into manual rider assignment for it.
+ */
+export async function dispatchOrderToDeliveryBoys(
+    order: any,
+    io?: SocketIOServer
+): Promise<void> {
+    if (!io) return;
+    if (order.channel !== 'Quick') return; // E-commerce ships via courier, no rider dispatch
+    if (order.deliveryPreference) return; // Seller/admin opted for manual assignment — respect it
+    if (order.deliveryBoy) return; // Already has a rider
+
+    const currentStatus = order.deliveryAssignmentStatus;
+    if (currentStatus && !['NotStarted', 'Failed'].includes(currentStatus)) {
+        // Already dispatched (Searching/Queued) or already resolved (Assigned/Cancelled)
+        return;
+    }
+
+    await Order.findByIdAndUpdate(order._id, { $set: { deliveryAssignmentStatus: 'Searching' } });
+    try {
+        // Standard-delivery dispatch (findDeliveryBoysNearSellerLocations) needs
+        // each item's seller to determine "nearby" — callers (e.g. right at order
+        // creation) may only have bare item ObjectIds, so populate here if needed
+        // rather than requiring every call site to remember to.
+        const itemsLookPopulated =
+            Array.isArray(order.items) && order.items.length > 0 && typeof order.items[0] === "object" && "seller" in order.items[0];
+        const orderForDispatch = itemsLookPopulated
+            ? order
+            : await Order.findById(order._id)
+                .populate({ path: "items", populate: { path: "seller" } })
+                .lean();
+
+        await notifyDeliveryBoysOfNewOrder(io, orderForDispatch || order);
+    } catch (error) {
+        await Order.findByIdAndUpdate(order._id, { $set: { deliveryAssignmentStatus: 'Failed' } });
+        console.error('❌ [DISPATCH] Failed to notify delivery boys at order confirmation:', error);
+    }
+}
+
 
 /**
  * Handle order acceptance by a delivery boy

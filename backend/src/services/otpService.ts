@@ -537,23 +537,14 @@ async function verifyOtpFromDb(
 }
 
 /**
- * Special bypass numbers and their fixed OTP:
- * - Customer / Delivery / Seller: 8839044030 -> 888888
- * - Admin: 9876543210 -> 123456
- * - Legacy test numbers: 9111966732, 6268423926 -> 1234
+ * Every mobile number defaults to the fixed test OTP 888888 — no real SMS is
+ * sent, and login accepts only this code. Set OTP_UNIVERSAL_BYPASS=false to
+ * turn this off (e.g. before going live with real users) and fall back to
+ * actually sending/verifying a random OTP per number.
  */
 function getSpecialOtpForMobile(mobile: string): string | null {
-  const digits = normalizeMobileTo10(mobile);
-  if (digits === "8839044030") return "888888";
-  if (digits === "9876543210") return "123456";
-  if (
-    digits === "9111966732" ||
-    digits === "11966732" ||
-    digits === "6268423926"
-  ) {
-    return "1234";
-  }
-  return null;
+  if (process.env.OTP_UNIVERSAL_BYPASS === "false") return null;
+  return "888888";
 }
 
 /**

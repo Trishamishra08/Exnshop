@@ -258,6 +258,17 @@ const captureForOneOrder = async (
                     console.error("Failed to notify sellers after payment capture:", notifyError);
                 }
 
+                // Quick-commerce orders dispatch to nearby delivery partners
+                // right after payment succeeds — no need to wait on seller acceptance.
+                try {
+                    const { dispatchOrderToDeliveryBoys } = await import('./orderNotificationService');
+                    dispatchOrderToDeliveryBoys(order, io).catch((e) =>
+                        console.error("Error dispatching order to delivery boys after payment capture:", e)
+                    );
+                } catch (dispatchError) {
+                    console.error("Failed to dispatch order to delivery boys after payment capture:", dispatchError);
+                }
+
                 try {
                     const { sendOrderStatusNotification } = await import('./notificationService');
                     const custId = (order.customer as any)?._id?.toString() || order.customer?.toString();
@@ -771,6 +782,15 @@ const applyPaymentCapturedToOrder = async (
                 console.log(`📢 [Online-Webhook] Seller notification sent for order ${order.orderNumber}`);
             } catch (notifyError) {
                 console.error("Failed to notify sellers after webhook capture:", notifyError);
+            }
+
+            try {
+                const { dispatchOrderToDeliveryBoys } = await import('./orderNotificationService');
+                dispatchOrderToDeliveryBoys(order, io).catch((e) =>
+                    console.error("Error dispatching order to delivery boys after webhook capture:", e)
+                );
+            } catch (dispatchError) {
+                console.error("Failed to dispatch order to delivery boys after webhook capture:", dispatchError);
             }
         }
 

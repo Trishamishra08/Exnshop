@@ -2,7 +2,7 @@ import { Server as SocketIOServer } from "socket.io";
 import mongoose from "mongoose";
 import Order from "../models/Order";
 import OrderItem from "../models/OrderItem";
-import { notifyDeliveryBoysOfNewOrder } from "./orderNotificationService";
+import { dispatchOrderToDeliveryBoys } from "./orderNotificationService";
 import { sendOrderStatusNotification } from "./notificationService";
 
 type FulfillmentOutcome =
@@ -190,11 +190,16 @@ export async function recomputeOrderFulfillment(
     );
   }
 
-  // Manual Assignment Model:
-  // "Self" (Assign by Seller) -> Seller manually selects specific rider.
-  // "Admin" (Assign by Admin) -> Admin manually assigns specific rider.
-  // No automatic multi-rider broadcast for manual assignment preferences.
-  const shouldTriggerAssignment = false;
+  // Assignment model: a seller can opt into manual control for an order —
+  // "Self" (seller personally delivers / picks a specific rider) or "Admin"
+  // (admin manually assigns a specific rider) — in which case we respect that
+  // and never broadcast. Otherwise (the default, and always true for Instant
+  // orders — sellerOrderController.ts clears an "Admin" preference set on an
+  // Instant order for exactly this reason), the order is broadcast to every
+  // nearby available delivery partner immediately so someone can accept it,
+  // matching standard quick-commerce dispatch (customer places the order,
+  // riders get a request notification right away).
+  const shouldTriggerAssignment = !order.deliveryPreference;
 
   if (io && state.rejectedSellerIds.length > 0) {
     io.to(`order-${orderId}`).emit("order-partial-rejection", {
@@ -242,23 +247,13 @@ export async function recomputeOrderFulfillment(
     };
   }
 
-  await Order.findByIdAndUpdate(order._id, {
-    $set: {
-      deliveryAssignmentStatus: "Searching",
-    },
-  });
-
-  try {
-    if (io) {
-      await notifyDeliveryBoysOfNewOrder(io, deliveryOrder);
-    }
-  } catch (error) {
-    await Order.findByIdAndUpdate(order._id, {
-      $set: {
-        deliveryAssignmentStatus: "Failed",
-      },
-    });
-    throw error;
+  // This is a fallback dispatch — the order was already broadcast to nearby
+  // delivery partners at placement/payment time (see
+  // customerOrderController.ts / paymentService.ts), so this is a no-op
+  // unless that earlier attempt failed to find anyone (deliveryAssignmentStatus
+  // "Failed") or never ran (e.g. an order created before this flow existed).
+  if (io) {
+    await dispatchOrderToDeliveryBoys(deliveryOrder, io);
   }
 
   return {

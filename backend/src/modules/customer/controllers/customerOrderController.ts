@@ -7,6 +7,7 @@ import Seller from "../../../models/Seller";
 import mongoose from "mongoose";
 import { calculateDistance } from "../../../utils/locationHelper";
 import { notifySellersOfOrderUpdate } from "../../../services/sellerNotificationService";
+import { dispatchOrderToDeliveryBoys } from "../../../services/orderNotificationService";
 import { sendOrderStatusNotification } from "../../../services/notificationService";
 import { generateDeliveryOtp } from "../../../services/deliveryOtpService";
 import AppSettings from "../../../models/AppSettings";
@@ -409,16 +410,15 @@ async function buildAndSaveChannelOrder(params: {
     try {
       const freeDeliveryThreshold = settings?.freeDeliveryThreshold || 0;
 
-      // Check for Free Delivery eligibility first
-      if (
-        freeDeliveryThreshold > 0 &&
-        calculatedSubtotal >= freeDeliveryThreshold
-      ) {
-        deliveryFee = 0;
-      }
-      // Standard Delivery flow: Always Fixed Price
-      else if (deliveryOption === "Standard") {
-        deliveryFee = settings.deliveryCharges ?? 0;
+      // Standard Delivery flow: Always Fixed Price, waived above the
+      // free-delivery threshold. That waiver is Standard-only — Instant is a
+      // premium, rider-dispatched service and always carries its own
+      // distance-based fee below, regardless of cart value.
+      if (deliveryOption === "Standard") {
+        deliveryFee =
+          freeDeliveryThreshold > 0 && calculatedSubtotal >= freeDeliveryThreshold
+            ? 0
+            : settings.deliveryCharges ?? 0;
       }
       // Instant Delivery flow: Distance Based calculation
       else if (deliveryOption === "Instant" && settings.deliveryConfig) {
@@ -923,6 +923,12 @@ export const createOrder = async (req: Request, res: Response) => {
             notifySellersOfOrderUpdate(io, builtOrder, "NEW_ORDER");
             console.log(
               `📢 [COD] Async seller notification triggered for order ${builtOrder.orderNumber}`,
+            );
+            // Quick-commerce orders dispatch to nearby delivery partners
+            // immediately — customers shouldn't wait on seller acceptance for
+            // a rider to get a request.
+            dispatchOrderToDeliveryBoys(builtOrder, io).catch((e) =>
+              console.error("Error dispatching order to delivery boys:", e)
             );
           } else {
             console.log(
