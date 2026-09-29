@@ -228,7 +228,7 @@ export default function DeliveryOrderDetail() {
             const coords = deliveryBoyLocation ? { latitude: deliveryBoyLocation.lat, longitude: deliveryBoyLocation.lng } : undefined;
             await sendDeliveryOtp(id, coords);
             setShowOtpInput(true);
-            showToast('OTP sent to customer successfully', 'success');
+            showToast('Ask the customer for the delivery code shown in their app', 'success');
         } catch (err: any) {
             showToast(err.message || 'Failed to send OTP', 'error');
         } finally {

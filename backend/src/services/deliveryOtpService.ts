@@ -9,12 +9,18 @@ export const isDeliveryTestMode = (): boolean => {
 };
 
 /**
- * Generate dynamic 4-digit delivery OTP for an order.
- * Invalidates any previous OTP and resets attempt counter.
+ * Prepare the delivery OTP for an order, for the delivery partner to ask the
+ * customer for and enter. There is no SMS/push channel that delivers a
+ * freshly-generated code to the customer, so this does NOT invent a new
+ * random code — it snapshots the customer's own permanent 4-digit delivery
+ * OTP (visible to them in-app the whole time, on their Order Detail screen)
+ * onto the order. That guarantees the code the delivery partner is told to
+ * expect always matches what the customer can actually see and read out.
+ * Resets the attempt counter and expiry window.
  */
 export async function generateDeliveryOtp(orderId: string): Promise<{ success: boolean; message: string; otp?: string; testMode?: boolean }> {
   try {
-    const order = await Order.findById(orderId);
+    const order = await Order.findById(orderId).populate('customer');
 
     if (!order) {
       throw new Error('Order not found');
@@ -26,22 +32,37 @@ export async function generateDeliveryOtp(orderId: string): Promise<{ success: b
 
     const testModeActive = isDeliveryTestMode();
 
-    // Fixed test OTP '9999' when in test mode, else random 4-digit OTP
-    const newOtp = testModeActive ? "9999" : Math.floor(1000 + Math.random() * 9000).toString();
+    let newOtp: string;
+    if (testModeActive) {
+      newOtp = "9999";
+    } else {
+      let customerOtp: string | undefined =
+        order.customer && typeof order.customer === 'object' && 'deliveryOtp' in order.customer
+          ? (order.customer as any).deliveryOtp
+          : undefined;
+      if (!customerOtp) {
+        const customer = await Customer.findById(order.customer);
+        customerOtp = customer?.deliveryOtp;
+      }
+      if (!customerOtp) {
+        throw new Error('Customer delivery OTP not found. Please contact support.');
+      }
+      newOtp = customerOtp;
+    }
 
-    // Set order-specific dynamic OTP with expiry and reset attempts
+    // Snapshot onto the order, with expiry and reset attempts
     order.deliveryOtp = newOtp;
     order.deliveryOtpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MS);
     order.deliveryOtpAttempts = 0;
     await order.save();
 
-    console.log(`[Delivery OTP] ${testModeActive ? 'TEST MODE OTP (9999)' : 'Dynamic OTP'} generated for order ${order.orderNumber}: ${newOtp} (Expires in 10 mins)`);
+    console.log(`[Delivery OTP] ${testModeActive ? 'TEST MODE OTP (9999)' : "Snapshotted customer's permanent OTP"} for order ${order.orderNumber}: ${newOtp} (Expires in 10 mins)`);
 
     return {
       success: true,
       message: testModeActive
         ? 'Development Test Mode: OTP set to 9999.'
-        : 'Delivery OTP generated and sent to customer.',
+        : 'Ask the customer for the delivery code shown in their app.',
       otp: testModeActive ? '9999' : undefined,
       testMode: testModeActive,
     };

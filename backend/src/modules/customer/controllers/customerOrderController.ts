@@ -1299,13 +1299,16 @@ export const refreshDeliveryOtp = async (req: Request, res: Response) => {
     // Generate and send new OTP
     const result = await generateDeliveryOtp(id);
 
-    // Emit socket event if needed (customer room)
+    // Emit socket event if needed (customer room). Re-fetch: generateDeliveryOtp
+    // updates its own separate document instance, so the `order` fetched above
+    // doesn't reflect the new value.
     const io = (req.app as any).get("io");
     if (io) {
+      const refreshedOrder = await Order.findById(id).select("deliveryOtp deliveryOtpExpiresAt");
       io.to(`order-${id}`).emit("delivery-otp-refreshed", {
         orderId: id,
-        deliveryOtp: order.deliveryOtp, // The service saves it to the order
-        expiresAt: order.deliveryOtpExpiresAt,
+        deliveryOtp: refreshedOrder?.deliveryOtp,
+        expiresAt: refreshedOrder?.deliveryOtpExpiresAt,
       });
     }
 
