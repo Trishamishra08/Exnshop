@@ -47,6 +47,7 @@ router.get("/app-settings", async (_req, res) => {
       deliveryCharges: settings.deliveryCharges,
       freeDeliveryThreshold: settings.freeDeliveryThreshold,
       minimumOrderValue: settings.minimumOrderValue,
+      packagingFee: settings.packagingFee,
       deliveryConfig: settings.deliveryConfig
         ? {
             isDistanceBased: settings.deliveryConfig.isDistanceBased,

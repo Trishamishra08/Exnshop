@@ -93,6 +93,14 @@ export default function Checkout() {
     }
   }, [mode, deliveryOption]);
 
+  // Fall back to Standard if the seller(s) in the cart don't offer Instant delivery
+  // (admin-controlled per seller — see Seller.supportsInstantDelivery).
+  useEffect(() => {
+    if (cart.instantDeliveryAvailable === false && deliveryOption === "Instant") {
+      setDeliveryOption("Standard");
+    }
+  }, [cart.instantDeliveryAvailable, deliveryOption]);
+
   // Refresh cart delivery fee when selected address or delivery option changes
   useEffect(() => {
     if (selectedAddress?.latitude && selectedAddress?.longitude) {
@@ -515,7 +523,8 @@ export default function Checkout() {
 
   // Calculate tip amount (use custom tip if custom tip input is shown, otherwise use selected tip)
   const finalTipAmount = showCustomTipInput ? customTipAmount : tipAmount || 0;
-  const giftPackagingFee = giftPackaging ? 30 : 0;
+  const packagingFeeRate = appSettings.packagingFee ?? 30;
+  const giftPackagingFee = giftPackaging ? packagingFeeRate : 0;
 
   // GST is admin-managed (AppSettingsContext -> gstEnabled/gstRate) and is applied
   // on the taxable value of goods (product subtotal after coupon discount).
@@ -1868,20 +1877,25 @@ export default function Checkout() {
           </button>
 
           <button
-            onClick={() => setDeliveryOption("Instant")}
+            onClick={() => cart.instantDeliveryAvailable !== false && setDeliveryOption("Instant")}
+            disabled={cart.instantDeliveryAvailable === false}
             className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
-              deliveryOption === "Instant"
-                ? "border-green-600 bg-green-50 text-green-700"
-                : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
+              cart.instantDeliveryAvailable === false
+                ? "border-neutral-200 bg-neutral-50 text-neutral-400 cursor-not-allowed"
+                : deliveryOption === "Instant"
+                  ? "border-green-600 bg-green-50 text-green-700"
+                  : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
             }`}>
             <div
-              className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${deliveryOption === "Instant" ? "bg-green-600" : "bg-neutral-100"}`}>
+              className={`w-8 h-8 rounded-full mb-2 flex items-center justify-center ${
+                cart.instantDeliveryAvailable !== false && deliveryOption === "Instant" ? "bg-green-600" : "bg-neutral-100"
+              }`}>
               <svg
                 width="18"
                 height="18"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke={deliveryOption === "Instant" ? "white" : "currentColor"}
+                stroke={cart.instantDeliveryAvailable !== false && deliveryOption === "Instant" ? "white" : "currentColor"}
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round">
@@ -1890,7 +1904,9 @@ export default function Checkout() {
             </div>
             <span className="text-xs font-bold">Instant Delivery</span>
             <p className="text-[8px] mt-0.5 opacity-70">
-              (Expected in 10-15 mins)
+              {cart.instantDeliveryAvailable === false
+                ? "Not offered by this seller"
+                : "(Expected in 10-15 mins)"}
             </p>
           </button>
         </div>
@@ -2066,14 +2082,18 @@ export default function Checkout() {
                 <circle cx="5.5" cy="18.5" r="1.5" fill="currentColor" />
                 <circle cx="18.5" cy="18.5" r="1.5" fill="currentColor" />
               </svg>
-              <span className="text-xs text-neutral-700">Delivery charge</span>
+              <span className="text-xs text-neutral-700">
+                Delivery charge
+                {deliveryOption === "Instant" && cart.estimatedDistanceKm != null && (
+                  <span className="text-neutral-400"> | {cart.estimatedDistanceKm} kms</span>
+                )}
+              </span>
             </div>
             <div className="flex flex-col items-end">
               <span
                 className={`text-xs font-medium ${deliveryCharge === 0 ? "text-green-600" : "text-neutral-900"}`}>
                 {deliveryCharge === 0 ? "FREE" : `₹${deliveryCharge}`}
               </span>
-              {deliveryCharge > 0 && null}
             </div>
           </div>
 
@@ -2372,13 +2392,13 @@ export default function Checkout() {
               </p>
               <p className="text-[10px] text-neutral-600">
                 {giftPackaging
-                  ? "Add ₹30 for gift packaging"
-                  : "Add ₹30 for elegant gift packaging"}
+                  ? `Add ₹${packagingFeeRate} for gift packaging`
+                  : `Add ₹${packagingFeeRate} for elegant gift packaging`}
               </p>
             </div>
           </div>
           {giftPackaging && (
-            <span className="text-xs font-semibold text-green-600">₹30</span>
+            <span className="text-xs font-semibold text-green-600">₹{packagingFeeRate}</span>
           )}
         </button>
       </div>

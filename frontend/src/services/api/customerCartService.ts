@@ -19,6 +19,8 @@ export interface Cart {
     items: CartItem[];
     total: number;
     estimatedDeliveryFee?: number;
+    estimatedDistanceKm?: number | null;
+    instantDeliveryAvailable?: boolean;
     platformFee?: number;
     freeDeliveryThreshold?: number;
     minimumOrderValue?: number;
@@ -46,6 +48,27 @@ export interface CartLocationParams {
  */
 export const getCart = async (params?: CartLocationParams): Promise<CartResponse> => {
     const response = await api.get<CartResponse>('/customer/cart', { params });
+    return response.data;
+};
+
+export interface MergedCartResponse {
+    success: boolean;
+    message?: string;
+    data: {
+        quick: Cart;
+        ecommerce: Cart;
+        combinedTotal: number;
+    };
+}
+
+/**
+ * Get both channel carts together (Quick + E-commerce), for the unified
+ * cart/checkout experience where a customer can shop both at once.
+ */
+export const getMergedCart = async (
+    params?: Omit<CartLocationParams, 'channel'>
+): Promise<MergedCartResponse> => {
+    const response = await api.get<MergedCartResponse>('/customer/cart/merged', { params });
     return response.data;
 };
 

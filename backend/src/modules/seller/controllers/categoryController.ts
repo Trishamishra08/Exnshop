@@ -3,9 +3,9 @@ import mongoose from "mongoose";
 import Category from "../../../models/Category";
 import SubCategory from "../../../models/SubCategory";
 import Product from "../../../models/Product";
-import HeaderCategory from "../../../models/HeaderCategory";
 import Seller from "../../../models/Seller";
 import { asyncHandler } from "../../../utils/asyncHandler";
+import { resolveSellerAllowedHeaderCategories } from "../../../services/sellerCategoryService";
 
 /**
  * Helper to find category by either ObjectId, slug, or name
@@ -75,10 +75,7 @@ export const getCategories = asyncHandler(
     if (userId && (userRole === "Seller" || !userRole)) {
       const seller = await Seller.findById(userId).select("categories");
       if (seller && seller.categories && seller.categories.length > 0) {
-        const allowedHeaderCats = await HeaderCategory.find({
-          name: { $in: seller.categories },
-          status: "Published",
-        }).select("_id");
+        const allowedHeaderCats = await resolveSellerAllowedHeaderCategories(seller.categories);
         const allowedHeaderIds = allowedHeaderCats.map((h) => h._id);
         query.headerCategoryId = { $in: allowedHeaderIds };
       }
@@ -413,10 +410,7 @@ export const getAllSubcategories = asyncHandler(
     if (userId && (userRole === "Seller" || !userRole)) {
       const seller = await Seller.findById(userId).select("categories");
       if (seller && seller.categories && seller.categories.length > 0) {
-        const allowedHeaderCats = await HeaderCategory.find({
-          name: { $in: seller.categories },
-          status: "Published",
-        }).select("_id");
+        const allowedHeaderCats = await resolveSellerAllowedHeaderCategories(seller.categories);
         const allowedHeaderIds = allowedHeaderCats.map((h) => h._id);
 
         const allowedParents = await Category.find({

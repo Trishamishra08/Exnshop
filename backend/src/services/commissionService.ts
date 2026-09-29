@@ -771,7 +771,15 @@ export const getCommissionSummary = async (
     const summary = {
       total: 0,
       paid: 0,
+      // "pending" = every commission not yet Paid — includes both commissions still
+      // awaiting seller action (e.g. COD not yet reconciled by admin, status "Pending")
+      // and commissions held in escrow pending the return window ("OnHold"). Previously
+      // this only counted "Pending" and silently dropped "OnHold" amounts, so sellers
+      // never saw the money that was genuinely on its way (their "next settlement").
       pending: 0,
+      onHold: 0,
+      /** Earliest date an OnHold commission is due to release, if any. */
+      nextSettlementDate: null as Date | null,
       count: commissions.length,
       commissions: commissions.map((c) => ({
         id: c._id,
@@ -780,10 +788,13 @@ export const getCommissionSummary = async (
         rate: c.commissionRate,
         orderAmount: c.orderAmount,
         status: c.status,
+        onHoldUntil: c.onHoldUntil,
         paidAt: c.paidAt,
         createdAt: c.createdAt,
       })),
     };
+
+    let earliestOnHoldUntil: Date | null = null;
 
     commissions.forEach((c) => {
       // For Sellers, earning is Order Amount - Commission Amount
@@ -798,8 +809,16 @@ export const getCommissionSummary = async (
         summary.paid += earningAmount;
       } else if (c.status === "Pending") {
         summary.pending += earningAmount;
+      } else if (c.status === "OnHold") {
+        summary.onHold += earningAmount;
+        summary.pending += earningAmount;
+        if (c.onHoldUntil && (!earliestOnHoldUntil || c.onHoldUntil < earliestOnHoldUntil)) {
+          earliestOnHoldUntil = c.onHoldUntil;
+        }
       }
     });
+
+    summary.nextSettlementDate = earliestOnHoldUntil;
 
     return {
       success: true,
@@ -1423,8 +1442,22 @@ export const processCODOrderDelivery = async (
 
 /**
  * Automatically releases expired seller escrow earnings (OnHold -> Paid & Available Wallet balance)
+ *
+ * @param respectApprovalMode When true (default), this is a no-op if the admin has
+ *   set AppSettings.settlementApprovalMode to "manual" — expired holds then wait for
+ *   an admin to explicitly approve release via the admin settlement endpoint, which
+ *   calls this function with respectApprovalMode=false.
  */
-export const releaseExpiredEscrow = async (): Promise<{ success: boolean; releasedCount: number }> => {
+export const releaseExpiredEscrow = async (
+  respectApprovalMode: boolean = true
+): Promise<{ success: boolean; releasedCount: number }> => {
+  if (respectApprovalMode) {
+    const settings = await AppSettings.findOne().select("settlementApprovalMode").lean();
+    if (settings?.settlementApprovalMode === "manual") {
+      return { success: true, releasedCount: 0 };
+    }
+  }
+
   const session = await mongoose.startSession();
   session.startTransaction();
 

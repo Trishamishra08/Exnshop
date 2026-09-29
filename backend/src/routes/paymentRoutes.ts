@@ -1,42 +1,49 @@
 import { Router } from 'express';
 import { authenticate, requireUserType } from '../middleware/auth';
 import { Request, Response } from 'express';
-import { createRazorpayOrder, capturePayment, handleWebhook } from '../services/paymentService';
+import { createRazorpayOrder, capturePayment, capturePaymentForOrders, handleWebhook } from '../services/paymentService';
 import Order from '../models/Order';
 
 const router = Router();
 
 /**
- * Create Razorpay order for payment
+ * Create Razorpay order for payment. Accepts either a single `orderId` (an
+ * ordinary checkout) or `orderIds` (a mixed Quick + E-commerce checkout,
+ * where one Razorpay charge covers both linked orders).
  */
 router.post('/create-order', authenticate, requireUserType('Customer'), async (req: Request, res: Response) => {
     try {
-        const { orderId } = req.body;
+        const orderIds: string[] = Array.isArray(req.body.orderIds)
+            ? req.body.orderIds
+            : req.body.orderId
+                ? [req.body.orderId]
+                : [];
 
-        if (!orderId) {
+        if (orderIds.length === 0) {
             return res.status(400).json({
                 success: false,
                 message: 'Order ID is required',
             });
         }
 
-        const order = await Order.findById(orderId);
-        if (!order) {
+        const orders = await Order.find({ _id: { $in: orderIds } });
+        if (orders.length !== orderIds.length) {
             return res.status(404).json({
                 success: false,
                 message: 'Order not found',
             });
         }
 
-        // Verify order belongs to customer
-        if (order.customer.toString() !== req.user!.userId) {
+        // Verify every order belongs to this customer
+        if (orders.some((o) => o.customer.toString() !== req.user!.userId)) {
             return res.status(403).json({
                 success: false,
                 message: 'Unauthorized access to order',
             });
         }
 
-        const result = await createRazorpayOrder(orderId, order.total);
+        const combinedAmount = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+        const result = await createRazorpayOrder(orderIds, combinedAmount);
 
         if (!result.success) {
             return res.status(400).json(result);
@@ -53,29 +60,35 @@ router.post('/create-order', authenticate, requireUserType('Customer'), async (r
 });
 
 /**
- * Verify payment after Razorpay checkout
+ * Verify payment after Razorpay checkout. Accepts either a single `orderId`
+ * or `orderIds` (mixed checkout — one payment applied to both linked orders).
  */
 router.post('/verify', authenticate, requireUserType('Customer'), async (req: Request, res: Response) => {
     try {
-        const { orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+        const { razorpayOrderId, razorpayPaymentId, razorpaySignature } = req.body;
+        const orderIds: string[] = Array.isArray(req.body.orderIds)
+            ? req.body.orderIds
+            : req.body.orderId
+                ? [req.body.orderId]
+                : [];
 
-        if (!orderId || !razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
+        if (orderIds.length === 0 || !razorpayOrderId || !razorpayPaymentId || !razorpaySignature) {
             return res.status(400).json({
                 success: false,
                 message: 'Missing required payment verification parameters',
             });
         }
 
-        const order = await Order.findById(orderId);
-        if (!order) {
+        const orders = await Order.find({ _id: { $in: orderIds } });
+        if (orders.length !== orderIds.length) {
             return res.status(404).json({
                 success: false,
                 message: 'Order not found',
             });
         }
 
-        // Verify order belongs to customer
-        if (order.customer.toString() !== req.user!.userId) {
+        // Verify every order belongs to this customer
+        if (orders.some((o) => o.customer.toString() !== req.user!.userId)) {
             return res.status(403).json({
                 success: false,
                 message: 'Unauthorized access to order',
@@ -83,8 +96,8 @@ router.post('/verify', authenticate, requireUserType('Customer'), async (req: Re
         }
 
         const io = req.app.get('io');
-        const result = await capturePayment(
-            orderId,
+        const result = await capturePaymentForOrders(
+            orderIds,
             razorpayOrderId,
             razorpayPaymentId,
             razorpaySignature,

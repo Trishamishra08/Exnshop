@@ -59,6 +59,8 @@ export interface IAppSettings extends Document {
   freeDeliveryThreshold?: number;
   /** Cart subtotal must be at least this amount to place an order. 0 = no minimum. */
   minimumOrderValue?: number;
+  /** Flat opt-in fee charged when the customer requests gift/protective packaging. */
+  packagingFee?: number;
   deliveryConfig?: {
     isDistanceBased: boolean;
     googleMapsKey?: string;
@@ -71,6 +73,12 @@ export interface IAppSettings extends Document {
   // Tax Settings
   gstEnabled: boolean;
   gstRate?: number;
+
+  // Seller Settlement Settings
+  /** "auto" = escrowed seller commissions release automatically once the return
+   *  window expires. "manual" = they wait for an admin to approve release, even
+   *  after the window expires. */
+  settlementApprovalMode: "auto" | "manual";
 
   // Policies
   privacyPolicy?: string;
@@ -308,6 +316,11 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       default: 0,
       min: [0, "Minimum order value cannot be negative"],
     },
+    packagingFee: {
+      type: Number,
+      default: 30,
+      min: [0, "Packaging fee cannot be negative"],
+    },
     deliveryConfig: {
       isDistanceBased: { type: Boolean, default: false },
       googleMapsKey: { type: String, trim: true },
@@ -325,6 +338,13 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       type: Number,
       min: [0, "GST rate cannot be negative"],
       max: [100, "GST rate cannot exceed 100%"],
+    },
+
+    // Seller Settlement Settings
+    settlementApprovalMode: {
+      type: String,
+      enum: ["auto", "manual"],
+      default: "auto",
     },
 
     // Policies

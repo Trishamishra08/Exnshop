@@ -78,6 +78,11 @@ export interface ISeller extends Document {
 
   // Commerce channel(s) this seller sells through
   channels: ('Quick' | 'ECommerce')[];
+  /** Whether this seller offers Instant/Quick delivery (admin-controlled). Defaults to
+   *  true; when false, customers checking out with this seller's items in their cart
+   *  only see the Standard delivery option, mirroring per-restaurant gating in
+   *  reference delivery apps. */
+  supportsInstantDelivery: boolean;
 
   createdAt: Date;
   updatedAt: Date;
@@ -331,6 +336,10 @@ const SellerSchema = new Schema<ISeller>(
         },
         message: 'At least one commerce channel must be selected',
       },
+    },
+    supportsInstantDelivery: {
+      type: Boolean,
+      default: true,
     },
     // FCM Push Notification Tokens
     fcmTokens: {

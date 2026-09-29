@@ -6,9 +6,12 @@ import {
   getFinancialDashboard,
   getWalletTransactions,
   getAdminEarnings,
+  getDueSettlements,
+  approveDueSettlements,
   WalletStats,
   WalletTransaction,
   AdminEarning,
+  DueSettlement,
 } from "../../../services/api/admin/adminWalletService";
 import AdminWithdrawals from "./AdminWithdrawals";
 
@@ -130,10 +133,10 @@ export default function AdminWallet() {
   const { showToast } = useToast();
   const [searchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
-  const initialTab: "transactions" | "earnings" | "withdrawals" =
-    tabParam === "earnings" || tabParam === "withdrawals" ? tabParam : "transactions";
+  const initialTab: "transactions" | "earnings" | "withdrawals" | "settlements" =
+    tabParam === "earnings" || tabParam === "withdrawals" || tabParam === "settlements" ? tabParam : "transactions";
   const [activeTab, setActiveTab] = useState<
-    "transactions" | "earnings" | "withdrawals"
+    "transactions" | "earnings" | "withdrawals" | "settlements"
   >(initialTab);
   const [stats, setStats] = useState<WalletStats | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
@@ -148,9 +151,14 @@ export default function AdminWallet() {
   const [earnLoading, setEarnLoading] = useState(false);
   const [earnPage, setEarnPage] = useState(1);
 
+  // Settlements (due escrow releases) State
+  const [dueSettlements, setDueSettlements] = useState<DueSettlement[]>([]);
+  const [settlementsLoading, setSettlementsLoading] = useState(false);
+  const [releasing, setReleasing] = useState(false);
+
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab === "earnings" || tab === "withdrawals" || tab === "transactions") {
+    if (tab === "earnings" || tab === "withdrawals" || tab === "transactions" || tab === "settlements") {
       setActiveTab(tab);
     }
   }, [searchParams]);
@@ -164,8 +172,42 @@ export default function AdminWallet() {
       fetchTransactions();
     } else if (activeTab === "earnings") {
       fetchEarnings();
+    } else if (activeTab === "settlements") {
+      fetchDueSettlements();
     }
   }, [activeTab, trxFilter]);
+
+  const fetchDueSettlements = async () => {
+    setSettlementsLoading(true);
+    try {
+      const response = await getDueSettlements();
+      if (response.success && response.data) {
+        setDueSettlements(response.data);
+      }
+    } catch (error) {
+      showToast("Failed to load due settlements", "error");
+    } finally {
+      setSettlementsLoading(false);
+    }
+  };
+
+  const handleReleaseAllDue = async () => {
+    setReleasing(true);
+    try {
+      const response = await approveDueSettlements();
+      if (response.success) {
+        showToast(`Released ${response.data?.releasedCount || 0} settlement(s) to seller wallets`, "success");
+        fetchDueSettlements();
+        fetchStats();
+      } else {
+        showToast(response.message || "Failed to release settlements", "error");
+      }
+    } catch (error: any) {
+      showToast(error.response?.data?.message || "Failed to release settlements", "error");
+    } finally {
+      setReleasing(false);
+    }
+  };
 
   const fetchStats = async () => {
     try {
@@ -299,6 +341,13 @@ export default function AdminWallet() {
             label="Withdrawal Requests"
             icon={WalletIcon}
             badge={stats?.pendingWithdrawalsCount}
+          />
+          <TabButton
+            active={activeTab === "settlements"}
+            onClick={() => setActiveTab("settlements")}
+            label="Seller Settlements"
+            icon={ClockIcon}
+            badge={dueSettlements.length}
           />
         </div>
 
@@ -454,6 +503,64 @@ export default function AdminWallet() {
           )}
 
           {activeTab === "withdrawals" && <AdminWithdrawals />}
+
+          {activeTab === "settlements" && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <p className="text-sm text-gray-500">
+                  Seller commissions whose return-window hold has expired. In auto mode these release
+                  on their own; in manual mode (Billing settings) they wait here for your approval.
+                </p>
+                {dueSettlements.length > 0 && (
+                  <button
+                    onClick={handleReleaseAllDue}
+                    disabled={releasing}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {releasing ? "Releasing..." : `Release All Due (${dueSettlements.length})`}
+                  </button>
+                )}
+              </div>
+
+              {settlementsLoading ? (
+                <LoadingSpinner />
+              ) : dueSettlements.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-gray-100 text-gray-500 text-sm">
+                        <th className="py-3 px-4 font-medium">Order</th>
+                        <th className="py-3 px-4 font-medium">Seller</th>
+                        <th className="py-3 px-4 font-medium">Due Since</th>
+                        <th className="py-3 px-4 font-medium text-right">Seller Net Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dueSettlements.map((s) => (
+                        <tr key={s.id} className="border-b border-gray-50 hover:bg-gray-50">
+                          <td className="py-3 px-4 text-sm text-gray-900">{s.order?.orderNumber}</td>
+                          <td className="py-3 px-4">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-gray-900">{s.seller?.storeName}</span>
+                              <span className="text-xs text-gray-500">{s.seller?.mobile}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-600">
+                            {new Date(s.onHoldUntil).toLocaleString()}
+                          </td>
+                          <td className="py-3 px-4 text-right font-medium text-green-600">
+                            ₹{s.netAmount.toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <EmptyState message="No settlements are currently due." />
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

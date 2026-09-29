@@ -8,6 +8,7 @@ import mongoose from 'mongoose';
 import AppSettings from '../../../models/AppSettings';
 import { getRoadDistances } from '../../../services/mapService';
 import Seller from '../../../models/Seller';
+import { resolveSellerChannel } from '../../../utils/commerceChannelHelper';
 
 // Resolve the active commerce channel from query (GET) or body (mutations), defaulting to "Quick"
 const getChannel = (req: Request): 'Quick' | 'ECommerce' => {
@@ -45,7 +46,10 @@ const calculateItemPrice = (product: any, variationSelector: any) => {
 };
 
 // Helper to calculate cart total with location filtering
-const calculateCartTotal = async (cartId: any, nearbySellerIds: mongoose.Types.ObjectId[] = []) => {
+// nearbySellerIds: null means "don't location-filter" (used for E-commerce carts,
+// which aren't rider-serviceability-gated); an array means only include items
+// from those sellers (used for Quick carts).
+const calculateCartTotal = async (cartId: any, nearbySellerIds: mongoose.Types.ObjectId[] | null = []) => {
     const items = await CartItem.find({ cart: cartId }).populate({
         path: 'product',
         select: 'price discPrice variations seller status publish productName'
@@ -55,8 +59,9 @@ const calculateCartTotal = async (cartId: any, nearbySellerIds: mongoose.Types.O
     for (const item of items) {
         const product = item.product as any;
         if (product && product.status === 'Active' && product.publish) {
-            // Check if seller is in range
-            const isAvailable = nearbySellerIds.some(id => id.toString() === product.seller.toString());
+            const isAvailable = nearbySellerIds === null
+                ? true
+                : nearbySellerIds.some(id => id.toString() === product.seller.toString());
             if (isAvailable) {
                 const price = calculateItemPrice(product, item.variation);
                 total += price * item.quantity;
@@ -66,12 +71,15 @@ const calculateCartTotal = async (cartId: any, nearbySellerIds: mongoose.Types.O
     return total;
 };
 
-// Helper to calculate delivery fee
-const calculateDeliveryStuff = async (total: number, items: any[], userLat: number | null, userLng: number | null, deliveryOption: string = 'Standard') => {
+// Helper to calculate delivery fee.
+// channel 'ECommerce' never incurs a rider delivery fee — those items ship via
+// the standard courier flow instead, which has no per-order rider payout.
+const calculateDeliveryStuff = async (total: number, items: any[], userLat: number | null, userLng: number | null, deliveryOption: string = 'Standard', channel: 'Quick' | 'ECommerce' = 'Quick') => {
     let estimatedDeliveryFee = 0;
     let platformFee = 0;
     let freeDeliveryThreshold = 0;
     let minimumOrderValue = 0;
+    let estimatedDistanceKm: number | null = null;
 
     try {
         const settings = await AppSettings.findOne();
@@ -79,8 +87,12 @@ const calculateDeliveryStuff = async (total: number, items: any[], userLat: numb
         freeDeliveryThreshold = settings?.freeDeliveryThreshold ?? 199;
         minimumOrderValue = settings?.minimumOrderValue ?? 0;
 
+        if (channel === 'ECommerce') {
+            // No rider fee for E-commerce — ships via courier separately.
+            estimatedDeliveryFee = 0;
+        }
         // Check free delivery threshold
-        if (freeDeliveryThreshold > 0 && total >= freeDeliveryThreshold) {
+        else if (freeDeliveryThreshold > 0 && total >= freeDeliveryThreshold) {
             estimatedDeliveryFee = 0;
         }
         // Standard Delivery: Always Fixed Price
@@ -128,6 +140,7 @@ const calculateDeliveryStuff = async (total: number, items: any[], userLat: numb
 
                         if (distances && distances.length > 0) {
                             const maxDistance = Math.max(...distances);
+                            estimatedDistanceKm = Number(maxDistance.toFixed(1));
                             const extraKm = Math.max(0, maxDistance - config.baseDistance);
                             estimatedDeliveryFee = Math.ceil(config.baseCharge + (extraKm * config.kmRate));
                         }
@@ -143,94 +156,158 @@ const calculateDeliveryStuff = async (total: number, items: any[], userLat: numb
     }
     return {
         estimatedDeliveryFee,
+        estimatedDistanceKm,
         platformFee,
         freeDeliveryThreshold,
         minimumOrderValue,
     };
 };
 
-// Get current user's cart
+// Builds the cart response payload for one channel — shared by getCart (single
+// channel, as requested by the client param) and getMergedCart (both channels
+// at once, for the unified Quick + E-commerce cart/checkout experience).
+const buildCartResponseData = async (
+    userId: string | undefined,
+    channel: 'Quick' | 'ECommerce',
+    userLat: number | null,
+    userLng: number | null,
+    deliveryOption: string
+) => {
+    let nearbySellerIds: mongoose.Types.ObjectId[] = [];
+    const hasValidLocation = userLat !== null && userLng !== null && !isNaN(userLat) && !isNaN(userLng);
+
+    if (hasValidLocation) {
+        nearbySellerIds = await findSellersWithinRange(userLat, userLng);
+    }
+
+    let cart = await Cart.findOne({ customer: userId, channel }).populate({
+        path: 'items',
+        populate: {
+            path: 'product',
+            select: 'productName price mainImage stock pack mrp category seller status publish discPrice variations'
+        }
+    });
+
+    if (!cart) {
+        cart = await Cart.create({ customer: userId, channel, items: [], total: 0 });
+        return { ...cart.toObject(), items: [], unavailableItems: [], total: 0, instantDeliveryAvailable: true };
+    }
+
+    // Filter items based on location availability (Quick only — E-commerce
+    // items aren't rider-serviceability-gated) and update total
+    const filteredItems: any[] = [];
+    const unavailableItems: any[] = [];
+    let total = 0;
+
+    for (const item of (cart.items as any)) {
+        const product = item.product;
+        if (product && product.status === 'Active' && product.publish) {
+            // If no location provided, or this is an E-commerce cart, include all items
+            if (!hasValidLocation || channel === 'ECommerce') {
+                filteredItems.push(item);
+                const price = calculateItemPrice(product, item.variation);
+                total += price * item.quantity;
+            } else {
+                // Check if available at location
+                const isAvailable = nearbySellerIds.some(id => id.toString() === product.seller.toString());
+                if (isAvailable) {
+                    filteredItems.push(item);
+                    const price = calculateItemPrice(product, item.variation);
+                    total += price * item.quantity;
+                } else {
+                    unavailableItems.push(item);
+                }
+            }
+        }
+    }
+
+    // Update cart total in DB if it changed
+    if (cart.total !== total) {
+        cart.total = total;
+        await cart.save();
+    }
+
+    // Calculate fees
+    const fees = await calculateDeliveryStuff(total, filteredItems, userLat, userLng, deliveryOption, channel);
+
+    // Instant/Quick delivery is only offered if every seller with items in the
+    // cart has it enabled (admin-controlled per seller). If any one of them
+    // doesn't, only Standard delivery is available for this cart. (Never
+    // relevant for E-commerce, which has no rider delivery at all.)
+    let instantDeliveryAvailable = true;
+    if (channel === 'Quick') {
+        const cartSellerIds = new Set<string>();
+        filteredItems.forEach((item: any) => {
+            if (item.product?.seller) cartSellerIds.add(item.product.seller.toString());
+        });
+        if (cartSellerIds.size > 0) {
+            const sellersInCart = await Seller.find({ _id: { $in: Array.from(cartSellerIds) } }).select('supportsInstantDelivery');
+            instantDeliveryAvailable = sellersInCart.every((s: any) => s.supportsInstantDelivery !== false);
+        }
+    }
+
+    return {
+        ...cart.toObject(),
+        items: filteredItems,
+        unavailableItems,
+        total,
+        instantDeliveryAvailable,
+        ...fees
+    };
+};
+
+// Get current user's cart (single channel — legacy/still used where only one
+// channel's cart is needed)
 export const getCart = async (req: Request, res: Response) => {
     try {
         const userId = req.user?.userId;
         const { latitude, longitude } = req.query;
         const channel = getChannel(req);
 
-        // Parse location
         const userLat = latitude ? parseFloat(latitude as string) : null;
         const userLng = longitude ? parseFloat(longitude as string) : null;
-
-        let nearbySellerIds: mongoose.Types.ObjectId[] = [];
-        const hasValidLocation = userLat !== null && userLng !== null && !isNaN(userLat) && !isNaN(userLng);
-
-        if (hasValidLocation) {
-            nearbySellerIds = await findSellersWithinRange(userLat, userLng);
-        }
-
-        let cart = await Cart.findOne({ customer: userId, channel }).populate({
-            path: 'items',
-            populate: {
-                path: 'product',
-                select: 'productName price mainImage stock pack mrp category seller status publish discPrice variations'
-            }
-        });
-
-        if (!cart) {
-            cart = await Cart.create({ customer: userId, channel, items: [], total: 0 });
-            return res.status(200).json({ success: true, data: cart });
-        }
-
-        // Filter items based on location availability and update total
-        const filteredItems = [];
-        const unavailableItems = [];
-        let total = 0;
-
-        for (const item of (cart.items as any)) {
-            const product = item.product;
-            if (product && product.status === 'Active' && product.publish) {
-                // If no location provided, include all items
-                if (!hasValidLocation) {
-                    filteredItems.push(item);
-                    const price = calculateItemPrice(product, item.variation);
-                    total += price * item.quantity;
-                } else {
-                    // Check if available at location
-                    const isAvailable = nearbySellerIds.some(id => id.toString() === product.seller.toString());
-                    if (isAvailable) {
-                        filteredItems.push(item);
-                        const price = calculateItemPrice(product, item.variation);
-                        total += price * item.quantity;
-                    } else {
-                        unavailableItems.push(item);
-                    }
-                }
-            }
-        }
-
-        // Update cart total in DB if it changed
-        if (cart.total !== total) {
-            cart.total = total;
-            await cart.save();
-        }
-
-        // Calculate fees
         const deliveryOption = (req.query.deliveryOption as string) || 'Standard';
-        const fees = await calculateDeliveryStuff(total, filteredItems, userLat, userLng, deliveryOption);
+
+        const data = await buildCartResponseData(userId, channel, userLat, userLng, deliveryOption);
+
+        return res.status(200).json({ success: true, data });
+    } catch (error: any) {
+        return res.status(500).json({
+            success: false,
+            message: 'Error fetching cart',
+            error: error.message
+        });
+    }
+};
+
+// Get both channel carts together — powers the unified cart/checkout UI where
+// a customer can have Quick and E-commerce items at the same time.
+export const getMergedCart = async (req: Request, res: Response) => {
+    try {
+        const userId = req.user?.userId;
+        const { latitude, longitude } = req.query;
+
+        const userLat = latitude ? parseFloat(latitude as string) : null;
+        const userLng = longitude ? parseFloat(longitude as string) : null;
+        const deliveryOption = (req.query.deliveryOption as string) || 'Standard';
+
+        const [quick, ecommerce] = await Promise.all([
+            buildCartResponseData(userId, 'Quick', userLat, userLng, deliveryOption),
+            buildCartResponseData(userId, 'ECommerce', userLat, userLng, 'Standard'),
+        ]);
 
         return res.status(200).json({
             success: true,
             data: {
-                ...cart.toObject(),
-                items: filteredItems,
-                unavailableItems: unavailableItems, // Include unavailable items
-                total,
-                ...fees
+                quick,
+                ecommerce,
+                combinedTotal: (quick.total || 0) + (ecommerce.total || 0),
             }
         });
     } catch (error: any) {
         return res.status(500).json({
             success: false,
-            message: 'Error fetching cart',
+            message: 'Error fetching merged cart',
             error: error.message
         });
     }
@@ -242,7 +319,6 @@ export const addToCart = async (req: Request, res: Response) => {
         const userId = req.user?.userId;
         const { productId, quantity = 1, variation } = req.body;
         const { latitude, longitude } = req.query;
-        const channel = getChannel(req);
 
         if (!productId) {
             return res.status(400).json({ success: false, message: 'Product ID is required' });
@@ -251,13 +327,7 @@ export const addToCart = async (req: Request, res: Response) => {
         // Parse location
         const userLat = latitude ? parseFloat(latitude as string) : null;
         const userLng = longitude ? parseFloat(longitude as string) : null;
-
-        if (userLat === null || userLng === null || isNaN(userLat) || isNaN(userLng)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Location is required to add items to cart'
-            });
-        }
+        const hasLocation = userLat !== null && userLng !== null && !isNaN(userLat) && !isNaN(userLng);
 
         // Verify product exists and is available at location
         const product = await Product.findOne({ _id: productId, status: 'Active', publish: true }).populate('seller');
@@ -274,25 +344,36 @@ export const addToCart = async (req: Request, res: Response) => {
             });
         }
 
-        // Check seller sells through the requested commerce channel
-        if (seller && Array.isArray(seller.channels) && !seller.channels.includes(channel)) {
-            return res.status(403).json({
-                success: false,
-                message: `This product is not available in ${channel === 'ECommerce' ? 'Shop All' : 'Quick'} mode.`
-            });
+        // The cart a product belongs to is derived from ITS seller's channel(s),
+        // not a client-supplied param — this is what lets a customer add both
+        // Quick and E-commerce products in the same shopping session without
+        // manually switching a "mode". A seller enabled for both channels
+        // defaults to the Quick cart.
+        const channel: 'Quick' | 'ECommerce' = resolveSellerChannel(seller?.channels);
+
+        // Quick items are rider-delivered and therefore require a serviceable
+        // location; E-commerce items ship nationally via courier and don't.
+        let nearbySellerIds: mongoose.Types.ObjectId[] = [];
+        if (channel === 'Quick') {
+            if (!hasLocation) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Location is required to add items to cart'
+                });
+            }
+
+            nearbySellerIds = await findSellersWithinRange(userLat as number, userLng as number);
+            const isAvailable = nearbySellerIds.some(id => id.toString() === (seller._id || seller).toString());
+
+            if (!isAvailable) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'This service is not available in your location yet.'
+                });
+            }
         }
 
-        const nearbySellerIds = await findSellersWithinRange(userLat, userLng);
-        const isAvailable = nearbySellerIds.some(id => id.toString() === (seller._id || seller).toString());
-
-        if (!isAvailable) {
-            return res.status(403).json({
-                success: false,
-                message: 'This service is not available in your location yet.'
-            });
-        }
-
-        // Get or create cart (scoped to the active commerce channel)
+        // Get or create cart (scoped to the resolved commerce channel)
         let cart = await Cart.findOne({ customer: userId, channel });
         if (!cart) {
             cart = await Cart.create({ customer: userId, channel, items: [], total: 0 });
@@ -320,8 +401,9 @@ export const addToCart = async (req: Request, res: Response) => {
             cart.items.push(cartItem._id as any);
         }
 
-        // Update total with location filtering
-        cart.total = await calculateCartTotal(cart._id, nearbySellerIds);
+        // Update total with location filtering (Quick only — ECommerce carts aren't
+        // location-gated, see calculateCartTotal's nearbySellerIds contract)
+        cart.total = await calculateCartTotal(cart._id, channel === 'Quick' ? nearbySellerIds : null);
         await cart.save();
 
         // Return updated cart with filtering
@@ -335,12 +417,15 @@ export const addToCart = async (req: Request, res: Response) => {
 
         const filteredItems = (updatedCart?.items as any[] || []).filter(item => {
             const prod = item.product;
-            return prod && nearbySellerIds.some(id => id.toString() === prod.seller.toString());
+            if (!prod) return false;
+            return channel === 'Quick'
+                ? nearbySellerIds.some(id => id.toString() === prod.seller.toString())
+                : true;
         });
 
         // Calculate fees
         const deliveryOption = (req.body.deliveryOption as string) || (req.query.deliveryOption as string) || 'Standard';
-        const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng, deliveryOption);
+        const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng, deliveryOption, channel);
 
         return res.status(200).json({
             success: true,
@@ -377,15 +462,16 @@ export const updateCartItem = async (req: Request, res: Response) => {
         // Parse location
         const userLat = latitude ? parseFloat(latitude as string) : null;
         const userLng = longitude ? parseFloat(longitude as string) : null;
+        const hasLocation = userLat !== null && userLng !== null && !isNaN(userLat) && !isNaN(userLng);
 
-        if (userLat === null || userLng === null || isNaN(userLat) || isNaN(userLng)) {
+        if (channel === 'Quick' && !hasLocation) {
             return res.status(400).json({
                 success: false,
                 message: 'Location is required to update cart'
             });
         }
 
-        const nearbySellerIds = await findSellersWithinRange(userLat, userLng);
+        const nearbySellerIds = channel === 'Quick' ? await findSellersWithinRange(userLat as number, userLng as number) : [];
 
         const cart = await Cart.findOne({ customer: userId, channel });
         if (!cart) {
@@ -397,21 +483,23 @@ export const updateCartItem = async (req: Request, res: Response) => {
             return res.status(404).json({ success: false, message: 'Item not found in cart' });
         }
 
-        // Verify item is still available at location
-        const product = cartItem.product as any;
-        const isAvailable = product && nearbySellerIds.some(id => id.toString() === product.seller.toString());
+        // Verify item is still available at location (Quick only)
+        if (channel === 'Quick') {
+            const product = cartItem.product as any;
+            const isAvailable = product && nearbySellerIds.some(id => id.toString() === product.seller.toString());
 
-        if (!isAvailable) {
-            return res.status(403).json({
-                success: false,
-                message: 'This service is not available in your location yet.'
-            });
+            if (!isAvailable) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'This service is not available in your location yet.'
+                });
+            }
         }
 
         cartItem.quantity = quantity;
         await cartItem.save();
 
-        cart.total = await calculateCartTotal(cart._id, nearbySellerIds);
+        cart.total = await calculateCartTotal(cart._id, channel === 'Quick' ? nearbySellerIds : null);
         await cart.save();
 
         const updatedCart = await Cart.findById(cart._id).populate({
@@ -424,12 +512,15 @@ export const updateCartItem = async (req: Request, res: Response) => {
 
         const filteredItems = (updatedCart?.items as any[] || []).filter(item => {
             const prod = item.product;
-            return prod && nearbySellerIds.some(id => id.toString() === prod.seller.toString());
+            if (!prod) return false;
+            return channel === 'Quick'
+                ? nearbySellerIds.some(id => id.toString() === prod.seller.toString())
+                : true;
         });
 
         // Calculate fees
         const deliveryOption = (req.body.deliveryOption as string) || (req.query.deliveryOption as string) || 'Standard';
-        const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng, deliveryOption);
+        const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng, deliveryOption, channel);
 
         return res.status(200).json({
             success: true,
@@ -499,7 +590,7 @@ export const removeFromCart = async (req: Request, res: Response) => {
 
         // Calculate fees
         const deliveryOption = (req.query.deliveryOption as string) || 'Standard';
-        const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng, deliveryOption);
+        const fees = await calculateDeliveryStuff(cart.total, filteredItems, userLat, userLng, deliveryOption, channel);
 
         return res.status(200).json({
             success: true,

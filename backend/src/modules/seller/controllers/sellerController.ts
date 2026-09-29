@@ -116,12 +116,17 @@ export const updateSeller = asyncHandler(
     // Remove password from update data if present
     delete updateData.password;
 
-    // Handle location update (convert lat/lng to GeoJSON)
-    if (updateData.latitude && updateData.longitude) {
+    // Handle location update (convert lat/lng to GeoJSON).
+    // Note: use presence checks, not truthy checks — "0" is a non-empty string so
+    // `updateData.latitude && updateData.longitude` alone would incorrectly accept
+    // an unresolved/garbage 0,0 coordinate pair as valid.
+    if (updateData.latitude !== undefined && updateData.longitude !== undefined) {
       const latitude = parseFloat(updateData.latitude);
       const longitude = parseFloat(updateData.longitude);
+      const isRealCoordinate =
+        !isNaN(latitude) && !isNaN(longitude) && !(latitude === 0 && longitude === 0);
 
-      if (!isNaN(latitude) && !isNaN(longitude)) {
+      if (isRealCoordinate) {
         // Update GeoJSON location for geospatial queries
         updateData.location = {
           type: "Point",
@@ -130,6 +135,9 @@ export const updateSeller = asyncHandler(
         // Ensure string fields are also synchronized
         updateData.latitude = latitude.toString();
         updateData.longitude = longitude.toString();
+      } else {
+        delete updateData.latitude;
+        delete updateData.longitude;
       }
     }
 

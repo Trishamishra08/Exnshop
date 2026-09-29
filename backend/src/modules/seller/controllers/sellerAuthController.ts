@@ -146,9 +146,15 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  // Validate location is provided
-  const latitude = req.body.latitude ? parseFloat(req.body.latitude) : null;
-  const longitude = req.body.longitude ? parseFloat(req.body.longitude) : null;
+  // Validate location is provided. Treat 0,0 as "not provided" — it's never a
+  // legitimate store location here and can otherwise slip through as a truthy
+  // string ("0") from the frontend when a location wasn't actually resolved.
+  let latitude = req.body.latitude ? parseFloat(req.body.latitude) : null;
+  let longitude = req.body.longitude ? parseFloat(req.body.longitude) : null;
+  if (latitude === 0 && longitude === 0) {
+    latitude = null;
+    longitude = null;
+  }
 
   // Parse and validate service radius
   let serviceRadiusKm = 10; // Default 10km
@@ -222,8 +228,8 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     city,
     ...(serviceableArea && { serviceableArea }),
     searchLocation: req.body.searchLocation,
-    latitude: req.body.latitude,
-    longitude: req.body.longitude,
+    latitude: latitude != null ? latitude.toString() : undefined,
+    longitude: longitude != null ? longitude.toString() : undefined,
     location, // GeoJSON location for geospatial queries
     serviceRadiusKm, // Service radius in kilometers
     status: "Pending",
@@ -299,11 +305,16 @@ export const updateProfile = asyncHandler(
     restrictedFields.forEach((field) => delete updates[field]);
 
     // Handle location update (convert lat/lng to GeoJSON)
-    if (updates.latitude && updates.longitude) {
+    // Note: use truthy-string-safe checks — "0" is a non-empty string so
+    // `updates.latitude && updates.longitude` alone would incorrectly accept
+    // an unresolved/garbage 0,0 coordinate pair as valid.
+    if (updates.latitude !== undefined && updates.longitude !== undefined) {
       const latitude = parseFloat(updates.latitude);
       const longitude = parseFloat(updates.longitude);
+      const isRealCoordinate =
+        !isNaN(latitude) && !isNaN(longitude) && !(latitude === 0 && longitude === 0);
 
-      if (!isNaN(latitude) && !isNaN(longitude)) {
+      if (isRealCoordinate) {
         // Update GeoJSON location for geospatial queries
         updates.location = {
           type: "Point",
@@ -312,6 +323,10 @@ export const updateProfile = asyncHandler(
         // Ensure string fields are also synchronized
         updates.latitude = latitude.toString();
         updates.longitude = longitude.toString();
+      } else {
+        // Don't persist an unresolved 0,0 placeholder over a previously valid location
+        delete updates.latitude;
+        delete updates.longitude;
       }
     }
 

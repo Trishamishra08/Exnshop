@@ -86,6 +86,18 @@ export default function ProductCard({
     return null;
   }, [product]);
 
+  // Which commerce channel(s) this product's seller offers — used to badge
+  // Quick (fast rider delivery) vs Shop All (standard shipping) products, now
+  // that both channels are browsed together instead of a single active mode.
+  const sellerChannels = useMemo(() => {
+    if (product.seller && typeof product.seller === 'object') {
+      return product.seller.channels || [];
+    }
+    return [];
+  }, [product]);
+  const isQuick = sellerChannels.length === 0 || sellerChannels.includes('Quick');
+  const isECommerce = sellerChannels.includes('ECommerce');
+
   const packText = useMemo(() => {
     return product.variations?.[0]?.value || product.pack || '';
   }, [product]);
@@ -316,7 +328,12 @@ export default function ProductCard({
             <circle cx="12" cy="12" r="10" />
             <polyline points="12 6 12 12 16 14" />
           </svg>
-          <span>14 MINS</span>
+          <span>{isQuick ? '14 MINS' : 'SHOP ALL'}</span>
+          {isQuick && isECommerce && (
+            <span className="text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-1 py-0.5 rounded uppercase tracking-tight">
+              Also ships
+            </span>
+          )}
         </div>
 
         {/* 6. Discount Text (Single Instance) */}

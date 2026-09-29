@@ -19,6 +19,645 @@ import Return from "../../../models/Return";
 import { debitWallet } from "../../../services/walletManagementService";
 import { commitCouponUsage } from "../../../services/couponService";
 import { createShiprocketOrder } from "../../../services/shiprocketService";
+import { resolveSellerChannel, CommerceChannel } from "../../../utils/commerceChannelHelper";
+
+type ChannelOrderResult =
+  | { success: true; order: any; walletAmountUsed: number }
+  | { success: false; status: number; message: string; data?: any };
+
+/**
+ * Builds, prices, and saves (but does not commit) ONE order for ONE channel's
+ * worth of items. Called once for a single-channel checkout (the common case
+ * — behavior is byte-for-byte identical to the pre-split implementation), or
+ * twice — once per channel — when a checkout's cart has both Quick and
+ * E-commerce items, sharing one transaction so both succeed or neither does.
+ *
+ * Shared fees (platform fee, GST, packaging fee, tip) are computed once per
+ * checkout and attributed entirely to the "shared fee owner" order (Quick if
+ * present, else E-commerce) — the other linked order carries zero for these,
+ * per the confirmed design: only each group's own item subtotal and delivery
+ * fee differ between linked orders.
+ */
+async function buildAndSaveChannelOrder(params: {
+  req: Request;
+  session: mongoose.ClientSession | null;
+  userId: string;
+  customer: any;
+  address: any;
+  deliveryLat: number;
+  deliveryLng: number;
+  items: any[];
+  channel: CommerceChannel;
+  paymentMethod: string;
+  fees: any;
+  deliveryOption: string;
+  settings: any;
+  coupon: any | null;
+  isSharedFeeOwner: boolean;
+  tipAmount: any;
+  giftPackaging: any;
+  walletAvailable: number;
+  checkoutGroupId?: string;
+}): Promise<ChannelOrderResult> {
+  const {
+    session,
+    userId,
+    customer,
+    address,
+    deliveryLat,
+    deliveryLng,
+    items,
+    channel,
+    paymentMethod,
+    fees,
+    deliveryOption,
+    settings,
+    coupon,
+    isSharedFeeOwner,
+    tipAmount,
+    giftPackaging,
+    walletAvailable,
+    checkoutGroupId,
+  } = params;
+
+  const newOrder = new Order({
+    customer: new mongoose.Types.ObjectId(userId),
+    customerName: customer.name,
+    customerEmail: customer.email,
+    customerPhone: customer.phone,
+    deliveryAddress: {
+      address: address.address || address.street || "N/A",
+      city: address.city || "N/A",
+      state: address.state || "",
+      pincode: address.pincode || "000000",
+      landmark: address.landmark || "",
+      latitude: deliveryLat,
+      longitude: deliveryLng,
+    },
+    paymentMethod: paymentMethod || "COD",
+    paymentStatus: "Pending",
+    status: (paymentMethod === "Online" || paymentMethod === "razorpay") ? "Pending" : "Received",
+    deliveryOption: deliveryOption || "Standard",
+    channel,
+    checkoutGroupId,
+    subtotal: 0,
+    tax: 0,
+    shipping: fees?.deliveryFee || 0,
+    platformFee: fees?.platformFee || 0,
+    discount: 0,
+    total: 0,
+    items: [],
+    tipAmount: isSharedFeeOwner ? (Number(tipAmount) || 0) : 0,
+    giftPackaging: isSharedFeeOwner ? !!giftPackaging : false,
+    sellerConfirmationStatus: "Pending",
+    deliveryAssignmentStatus: "NotStarted",
+  });
+
+  let calculatedSubtotal = 0;
+  const orderItemIds: mongoose.Types.ObjectId[] = [];
+  const sellerIds = new Set<string>();
+
+  for (const item of items) {
+    if (!item.product || !item.product.id) {
+      throw new Error("Invalid item structure: product.id is missing");
+    }
+
+    const qty = Number(item.quantity) || 0;
+    if (qty <= 0) {
+      throw new Error("Invalid item quantity");
+    }
+
+    // Atomically check stock and decrement to prevent race conditions (stock === 0 is treated as Unlimited)
+    let product;
+    const variationValue = item.variant || item.variation;
+
+    if (variationValue) {
+      // Check if variation has limited stock (> 0) or unlimited stock (=== 0)
+      const checkTarget = await Product.findById(item.product.id).populate("category subcategory subSubCategory");
+      if (checkTarget && checkTarget.variations && checkTarget.variations.length > 0) {
+        const matchedVariant: any = checkTarget.variations.find((v: any) =>
+          (v._id && v._id.toString() === variationValue.toString()) ||
+          v.value === variationValue ||
+          v.title === variationValue ||
+          v.pack === variationValue
+        );
+
+        if (matchedVariant) {
+          if (matchedVariant.status === "Sold out") {
+            throw new Error(`Variant "${matchedVariant.title || matchedVariant.value}" is sold out`);
+          }
+          // If limited stock (> 0), atomically check and decrement
+          if (matchedVariant.stock !== undefined && matchedVariant.stock !== null && matchedVariant.stock > 0) {
+            product = session
+              ? await Product.findOneAndUpdate(
+                {
+                  _id: item.product.id,
+                  "variations._id": matchedVariant._id,
+                  "variations.stock": { $gte: qty },
+                },
+                { $inc: { "variations.$.stock": -qty, stock: -qty } },
+                { session, new: true },
+              ).populate("category subcategory subSubCategory")
+              : await Product.findOneAndUpdate(
+                {
+                  _id: item.product.id,
+                  "variations._id": matchedVariant._id,
+                  "variations.stock": { $gte: qty },
+                },
+                { $inc: { "variations.$.stock": -qty, stock: -qty } },
+                { new: true },
+              ).populate("category subcategory subSubCategory");
+
+            if (!product) {
+              throw new Error(`Insufficient stock for variation: ${matchedVariant.title || variationValue}`);
+            }
+          } else {
+            // stock === 0 (or null/undefined) represents Unlimited Stock
+            product = checkTarget;
+          }
+        }
+      }
+    }
+
+    if (!product) {
+      const checkProduct = await Product.findById(item.product.id).populate(
+        "category subcategory subSubCategory",
+      );
+
+      if (checkProduct) {
+        if ((checkProduct.status as string) === "Sold out" || checkProduct.status === "Inactive") {
+          throw new Error(`Product "${checkProduct.productName}" is unavailable`);
+        }
+
+        if (
+          checkProduct.variations &&
+          checkProduct.variations.length > 0
+        ) {
+          // Product has variations but specific one was not matched or not supplied
+          if (variationValue) {
+            throw new Error(
+              `Variant not found or out of stock: ${variationValue}`,
+            );
+          }
+
+          const firstVar: any = checkProduct.variations[0];
+          if (firstVar.status === "Sold out") {
+            throw new Error(`Product "${checkProduct.productName}" is sold out`);
+          }
+
+          if (firstVar.stock !== undefined && firstVar.stock !== null && firstVar.stock > 0) {
+            product = session
+              ? await Product.findOneAndUpdate(
+                {
+                  _id: item.product.id,
+                  "variations.0.stock": { $gte: qty },
+                },
+                { $inc: { "variations.0.stock": -qty, stock: -qty } },
+                { session, new: true },
+              ).populate("category subcategory subSubCategory")
+              : await Product.findOneAndUpdate(
+                {
+                  _id: item.product.id,
+                  "variations.0.stock": { $gte: qty },
+                },
+                { $inc: { "variations.0.stock": -qty, stock: -qty } },
+                { new: true },
+              ).populate("category subcategory subSubCategory");
+          } else {
+            // Unlimited stock for variation 0
+            product = checkProduct;
+          }
+        } else {
+          // No variations, top-level product stock
+          if (checkProduct.stock !== undefined && checkProduct.stock !== null && checkProduct.stock > 0) {
+            product = session
+              ? await Product.findOneAndUpdate(
+                { _id: item.product.id, stock: { $gte: qty } },
+                { $inc: { stock: -qty } },
+                { session, new: true },
+              ).populate("category subcategory subSubCategory")
+              : await Product.findOneAndUpdate(
+                { _id: item.product.id, stock: { $gte: qty } },
+                { $inc: { stock: -qty } },
+                { new: true },
+              ).populate("category subcategory subSubCategory");
+          } else {
+            // Top-level stock === 0 represents Unlimited Stock
+            product = checkProduct;
+          }
+        }
+      }
+    }
+
+    if (!product) {
+      throw new Error(
+        `Insufficient stock or product not found: ${item.product.name || "ID: " + item.product.id}${variationValue ? " (" + variationValue + ")" : ""}`,
+      );
+    }
+
+    // Track seller IDs to validate location
+    if (product.seller) {
+      sellerIds.add(product.seller.toString());
+    }
+
+    // Determine the price based on variation and discounts
+    let selectedVariation;
+    if (variationValue && product.variations) {
+      selectedVariation = product.variations.find(
+        (v: any) =>
+          (v._id && v._id.toString() === variationValue) ||
+          v.value === variationValue ||
+          v.title === variationValue ||
+          v.pack === variationValue,
+      );
+    }
+    if (
+      !selectedVariation &&
+      product.variations &&
+      product.variations.length > 0
+    ) {
+      // Fallback to first if no variation spec or not found (consistent with stock fallback)
+      selectedVariation = product.variations[0];
+    }
+
+    const itemPrice =
+      selectedVariation?.discPrice && selectedVariation.discPrice > 0
+        ? selectedVariation.discPrice
+        : product.discPrice && product.discPrice > 0
+          ? product.discPrice
+          : selectedVariation?.price || product.price || 0;
+    const itemTotal = itemPrice * qty;
+    calculatedSubtotal += itemTotal;
+
+    // Calculate commission rate snapshot
+    const commRate = await getOrderItemCommissionRate(
+      product,
+      product.seller.toString(),
+      settings,
+    );
+    const commAmount = (itemTotal * commRate) / 100;
+
+    // Calculate return policy snapshot
+    const returnsEnabled = settings?.returnConfig?.returnsEnabled !== false;
+    const productIsReturnable = product.isReturnable !== false;
+    const isReturnableSnapshot = returnsEnabled && productIsReturnable;
+    const returnDaysSnapshot = product.maxReturnDays && product.maxReturnDays > 0
+      ? product.maxReturnDays
+      : settings?.returnConfig?.defaultReturnWindowDays ?? 7;
+
+    // Create OrderItem
+    const newOrderItemData = {
+      order: newOrder._id,
+      product: product._id,
+      seller: product.seller,
+      productName: product.productName,
+      productImage: product.mainImage,
+      sku: product.sku,
+      unitPrice: itemPrice,
+      quantity: qty,
+      total: itemTotal,
+      commissionRate: commRate,
+      commissionAmount: commAmount,
+      variation: variationValue,
+      status: "Pending",
+      isReturnable: isReturnableSnapshot,
+      returnWindowDays: returnDaysSnapshot,
+    };
+
+    const newOrderItem = new OrderItem(newOrderItemData);
+    if (session) {
+      await newOrderItem.save({ session });
+    } else {
+      await newOrderItem.save();
+    }
+    orderItemIds.push(newOrderItem._id as mongoose.Types.ObjectId);
+  }
+
+  // Enforce minimum order value against THIS group's own item subtotal.
+  const minimumOrderValue = Number(settings?.minimumOrderValue) || 0;
+  if (minimumOrderValue > 0 && calculatedSubtotal < minimumOrderValue) {
+    const shortfall = Number((minimumOrderValue - calculatedSubtotal).toFixed(2));
+    return {
+      success: false,
+      status: 400,
+      message: `Minimum order value is ₹${minimumOrderValue}. Please add ₹${shortfall} more to place your order.`,
+      data: {
+        minimumOrderValue,
+        currentSubtotal: Number(calculatedSubtotal.toFixed(2)),
+        shortfall,
+      },
+    };
+  }
+
+  // Validate all sellers can deliver to user's location.
+  // This service-radius check only applies to Quick Commerce (instant, local delivery) —
+  // E-Commerce orders ship nationally via Shiprocket, so radius doesn't apply.
+  if (channel === "Quick" && sellerIds.size > 0) {
+    const uniqueSellerIds = Array.from(sellerIds).map(
+      (id) => new mongoose.Types.ObjectId(id),
+    );
+
+    // Find sellers and check if user is within their service radius
+    const sellers = await Seller.find({
+      _id: { $in: uniqueSellerIds },
+      status: "Approved",
+      location: { $exists: true, $ne: null },
+    });
+
+    // Check each seller can deliver to user's location
+    for (const seller of sellers) {
+      if (!seller.location || !seller.location.coordinates) {
+        return {
+          success: false,
+          status: 403,
+          message: `Seller ${seller.storeName} does not have a valid location. Order cannot be placed.`,
+        };
+      }
+
+      const sellerLng = seller.location.coordinates[0];
+      const sellerLat = seller.location.coordinates[1];
+      const distance = calculateDistance(
+        deliveryLat,
+        deliveryLng,
+        sellerLat,
+        sellerLng,
+      );
+      const serviceRadius = seller.serviceRadiusKm || 10;
+
+      if (distance > serviceRadius) {
+        return {
+          success: false,
+          status: 403,
+          message: `Your delivery address is ${distance.toFixed(2)} km away from ${seller.storeName}. They only deliver within ${serviceRadius} km. Please select products from sellers in your area.`,
+        };
+      }
+    }
+  }
+
+  // Apply fees. Shared fees (platform fee) only apply to the checkout's
+  // designated "shared fee owner" order.
+  let platformFee = isSharedFeeOwner ? (Number(fees?.platformFee) || 0) : 0;
+  let deliveryFee = Number(fees?.deliveryFee) || 0;
+  let deliveryDistanceKm = 0;
+
+  // --- Delivery Charge Calculation (Standard vs Instant) ---
+  // E-commerce never incurs a rider delivery fee — those items ship via the
+  // standard courier flow instead.
+  if (channel === "ECommerce") {
+    deliveryFee = 0;
+  } else {
+    try {
+      const freeDeliveryThreshold = settings?.freeDeliveryThreshold || 0;
+
+      // Check for Free Delivery eligibility first
+      if (
+        freeDeliveryThreshold > 0 &&
+        calculatedSubtotal >= freeDeliveryThreshold
+      ) {
+        deliveryFee = 0;
+      }
+      // Standard Delivery flow: Always Fixed Price
+      else if (deliveryOption === "Standard") {
+        deliveryFee = settings.deliveryCharges ?? 0;
+      }
+      // Instant Delivery flow: Distance Based calculation
+      else if (deliveryOption === "Instant" && settings.deliveryConfig) {
+        const config = settings.deliveryConfig;
+
+        // Collect seller locations
+        const sellerLocations: { lat: number; lng: number }[] = [];
+        const uniqueSellerIds = Array.from(sellerIds).map(
+          (id) => new mongoose.Types.ObjectId(id),
+        );
+        const sellers = await Seller.find({
+          _id: { $in: uniqueSellerIds },
+        }).select("location latitude longitude storeName");
+
+        sellers.forEach((seller) => {
+          let lat, lng;
+          if (seller.location?.coordinates?.length === 2) {
+            lng = seller.location.coordinates[0];
+            lat = seller.location.coordinates[1];
+          } else if (seller.latitude && seller.longitude) {
+            lat = parseFloat(seller.latitude);
+            lng = parseFloat(seller.longitude);
+          }
+
+          if (lat && lng) {
+            sellerLocations.push({ lat, lng });
+          }
+        });
+
+        if (sellerLocations.length > 0 && deliveryLat && deliveryLng) {
+          // Get distances (Road or Air based on API Key presence)
+          const distances = await getRoadDistances(
+            sellerLocations,
+            { lat: deliveryLat, lng: deliveryLng },
+            config.googleMapsKey,
+          );
+
+          // Take the maximum distance (furthest seller)
+          deliveryDistanceKm = Math.max(...distances);
+
+          // Calculate Fee
+          // Formula: BaseCharge + (Max(0, Distance - BaseDistance) * KmRate)
+          const extraKm = Math.max(0, deliveryDistanceKm - config.baseDistance);
+          const calculatedDeliveryFee =
+            config.baseCharge + extraKm * config.kmRate;
+
+          // Override the delivery fee
+          deliveryFee = Math.ceil(calculatedDeliveryFee);
+
+          console.log(
+            `DEBUG: Instant Delivery (Distance-based): MaxDistance=${deliveryDistanceKm}km, Fee=${deliveryFee} (Base: ${config.baseCharge}, Rate: ${config.kmRate}/km)`,
+          );
+        }
+      } else {
+        // Fallback: If no settings or unhandled option, use provided fee or default
+        const providedDeliveryFee = Number(fees?.deliveryFee);
+        deliveryFee = Number.isFinite(providedDeliveryFee)
+          ? providedDeliveryFee
+          : settings?.deliveryCharges ?? 0;
+      }
+    } catch (calcError) {
+      console.error("Error calculating delivery fee:", calcError);
+      // Fallback to provided fee or settings default (using pre-fetched settings)
+      const providedDeliveryFee = Number(fees?.deliveryFee);
+      deliveryFee = Number.isFinite(providedDeliveryFee)
+        ? providedDeliveryFee
+        : settings?.deliveryCharges ?? 0;
+    }
+  }
+
+  const finalTipAmount = isSharedFeeOwner ? (Number(tipAmount) || 0) : 0;
+  const giftPackagingFee = isSharedFeeOwner && giftPackaging ? (Number(settings?.packagingFee) || 0) : 0;
+
+  // BUSINESS RULE: Coupon applies strictly to PRODUCT SUBTOTAL (calculatedSubtotal),
+  // scoped to this channel group only. A coupon whose admin-configured
+  // applicableChannel doesn't cover this channel arrives here as `coupon: null`.
+  const productSubtotalForCoupon = calculatedSubtotal;
+  let discountAmount = 0;
+
+  if (coupon) {
+    try {
+      const now = new Date();
+      const startOfToday = new Date(now);
+      startOfToday.setHours(0, 0, 0, 0);
+
+      // Use the same leniency as getCoupons
+      if (now >= coupon.startDate && startOfToday <= coupon.endDate) {
+        // Check usage limit
+        if (
+          !coupon.usageLimit ||
+          coupon.usageCount < coupon.usageLimit
+        ) {
+          // Check minimum purchase (strictly on product subtotal)
+          if (
+            !coupon.minimumPurchase ||
+            productSubtotalForCoupon >= coupon.minimumPurchase
+          ) {
+            // Calculate discount strictly on product subtotal
+            if (coupon.discountType === "Percentage") {
+              discountAmount =
+                (productSubtotalForCoupon * coupon.discountValue) / 100;
+              if (
+                coupon.maximumDiscount &&
+                discountAmount > coupon.maximumDiscount
+              ) {
+                discountAmount = coupon.maximumDiscount;
+              }
+            } else {
+              // Fixed discount cannot exceed product subtotal
+              discountAmount = Math.min(
+                coupon.discountValue,
+                productSubtotalForCoupon
+              );
+            }
+
+            newOrder.couponCode = coupon.code;
+            newOrder.discount = Number(discountAmount.toFixed(2));
+
+            console.log(`[COUPON CALCULATION]
+Coupon Code: ${coupon.code}
+Channel: ${channel}
+Product Subtotal: ₹${productSubtotalForCoupon}
+Discount Type: ${coupon.discountType}
+Discount Value: ${coupon.discountValue}${coupon.discountType === "Percentage" ? "%" : ""}
+Coupon Discount: ₹${discountAmount.toFixed(2)}
+Delivery Fee: ₹${deliveryFee}
+Platform Fee: ₹${platformFee}
+Tip: ₹${finalTipAmount}
+Gift Packaging Fee: ₹${giftPackagingFee}`);
+          } else {
+            console.warn(
+              `⚠️ Coupon ${coupon.code} rejected: min purchase ₹${coupon.minimumPurchase} not met (Product Subtotal: ₹${productSubtotalForCoupon})`,
+            );
+          }
+        } else {
+          console.warn(
+            `⚠️ Coupon ${coupon.code} rejected: usage limit ${coupon.usageLimit} reached`,
+          );
+        }
+      } else {
+        console.warn(`⚠️ Coupon ${coupon.code} rejected: expired or not yet valid`);
+      }
+    } catch (couponError) {
+      console.error("❌ Error applying coupon:", couponError);
+      // We continue with the order even if coupon fails
+    }
+  }
+
+  // GST is admin-managed via AppSettings (gstEnabled/gstRate) and, like the
+  // other shared fees, is only charged on the order that owns them for this
+  // checkout — computed on this group's own taxable value (product subtotal
+  // after discount); delivery fees, platform fees, tips, and gift packaging
+  // are not taxed.
+  const gstRate = isSharedFeeOwner && settings?.gstEnabled ? Number(settings.gstRate) || 0 : 0;
+  const taxableAmount = Math.max(0, productSubtotalForCoupon - discountAmount);
+  const gstAmount = Number(((taxableAmount * gstRate) / 100).toFixed(2));
+  newOrder.tax = gstAmount;
+
+  const finalTotal = Math.max(
+    0,
+    productSubtotalForCoupon -
+      discountAmount +
+      gstAmount +
+      platformFee +
+      deliveryFee +
+      finalTipAmount +
+      giftPackagingFee
+  );
+
+  let walletAmountUsed = 0;
+  if (walletAvailable > 0) {
+    walletAmountUsed = Math.min(walletAvailable, finalTotal);
+    const debitRes = await debitWallet(
+      userId,
+      "CUSTOMER",
+      walletAmountUsed,
+      `Payment for order #${newOrder.orderNumber}`,
+      newOrder._id.toString(),
+      session || undefined,
+      `CUSTOMER_WALLET_DEBIT_ORDER_${newOrder._id.toString()}`,
+      "ORDER_PAYMENT"
+    );
+
+    if (!debitRes.success) {
+      return {
+        success: false,
+        status: 400,
+        message: debitRes.message || "Failed to debit customer wallet for order payment",
+      };
+    }
+  }
+
+  const remainingPayable = Number((finalTotal - walletAmountUsed).toFixed(2));
+  newOrder.walletAmountUsed = Number(walletAmountUsed.toFixed(2));
+
+  if (walletAmountUsed > 0 && remainingPayable === 0) {
+    newOrder.paymentMethod = "Wallet";
+    newOrder.paymentStatus = "Paid";
+    newOrder.status = "Received";
+    newOrder.onlineAmountPaid = 0;
+    newOrder.codAmountPending = 0;
+  } else {
+    if (paymentMethod === "Online" || paymentMethod === "razorpay") {
+      newOrder.paymentMethod = paymentMethod;
+      newOrder.paymentStatus = "Pending";
+      newOrder.status = "Pending";
+      newOrder.onlineAmountPaid = remainingPayable;
+      newOrder.codAmountPending = 0;
+    } else {
+      newOrder.paymentMethod = "COD";
+      newOrder.paymentStatus = "Pending";
+      newOrder.status = "Received";
+      newOrder.codAmountPending = remainingPayable;
+      newOrder.onlineAmountPaid = 0;
+    }
+  }
+
+  // Update Order with calculated values and items
+  newOrder.subtotal = Number(calculatedSubtotal.toFixed(2));
+  newOrder.total = Number(finalTotal.toFixed(2));
+  newOrder.grandTotal = Number(finalTotal.toFixed(2)); // Sync grandTotal alias
+  newOrder.items = orderItemIds;
+  newOrder.shipping = deliveryFee; // Update with calculated fee
+  newOrder.deliveryDistanceKm = deliveryDistanceKm; // Store distance for commission calc
+
+  if (session) {
+    await newOrder.save({ session });
+  } else {
+    // Validate before saving to catch errors with details
+    const validationError = newOrder.validateSync();
+    if (validationError) {
+      console.error("DEBUG: Order Validation Error:", validationError.errors);
+      throw validationError;
+    }
+    await newOrder.save();
+  }
+
+  return { success: true, order: newOrder, walletAmountUsed };
+}
 
 // Create a new order
 export const createOrder = async (req: Request, res: Response) => {
@@ -36,7 +675,7 @@ export const createOrder = async (req: Request, res: Response) => {
       session = null;
     }
 
-    const { items, address, paymentMethod, fees, deliveryOption, couponCode, tipAmount, giftPackaging, useWallet, channel } = req.body;
+    const { items, address, paymentMethod, fees, deliveryOption, couponCode, tipAmount, giftPackaging, useWallet } = req.body;
     const userId = req.user!.userId;
 
     // Log incoming request for debugging (development mode only)
@@ -155,671 +794,200 @@ export const createOrder = async (req: Request, res: Response) => {
       });
     }
 
-    // Initialize Order first to get an ID
-    if (process.env.NODE_ENV !== "production") {
-      console.log("DEBUG: Saving deliveryAddress to MongoDB for user:", userId);
-    }
-
-    const newOrder = new Order({
-      customer: new mongoose.Types.ObjectId(userId),
-      customerName: customer.name,
-      customerEmail: customer.email,
-      customerPhone: customer.phone,
-      deliveryAddress: {
-        address: address.address || address.street || "N/A",
-        city: address.city || "N/A",
-        state: address.state || "",
-        pincode: address.pincode || "000000",
-        landmark: address.landmark || "",
-        latitude: deliveryLat,
-        longitude: deliveryLng,
-      },
-      paymentMethod: paymentMethod || "COD",
-      paymentStatus: "Pending",
-      status: (paymentMethod === "Online" || paymentMethod === "razorpay") ? "Pending" : "Received",
-      deliveryOption: deliveryOption || "Standard",
-      channel: channel === "ECommerce" ? "ECommerce" : "Quick",
-      subtotal: 0,
-      tax: 0,
-      shipping: fees?.deliveryFee || 0,
-      platformFee: fees?.platformFee || 0,
-      discount: 0,
-      total: 0,
-      items: [],
-      tipAmount: Number(tipAmount) || 0,
-      giftPackaging: !!giftPackaging,
-      sellerConfirmationStatus: "Pending",
-      deliveryAssignmentStatus: "NotStarted",
-    });
-
     // Pre-fetch settings for various calculations
     const settings = await AppSettings.getSettings();
 
-    let calculatedSubtotal = 0;
-    const orderItemIds: mongoose.Types.ObjectId[] = [];
-    const sellerIds = new Set<string>(); // Track unique sellers
-
+    // ── Partition items by the channel of their product's seller ──
+    // A product belongs to its seller's channel (a seller enabled for both
+    // defaults to Quick) — the same rule used by the cart (see
+    // customerCartController.ts's addToCart). This lets one checkout produce
+    // two linked orders — one per channel — when the cart has both, while a
+    // single-channel cart (the common case) takes the exact same path it
+    // always has.
+    const itemsByChannel: Record<CommerceChannel, any[]> = { Quick: [], ECommerce: [] };
     for (const item of items) {
       if (!item.product || !item.product.id) {
-        throw new Error("Invalid item structure: product.id is missing");
-      }
-
-      const qty = Number(item.quantity) || 0;
-      if (qty <= 0) {
-        throw new Error("Invalid item quantity");
-      }
-
-      // Atomically check stock and decrement to prevent race conditions (stock === 0 is treated as Unlimited)
-      let product;
-      const variationValue = item.variant || item.variation;
-
-      if (variationValue) {
-        // Check if variation has limited stock (> 0) or unlimited stock (=== 0)
-        const checkTarget = await Product.findById(item.product.id).populate("category subcategory subSubCategory");
-        if (checkTarget && checkTarget.variations && checkTarget.variations.length > 0) {
-          const matchedVariant: any = checkTarget.variations.find((v: any) =>
-            (v._id && v._id.toString() === variationValue.toString()) ||
-            v.value === variationValue ||
-            v.title === variationValue ||
-            v.pack === variationValue
-          );
-
-          if (matchedVariant) {
-            if (matchedVariant.status === "Sold out") {
-              throw new Error(`Variant "${matchedVariant.title || matchedVariant.value}" is sold out`);
-            }
-            // If limited stock (> 0), atomically check and decrement
-            if (matchedVariant.stock !== undefined && matchedVariant.stock !== null && matchedVariant.stock > 0) {
-              product = session
-                ? await Product.findOneAndUpdate(
-                  {
-                    _id: item.product.id,
-                    "variations._id": matchedVariant._id,
-                    "variations.stock": { $gte: qty },
-                  },
-                  { $inc: { "variations.$.stock": -qty, stock: -qty } },
-                  { session, new: true },
-                ).populate("category subcategory subSubCategory")
-                : await Product.findOneAndUpdate(
-                  {
-                    _id: item.product.id,
-                    "variations._id": matchedVariant._id,
-                    "variations.stock": { $gte: qty },
-                  },
-                  { $inc: { "variations.$.stock": -qty, stock: -qty } },
-                  { new: true },
-                ).populate("category subcategory subSubCategory");
-
-              if (!product) {
-                throw new Error(`Insufficient stock for variation: ${matchedVariant.title || variationValue}`);
-              }
-            } else {
-              // stock === 0 (or null/undefined) represents Unlimited Stock
-              product = checkTarget;
-            }
-          }
-        }
-      }
-
-      if (!product) {
-        const checkProduct = await Product.findById(item.product.id).populate(
-          "category subcategory subSubCategory",
-        );
-
-        if (checkProduct) {
-          if ((checkProduct.status as string) === "Sold out" || checkProduct.status === "Inactive") {
-            throw new Error(`Product "${checkProduct.productName}" is unavailable`);
-          }
-
-          if (
-            checkProduct.variations &&
-            checkProduct.variations.length > 0
-          ) {
-            // Product has variations but specific one was not matched or not supplied
-            if (variationValue) {
-              throw new Error(
-                `Variant not found or out of stock: ${variationValue}`,
-              );
-            }
-
-            const firstVar: any = checkProduct.variations[0];
-            if (firstVar.status === "Sold out") {
-              throw new Error(`Product "${checkProduct.productName}" is sold out`);
-            }
-
-            if (firstVar.stock !== undefined && firstVar.stock !== null && firstVar.stock > 0) {
-              product = session
-                ? await Product.findOneAndUpdate(
-                  {
-                    _id: item.product.id,
-                    "variations.0.stock": { $gte: qty },
-                  },
-                  { $inc: { "variations.0.stock": -qty, stock: -qty } },
-                  { session, new: true },
-                ).populate("category subcategory subSubCategory")
-                : await Product.findOneAndUpdate(
-                  {
-                    _id: item.product.id,
-                    "variations.0.stock": { $gte: qty },
-                  },
-                  { $inc: { "variations.0.stock": -qty, stock: -qty } },
-                  { new: true },
-                ).populate("category subcategory subSubCategory");
-            } else {
-              // Unlimited stock for variation 0
-              product = checkProduct;
-            }
-          } else {
-            // No variations, top-level product stock
-            if (checkProduct.stock !== undefined && checkProduct.stock !== null && checkProduct.stock > 0) {
-              product = session
-                ? await Product.findOneAndUpdate(
-                  { _id: item.product.id, stock: { $gte: qty } },
-                  { $inc: { stock: -qty } },
-                  { session, new: true },
-                ).populate("category subcategory subSubCategory")
-                : await Product.findOneAndUpdate(
-                  { _id: item.product.id, stock: { $gte: qty } },
-                  { $inc: { stock: -qty } },
-                  { new: true },
-                ).populate("category subcategory subSubCategory");
-            } else {
-              // Top-level stock === 0 represents Unlimited Stock
-              product = checkProduct;
-            }
-          }
-        }
-      }
-
-      if (!product) {
-        throw new Error(
-          `Insufficient stock or product not found: ${item.product.name || "ID: " + item.product.id}${variationValue ? " (" + variationValue + ")" : ""}`,
-        );
-      }
-
-      // Track seller IDs to validate location
-      if (product.seller) {
-        sellerIds.add(product.seller.toString());
-      }
-
-      // Determine the price based on variation and discounts
-      let selectedVariation;
-      if (variationValue && product.variations) {
-        selectedVariation = product.variations.find(
-          (v: any) =>
-            (v._id && v._id.toString() === variationValue) ||
-            v.value === variationValue ||
-            v.title === variationValue ||
-            v.pack === variationValue,
-        );
-      }
-      if (
-        !selectedVariation &&
-        product.variations &&
-        product.variations.length > 0
-      ) {
-        // Fallback to first if no variation spec or not found (consistent with stock fallback)
-        selectedVariation = product.variations[0];
-      }
-
-      const itemPrice =
-        selectedVariation?.discPrice && selectedVariation.discPrice > 0
-          ? selectedVariation.discPrice
-          : product.discPrice && product.discPrice > 0
-            ? product.discPrice
-            : selectedVariation?.price || product.price || 0;
-      const itemTotal = itemPrice * qty;
-      calculatedSubtotal += itemTotal;
-
-      // Calculate commission rate snapshot
-      const commRate = await getOrderItemCommissionRate(
-        product,
-        product.seller.toString(),
-        settings,
-      );
-      const commAmount = (itemTotal * commRate) / 100;
-
-      // Calculate return policy snapshot
-      const returnsEnabled = settings?.returnConfig?.returnsEnabled !== false;
-      const productIsReturnable = product.isReturnable !== false;
-      const isReturnableSnapshot = returnsEnabled && productIsReturnable;
-      const returnDaysSnapshot = product.maxReturnDays && product.maxReturnDays > 0
-        ? product.maxReturnDays
-        : settings?.returnConfig?.defaultReturnWindowDays ?? 7;
-
-      // Create OrderItem
-      const newOrderItemData = {
-        order: newOrder._id,
-        product: product._id,
-        seller: product.seller,
-        productName: product.productName,
-        productImage: product.mainImage,
-        sku: product.sku,
-        unitPrice: itemPrice,
-        quantity: qty,
-        total: itemTotal,
-        commissionRate: commRate,
-        commissionAmount: commAmount,
-        variation: variationValue,
-        status: "Pending",
-        isReturnable: isReturnableSnapshot,
-        returnWindowDays: returnDaysSnapshot,
-      };
-
-      const newOrderItem = new OrderItem(newOrderItemData);
-      if (session) {
-        await newOrderItem.save({ session });
-      } else {
-        await newOrderItem.save();
-      }
-      orderItemIds.push(newOrderItem._id as mongoose.Types.ObjectId);
-    }
-
-    // Enforce minimum order value (cart subtotal of products)
-    const minimumOrderValue = Number(settings?.minimumOrderValue) || 0;
-    if (minimumOrderValue > 0 && calculatedSubtotal < minimumOrderValue) {
-      if (session) await session.abortTransaction();
-      const shortfall = Number((minimumOrderValue - calculatedSubtotal).toFixed(2));
-      return res.status(400).json({
-        success: false,
-        message: `Minimum order value is ₹${minimumOrderValue}. Please add ₹${shortfall} more to place your order.`,
-        data: {
-          minimumOrderValue,
-          currentSubtotal: Number(calculatedSubtotal.toFixed(2)),
-          shortfall,
-        },
-      });
-    }
-
-    // Validate all sellers can deliver to user's location.
-    // This service-radius check only applies to Quick Commerce (instant, local delivery) —
-    // E-Commerce orders ship nationally via Shiprocket, so radius doesn't apply.
-    const orderChannel = channel === "ECommerce" ? "ECommerce" : "Quick";
-    if (orderChannel === "Quick" && sellerIds.size > 0) {
-      const uniqueSellerIds = Array.from(sellerIds).map(
-        (id) => new mongoose.Types.ObjectId(id),
-      );
-
-      // Find sellers and check if user is within their service radius
-      const sellers = await Seller.find({
-        _id: { $in: uniqueSellerIds },
-        status: "Approved",
-        location: { $exists: true, $ne: null },
-      });
-
-      // Check each seller can deliver to user's location
-      for (const seller of sellers) {
-        if (!seller.location || !seller.location.coordinates) {
-          if (session) await session.abortTransaction();
-          return res.status(403).json({
-            success: false,
-            message: `Seller ${seller.storeName} does not have a valid location. Order cannot be placed.`,
-          });
-        }
-
-        const sellerLng = seller.location.coordinates[0];
-        const sellerLat = seller.location.coordinates[1];
-        const distance = calculateDistance(
-          deliveryLat,
-          deliveryLng,
-          sellerLat,
-          sellerLng,
-        );
-        const serviceRadius = seller.serviceRadiusKm || 10;
-
-        if (distance > serviceRadius) {
-          if (session) await session.abortTransaction();
-          return res.status(403).json({
-            success: false,
-            message: `Your delivery address is ${distance.toFixed(2)} km away from ${seller.storeName}. They only deliver within ${serviceRadius} km. Please select products from sellers in your area.`,
-          });
-        }
-      }
-    }
-
-    // Apply fees
-    let platformFee = Number(fees?.platformFee) || 0;
-    let deliveryFee = Number(fees?.deliveryFee) || 0;
-    let deliveryDistanceKm = 0;
-
-    // --- Delivery Charge Calculation (Standard vs Instant) ---
-    try {
-      const freeDeliveryThreshold = settings?.freeDeliveryThreshold || 0;
-
-      // Check for Free Delivery eligibility first
-      if (
-        freeDeliveryThreshold > 0 &&
-        calculatedSubtotal >= freeDeliveryThreshold
-      ) {
-        deliveryFee = 0;
-      }
-      // Standard Delivery flow: Always Fixed Price
-      else if (deliveryOption === "Standard") {
-        deliveryFee = settings.deliveryCharges ?? 0;
-      }
-      // Instant Delivery flow: Distance Based calculation
-      else if (deliveryOption === "Instant" && settings.deliveryConfig) {
-        const config = settings.deliveryConfig;
-
-        // Collect seller locations
-        const sellerLocations: { lat: number; lng: number }[] = [];
-        const uniqueSellerIds = Array.from(sellerIds).map(
-          (id) => new mongoose.Types.ObjectId(id),
-        );
-        const sellers = await Seller.find({
-          _id: { $in: uniqueSellerIds },
-        }).select("location latitude longitude storeName");
-
-        sellers.forEach((seller) => {
-          let lat, lng;
-          if (seller.location?.coordinates?.length === 2) {
-            lng = seller.location.coordinates[0];
-            lat = seller.location.coordinates[1];
-          } else if (seller.latitude && seller.longitude) {
-            lat = parseFloat(seller.latitude);
-            lng = parseFloat(seller.longitude);
-          }
-
-          if (lat && lng) {
-            sellerLocations.push({ lat, lng });
-          }
+        if (session) await session.abortTransaction();
+        return res.status(400).json({
+          success: false,
+          message: "Invalid item structure: product.id is missing",
         });
-
-        if (sellerLocations.length > 0 && deliveryLat && deliveryLng) {
-          // Get distances (Road or Air based on API Key presence)
-          const distances = await getRoadDistances(
-            sellerLocations,
-            { lat: deliveryLat, lng: deliveryLng },
-            config.googleMapsKey,
-          );
-
-          // Take the maximum distance (furthest seller)
-          deliveryDistanceKm = Math.max(...distances);
-
-          // Calculate Fee
-          // Formula: BaseCharge + (Max(0, Distance - BaseDistance) * KmRate)
-          const extraKm = Math.max(0, deliveryDistanceKm - config.baseDistance);
-          const calculatedDeliveryFee =
-            config.baseCharge + extraKm * config.kmRate;
-
-          // Override the delivery fee
-          deliveryFee = Math.ceil(calculatedDeliveryFee);
-
-          console.log(
-            `DEBUG: Instant Delivery (Distance-based): MaxDistance=${deliveryDistanceKm}km, Fee=${deliveryFee} (Base: ${config.baseCharge}, Rate: ${config.kmRate}/km)`,
-          );
-        }
-      } else {
-        // Fallback: If no settings or unhandled option, use provided fee or default
-        const providedDeliveryFee = Number(fees?.deliveryFee);
-        deliveryFee = Number.isFinite(providedDeliveryFee)
-          ? providedDeliveryFee
-          : settings?.deliveryCharges ?? 0;
       }
-    } catch (calcError) {
-      console.error("Error calculating delivery fee:", calcError);
-      // Fallback to provided fee or settings default (using pre-fetched settings)
-      const providedDeliveryFee = Number(fees?.deliveryFee);
-      deliveryFee = Number.isFinite(providedDeliveryFee)
-        ? providedDeliveryFee
-        : settings?.deliveryCharges ?? 0;
+      const productSeller = await Product.findById(item.product.id)
+        .select("seller")
+        .populate("seller", "channels");
+      const itemChannel = resolveSellerChannel((productSeller?.seller as any)?.channels);
+      itemsByChannel[itemChannel].push(item);
     }
 
-    const finalTipAmount = Number(tipAmount) || 0;
-    const giftPackagingFee = giftPackaging ? 30 : 0;
+    const channelGroupsPresent = (["Quick", "ECommerce"] as CommerceChannel[]).filter(
+      (ch) => itemsByChannel[ch].length > 0
+    );
+    const isMixedCheckout = channelGroupsPresent.length === 2;
+    const checkoutGroupId = isMixedCheckout ? new mongoose.Types.ObjectId().toString() : undefined;
 
-    // BUSINESS RULE: Coupon applies strictly to PRODUCT SUBTOTAL (calculatedSubtotal)
-    // Delivery fees, platform fees, tips, and gift packaging fees are NOT eligible for coupon discount.
-    const productSubtotalForCoupon = calculatedSubtotal;
-    let discountAmount = 0;
-
-    // Validate and Apply Coupon
-    if (couponCode && typeof couponCode === 'string' && couponCode.trim()) {
+    // Resolve the coupon ONCE for the whole checkout — its own admin-set
+    // applicableChannel determines which channel-group(s) it discounts. The
+    // customer never picks a channel for a coupon at checkout.
+    let resolvedCoupon: any = null;
+    if (couponCode && typeof couponCode === "string" && couponCode.trim()) {
       try {
-        const normalizedCode = couponCode.trim().toUpperCase();
-        const coupon = await Coupon.findOne({
-          code: normalizedCode,
+        resolvedCoupon = await Coupon.findOne({
+          code: couponCode.trim().toUpperCase(),
           isActive: true,
         });
-
-        if (coupon) {
-          const now = new Date();
-          const startOfToday = new Date(now);
-          startOfToday.setHours(0, 0, 0, 0);
-
-          // Use the same leniency as getCoupons
-          if (now >= coupon.startDate && startOfToday <= coupon.endDate) {
-            // Check usage limit
-            if (
-              !coupon.usageLimit ||
-              coupon.usageCount < coupon.usageLimit
-            ) {
-              // Check minimum purchase (strictly on product subtotal)
-              if (
-                !coupon.minimumPurchase ||
-                productSubtotalForCoupon >= coupon.minimumPurchase
-              ) {
-                // Calculate discount strictly on product subtotal
-                if (coupon.discountType === "Percentage") {
-                  discountAmount =
-                    (productSubtotalForCoupon * coupon.discountValue) / 100;
-                  if (
-                    coupon.maximumDiscount &&
-                    discountAmount > coupon.maximumDiscount
-                  ) {
-                    discountAmount = coupon.maximumDiscount;
-                  }
-                } else {
-                  // Fixed discount cannot exceed product subtotal
-                  discountAmount = Math.min(
-                    coupon.discountValue,
-                    productSubtotalForCoupon
-                  );
-                }
-
-                newOrder.couponCode = normalizedCode;
-                newOrder.discount = Number(discountAmount.toFixed(2));
-
-                const computedFinalTotal = Math.max(
-                  0,
-                  productSubtotalForCoupon -
-                    discountAmount +
-                    platformFee +
-                    deliveryFee +
-                    finalTipAmount +
-                    giftPackagingFee
-                );
-
-                console.log(`[COUPON CALCULATION]
-Coupon Code: ${normalizedCode}
-Product Subtotal: ₹${productSubtotalForCoupon}
-Discount Type: ${coupon.discountType}
-Discount Value: ${coupon.discountValue}${coupon.discountType === "Percentage" ? "%" : ""}
-Coupon Discount: ₹${discountAmount.toFixed(2)}
-Delivery Fee: ₹${deliveryFee}
-Platform Fee: ₹${platformFee}
-Tip: ₹${finalTipAmount}
-Gift Packaging Fee: ₹${giftPackagingFee}
-Final Total: ₹${computedFinalTotal.toFixed(2)}`);
-              } else {
-                console.warn(
-                  `⚠️ Coupon ${normalizedCode} rejected: min purchase ₹${coupon.minimumPurchase} not met (Product Subtotal: ₹${productSubtotalForCoupon})`,
-                );
-              }
-            } else {
-              console.warn(
-                `⚠️ Coupon ${normalizedCode} rejected: usage limit ${coupon.usageLimit} reached`,
-              );
-            }
-          } else {
-            console.warn(`⚠️ Coupon ${normalizedCode} rejected: expired or not yet valid`);
-          }
-        } else {
-          console.warn(`⚠️ Coupon code ${normalizedCode} not found or inactive`);
-        }
-      } catch (couponError) {
-        console.error("❌ Error applying coupon:", couponError);
-        // We continue with the order even if coupon fails
+      } catch (couponLookupErr) {
+        console.error("Error looking up coupon:", couponLookupErr);
       }
     }
+    const couponAppliesToChannel = (ch: CommerceChannel) =>
+      !!resolvedCoupon &&
+      (!resolvedCoupon.applicableChannel ||
+        resolvedCoupon.applicableChannel === "Both" ||
+        resolvedCoupon.applicableChannel === ch);
 
-    // GST is admin-managed via AppSettings (gstEnabled/gstRate) and is calculated
-    // on the taxable value of goods (product subtotal after discount) — delivery
-    // fees, platform fees, tips, and gift packaging are not taxed.
-    const gstRate = settings?.gstEnabled ? Number(settings.gstRate) || 0 : 0;
-    const taxableAmount = Math.max(0, productSubtotalForCoupon - discountAmount);
-    const gstAmount = Number(((taxableAmount * gstRate) / 100).toFixed(2));
-    newOrder.tax = gstAmount;
+    // Shared fees (platform fee, GST, packaging fee, tip) are attributed
+    // entirely to the "shared fee owner" group — Quick if present, else
+    // E-commerce — per the confirmed design.
+    const sharedFeeOwnerChannel: CommerceChannel = channelGroupsPresent.includes("Quick")
+      ? "Quick"
+      : "ECommerce";
 
-    const finalTotal = Math.max(
-      0,
-      productSubtotalForCoupon -
-        discountAmount +
-        gstAmount +
-        platformFee +
-        deliveryFee +
-        finalTipAmount +
-        giftPackagingFee
-    );
+    let walletRemaining = useWallet ? (customer.walletAmount || 0) : 0;
+    const builtOrders: any[] = [];
+    let anyOrderUsedCoupon: any = null;
 
-    let walletAmountUsed = 0;
-    if (useWallet) {
-      const availWallet = customer.walletAmount || 0;
-      if (availWallet > 0) {
-        walletAmountUsed = Math.min(availWallet, finalTotal);
-        const debitRes = await debitWallet(
-          userId,
-          "CUSTOMER",
-          walletAmountUsed,
-          `Payment for order #${newOrder.orderNumber}`,
-          newOrder._id.toString(),
-          session || undefined,
-          `CUSTOMER_WALLET_DEBIT_ORDER_${newOrder._id.toString()}`,
-          "ORDER_PAYMENT"
-        );
+    for (const ch of channelGroupsPresent) {
+      const isSharedFeeOwner = ch === sharedFeeOwnerChannel;
+      const result = await buildAndSaveChannelOrder({
+        req,
+        session,
+        userId,
+        customer,
+        address,
+        deliveryLat,
+        deliveryLng,
+        items: itemsByChannel[ch],
+        channel: ch,
+        paymentMethod,
+        fees,
+        deliveryOption,
+        settings,
+        coupon: couponAppliesToChannel(ch) ? resolvedCoupon : null,
+        isSharedFeeOwner,
+        tipAmount,
+        giftPackaging,
+        walletAvailable: walletRemaining,
+        checkoutGroupId,
+      });
 
-        if (!debitRes.success) {
-          if (session) await session.abortTransaction();
-          return res.status(400).json({
-            success: false,
-            message: debitRes.message || "Failed to debit customer wallet for order payment",
-          });
-        }
+      if (!result.success) {
+        if (session) await session.abortTransaction();
+        return res.status(result.status).json({
+          success: false,
+          message: result.message,
+          ...(result.data ? { data: result.data } : {}),
+        });
+      }
+
+      walletRemaining = Math.max(0, walletRemaining - result.walletAmountUsed);
+      builtOrders.push(result.order);
+      if (result.order.couponCode && !anyOrderUsedCoupon) {
+        anyOrderUsedCoupon = result.order;
       }
     }
-
-    const remainingPayable = Number((finalTotal - walletAmountUsed).toFixed(2));
-    newOrder.walletAmountUsed = Number(walletAmountUsed.toFixed(2));
-
-    if (walletAmountUsed > 0 && remainingPayable === 0) {
-      newOrder.paymentMethod = "Wallet";
-      newOrder.paymentStatus = "Paid";
-      newOrder.status = "Received";
-      newOrder.onlineAmountPaid = 0;
-      newOrder.codAmountPending = 0;
-    } else {
-      if (paymentMethod === "Online" || paymentMethod === "razorpay") {
-        newOrder.paymentMethod = paymentMethod;
-        newOrder.paymentStatus = "Pending";
-        newOrder.status = "Pending";
-        newOrder.onlineAmountPaid = remainingPayable;
-        newOrder.codAmountPending = 0;
-      } else {
-        newOrder.paymentMethod = "COD";
-        newOrder.paymentStatus = "Pending";
-        newOrder.status = "Received";
-        newOrder.codAmountPending = remainingPayable;
-        newOrder.onlineAmountPaid = 0;
-      }
-    }
-
-    // Update Order with calculated values and items
-    newOrder.subtotal = Number(calculatedSubtotal.toFixed(2));
-    newOrder.total = Number(finalTotal.toFixed(2));
-    newOrder.grandTotal = Number(finalTotal.toFixed(2)); // Sync grandTotal alias
-    newOrder.items = orderItemIds;
-    newOrder.shipping = deliveryFee; // Update with calculated fee
-    newOrder.deliveryDistanceKm = deliveryDistanceKm; // Store distance for commission calc
 
     if (session) {
-      await newOrder.save({ session });
       await session.commitTransaction();
-    } else {
-      // Validate before saving to catch errors with details
-      const validationError = newOrder.validateSync();
-      if (validationError) {
-        console.error("DEBUG: Order Validation Error:", validationError.errors);
-        throw validationError;
-      }
-      await newOrder.save();
     }
 
-    // Commit coupon usage if order is confirmed at creation time (100% Wallet paid or COD)
-    if (newOrder.couponCode && (newOrder.paymentStatus === "Paid" || newOrder.paymentMethod === "COD")) {
-      await commitCouponUsage(newOrder);
+    // Commit coupon usage once per checkout (not once per linked order), so a
+    // coupon scoped to "Both" doesn't get double-counted against its usage limit.
+    if (
+      anyOrderUsedCoupon &&
+      (anyOrderUsedCoupon.paymentStatus === "Paid" || anyOrderUsedCoupon.paymentMethod === "COD")
+    ) {
+      await commitCouponUsage(anyOrderUsedCoupon);
     }
 
-    // Emit notification to all involved sellers (non-blocking for performance)
-    try {
-      const io: SocketIOServer = req.app.get("io") as SocketIOServer;
-      if (io) {
-        // Only notify sellers immediately if it's a COD order
-        // Online orders will notify after payment verification in paymentService
-        if (paymentMethod === "COD") {
-          // Use newOrder directly - notifySellersOfOrderUpdate will handle fetching items if needed
-          notifySellersOfOrderUpdate(io, newOrder, "NEW_ORDER");
-          console.log(
-            `📢 [COD] Async seller notification triggered for order ${newOrder.orderNumber}`,
-          );
-        } else {
-          console.log(
-            `⏳ [Online] Seller notification deferred for order ${newOrder.orderNumber} until payment success`,
-          );
-        }
-      }
-    } catch (notificationError) {
-      // Log error but don't fail the order creation
-      console.error("Error notifying sellers:", notificationError);
-    }
-
-    // Send status notification to customer for order placement (COD or 100% Wallet paid orders ONLY)
-    // For ONLINE orders, the customer and seller notifications are sent upon successful payment capture in paymentService.ts
-    if (newOrder.paymentStatus === "Paid" || newOrder.paymentMethod === "COD") {
+    // Post-save side effects (notifications, Shiprocket) — same logic as the
+    // original single-order flow, run once per linked order.
+    for (const builtOrder of builtOrders) {
+      // Emit notification to all involved sellers (non-blocking for performance)
       try {
         const io: SocketIOServer = req.app.get("io") as SocketIOServer;
-        sendOrderStatusNotification(newOrder._id.toString(), userId, newOrder.status, io).catch((e) =>
-          console.error("Error sending Order Placed notification to customer:", e)
-        );
-      } catch (custNotifErr) {
-        console.error("Error triggering customer order notification:", custNotifErr);
+        if (io) {
+          // Only notify sellers immediately if it's a COD (or fully wallet-paid) order
+          // Online orders will notify after payment verification in paymentService
+          if (builtOrder.paymentMethod === "COD" || builtOrder.paymentMethod === "Wallet") {
+            notifySellersOfOrderUpdate(io, builtOrder, "NEW_ORDER");
+            console.log(
+              `📢 [COD] Async seller notification triggered for order ${builtOrder.orderNumber}`,
+            );
+          } else {
+            console.log(
+              `⏳ [Online] Seller notification deferred for order ${builtOrder.orderNumber} until payment success`,
+            );
+          }
+        }
+      } catch (notificationError) {
+        // Log error but don't fail the order creation
+        console.error("Error notifying sellers:", notificationError);
+      }
+
+      // Send status notification to customer for order placement (COD or 100% Wallet paid orders ONLY)
+      // For ONLINE orders, the customer and seller notifications are sent upon successful payment capture in paymentService.ts
+      if (builtOrder.paymentStatus === "Paid" || builtOrder.paymentMethod === "COD") {
+        try {
+          const io: SocketIOServer = req.app.get("io") as SocketIOServer;
+          sendOrderStatusNotification(builtOrder._id.toString(), userId, builtOrder.status, io).catch((e) =>
+            console.error("Error sending Order Placed notification to customer:", e)
+          );
+        } catch (custNotifErr) {
+          console.error("Error triggering customer order notification:", custNotifErr);
+        }
+      }
+
+      // For confirmed E-Commerce orders, push the shipment to Shiprocket (non-blocking — never fails order creation)
+      if (
+        builtOrder.channel === "ECommerce" &&
+        (builtOrder.paymentStatus === "Paid" || builtOrder.paymentMethod === "COD")
+      ) {
+        createShiprocketOrder(builtOrder)
+          .then(async (result) => {
+            if (result.success) {
+              builtOrder.shiprocket = {
+                orderId: result.orderId,
+                shipmentId: result.shipmentId,
+                status: result.isMock ? "Mock: Order Created" : "Order Created",
+              };
+              await builtOrder.save();
+            } else {
+              console.error(`[Shiprocket] Failed to create shipment for order ${builtOrder.orderNumber}:`, result.message);
+            }
+          })
+          .catch((err) => console.error("[Shiprocket] Unexpected error creating shipment:", err));
       }
     }
 
-    // For confirmed E-Commerce orders, push the shipment to Shiprocket (non-blocking — never fails order creation)
-    if (
-      newOrder.channel === "ECommerce" &&
-      (newOrder.paymentStatus === "Paid" || newOrder.paymentMethod === "COD")
-    ) {
-      createShiprocketOrder(newOrder)
-        .then(async (result) => {
-          if (result.success) {
-            newOrder.shiprocket = {
-              orderId: result.orderId,
-              shipmentId: result.shipmentId,
-              status: result.isMock ? "Mock: Order Created" : "Order Created",
-            };
-            await newOrder.save();
-          } else {
-            console.error(`[Shiprocket] Failed to create shipment for order ${newOrder.orderNumber}:`, result.message);
-          }
-        })
-        .catch((err) => console.error("[Shiprocket] Unexpected error creating shipment:", err));
+    // Single-channel checkout (the overwhelming common case): identical
+    // response shape to before this feature existed.
+    if (builtOrders.length === 1) {
+      return res.status(201).json({
+        success: true,
+        message: "Order placed successfully",
+        data: builtOrders[0],
+      });
     }
 
+    // Mixed checkout: both linked orders, plus the shared checkout group id.
     return res.status(201).json({
       success: true,
-      message: "Order placed successfully",
-      data: newOrder,
+      message: "Orders placed successfully",
+      data: {
+        orders: builtOrders,
+        checkoutGroupId,
+      },
     });
   } catch (error: any) {
     if (session) {
@@ -888,9 +1056,32 @@ export const getMyOrders = async (req: Request, res: Response) => {
 
     const total = await Order.countDocuments(query);
 
+    // Batch-fetch sibling orders sharing a checkoutGroupId so linked
+    // (mixed-checkout) orders can be shown together on the frontend, without
+    // storing the link redundantly on each order.
+    const groupIds = Array.from(
+      new Set(orders.map((o: any) => o.checkoutGroupId).filter(Boolean))
+    );
+    const siblingsByGroup = new Map<string, any[]>();
+    if (groupIds.length > 0) {
+      const siblingOrders = await Order.find({ checkoutGroupId: { $in: groupIds } })
+        .select("orderNumber channel status total checkoutGroupId")
+        .lean();
+      for (const sib of siblingOrders) {
+        const key = (sib as any).checkoutGroupId;
+        if (!siblingsByGroup.has(key)) siblingsByGroup.set(key, []);
+        siblingsByGroup.get(key)!.push(sib);
+      }
+    }
+
     // Transform orders to match frontend Order type
     const transformedOrders = orders.map((order) => {
       const orderObj = order.toObject();
+      const linkedOrder = orderObj.checkoutGroupId
+        ? (siblingsByGroup.get(orderObj.checkoutGroupId) || []).find(
+          (sib: any) => sib._id.toString() !== orderObj._id.toString()
+        )
+        : undefined;
       return {
         ...orderObj,
         id: orderObj._id.toString(),
@@ -904,6 +1095,15 @@ export const getMyOrders = async (req: Request, res: Response) => {
         // Keep original fields for backward compatibility
         subtotal: orderObj.subtotal,
         address: orderObj.deliveryAddress,
+        linkedOrder: linkedOrder
+          ? {
+            id: linkedOrder._id.toString(),
+            orderNumber: linkedOrder.orderNumber,
+            channel: linkedOrder.channel,
+            status: linkedOrder.status,
+            total: linkedOrder.total,
+          }
+          : undefined,
       };
     });
 
@@ -962,6 +1162,25 @@ export const getOrderById = async (req: Request, res: Response) => {
 
     // Transform order to match frontend Order type
     const orderObj = order.toObject();
+
+    // If this order is part of a mixed (Quick + E-commerce) checkout, find
+    // its sibling order for display linking.
+    let linkedOrder: any = undefined;
+    if ((orderObj as any).checkoutGroupId) {
+      const sibling = await Order.findOne({
+        checkoutGroupId: (orderObj as any).checkoutGroupId,
+        _id: { $ne: orderObj._id },
+      }).select("orderNumber channel status total");
+      if (sibling) {
+        linkedOrder = {
+          id: sibling._id.toString(),
+          orderNumber: sibling.orderNumber,
+          channel: sibling.channel,
+          status: sibling.status,
+          total: sibling.total,
+        };
+      }
+    }
 
     // Fetch existing return requests for items in this order
     const itemIds = (orderObj.items || []).map((i: any) => i._id);
@@ -1032,6 +1251,7 @@ export const getOrderById = async (req: Request, res: Response) => {
             mobile: (orderObj.deliveryBoy as any).mobile || (orderObj.deliveryBoy as any).phone || "",
           }
         : undefined,
+      linkedOrder,
     };
 
     console.log(`\n[CUSTOMER ORDER RESPONSE]\nOrder ID: ${transformedOrder.id}\nstatus: ${transformedOrder.status}\npaymentStatus: ${transformedOrder.paymentStatus}\npaymentId: ${transformedOrder.paymentId || 'N/A'}`);
@@ -1457,4 +1677,3 @@ export const requestItemReturn = async (req: Request, res: Response) => {
 };
 
 export const requestCustomerReturn = requestItemReturn;
-

@@ -526,6 +526,7 @@ function App() {
                                 requiredUserType="Delivery"
                                 redirectTo="/delivery/login">
                                 <Suspense fallback={<IconLoader forceShow />}>
+                                <ErrorBoundary>
                                   <DeliveryLayout>
                                     <Routes>
                                       <Route
@@ -607,6 +608,7 @@ function App() {
                                       />
                                     </Routes>
                                   </DeliveryLayout>
+                                </ErrorBoundary>
                                 </Suspense>
                               </ProtectedRoute>
                             }

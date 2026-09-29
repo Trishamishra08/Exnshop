@@ -20,6 +20,7 @@ export const createCoupon = asyncHandler(
       usageLimitPerUser,
       applicableTo,
       applicableIds,
+      applicableChannel,
     } = req.body;
 
     if (!code || !discountType || !discountValue || !startDate || !endDate) {
@@ -57,6 +58,7 @@ export const createCoupon = asyncHandler(
       usageLimitPerUser,
       applicableTo: applicableTo || "All",
       applicableIds,
+      applicableChannel: ["Quick", "ECommerce", "Both"].includes(applicableChannel) ? applicableChannel : "Both",
       createdBy: req.user?.userId,
       isActive: true,
     });

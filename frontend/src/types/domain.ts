@@ -53,6 +53,7 @@ export interface Product {
     storeName?: string;
     viewCustomerDetails?: boolean;
     city?: string;
+    channels?: ('Quick' | 'ECommerce')[];
   } | string;
   storeName?: string;
   shopName?: string;

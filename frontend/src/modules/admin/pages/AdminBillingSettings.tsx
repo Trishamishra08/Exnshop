@@ -14,10 +14,14 @@ export default function AdminBillingSettings() {
     const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState<number>(0);
     const [minimumOrderValue, setMinimumOrderValue] = useState<number>(0);
     const [deliveryCharges, setDeliveryCharges] = useState<number>(0);
+    const [packagingFee, setPackagingFee] = useState<number>(30);
 
     // Tax (GST)
     const [gstEnabled, setGstEnabled] = useState<boolean>(false);
     const [gstRate, setGstRate] = useState<number>(0);
+
+    // Seller Settlement Approval Mode
+    const [settlementApprovalMode, setSettlementApprovalMode] = useState<'auto' | 'manual'>('auto');
 
     // Distance Based Config
     const [isDistanceBased, setIsDistanceBased] = useState(false);
@@ -47,8 +51,10 @@ export default function AdminBillingSettings() {
                 setFreeDeliveryThreshold(data.freeDeliveryThreshold || 0);
                 setMinimumOrderValue(data.minimumOrderValue || 0);
                 setDeliveryCharges(data.deliveryCharges || 0);
+                setPackagingFee(data.packagingFee ?? 30);
                 setGstEnabled(data.gstEnabled || false);
                 setGstRate(data.gstRate || 0);
+                setSettlementApprovalMode(data.settlementApprovalMode === 'manual' ? 'manual' : 'auto');
 
                 if (data.deliveryConfig) {
                     setIsDistanceBased(data.deliveryConfig.isDistanceBased || false);
@@ -83,8 +89,10 @@ export default function AdminBillingSettings() {
                 freeDeliveryThreshold,
                 minimumOrderValue,
                 deliveryCharges,
+                packagingFee,
                 gstEnabled,
                 gstRate,
+                settlementApprovalMode,
                 deliveryConfig: {
                     isDistanceBased,
                     baseCharge,
@@ -214,6 +222,24 @@ export default function AdminBillingSettings() {
                             <p className="mt-1 text-xs text-gray-500">
                                 Cart subtotal must reach this amount before an order can be placed. Set 0 to disable.
                             </p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Gift Packaging Fee (₹)
+                            </label>
+                            <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">₹</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    value={packagingFee === 0 ? '' : packagingFee}
+                                    onChange={(e) => setPackagingFee(e.target.value === '' ? 0 : Number(e.target.value))}
+                                    className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+                                    placeholder="e.g. 30"
+                                />
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500">Charged only when the customer opts into gift packaging at checkout.</p>
                         </div>
                     </div>
                 </div>
@@ -394,6 +420,39 @@ export default function AdminBillingSettings() {
                             </div>
                         </motion.div>
                     )}
+                </div>
+
+                {/* Seller Settlement Section */}
+                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-2">Seller Settlement</h2>
+                    <p className="text-sm text-gray-500 mb-6">
+                        Sellers are only paid for successfully delivered items — immediately if the item is
+                        non-returnable, or after the return window passes if it is returnable. COD cash is
+                        reconciled by admin from the delivery partner, never by the seller. Choose whether that
+                        return-window release happens automatically or needs your approval.
+                    </p>
+
+                    <div className="flex items-center gap-2 bg-neutral-100 p-1 rounded-lg w-fit">
+                        <button
+                            onClick={() => setSettlementApprovalMode('auto')}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${settlementApprovalMode === 'auto' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                        >
+                            Auto-release
+                        </button>
+                        <button
+                            onClick={() => setSettlementApprovalMode('manual')}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${settlementApprovalMode === 'manual' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                        >
+                            Manual approval
+                        </button>
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                        {settlementApprovalMode === 'auto'
+                            ? 'Held seller earnings release to their wallet automatically once the return window expires.'
+                            : 'Held seller earnings wait for your approval even after the return window expires — review and release them from Wallet & Finance → Seller Settlements.'}
+                    </p>
                 </div>
 
                 {/* Display & Visibility Settings Section */}

@@ -25,6 +25,9 @@ export interface ICoupon extends Document {
   // Applicability
   applicableTo: "All" | "Category" | "Product" | "Seller";
   applicableIds?: mongoose.Types.ObjectId[]; // Category/Product/Seller IDs
+  /** Which commerce channel(s) this coupon discounts. Admin-set — the customer
+   *  never picks a channel for a coupon at checkout. */
+  applicableChannel: "Quick" | "ECommerce" | "Both";
 
   // Created By
   createdBy: mongoose.Types.ObjectId;
@@ -109,6 +112,11 @@ const CouponSchema = new Schema<ICoupon>(
         type: Schema.Types.ObjectId,
       },
     ],
+    applicableChannel: {
+      type: String,
+      enum: ["Quick", "ECommerce", "Both"],
+      default: "Both",
+    },
 
     // Created By
     createdBy: {

@@ -140,6 +140,11 @@ export interface IOrder extends Document {
   // Commerce channel this order was placed under
   channel: "Quick" | "ECommerce";
 
+  /** Shared id linking two orders created from ONE checkout whose cart had
+   *  both Quick and E-commerce items — absent for ordinary single-channel
+   *  orders (the vast majority). */
+  checkoutGroupId?: string;
+
   // Shiprocket shipment tracking (ECommerce channel only)
   shiprocket?: {
     orderId?: string;
@@ -517,6 +522,9 @@ const OrderSchema = new Schema<IOrder>(
       enum: ["Quick", "ECommerce"],
       default: "Quick",
     },
+    checkoutGroupId: {
+      type: String,
+    },
     shiprocket: {
       orderId: { type: String, trim: true },
       shipmentId: { type: String, trim: true },
@@ -551,6 +559,7 @@ OrderSchema.index({ orderDate: -1 });
 OrderSchema.index({ sellerConfirmationStatus: 1, deliveryAssignmentStatus: 1 });
 OrderSchema.index({ deliveryBoy: 1 });
 OrderSchema.index({ channel: 1 });
+OrderSchema.index({ checkoutGroupId: 1 });
 
 const Order =
   (mongoose.models.Order as mongoose.Model<IOrder>) ||

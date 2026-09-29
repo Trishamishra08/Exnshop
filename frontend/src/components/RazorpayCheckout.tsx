@@ -2,7 +2,10 @@ import React, { useEffect } from 'react';
 import { createRazorpayOrder, verifyPayment } from '../services/api/paymentService';
 
 interface RazorpayCheckoutProps {
-    orderId: string;
+    /** Single order id for an ordinary checkout, or multiple for a mixed
+     *  Quick + E-commerce checkout — one Razorpay charge covers all of them. */
+    orderId?: string;
+    orderIds?: string[];
     amount: number;
     onSuccess: (paymentId: string) => void;
     onFailure: (error: string) => void;
@@ -21,12 +24,17 @@ declare global {
 
 const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
     orderId,
+    orderIds,
     amount,
     onSuccess,
     onFailure,
     customerDetails,
 }) => {
     const hasInitiatedRef = React.useRef(false);
+    // Normalize to a list — the rest of this component always works with
+    // `resolvedOrderIds`, so it behaves identically for the common single-order
+    // case and transparently supports the mixed-checkout (two linked orders) case.
+    const resolvedOrderIds = orderIds && orderIds.length > 0 ? orderIds : (orderId ? [orderId] : []);
 
     useEffect(() => {
         if (hasInitiatedRef.current) return;
@@ -53,7 +61,7 @@ const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
                 }
 
                 // Create Razorpay order
-                const orderResponse = await createRazorpayOrder(orderId);
+                const orderResponse = await createRazorpayOrder(resolvedOrderIds.length > 1 ? resolvedOrderIds : resolvedOrderIds[0]);
 
                 if (!orderResponse.success) {
                     onFailure(orderResponse.message || 'Failed to create payment order');
@@ -69,7 +77,7 @@ const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
                     const mockSignature = `sig_mock_${Date.now()}`;
 
                     const verificationResponse = await verifyPayment({
-                        orderId,
+                        orderIds: resolvedOrderIds,
                         razorpayOrderId,
                         razorpayPaymentId: mockPaymentId,
                         razorpaySignature: mockSignature,
@@ -89,7 +97,9 @@ const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
                     amount: amount * 100, // Amount in paise
                     currency: 'INR',
                     name: 'Exnshop',
-                    description: `Order #${orderId}`,
+                    description: resolvedOrderIds.length > 1
+                        ? `Orders #${resolvedOrderIds.join(', #')}`
+                        : `Order #${resolvedOrderIds[0]}`,
                     order_id: razorpayOrderId,
                     prefill: {
                         name: customerDetails.name,
@@ -103,7 +113,7 @@ const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
                         try {
                             // Verify payment with backend
                             const verificationResponse = await verifyPayment({
-                                orderId,
+                                orderIds: resolvedOrderIds,
                                 razorpayOrderId: response.razorpay_order_id,
                                 razorpayPaymentId: response.razorpay_payment_id,
                                 razorpaySignature: response.razorpay_signature,
@@ -135,7 +145,8 @@ const RazorpayCheckout: React.FC<RazorpayCheckoutProps> = ({
         };
 
         initiatePayment();
-    }, [orderId, amount, customerDetails, onSuccess, onFailure]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [orderId, orderIds, amount, customerDetails, onSuccess, onFailure]);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

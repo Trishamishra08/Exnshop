@@ -239,6 +239,8 @@ router.get("/wallet/earnings", walletController.getAdminEarnings);
 router.get("/wallet/transactions", walletController.getWalletTransactions);
 router.get("/wallet/summary", walletController.getWalletSummary);
 router.post("/wallet/transfer", walletController.createManualTransfer);
+router.get("/settlements/due", walletController.getDueSettlements);
+router.post("/settlements/approve", walletController.approveDueSettlements);
 router.get("/wallet/withdrawals", withdrawalController.getAllWithdrawals);
 router.post("/wallet/withdrawal/process", walletController.processWithdrawalWrapper);
 

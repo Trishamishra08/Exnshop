@@ -31,6 +31,7 @@ export default function AdminCoupon() {
     couponValue: "",
     couponType: "Percentage",
     couponDescription: "",
+    applicableChannel: "Both" as "Quick" | "ECommerce" | "Both",
   });
 
   const [couponImageFile, setCouponImageFile] = useState<File | null>(null);
@@ -155,6 +156,7 @@ export default function AdminCoupon() {
         endDate: formData.couponExpiryDate,
         usageLimit: formData.numberOfTimes === "Single Time Valid" ? 1 : undefined,
         applicableTo: formData.userType === "All Users" ? "All" as const : "All" as const,
+        applicableChannel: formData.applicableChannel,
       };
 
       const response = await createCoupon(couponData);
@@ -176,6 +178,7 @@ export default function AdminCoupon() {
           couponValue: "",
           couponType: "Percentage",
           couponDescription: "",
+          applicableChannel: "Both",
         });
         setCouponImageFile(null);
         setCouponImagePreview("");
@@ -521,6 +524,22 @@ export default function AdminCoupon() {
                   <option value="Fixed">Fixed</option>
                 </select>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">
+                  Applies To <span className="text-red-500">*</span>
+                </label>
+                <select
+                  name="applicableChannel"
+                  value={formData.applicableChannel}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-3 py-2 border border-neutral-300 rounded focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none bg-white">
+                  <option value="Both">Both (Quick + Shop All)</option>
+                  <option value="Quick">Quick only</option>
+                  <option value="ECommerce">Shop All (E-commerce) only</option>
+                </select>
+              </div>
             </div>
 
             <div className="mb-4">
@@ -600,6 +619,7 @@ export default function AdminCoupon() {
                     </div>
                   </th>
                   <th className="p-4">Discount Type</th>
+                  <th className="p-4">Applies To</th>
                   <th
                     className="p-4 cursor-pointer hover:bg-neutral-100 transition-colors"
                     onClick={() => handleSort("minimumPurchase")}>
@@ -628,21 +648,21 @@ export default function AdminCoupon() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="p-8 text-center text-neutral-400">
                       Loading coupons...
                     </td>
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td colSpan={8} className="p-8 text-center text-red-600">
+                    <td colSpan={9} className="p-8 text-center text-red-600">
                       {error}
                     </td>
                   </tr>
                 ) : displayedCoupons.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="p-8 text-center text-neutral-400">
                       No coupons found. Add your first coupon above.
                     </td>
@@ -664,6 +684,13 @@ export default function AdminCoupon() {
                           : `₹${coupon.discountValue}`}
                       </td>
                       <td className="p-4 align-middle">{coupon.discountType}</td>
+                      <td className="p-4 align-middle">
+                        {coupon.applicableChannel === "Both" || !coupon.applicableChannel
+                          ? "Both"
+                          : coupon.applicableChannel === "ECommerce"
+                            ? "Shop All"
+                            : "Quick"}
+                      </td>
                       <td className="p-4 align-middle">
                         {coupon.minimumPurchase
                           ? `₹${coupon.minimumPurchase}`

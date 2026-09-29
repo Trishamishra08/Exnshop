@@ -46,6 +46,7 @@ interface Seller {
     addressProof?: string;
     requireProductApproval?: boolean;
     viewCustomerDetails?: boolean;
+    supportsInstantDelivery?: boolean;
 }
 
 // Helper function to convert backend seller to frontend format
@@ -87,6 +88,7 @@ const mapSellerToFrontend = (seller: SellerType): Seller => {
         addressProof: seller.addressProof,
         requireProductApproval: seller.requireProductApproval,
         viewCustomerDetails: seller.viewCustomerDetails,
+        supportsInstantDelivery: seller.supportsInstantDelivery,
     };
 };
 
@@ -291,6 +293,7 @@ export default function AdminManageSellerList() {
                 ifsc: seller.ifsc || '',
                 requireProductApproval: seller.requireProductApproval ?? false,
                 viewCustomerDetails: seller.viewCustomerDetails ?? true,
+                supportsInstantDelivery: seller.supportsInstantDelivery ?? true,
                 balance: seller.balance || 0,
             });
             setNewRadius(seller.serviceRadiusKm || 10);
@@ -331,6 +334,7 @@ export default function AdminManageSellerList() {
                 ifsc: editForm.ifsc,
                 requireProductApproval: editForm.requireProductApproval,
                 viewCustomerDetails: editForm.viewCustomerDetails,
+                supportsInstantDelivery: editForm.supportsInstantDelivery,
                 balance: Number(editForm.balance) || 0,
             };
 
@@ -1342,6 +1346,17 @@ export default function AdminManageSellerList() {
                                         >
                                             <option value="true">Yes</option>
                                             <option value="false">No</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-medium text-neutral-600 mb-1">Offer Instant / Quick Delivery</label>
+                                        <select
+                                            value={editForm.supportsInstantDelivery === false ? 'false' : 'true'}
+                                            onChange={(e) => setEditForm(prev => ({ ...prev, supportsInstantDelivery: e.target.value === 'true' }))}
+                                            className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
+                                        >
+                                            <option value="true">Yes</option>
+                                            <option value="false">No — Standard delivery only</option>
                                         </select>
                                     </div>
                                     <div>

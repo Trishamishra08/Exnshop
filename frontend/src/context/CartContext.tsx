@@ -7,12 +7,24 @@ import { Cart, CartItem } from '../types/cart';
 import { Product } from '../types/domain';
 import {
   getCart,
+  getMergedCart,
   addToCart as apiAddToCart,
   updateCartItem as apiUpdateCartItem,
   removeFromCart as apiRemoveFromCart,
   clearCart as apiClearCart
 } from '../services/api/customerCartService';
 import { calculateProductPrice } from '../utils/priceUtils';
+
+// Mirrors the backend's channel-resolution rule in addToCart (customerCartController.ts):
+// a product belongs to its seller's channel; a seller enabled for both defaults to Quick.
+const resolveProductChannel = (product: Product): 'Quick' | 'ECommerce' => {
+  const seller = (product as any).seller;
+  const channels: string[] = seller && typeof seller === 'object' && Array.isArray(seller.channels)
+    ? seller.channels
+    : [];
+  if (channels.length === 0) return 'Quick';
+  return channels.includes('Quick') ? 'Quick' : 'ECommerce';
+};
 
 const getCartStorageKey = (mode: 'Quick' | 'ECommerce') =>
   mode === 'ECommerce' ? 'saved_cart_ecommerce' : 'saved_cart_quick';
@@ -36,6 +48,9 @@ interface CartContextType {
   ) => Promise<void>;
   lastAddEvent: AddToCartEvent | null;
   loading: boolean;
+  /** Both channels' carts together — null until first fetched via refreshMergedCart. */
+  cartGroups: { quick: Cart; ecommerce: Cart } | null;
+  refreshMergedCart: (latitude?: number, longitude?: number, deliveryOption?: string) => Promise<void>;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -150,6 +165,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
           setItems(newItems);
         }
         setEstimatedFee(response.data.estimatedDeliveryFee);
+        setEstimatedDistanceKm(response.data.estimatedDistanceKm ?? null);
+        setInstantDeliveryAvailable(response.data.instantDeliveryAvailable !== false);
         setPlatformFee(response.data.platformFee);
         setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
         setMinimumOrderValue(response.data.minimumOrderValue);
@@ -257,9 +274,44 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   // State for estimate delivery fee
   const [estimatedFee, setEstimatedFee] = useState<number | undefined>(undefined);
+  const [estimatedDistanceKm, setEstimatedDistanceKm] = useState<number | null | undefined>(undefined);
+  const [instantDeliveryAvailable, setInstantDeliveryAvailable] = useState<boolean>(true);
   const [platformFee, setPlatformFee] = useState<number | undefined>(undefined);
   const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState<number | undefined>(undefined);
   const [minimumOrderValue, setMinimumOrderValue] = useState<number | undefined>(undefined);
+
+  // Both channels' carts together, for the unified cart/checkout UI — populated
+  // independently of the single active-`mode` cart above (which existing
+  // single-channel screens keep using unchanged).
+  const [cartGroups, setCartGroups] = useState<{ quick: Cart; ecommerce: Cart } | null>(null);
+
+  const refreshMergedCart = useCallback(async (latitude?: number, longitude?: number, deliveryOption?: string) => {
+    if (!isAuthenticated || user?.userType !== 'Customer') return;
+    try {
+      const queryLat = latitude !== undefined ? latitude : location?.latitude;
+      const queryLng = longitude !== undefined ? longitude : location?.longitude;
+      const response = await getMergedCart({ latitude: queryLat, longitude: queryLng, deliveryOption });
+      if (response?.success && response.data) {
+        const toGroupCart = (raw: any): Cart => ({
+          items: mapApiItemsToState(raw?.items || []),
+          total: raw?.total || 0,
+          itemCount: (raw?.items || []).reduce((n: number, it: any) => n + (it.quantity || 0), 0),
+          estimatedDeliveryFee: raw?.estimatedDeliveryFee,
+          estimatedDistanceKm: raw?.estimatedDistanceKm ?? null,
+          instantDeliveryAvailable: raw?.instantDeliveryAvailable !== false,
+          platformFee: raw?.platformFee,
+          freeDeliveryThreshold: raw?.freeDeliveryThreshold,
+          minimumOrderValue: raw?.minimumOrderValue,
+        });
+        setCartGroups({
+          quick: toGroupCart(response.data.quick),
+          ecommerce: toGroupCart(response.data.ecommerce),
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch merged cart:', error);
+    }
+  }, [isAuthenticated, user?.userType, location?.latitude, location?.longitude, mapApiItemsToState]);
 
   const cart: Cart = useMemo(() => {
     // Filter out any items with null products before computing totals
@@ -278,13 +330,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
       total,
       itemCount,
       estimatedDeliveryFee: estimatedFee,
+      estimatedDistanceKm,
+      instantDeliveryAvailable,
       platformFee,
       freeDeliveryThreshold,
       minimumOrderValue,
       debug_config: (items as any).debug_config,
       backendTotal: (items as any).backendTotal
     };
-  }, [items, estimatedFee, platformFee, freeDeliveryThreshold, minimumOrderValue]);
+  }, [items, estimatedFee, estimatedDistanceKm, instantDeliveryAvailable, platformFee, freeDeliveryThreshold, minimumOrderValue]);
 
   const addToCart = async (product: Product, sourceElement?: HTMLElement | null) => {
     if (!isAuthenticated) {
@@ -301,6 +355,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
       return;
     }
     pendingOperationsRef.current.add(productId);
+
+    // Which channel's cart this product actually belongs to (mirrors the
+    // backend's own resolution) — may differ from the currently active `mode`
+    // now that both channels' products are browsed together (see Phase 1).
+    // Only touch the currently-displayed single-mode `items` list when they
+    // match; otherwise this add is invisible to `items` (correctly — it
+    // doesn't belong in the cart currently on screen) and only the merged
+    // cart view (cartGroups) picks it up.
+    const targetChannel = resolveProductChannel(product);
+    const affectsCurrentModeCart = targetChannel === mode;
 
     // Normalize product to always have 'id' property for consistency
     const normalizedProduct: Product = {
@@ -323,8 +387,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setLastAddEvent({ product: normalizedProduct, sourcePosition });
     setTimeout(() => setLastAddEvent(null), 800);
 
-    // Optimistically update state
+    // Optimistically update state (only when this product belongs in the
+    // currently-displayed mode's cart — see targetChannel/affectsCurrentModeCart above)
     const previousItems = [...items];
+    if (affectsCurrentModeCart) {
     setItems((prevItems) => {
       // Filter out null products and find existing item
       const validItems = prevItems.filter(item => item?.product);
@@ -377,6 +443,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
       return [...validItems, { product: normalizedProduct, quantity: 1 }];
     });
+    }
 
     // Only sync to API if user is authenticated
     if (isAuthenticated && user?.userType === 'Customer') {
@@ -406,13 +473,23 @@ export function CartProvider({ children }: { children: ReactNode }) {
           mode
         );
         if (response && response.data && response.data.items) {
-          // Atomic update from server response
-          const mappedItems = mapApiItemsToState(response.data.items);
-          setItems(mappedItems);
-          setEstimatedFee(response.data.estimatedDeliveryFee);
-          setPlatformFee(response.data.platformFee);
-          setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
-          setMinimumOrderValue(response.data.minimumOrderValue);
+          const responseChannel = (response.data as any).channel;
+          // Only overwrite the currently-displayed single-mode `items` list if
+          // the item actually landed in that channel's cart — if it landed in
+          // the other channel (product added while browsing the other mode),
+          // leave `items` untouched and just refresh the merged cart view.
+          if (!responseChannel || responseChannel === mode) {
+            const mappedItems = mapApiItemsToState(response.data.items);
+            setItems(mappedItems);
+            setEstimatedFee(response.data.estimatedDeliveryFee);
+            setEstimatedDistanceKm(response.data.estimatedDistanceKm ?? null);
+            setInstantDeliveryAvailable(response.data.instantDeliveryAvailable !== false);
+            setPlatformFee(response.data.platformFee);
+            setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
+            setMinimumOrderValue(response.data.minimumOrderValue);
+          } else {
+            refreshMergedCart().catch(() => {});
+          }
         } else {
           console.warn('Response missing data or items:', response);
         }
@@ -420,8 +497,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
         console.error("Add to cart failed", error);
         // Show error toast
         showToast(error.response?.data?.message || "Failed to add to cart", 'error');
-        // Revert on error
-        setItems(previousItems);
+        // Revert on error (only meaningful if we touched `items` optimistically)
+        if (affectsCurrentModeCart) {
+          setItems(previousItems);
+        }
       } finally {
         // Remove from pending operations
         pendingOperationsRef.current.delete(productId);
@@ -459,6 +538,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (response && response.data && response.data.items) {
           setItems(mapApiItemsToState(response.data.items));
           setEstimatedFee(response.data.estimatedDeliveryFee);
+          setEstimatedDistanceKm(response.data.estimatedDistanceKm ?? null);
+          setInstantDeliveryAvailable(response.data.instantDeliveryAvailable !== false);
           setPlatformFee(response.data.platformFee);
           setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
           setMinimumOrderValue(response.data.minimumOrderValue);
@@ -555,6 +636,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (response && response.data && response.data.items) {
           setItems(mapApiItemsToState(response.data.items));
           setEstimatedFee(response.data.estimatedDeliveryFee);
+          setEstimatedDistanceKm(response.data.estimatedDistanceKm ?? null);
+          setInstantDeliveryAvailable(response.data.instantDeliveryAvailable !== false);
           setPlatformFee(response.data.platformFee);
           setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
           setMinimumOrderValue(response.data.minimumOrderValue);
@@ -594,7 +677,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   return (
     <CartContext.Provider
-      value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, refreshCart, lastAddEvent, loading }}
+      value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, refreshCart, lastAddEvent, loading, cartGroups, refreshMergedCart }}
     >
       {children}
     </CartContext.Provider>

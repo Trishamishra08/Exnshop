@@ -78,6 +78,7 @@ export interface AppSettings {
   platformFee?: number;
   freeDeliveryThreshold?: number;
   minimumOrderValue?: number;
+  packagingFee?: number;
   deliveryConfig?: {
     isDistanceBased: boolean;
     googleMapsKey?: string;
@@ -88,6 +89,7 @@ export interface AppSettings {
   };
   gstEnabled: boolean;
   gstRate?: number;
+  settlementApprovalMode?: 'auto' | 'manual';
   privacyPolicy?: string;
   termsOfService?: string;
   returnPolicy?: string;

@@ -425,3 +425,67 @@ export const createManualTransfer = asyncHandler(async (req: Request, res: Respo
     session.endSession();
   }
 });
+
+/**
+ * List seller commissions whose return-window escrow has expired and are due for
+ * settlement release. When AppSettings.settlementApprovalMode is "manual", these
+ * wait here for an admin to explicitly approve release (see approveDueSettlements)
+ * instead of releasing automatically.
+ */
+export const getDueSettlements = asyncHandler(async (_req: Request, res: Response) => {
+  const dueCommissions = await Commission.find({
+    type: "SELLER",
+    status: "OnHold",
+    onHoldUntil: { $lte: new Date() },
+  })
+    .populate("seller", "sellerName storeName mobile")
+    .populate("order", "orderNumber")
+    .sort({ onHoldUntil: 1 })
+    .lean();
+
+  const data = dueCommissions.map((c: any) => ({
+    id: c._id,
+    order: c.order,
+    seller: c.seller,
+    orderAmount: c.orderAmount,
+    commissionAmount: c.commissionAmount,
+    netAmount: Number((c.orderAmount - c.commissionAmount).toFixed(2)),
+    onHoldUntil: c.onHoldUntil,
+  }));
+
+  return res.status(200).json({
+    success: true,
+    data,
+    total: data.length,
+  });
+});
+
+/**
+ * Admin approves release of due (expired-hold) seller settlements. With no
+ * `commissionIds` given, releases everything currently due — used for both the
+ * "manual approval" workflow and as an on-demand trigger regardless of mode.
+ */
+export const approveDueSettlements = asyncHandler(async (req: Request, res: Response) => {
+  const { commissionIds } = req.body as { commissionIds?: string[] };
+
+  if (Array.isArray(commissionIds) && commissionIds.length > 0) {
+    // Approve only the selected commissions: force their hold to expire now,
+    // then run the normal release routine (bypassing the approval-mode gate,
+    // since this endpoint IS the admin's explicit approval).
+    await Commission.updateMany(
+      { _id: { $in: commissionIds }, type: "SELLER", status: "OnHold" },
+      { $set: { onHoldUntil: new Date(0) } }
+    );
+  }
+
+  const { releaseExpiredEscrow } = await import("../../../services/commissionService");
+  const result = await releaseExpiredEscrow(false);
+
+  return res.status(200).json({
+    success: result.success,
+    message: result.success
+      ? `Released ${result.releasedCount} settlement(s) to seller wallets`
+      : "Failed to release settlements",
+    data: { releasedCount: result.releasedCount },
+  });
+});

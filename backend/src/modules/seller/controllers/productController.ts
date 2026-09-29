@@ -6,6 +6,7 @@ import Category from "../../../models/Category";
 import SubCategory from "../../../models/SubCategory";
 import Shop from "../../../models/Shop";
 import { asyncHandler } from "../../../utils/asyncHandler";
+import { resolveSellerAllowedHeaderCategories } from "../../../services/sellerCategoryService";
 
 /**
  * Validate that the seller is allowed to add products in the given header category.
@@ -695,15 +696,7 @@ export const getAllowedHeaderCategories = asyncHandler(
       });
     }
 
-    // If seller has no categories set, return all published header categories (backward compat)
-    let query: any = { status: "Published" };
-    if (seller.categories && seller.categories.length > 0) {
-      query.name = { $in: seller.categories };
-    }
-
-    const headerCategories = await HeaderCategory.find(query)
-      .sort({ order: 1, name: 1 })
-      .lean();
+    const headerCategories = await resolveSellerAllowedHeaderCategories(seller.categories);
 
     return res.status(200).json({
       success: true,

@@ -19,6 +19,7 @@ export interface Coupon {
   usageLimitPerUser?: number;
   applicableTo: "All" | "Category" | "Product" | "Seller";
   applicableIds?: string[];
+  applicableChannel: "Quick" | "ECommerce" | "Both";
   createdBy: string | { firstName: string; lastName: string };
   createdAt?: string;
   updatedAt?: string;
@@ -37,6 +38,7 @@ export interface CreateCouponData {
   usageLimitPerUser?: number;
   applicableTo?: "All" | "Category" | "Product" | "Seller";
   applicableIds?: string[];
+  applicableChannel?: "Quick" | "ECommerce" | "Both";
 }
 
 export interface GetCouponsParams {

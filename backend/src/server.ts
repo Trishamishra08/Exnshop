@@ -158,6 +158,24 @@ async function startServer() {
     await seedHeaderCategories();
     initializeFirebaseAdmin();
     console.log(`   \x1b[36mSocket.IO:\x1b[0m ✓ Ready`);
+
+    // Periodically release seller commissions whose return-window escrow has
+    // expired (OnHold -> Paid). Previously this only ran lazily when a seller
+    // happened to open their wallet page, so a seller could have money release
+    // "stuck" indefinitely if they never checked. Runs hourly; it's a no-op
+    // when the admin has set settlement approval to "manual" (see
+    // AppSettings.settlementApprovalMode / admin settlement approval endpoint).
+    const { releaseExpiredEscrow } = await import("./services/commissionService");
+    const SETTLEMENT_RELEASE_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
+    setInterval(() => {
+      releaseExpiredEscrow().catch((err) =>
+        console.error("[Settlement] Scheduled escrow release failed:", err)
+      );
+    }, SETTLEMENT_RELEASE_INTERVAL_MS);
+    releaseExpiredEscrow().catch((err) =>
+      console.error("[Settlement] Initial escrow release failed:", err)
+    );
+
     console.log(`   [DEBUG] Fully started at: ${new Date().toISOString()}\n`);
   } catch (err) {
     console.error("\n\x1b[31m✗ Startup init failed (API is up but DB/features may be down)\x1b[0m");

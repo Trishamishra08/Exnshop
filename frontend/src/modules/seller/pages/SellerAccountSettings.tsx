@@ -449,11 +449,16 @@ const SellerAccountSettings = () => {
                                                                 <GoogleMapsAutocomplete
                                                                     value={sellerData.searchLocation || sellerData.address || ''}
                                                                     onChange={(address: string, lat: number, lng: number, placeName: string, components?: { city?: string; state?: string }) => {
+                                                                        const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
                                                                         setSellerData(prev => ({
                                                                             ...prev,
                                                                             searchLocation: address,
-                                                                            latitude: lat.toString(),
-                                                                            longitude: lng.toString(),
+                                                                            // Manual typing (no place selected) reports NaN — don't
+                                                                            // clobber existing coordinates with garbage in that case;
+                                                                            // the pin map below is always available as a manual fallback.
+                                                                            ...(hasCoords
+                                                                                ? { latitude: lat.toString(), longitude: lng.toString() }
+                                                                                : {}),
                                                                             address: address,
                                                                             city: components?.city || prev.city,
                                                                         }));

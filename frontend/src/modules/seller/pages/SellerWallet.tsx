@@ -19,7 +19,7 @@ export default function SellerWallet() {
   const [onHoldBalance, setOnHoldBalance] = useState(0);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
-  const [commissions, setCommissions] = useState<any>({ commissions: [], total: 0, paid: 0, pending: 0 });
+  const [commissions, setCommissions] = useState<any>({ commissions: [], total: 0, paid: 0, pending: 0, onHold: 0, nextSettlementDate: null });
   const [loading, setLoading] = useState(true);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -125,6 +125,22 @@ export default function SellerWallet() {
         </div>
       </motion.div>
 
+      {/* Settlement Summary */}
+      <div className="mx-4 mb-4 grid grid-cols-2 gap-3">
+        <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+          <p className="text-xs text-gray-500 mb-1">Total Settled (Paid Out)</p>
+          <p className="text-xl font-bold text-green-600">₹{(commissions.paid || 0).toFixed(2)}</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+          <p className="text-xs text-gray-500 mb-1">Next Settlement</p>
+          <p className="text-xl font-bold text-orange-600">₹{(commissions.onHold || 0).toFixed(2)}</p>
+          {commissions.nextSettlementDate && (
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              Releases {new Date(commissions.nextSettlementDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </p>
+          )}
+        </div>
+      </div>
 
       {/* Tabs */}
       <div className="bg-white mx-4 rounded-xl shadow-sm overflow-hidden">

@@ -12,6 +12,8 @@ export interface Cart {
   itemCount?: number;
   total: number;
   estimatedDeliveryFee?: number;
+  estimatedDistanceKm?: number | null;
+  instantDeliveryAvailable?: boolean;
   platformFee?: number;
   freeDeliveryThreshold?: number;
   minimumOrderValue?: number;

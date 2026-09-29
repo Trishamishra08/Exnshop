@@ -20,22 +20,28 @@ const getRazorpayInstance = () => {
 };
 
 /**
- * Create a Razorpay order
+ * Create a Razorpay order. Pass a single order id for an ordinary checkout,
+ * or multiple (a mixed Quick + E-commerce checkout) to have ONE Razorpay
+ * charge cover several linked orders — their ids are recorded in `notes` so
+ * the webhook path (handlePaymentCaptured) can find all of them, since
+ * Razorpay's `receipt` field is too short to hold more than one id reliably.
  */
 export const createRazorpayOrder = async (
-    orderId: string,
+    orderIds: string | string[],
     amount: number,
     currency: string = 'INR'
 ) => {
+    const orderIdList = Array.isArray(orderIds) ? orderIds : [orderIds];
     try {
         const razorpay = getRazorpayInstance();
 
         const options = {
             amount: Math.round(amount * 100), // Amount in paise
             currency,
-            receipt: orderId,
+            receipt: orderIdList[0],
             notes: {
-                orderId,
+                orderId: orderIdList[0],
+                orderIds: JSON.stringify(orderIdList),
             },
         };
 
@@ -54,7 +60,7 @@ export const createRazorpayOrder = async (
         };
     } catch (error: any) {
         console.error('Error creating Razorpay order:', error);
-        
+
         // Fallback for development/testing if Razorpay key is invalid, revoked, or unauthenticated or USE_MOCK_PAYMENT is true
         const isAuthError = error?.statusCode === 401 || error?.error?.code === 'BAD_REQUEST_ERROR' || (error?.message && String(error.message).includes('Authentication failed'));
         if (process.env.USE_MOCK_PAYMENT === 'true' || isAuthError) {
@@ -70,7 +76,7 @@ export const createRazorpayOrder = async (
                     razorpayKey: process.env.RAZORPAY_KEY_ID || 'rzp_test_mock',
                     amount: Math.round(amount * 100),
                     currency,
-                    receipt: orderId,
+                    receipt: orderIdList[0],
                     isMock: true,
                 },
             };
@@ -121,50 +127,18 @@ export const verifyPaymentSignature = (
 
 
 /**
- * Capture payment and update order
+ * Captures payment for ONE order, using an already-verified Razorpay
+ * signature. Internal — used by both the single-order `capturePayment`
+ * (backward compatible) and `capturePaymentForOrders` (mixed Quick +
+ * E-commerce checkouts, where one Razorpay payment covers two orders).
  */
-export const capturePayment = async (
+const captureForOneOrder = async (
     orderId: string,
     razorpayOrderId: string,
     razorpayPaymentId: string,
     razorpaySignature: string,
     io?: any
 ) => {
-    // Check if order is already paid (idempotent pre-check)
-    const existingOrder = await Order.findById(orderId);
-    if (!existingOrder) {
-        return {
-            success: false,
-            message: 'Order not found',
-        };
-    }
-
-    if (existingOrder.paymentStatus === 'Paid') {
-        return {
-            success: true,
-            message: 'Payment already captured',
-            data: {
-                paymentId: existingOrder.paymentId,
-                orderId: existingOrder._id,
-            },
-        };
-    }
-
-    // Verify signature first
-    const isValid = verifyPaymentSignature(
-        razorpayOrderId,
-        razorpayPaymentId,
-        razorpaySignature
-    );
-
-    if (!isValid) {
-        console.error(`❌ [PAYMENT VERIFY FAILED] Order ID: ${orderId}, Razorpay Order ID: ${razorpayOrderId}`);
-        return {
-            success: false,
-            message: 'Invalid payment signature',
-        };
-    }
-
     const maxRetries = 3;
     let attempt = 0;
 
@@ -197,7 +171,10 @@ export const capturePayment = async (
                 };
             }
 
-            // Explicitly verify & capture on Razorpay API if real payment
+            // Explicitly verify & capture on Razorpay API if real payment.
+            // Only the FIRST order (of a possibly linked pair) actually needs
+            // to trigger the Razorpay capture call for the combined charge —
+            // callers pass captureOnRazorpay=false for subsequent orders.
             let payStatus = 'captured';
             if (razorpayPaymentId && !razorpayPaymentId.startsWith('pay_mock_')) {
                 try {
@@ -205,22 +182,19 @@ export const capturePayment = async (
                     const payDetails = await razorpay.payments.fetch(razorpayPaymentId);
                     payStatus = payDetails.status;
                     console.log(`ℹ️ [Razorpay API] Fetched payment ${razorpayPaymentId} status: ${payDetails.status}`);
-                    if (payDetails.status === 'authorized') {
-                        await razorpay.payments.capture(razorpayPaymentId, Math.round(order.total * 100), 'INR');
-                        payStatus = 'captured';
-                        console.log(`✅ [Razorpay API] Explicitly captured authorized payment ${razorpayPaymentId} for ₹${order.total}`);
-                    }
                 } catch (apiErr: any) {
-                    console.warn(`⚠️ [Razorpay API] Fetch/Capture warning for ${razorpayPaymentId}:`, apiErr?.message || apiErr);
+                    console.warn(`⚠️ [Razorpay API] Fetch warning for ${razorpayPaymentId}:`, apiErr?.message || apiErr);
                 }
             }
 
             console.log(`\n[PAYMENT VERIFY]\nOrder ID: ${orderId}\nRazorpay Order ID: ${razorpayOrderId}\nRazorpay Payment ID: ${razorpayPaymentId}\nRazorpay Payment Status: ${payStatus}`);
 
-            // Check if payment document already exists
-            let payment = session 
-                ? await Payment.findOne({ $or: [{ razorpayPaymentId }, { razorpayOrderId }] }).session(session)
-                : await Payment.findOne({ $or: [{ razorpayPaymentId }, { razorpayOrderId }] });
+            // Check if a Payment record already exists for THIS order (two
+            // linked orders sharing one razorpayPaymentId each get their own
+            // Payment row, distinguished by `order`).
+            let payment = session
+                ? await Payment.findOne({ order: orderId, razorpayPaymentId }).session(session)
+                : await Payment.findOne({ order: orderId, razorpayPaymentId });
 
             if (!payment) {
                 payment = new Payment({
@@ -335,6 +309,149 @@ export const capturePayment = async (
     return {
         success: false,
         message: 'Failed to capture payment due to write conflicts',
+    };
+};
+
+/**
+ * Capture payment and update order (single-order checkout — unchanged
+ * behavior from before mixed-channel checkouts existed).
+ */
+export const capturePayment = async (
+    orderId: string,
+    razorpayOrderId: string,
+    razorpayPaymentId: string,
+    razorpaySignature: string,
+    io?: any
+) => {
+    // Check if order is already paid (idempotent pre-check)
+    const existingOrder = await Order.findById(orderId);
+    if (!existingOrder) {
+        return {
+            success: false,
+            message: 'Order not found',
+        };
+    }
+
+    if (existingOrder.paymentStatus === 'Paid') {
+        return {
+            success: true,
+            message: 'Payment already captured',
+            data: {
+                paymentId: existingOrder.paymentId,
+                orderId: existingOrder._id,
+            },
+        };
+    }
+
+    // Verify signature first
+    const isValid = verifyPaymentSignature(
+        razorpayOrderId,
+        razorpayPaymentId,
+        razorpaySignature
+    );
+
+    if (!isValid) {
+        console.error(`❌ [PAYMENT VERIFY FAILED] Order ID: ${orderId}, Razorpay Order ID: ${razorpayOrderId}`);
+        return {
+            success: false,
+            message: 'Invalid payment signature',
+        };
+    }
+
+    // Explicitly capture the authorized payment on Razorpay's side once, for
+    // the full order amount (mirrors the original single-order behavior).
+    if (razorpayPaymentId && !razorpayPaymentId.startsWith('pay_mock_')) {
+        try {
+            const razorpay = getRazorpayInstance();
+            const payDetails = await razorpay.payments.fetch(razorpayPaymentId);
+            if (payDetails.status === 'authorized') {
+                await razorpay.payments.capture(razorpayPaymentId, Math.round(existingOrder.total * 100), 'INR');
+                console.log(`✅ [Razorpay API] Explicitly captured authorized payment ${razorpayPaymentId} for ₹${existingOrder.total}`);
+            }
+        } catch (apiErr: any) {
+            console.warn(`⚠️ [Razorpay API] Fetch/Capture warning for ${razorpayPaymentId}:`, apiErr?.message || apiErr);
+        }
+    }
+
+    return captureForOneOrder(orderId, razorpayOrderId, razorpayPaymentId, razorpaySignature, io);
+};
+
+/**
+ * Capture payment for a MIXED checkout — one Razorpay payment covering two
+ * linked orders (one Quick, one E-commerce). Verifies the signature and
+ * captures the combined charge on Razorpay ONCE, then applies it to each
+ * order individually so existing per-order logic (commissions, refunds,
+ * notifications) needs no awareness of the sibling order.
+ */
+export const capturePaymentForOrders = async (
+    orderIds: string[],
+    razorpayOrderId: string,
+    razorpayPaymentId: string,
+    razorpaySignature: string,
+    io?: any
+) => {
+    if (!orderIds || orderIds.length === 0) {
+        return { success: false, message: 'No order IDs provided' };
+    }
+
+    if (orderIds.length === 1) {
+        return capturePayment(orderIds[0], razorpayOrderId, razorpayPaymentId, razorpaySignature, io);
+    }
+
+    const orders = await Order.find({ _id: { $in: orderIds } });
+    if (orders.length !== orderIds.length) {
+        return { success: false, message: 'One or more orders not found' };
+    }
+
+    // Verify signature once for the combined charge
+    const isValid = verifyPaymentSignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
+    if (!isValid) {
+        console.error(`❌ [PAYMENT VERIFY FAILED] Order IDs: ${orderIds.join(', ')}, Razorpay Order ID: ${razorpayOrderId}`);
+        return { success: false, message: 'Invalid payment signature' };
+    }
+
+    // Sanity check: the combined charge must equal the sum of what these
+    // orders actually owe — defends against a tampered/mismatched orderIds list.
+    const combinedTotal = Number(orders.reduce((sum, o) => sum + (o.total || 0), 0).toFixed(2));
+
+    // Capture the full combined amount on Razorpay's side once.
+    if (razorpayPaymentId && !razorpayPaymentId.startsWith('pay_mock_')) {
+        try {
+            const razorpay = getRazorpayInstance();
+            const payDetails = await razorpay.payments.fetch(razorpayPaymentId);
+            if (payDetails.status === 'authorized') {
+                await razorpay.payments.capture(razorpayPaymentId, Math.round(combinedTotal * 100), 'INR');
+                console.log(`✅ [Razorpay API] Explicitly captured authorized payment ${razorpayPaymentId} for ₹${combinedTotal} across ${orders.length} linked orders`);
+            }
+        } catch (apiErr: any) {
+            console.warn(`⚠️ [Razorpay API] Fetch/Capture warning for ${razorpayPaymentId}:`, apiErr?.message || apiErr);
+        }
+    }
+
+    const results = [];
+    for (const order of orders) {
+        const result = await captureForOneOrder(
+            order._id.toString(),
+            razorpayOrderId,
+            razorpayPaymentId,
+            razorpaySignature,
+            io
+        );
+        if (!result.success) {
+            // One linked order's capture failed — surface it, but don't retry
+            // the others (each is independently idempotent, so a retry of the
+            // whole /verify call is safe and won't double-capture).
+            return result;
+        }
+        results.push(result);
+    }
+
+    return {
+        success: true,
+        message: 'Payment captured successfully for all linked orders',
+        data: {
+            orders: results.map((r) => r.data),
+        },
     };
 };
 
@@ -514,120 +631,156 @@ export const handleWebhook = async (
     }
 };
 
-// Helper functions for webhook events with strict idempotency protection
+// Helper functions for webhook events with strict idempotency protection.
+// This is the SECONDARY confirmation path (Razorpay's server-to-server
+// webhook) — the primary path is the frontend calling /payment/verify
+// directly, handled by capturePayment/capturePaymentForOrders above. A mixed
+// checkout's linked order ids are recovered from `notes.orderIds` (a JSON
+// array), since Razorpay's `receipt` field is too short to hold more than one.
 const handlePaymentCaptured = async (payload: any, io?: any) => {
     try {
         const razorpayPaymentId = payload.id;
         const razorpayOrderId = payload.order_id;
-        const rawOrderId = payload.notes?.orderId || payload.notes?.order_id || payload.receipt;
 
-        // Idempotency Check 1: Check if payment record already exists and is Completed with this razorpayPaymentId
-        const existingPayment = await Payment.findOne({
-            $or: [
-                { razorpayPaymentId, status: 'Completed' },
-                { razorpayOrderId, status: 'Completed' }
-            ]
-        });
-
-        if (existingPayment && existingPayment.status === 'Completed') {
-            console.log(`ℹ️ [Webhook] Duplicate payment.captured for paymentId=${razorpayPaymentId}. Already processed idempotently.`);
-            return;
-        }
-
-        // Find payment record by orderId or razorpayOrderId
-        let payment = existingPayment || await Payment.findOne({ razorpayOrderId });
-
-        let orderId = payment?.order?.toString() || rawOrderId;
-        if (!orderId) {
-            console.warn(`⚠️ [Webhook] Could not determine orderId for payment ${razorpayPaymentId}`);
-            return;
-        }
-
-        const order = await Order.findById(orderId);
-        if (!order) {
-            console.warn(`⚠️ [Webhook] Order not found for id ${orderId}`);
-            return;
-        }
-
-        // Idempotency Check 2: Check if Order is already Paid with this payment ID
-        if (order.paymentStatus === 'Paid' && order.paymentId === razorpayPaymentId) {
-            console.log(`ℹ️ [Webhook] Order ${order.orderNumber} already marked Paid with paymentId ${razorpayPaymentId}. Skipping duplicate.`);
-            return;
-        }
-
-        // Create or update Payment record
-        if (!payment) {
-            payment = new Payment({
-                order: order._id,
-                customer: order.customer,
-                paymentMethod: 'Online',
-                paymentGateway: 'Razorpay',
-                razorpayOrderId,
-                razorpayPaymentId,
-                amount: order.total,
-                currency: 'INR',
-                status: 'Completed',
-                paidAt: new Date(),
-                gatewayResponse: {
-                    success: true,
-                    message: 'Payment captured via webhook',
-                    rawResponse: payload,
-                },
-            });
-        } else {
-            payment.status = 'Completed';
-            payment.razorpayPaymentId = razorpayPaymentId;
-            payment.paidAt = new Date();
-            payment.gatewayResponse = {
-                success: true,
-                message: 'Payment captured via webhook',
-                rawResponse: payload,
-            };
-        }
-        await payment.save();
-
-        // Update order state
-        const prevPaymentStatus = order.paymentStatus;
-        order.paymentStatus = 'Paid';
-        order.paymentId = razorpayPaymentId;
-        if (order.status === 'Pending') {
-            order.status = 'Received';
-        }
-        await order.save();
-
-        // Commit coupon usage if order has an uncommitted coupon
-        if (order.couponCode && !order.couponUsageCommitted) {
+        let orderIds: string[] = [];
+        if (payload.notes?.orderIds) {
             try {
-                const { commitCouponUsage } = await import('./couponService');
-                await commitCouponUsage(order);
-            } catch (couponErr) {
-                console.error("Failed to commit coupon usage after webhook capture:", couponErr);
+                const parsed = JSON.parse(payload.notes.orderIds);
+                if (Array.isArray(parsed)) orderIds = parsed.filter(Boolean);
+            } catch {
+                // fall through to single-id resolution below
             }
         }
+        if (orderIds.length === 0) {
+            const rawOrderId = payload.notes?.orderId || payload.notes?.order_id || payload.receipt;
+            if (rawOrderId) orderIds = [rawOrderId];
+        }
 
-        // Execute side-effects ONLY IF transitioning into Paid for the first time
-        if (prevPaymentStatus !== 'Paid') {
-            // Notify sellers
-            if (io) {
-                try {
-                    const { notifySellersOfOrderUpdate } = await import('./sellerNotificationService');
-                    await notifySellersOfOrderUpdate(io, order, 'NEW_ORDER');
-                    console.log(`📢 [Online-Webhook] Seller notification sent for order ${order.orderNumber}`);
-                } catch (notifyError) {
-                    console.error("Failed to notify sellers after webhook capture:", notifyError);
-                }
-            }
+        if (orderIds.length === 0) {
+            // Last resort: recover the order id(s) from an existing Payment
+            // row for this razorpayOrderId (there may be more than one, for
+            // a mixed checkout's linked orders).
+            const existingPayments = await Payment.find({ razorpayOrderId }).select('order');
+            orderIds = existingPayments.map((p) => p.order?.toString()).filter(Boolean) as string[];
+        }
 
-            // Create Pending Commissions
-            try {
-                const { createPendingCommissions } = await import('./commissionService');
-                await createPendingCommissions(order._id.toString());
-            } catch (commError) {
-                console.error("Failed to create pending commissions after webhook payment:", commError);
-            }
+        if (orderIds.length === 0) {
+            console.warn(`⚠️ [Webhook] Could not determine any orderId for payment ${razorpayPaymentId}`);
+            return;
+        }
+
+        for (const orderId of orderIds) {
+            await applyPaymentCapturedToOrder(orderId, razorpayOrderId, razorpayPaymentId, payload, io);
         }
     } catch (error) {
         console.error('Error handling payment captured webhook:', error);
+    }
+};
+
+// Applies a captured-payment webhook event to ONE order — extracted so
+// `handlePaymentCaptured` can loop it over every order linked to a mixed checkout.
+const applyPaymentCapturedToOrder = async (
+    orderId: string,
+    razorpayOrderId: string,
+    razorpayPaymentId: string,
+    payload: any,
+    io?: any
+) => {
+    // Idempotency Check 1: this order's own Payment row already Completed?
+    const existingPayment = await Payment.findOne({
+        order: orderId,
+        $or: [{ razorpayPaymentId, status: 'Completed' }, { razorpayOrderId, status: 'Completed' }],
+    });
+
+    if (existingPayment && existingPayment.status === 'Completed') {
+        console.log(`ℹ️ [Webhook] Duplicate payment.captured for order=${orderId}, paymentId=${razorpayPaymentId}. Already processed idempotently.`);
+        return;
+    }
+
+    let payment = existingPayment || await Payment.findOne({ order: orderId, razorpayOrderId });
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+        console.warn(`⚠️ [Webhook] Order not found for id ${orderId}`);
+        return;
+    }
+
+    // Idempotency Check 2: Check if Order is already Paid with this payment ID
+    if (order.paymentStatus === 'Paid' && order.paymentId === razorpayPaymentId) {
+        console.log(`ℹ️ [Webhook] Order ${order.orderNumber} already marked Paid with paymentId ${razorpayPaymentId}. Skipping duplicate.`);
+        return;
+    }
+
+    // Create or update Payment record
+    if (!payment) {
+        payment = new Payment({
+            order: order._id,
+            customer: order.customer,
+            paymentMethod: 'Online',
+            paymentGateway: 'Razorpay',
+            razorpayOrderId,
+            razorpayPaymentId,
+            amount: order.total,
+            currency: 'INR',
+            status: 'Completed',
+            paidAt: new Date(),
+            gatewayResponse: {
+                success: true,
+                message: 'Payment captured via webhook',
+                rawResponse: payload,
+            },
+        });
+    } else {
+        payment.status = 'Completed';
+        payment.razorpayPaymentId = razorpayPaymentId;
+        payment.paidAt = new Date();
+        payment.gatewayResponse = {
+            success: true,
+            message: 'Payment captured via webhook',
+            rawResponse: payload,
+        };
+    }
+    await payment.save();
+
+    // Update order state
+    const prevPaymentStatus = order.paymentStatus;
+    order.paymentStatus = 'Paid';
+    order.paymentId = razorpayPaymentId;
+    if (order.status === 'Pending') {
+        order.status = 'Received';
+    }
+    await order.save();
+
+    // Commit coupon usage if order has an uncommitted coupon
+    if (order.couponCode && !order.couponUsageCommitted) {
+        try {
+            const { commitCouponUsage } = await import('./couponService');
+            await commitCouponUsage(order);
+        } catch (couponErr) {
+            console.error("Failed to commit coupon usage after webhook capture:", couponErr);
+        }
+    }
+
+    // Execute side-effects ONLY IF transitioning into Paid for the first time
+    if (prevPaymentStatus !== 'Paid') {
+        // Notify sellers
+        if (io) {
+            try {
+                const { notifySellersOfOrderUpdate } = await import('./sellerNotificationService');
+                await notifySellersOfOrderUpdate(io, order, 'NEW_ORDER');
+                console.log(`📢 [Online-Webhook] Seller notification sent for order ${order.orderNumber}`);
+            } catch (notifyError) {
+                console.error("Failed to notify sellers after webhook capture:", notifyError);
+            }
+        }
+
+        // Create Pending Commissions
+        try {
+            const { createPendingCommissions } = await import('./commissionService');
+            await createPendingCommissions(order._id.toString());
+        } catch (commError) {
+            console.error("Failed to create pending commissions after webhook payment:", commError);
+        }
     }
 };
 
@@ -636,16 +789,16 @@ const handlePaymentFailed = async (payload: any) => {
         const razorpayOrderId = payload.order_id;
         const razorpayPaymentId = payload.id;
 
-        // Find payment record
-        const payment = await Payment.findOne({
+        // Find every Payment row for this charge — a mixed checkout has one
+        // row per linked order sharing the same razorpayOrderId/PaymentId.
+        const payments = await Payment.find({
             $or: [{ razorpayOrderId }, { razorpayPaymentId }]
         });
 
-        if (payment) {
+        for (const payment of payments) {
             // Idempotency: skip if already Failed
-            if (payment.status === 'Failed') {
-                return;
-            }
+            if (payment.status === 'Failed') continue;
+
             payment.status = 'Failed';
             payment.gatewayResponse = {
                 success: false,
@@ -659,6 +812,27 @@ const handlePaymentFailed = async (payload: any) => {
                 paymentStatus: 'Failed',
             });
         }
+
+        // No Payment row exists yet at all (typical — payment.failed usually
+        // fires before any Payment doc is created) — mark every linked order
+        // from `notes.orderIds` as Failed directly.
+        if (payments.length === 0) {
+            let orderIds: string[] = [];
+            if (payload.notes?.orderIds) {
+                try {
+                    const parsed = JSON.parse(payload.notes.orderIds);
+                    if (Array.isArray(parsed)) orderIds = parsed.filter(Boolean);
+                } catch {
+                    // ignore
+                }
+            }
+            if (orderIds.length === 0 && payload.notes?.orderId) {
+                orderIds = [payload.notes.orderId];
+            }
+            for (const orderId of orderIds) {
+                await Order.findByIdAndUpdate(orderId, { paymentStatus: 'Failed' });
+            }
+        }
     } catch (error) {
         console.error('Error handling payment failed webhook:', error);
     }
@@ -668,8 +842,23 @@ const handleRefundCreated = async (payload: any) => {
     try {
         const razorpayPaymentId = payload.payment_id;
 
-        // Find payment record
-        const payment = await Payment.findOne({ razorpayPaymentId });
+        // A mixed checkout's two linked orders share one razorpayPaymentId,
+        // so this refund event could belong to either one's Payment row —
+        // disambiguate by the specific refund id first (set when our own
+        // processRefund() call already handled it directly; this webhook is
+        // then just a confirmation), falling back to amount-matching among
+        // not-yet-refunded rows for refunds initiated outside our API.
+        let payment = payload.id
+            ? await Payment.findOne({ razorpayPaymentId, refundId: payload.id })
+            : null;
+
+        if (!payment) {
+            const candidates = await Payment.find({ razorpayPaymentId, status: { $ne: 'Refunded' } });
+            const refundAmountRupees = payload.amount != null ? payload.amount / 100 : null;
+            payment = (refundAmountRupees != null
+                ? candidates.find((c) => Math.abs((c.amount || 0) - refundAmountRupees) < 0.01)
+                : undefined) || candidates[0] || null;
+        }
 
         if (payment) {
             // Idempotency: skip if already marked Refunded

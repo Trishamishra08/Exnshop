@@ -68,6 +68,16 @@ export interface WalletSummaryUser {
   profileImage?: string;
 }
 
+export interface DueSettlement {
+  id: string;
+  order: { _id: string; orderNumber: string };
+  seller: { _id: string; sellerName: string; storeName: string; mobile: string };
+  orderAmount: number;
+  commissionAmount: number;
+  netAmount: number;
+  onHoldUntil: string;
+}
+
 // API METHODS
 
 /**
@@ -89,6 +99,29 @@ export const createManualTransfer = async (data: {
   description: string;
 }): Promise<ApiResponse<any>> => {
   const response = await api.post<ApiResponse<any>>("/admin/wallet/transfer", data);
+  return response.data;
+};
+
+/**
+ * Get seller commissions whose return-window escrow has expired and are due
+ * for settlement release (relevant when AppSettings.settlementApprovalMode is "manual").
+ */
+export const getDueSettlements = async (): Promise<ApiResponse<DueSettlement[]>> => {
+  const response = await api.get<ApiResponse<DueSettlement[]>>("/admin/settlements/due");
+  return response.data;
+};
+
+/**
+ * Approve release of due settlements. Pass commissionIds to approve a specific
+ * subset, or omit to release everything currently due.
+ */
+export const approveDueSettlements = async (
+  commissionIds?: string[]
+): Promise<ApiResponse<{ releasedCount: number }>> => {
+  const response = await api.post<ApiResponse<{ releasedCount: number }>>(
+    "/admin/settlements/approve",
+    commissionIds ? { commissionIds } : {}
+  );
   return response.data;
 };
 
