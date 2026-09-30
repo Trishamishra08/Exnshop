@@ -23,6 +23,9 @@ export default function AdminBillingSettings() {
     // Seller Settlement Approval Mode
     const [settlementApprovalMode, setSettlementApprovalMode] = useState<'auto' | 'manual'>('auto');
 
+    // Seller Category Visibility
+    const [sellerCategoryVisibility, setSellerCategoryVisibility] = useState<'all' | 'assigned'>('assigned');
+
     // Distance Based Config
     const [isDistanceBased, setIsDistanceBased] = useState(false);
     const [baseCharge, setBaseCharge] = useState<number>(0);
@@ -55,6 +58,7 @@ export default function AdminBillingSettings() {
                 setGstEnabled(data.gstEnabled || false);
                 setGstRate(data.gstRate || 0);
                 setSettlementApprovalMode(data.settlementApprovalMode === 'manual' ? 'manual' : 'auto');
+                setSellerCategoryVisibility(data.sellerCategoryVisibility === 'all' ? 'all' : 'assigned');
 
                 if (data.deliveryConfig) {
                     setIsDistanceBased(data.deliveryConfig.isDistanceBased || false);
@@ -93,6 +97,7 @@ export default function AdminBillingSettings() {
                 gstEnabled,
                 gstRate,
                 settlementApprovalMode,
+                sellerCategoryVisibility,
                 deliveryConfig: {
                     isDistanceBased,
                     baseCharge,
@@ -452,6 +457,36 @@ export default function AdminBillingSettings() {
                         {settlementApprovalMode === 'auto'
                             ? 'Held seller earnings release to their wallet automatically once the return window expires.'
                             : 'Held seller earnings wait for your approval even after the return window expires — review and release them from Wallet & Finance → Seller Settlements.'}
+                    </p>
+                </div>
+
+                {/* Seller Category Visibility Section */}
+                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-2">Seller Category Visibility</h2>
+                    <p className="text-sm text-gray-500 mb-6">
+                        Controls what a seller sees in their "Select Header Category" dropdown when adding a product.
+                    </p>
+
+                    <div className="flex items-center gap-2 bg-neutral-100 p-1 rounded-lg w-fit">
+                        <button
+                            onClick={() => setSellerCategoryVisibility('all')}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${sellerCategoryVisibility === 'all' ? 'bg-white text-green-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                        >
+                            Show all categories
+                        </button>
+                        <button
+                            onClick={() => setSellerCategoryVisibility('assigned')}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${sellerCategoryVisibility === 'assigned' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                        >
+                            Only assigned categories
+                        </button>
+                    </div>
+                    <p className="mt-2 text-xs text-gray-500">
+                        {sellerCategoryVisibility === 'all'
+                            ? 'Every seller sees every currently Published category, regardless of what they picked at signup — no per-seller assignment needed.'
+                            : 'Each seller only sees the categories they picked at signup, or that you\'ve granted them from Manage Seller List → Manage Categories.'}
                     </p>
                 </div>
 

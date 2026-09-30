@@ -90,6 +90,7 @@ export interface AppSettings {
   gstEnabled: boolean;
   gstRate?: number;
   settlementApprovalMode?: 'auto' | 'manual';
+  sellerCategoryVisibility?: 'all' | 'assigned';
   privacyPolicy?: string;
   termsOfService?: string;
   returnPolicy?: string;

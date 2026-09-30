@@ -80,6 +80,13 @@ export interface IAppSettings extends Document {
    *  after the window expires. */
   settlementApprovalMode: "auto" | "manual";
 
+  // Seller Category Visibility
+  /** "assigned" = a seller's "Select Header Category" picker only shows the categories
+   *  granted to them (picked at signup, or set later via Admin > Manage Seller List).
+   *  "all" = every seller sees every currently Published header category, regardless
+   *  of what's on their Seller.categories record — no per-seller assignment needed. */
+  sellerCategoryVisibility: "all" | "assigned";
+
   // Policies
   privacyPolicy?: string;
   termsOfService?: string;
@@ -345,6 +352,13 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       type: String,
       enum: ["auto", "manual"],
       default: "auto",
+    },
+
+    // Seller Category Visibility
+    sellerCategoryVisibility: {
+      type: String,
+      enum: ["all", "assigned"],
+      default: "assigned",
     },
 
     // Policies

@@ -1,4 +1,5 @@
 import HeaderCategory from "../models/HeaderCategory";
+import AppSettings from "../models/AppSettings";
 
 /**
  * Resolve the list of HeaderCategory documents a seller is allowed to sell in.
@@ -11,11 +12,20 @@ import HeaderCategory from "../models/HeaderCategory";
  * none of them resolve to a currently Published HeaderCategory (e.g. the
  * category was renamed or unpublished) — falls back to all Published
  * categories rather than leaving the seller with nothing to pick from.
+ *
+ * Admin can also flip `AppSettings.sellerCategoryVisibility` to "all", which
+ * bypasses the per-seller restriction entirely and shows every seller every
+ * currently Published category — no per-seller assignment needed at all.
  */
 export const resolveSellerAllowedHeaderCategories = async (
   sellerCategoryNames: string[] | undefined | null
 ) => {
   const allPublished = () => HeaderCategory.find({ status: "Published" }).sort({ order: 1, name: 1 }).lean();
+
+  const settings = await AppSettings.findOne().select("sellerCategoryVisibility").lean();
+  if (settings?.sellerCategoryVisibility === "all") {
+    return allPublished();
+  }
 
   if (!sellerCategoryNames || sellerCategoryNames.length === 0) {
     return allPublished();
