@@ -85,6 +85,8 @@ export default function SellerDashboard() {
     }
   };
 
+  const formatCurrency = (value: number) => `₹${(value || 0).toLocaleString('en-IN')}`;
+
   const totalPages = Math.ceil(newOrders.length / entriesPerPage);
   const startIndex = (currentPage - 1) * entriesPerPage;
   const endIndex = startIndex + entriesPerPage;
@@ -197,6 +199,47 @@ export default function SellerDashboard() {
     </svg>
   );
 
+  const processingOrdersIcon = (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 3V6M12 18V21M4.2 4.2L6.3 6.3M17.7 17.7L19.8 19.8M3 12H6M18 12H21M4.2 19.8L6.3 17.7M17.7 6.3L19.8 4.2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+
+  const shippedOrdersIcon = (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M3 7L12 3L21 7M3 7L12 11M3 7V17L12 21M21 7L12 11M21 7V17L12 21M12 11V21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+
+  const returnOrdersIcon = (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M9 14L4 9L9 4M4 9H14C17.3137 9 20 11.6863 20 15C20 18.3137 17.3137 21 14 21H7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+
+  const salesIcon = (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M3 3V19C3 20.1046 3.89543 21 5 21H21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M7 15L11 11L14 14L20 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+
+  const settlementIcon = (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="2" y="6" width="20" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
+      <path d="M2 10H22" stroke="currentColor" strokeWidth="2" />
+      <path d="M6 15H10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+
+  const balanceIcon = (
+    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M17 9V7a4 4 0 0 0-8 0v2M5 9h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="14" r="1.5" fill="currentColor" />
+    </svg>
+  );
+
   // Alert icons
   const soldOutIcon = (
     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -269,75 +312,82 @@ export default function SellerDashboard() {
           </button>
         </div>
       </div>
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+      {/* Revenue & Settlement Summary */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
         <DashboardCard
-          icon={userIcon}
-          title={t("seller.totalCustomers", "Total Customers")}
-          value={stats.totalUser}
-          accentColor="#3b82f6"
-          to="/seller/orders"
-        />
-        <DashboardCard
-          icon={categoryIcon}
-          title={t("seller.sellingCategories", "Selling Categories")}
-          value={stats.sellingCategories ?? stats.totalCategory}
-          accentColor="#eab308"
-          to="/seller/category"
-        />
-        <DashboardCard
-          icon={subcategoryIcon}
-          title={t("seller.totalSubcategory", "Total Subcategory")}
-          value={stats.totalSubcategory}
-          accentColor="#ec4899"
-          to="/seller/subcategory"
-        />
-        <DashboardCard
-          icon={productIcon}
-          title={t("seller.totalProduct", "Total Product")}
-          value={stats.totalProduct}
-          accentColor="#f97316"
-          to="/seller/product/list"
-        />
-        <DashboardCard
-          icon={ordersIcon}
-          title={t("seller.totalOrders", "Total Orders")}
-          value={stats.totalOrders}
-          accentColor="#3b82f6"
-          to="/seller/orders"
-        />
-        <DashboardCard
-          icon={completedOrdersIcon}
-          title={t("seller.completedOrders", "Completed Orders")}
-          value={stats.completedOrders}
+          icon={salesIcon}
+          title={t("seller.totalSales", "Total Sales")}
+          value={formatCurrency(stats.totalSales)}
+          subtitle={`${formatCurrency(stats.monthSales)} this month`}
           accentColor="#16a34a"
           to="/seller/orders?status=Delivered"
         />
         <DashboardCard
-          icon={pendingOrdersIcon}
-          title={t("seller.pendingOrders", "Pending Orders")}
-          value={stats.pendingOrders}
-          accentColor="#a855f7"
-          to="/seller/orders?status=Pending"
+          icon={settlementIcon}
+          title={t("seller.pendingSettlement", "Pending Settlement")}
+          value={formatCurrency(stats.pendingSettlement)}
+          subtitle={stats.nextSettlementDate ? `Next: ${new Date(stats.nextSettlementDate).toLocaleDateString('en-GB')}` : 'No settlement due'}
+          accentColor="#eab308"
+          to="/seller/wallet"
         />
         <DashboardCard
-          icon={cancelledOrdersIcon}
-          title={t("seller.cancelledOrders", "Cancelled Orders")}
-          value={stats.cancelledOrders}
-          accentColor="#ef4444"
-          to="/seller/orders?status=Cancelled"
+          icon={balanceIcon}
+          title={t("seller.availableBalance", "Available Balance")}
+          value={formatCurrency(stats.availableBalance)}
+          subtitle={`${formatCurrency(stats.totalSettlementPaid)} settled to date`}
+          accentColor="#3b82f6"
+          to="/seller/wallet"
         />
+        <DashboardCard
+          icon={salesIcon}
+          title={t("seller.todaySales", "Today's Sales")}
+          value={formatCurrency(stats.todaySales)}
+          subtitle={`${formatCurrency(stats.weekSales)} this week`}
+          accentColor="#0d9488"
+          to="/seller/orders?status=Delivered"
+        />
+      </div>
+
+      {/* Order Status Grid */}
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2 sm:gap-3">
+        <DashboardCard compact icon={ordersIcon} title={t("seller.totalOrders", "Total Orders")} value={stats.totalOrders} accentColor="#3b82f6" to="/seller/orders" />
+        <DashboardCard compact icon={pendingOrdersIcon} title={t("seller.pendingOrders", "Pending")} value={stats.pendingOrders} accentColor="#a855f7" to="/seller/orders?status=Received" />
+        <DashboardCard compact icon={processingOrdersIcon} title={t("seller.processingOrders", "Processing")} value={stats.processingOrders} accentColor="#f97316" to="/seller/orders?status=Processed" />
+        <DashboardCard compact icon={shippedOrdersIcon} title={t("seller.shippedOrders", "Shipped")} value={stats.shippedOrders} accentColor="#6366f1" to="/seller/orders?status=Shipped" />
+        <DashboardCard compact icon={completedOrdersIcon} title={t("seller.completedOrders", "Delivered")} value={stats.completedOrders} accentColor="#16a34a" to="/seller/orders?status=Delivered" />
+        <DashboardCard compact icon={cancelledOrdersIcon} title={t("seller.cancelledOrders", "Cancelled")} value={stats.cancelledOrders} accentColor="#ef4444" to="/seller/orders?status=Cancelled" />
+        <DashboardCard compact icon={returnOrdersIcon} title={t("seller.returnOrders", "Return/RTO")} value={stats.returnOrders} accentColor="#dc2626" to="/seller/orders?status=Returned" />
+      </div>
+
+      {/* Catalog Snapshot */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        <DashboardCard compact icon={userIcon} title={t("seller.totalCustomers", "Customers")} value={stats.totalUser} accentColor="#3b82f6" to="/seller/orders" />
+        <DashboardCard compact icon={categoryIcon} title={t("seller.sellingCategories", "Categories")} value={stats.sellingCategories ?? stats.totalCategory} accentColor="#eab308" to="/seller/category" />
+        <DashboardCard compact icon={subcategoryIcon} title={t("seller.totalSubcategory", "Subcategories")} value={stats.totalSubcategory} accentColor="#ec4899" to="/seller/subcategory" />
+        <DashboardCard compact icon={productIcon} title={t("seller.totalProduct", "Products")} value={stats.totalProduct} accentColor="#f97316" to="/seller/product/list" />
       </div>
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <OrderChart title={`Order - ${new Date().toLocaleString('default', { month: 'short' })} ${new Date().getFullYear()}`} data={stats.dailyOrderData} maxValue={Math.max(...stats.dailyOrderData.map(d => d.value), 5)} height={400} />
-        <OrderChart title={`Order - ${new Date().getFullYear()}`} data={stats.yearlyOrderData} maxValue={Math.max(...stats.yearlyOrderData.map(d => d.value), 20)} height={400} />
+        <OrderChart
+          title={t("seller.salesGraph", "Sales")}
+          dailyData={stats.dailySalesData}
+          yearlyData={stats.yearlySalesData}
+          valuePrefix="₹"
+          color="#0d9488"
+          height={260}
+        />
+        <OrderChart
+          title={t("seller.orderGraph", "Orders")}
+          dailyData={stats.dailyOrderData}
+          yearlyData={stats.yearlyOrderData}
+          color="#3b82f6"
+          height={260}
+        />
       </div>
 
-      {/* Alerts and Button Row */}
+      {/* Alerts Row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Alert Cards - Side by Side */}
         <AlertCard
           icon={soldOutIcon}
           title={t("seller.productSoldOut", "Product Sold Out")}
