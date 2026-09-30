@@ -28,6 +28,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const { isLocationEnabled, isLocationLoading, location: userLocation } = useLocationContext();
   const [showLocationRequest, setShowLocationRequest] = useState(false);
   const [showLocationChangeModal, setShowLocationChangeModal] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const { currentTheme } = useThemeContext();
   const { settings: appSettings } = useAppSettings();
 
@@ -160,6 +161,19 @@ export default function AppLayout({ children }: AppLayoutProps) {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     });
   }, [location.pathname]);
+
+  // Close the sidebar whenever the route changes (link click, back/forward, etc.)
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [location.pathname]);
+
+  // Home's own header (HomeHero) can't call setIsSidebarOpen directly since it's a
+  // separate component, so it dispatches this event instead when its hamburger is tapped.
+  useEffect(() => {
+    const handleOpenSidebar = () => setIsSidebarOpen(true);
+    window.addEventListener('openSidebarMenu', handleOpenSidebar);
+    return () => window.removeEventListener('openSidebarMenu', handleOpenSidebar);
+  }, []);
 
   // Track categories active state for rotation
   const isCategoriesActive = isActive('/categories') || location.pathname.startsWith('/category/');
@@ -433,12 +447,26 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {/* Sticky Header - Show on search page and other non-hero pages */}
           {showHeader && (
             <header
-              className="sticky top-0 z-50 shadow-sm md:shadow-md md:top-[60px] transition-colors duration-300"
+              className="relative sticky top-0 z-50 shadow-sm md:shadow-md md:top-[60px] transition-colors duration-300"
               style={{
                 background: `linear-gradient(to right, ${currentTheme.primary[0]}, ${currentTheme.primary[1]})`,
                 borderBottom: `1px solid ${currentTheme.primary[0]}`
               }}
             >
+              {/* Hamburger - inline within the header, aligned with the delivery info line, mobile only */}
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen(true)}
+                aria-label="Open menu"
+                className="absolute left-4 top-1.5 md:hidden w-7 h-7 flex items-center justify-center z-10"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={currentTheme.headerTextColor || '#ffffff'} strokeWidth="2.3" strokeLinecap="round">
+                  <line x1="4" y1="7" x2="20" y2="7" />
+                  <line x1="4" y1="12" x2="20" y2="12" />
+                  <line x1="4" y1="17" x2="20" y2="17" />
+                </svg>
+              </button>
+
               {/* Delivery info line */}
               <div
                 className="px-4 md:px-6 lg:px-8 py-1 text-xs text-center font-semibold transition-colors"
@@ -505,9 +533,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {/* Scrollable Main Content */}
           <main
             ref={mainRef}
-            className={`flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide ${
-              showFooter ? 'pb-24 md:pb-0' : 'pb-4'
-            }`}
+            className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide pb-4"
           >
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
@@ -550,133 +576,151 @@ export default function AppLayout({ children }: AppLayoutProps) {
             />
           )}
 
-          {/* Fixed Bottom Navigation - Mobile Only, Hidden on checkout pages */}
-          {showFooter && (
-            <nav
-              className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200/50 shadow-[0_-2px_10px_rgba(0,0,0,0.04)] z-50 md:hidden"
-            >
-              <div className="flex justify-around items-center h-16 px-1">
-                {/* 1. Home */}
-                <Link
-                  to="/"
-                  className="flex-1 flex flex-col items-center justify-center h-full relative cursor-pointer"
+          {/* Slide-in Sidebar Navigation - Mobile Only.
+              The hamburger button that opens it lives inline in each page's own header now
+              (HomeHero's toggle row for Home, the sticky header above for every other page)
+              instead of floating fixed on top of the page — that floating approach kept
+              misaligning with the surrounding header content. Home's button can't call
+              setIsSidebarOpen directly (separate component), so it dispatches
+              'openSidebarMenu' and we listen for it here. */}
+          <AnimatePresence>
+            {isSidebarOpen && (
+              <>
+                <motion.div
+                  key="sidebar-backdrop"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="fixed inset-0 bg-black/40 z-[70] md:hidden"
+                />
+                <motion.div
+                  key="sidebar-panel"
+                  initial={{ x: '-100%' }}
+                  animate={{ x: 0 }}
+                  exit={{ x: '-100%' }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+                  className="fixed top-0 left-0 h-full w-72 max-w-[80%] bg-white z-[80] shadow-2xl flex flex-col md:hidden"
                 >
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill={isActive('/') ? '#1877f2' : 'none'}
-                    stroke={isActive('/') ? '#1877f2' : '#6b7280'}
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+                  {/* Sidebar Header */}
+                  <div
+                    className="flex items-center justify-between px-4 py-4"
+                    style={{
+                      background: `linear-gradient(to right, ${currentTheme.primary[0]}, ${currentTheme.primary[1]})`,
+                    }}
                   >
-                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                    <polyline points="9 22 9 12 15 12 15 22" fill={isActive('/') ? 'white' : 'none'} />
-                  </svg>
-                  <span className={`text-[11px] mt-1 ${isActive('/') ? 'font-bold text-[#1877f2]' : 'font-medium text-neutral-500'}`}>
-                    {t("common.home", "Home")}
-                  </span>
-                </Link>
+                    <div className="flex items-center gap-2.5">
+                      <img
+                        src="/exnshop_logo.png"
+                        alt={appSettings?.appName || 'Exnshop'}
+                        className="w-9 h-9 object-contain rounded-lg bg-white p-1 shadow-sm"
+                      />
+                      <span
+                        className="font-bold text-base tracking-tight"
+                        style={{ color: currentTheme.headerTextColor || '#ffffff' }}
+                      >
+                        {appSettings?.appName && !/olovely/i.test(appSettings.appName)
+                          ? appSettings.appName
+                          : 'Exnshop'}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => setIsSidebarOpen(false)}
+                      aria-label="Close menu"
+                      className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={currentTheme.headerTextColor || '#ffffff'} strokeWidth="2.2" strokeLinecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
 
-                {/* 2. Offers */}
-                <Link
-                  to="/categories"
-                  className="flex-1 flex flex-col items-center justify-center h-full relative cursor-pointer"
-                >
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke={isActive('/offers') ? '#1877f2' : '#6b7280'}
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="19" y1="5" x2="5" y2="19" />
-                    <circle cx="6.5" cy="6.5" r="2.5" fill={isActive('/offers') ? '#1877f2' : 'none'} />
-                    <circle cx="17.5" cy="17.5" r="2.5" fill={isActive('/offers') ? '#1877f2' : 'none'} />
-                  </svg>
-                  <span className={`text-[11px] mt-1 ${isActive('/offers') ? 'font-bold text-[#1877f2]' : 'font-medium text-neutral-500'}`}>
-                    Offers
-                  </span>
-                </Link>
-
-                {/* 3. Categories */}
-                <Link
-                  to="/categories"
-                  className="flex-1 flex flex-col items-center justify-center h-full relative cursor-pointer"
-                >
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke={(isActive('/categories') || location.pathname.startsWith('/category/')) ? '#1877f2' : '#6b7280'}
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="3" y="3" width="7" height="7" rx="1.5" fill={(isActive('/categories') || location.pathname.startsWith('/category/')) ? '#1877f2' : 'none'} />
-                    <rect x="14" y="3" width="7" height="7" rx="1.5" fill={(isActive('/categories') || location.pathname.startsWith('/category/')) ? '#1877f2' : 'none'} />
-                    <rect x="14" y="14" width="7" height="7" rx="1.5" fill={(isActive('/categories') || location.pathname.startsWith('/category/')) ? '#1877f2' : 'none'} />
-                    <rect x="3" y="14" width="7" height="7" rx="1.5" fill={(isActive('/categories') || location.pathname.startsWith('/category/')) ? '#1877f2' : 'none'} />
-                  </svg>
-                  <span className={`text-[11px] mt-1 ${(isActive('/categories') || location.pathname.startsWith('/category/')) ? 'font-bold text-[#1877f2]' : 'font-medium text-neutral-500'}`}>
-                    {t("common.categories", "Categories")}
-                  </span>
-                </Link>
-
-                {/* 4. Orders */}
-                <Link
-                  to="/orders"
-                  className="flex-1 flex flex-col items-center justify-center h-full relative cursor-pointer"
-                >
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill={isActive('/orders') ? '#1877f2' : 'none'}
-                    stroke={isActive('/orders') ? '#1877f2' : '#6b7280'}
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                    <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                    <line x1="12" y1="22.08" x2="12" y2="12" />
-                  </svg>
-                  <span className={`text-[11px] mt-1 ${isActive('/orders') ? 'font-bold text-[#1877f2]' : 'font-medium text-neutral-500'}`}>
-                    {t("common.orders", "Orders")}
-                  </span>
-                </Link>
-
-                {/* 5. Account */}
-                <Link
-                  to="/account"
-                  className="flex-1 flex flex-col items-center justify-center h-full relative cursor-pointer"
-                >
-                  <svg
-                    width="22"
-                    height="22"
-                    viewBox="0 0 24 24"
-                    fill={isActive('/account') ? '#1877f2' : 'none'}
-                    stroke={isActive('/account') ? '#1877f2' : '#6b7280'}
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                  <span className={`text-[11px] mt-1 ${isActive('/account') ? 'font-bold text-[#1877f2]' : 'font-medium text-neutral-500'}`}>
-                    {t("common.account", "Account")}
-                  </span>
-                </Link>
-              </div>
-            </nav>
-          )}
+                  {/* Sidebar Nav Links */}
+                  <nav className="flex-1 overflow-y-auto py-2">
+                    {[
+                      {
+                        to: '/',
+                        label: t('common.home', 'Home'),
+                        active: isActive('/'),
+                        icon: (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                            <polyline points="9 22 9 12 15 12 15 22" />
+                          </svg>
+                        ),
+                      },
+                      {
+                        to: '/categories',
+                        label: 'Offers',
+                        active: false,
+                        icon: (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="19" y1="5" x2="5" y2="19" />
+                            <circle cx="6.5" cy="6.5" r="2.5" />
+                            <circle cx="17.5" cy="17.5" r="2.5" />
+                          </svg>
+                        ),
+                      },
+                      {
+                        to: '/categories',
+                        label: t('common.categories', 'Categories'),
+                        active: isActive('/categories') || location.pathname.startsWith('/category/'),
+                        icon: (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="3" width="7" height="7" rx="1.5" />
+                            <rect x="14" y="3" width="7" height="7" rx="1.5" />
+                            <rect x="14" y="14" width="7" height="7" rx="1.5" />
+                            <rect x="3" y="14" width="7" height="7" rx="1.5" />
+                          </svg>
+                        ),
+                      },
+                      {
+                        to: '/orders',
+                        label: t('common.orders', 'Orders'),
+                        active: isActive('/orders'),
+                        icon: (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                            <line x1="12" y1="22.08" x2="12" y2="12" />
+                          </svg>
+                        ),
+                      },
+                      {
+                        to: '/account',
+                        label: t('common.account', 'Account'),
+                        active: isActive('/account'),
+                        icon: (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                          </svg>
+                        ),
+                      },
+                    ].map((item) => (
+                      <Link
+                        key={item.label}
+                        to={item.to}
+                        onClick={() => setIsSidebarOpen(false)}
+                        className={`flex items-center gap-3.5 px-5 py-3.5 text-sm transition-colors ${
+                          item.active
+                            ? 'bg-blue-50 font-semibold'
+                            : 'text-neutral-700 hover:bg-neutral-50 font-medium'
+                        }`}
+                        style={{ color: item.active ? currentTheme.accentColor || '#1877f2' : undefined }}
+                      >
+                        <span style={{ color: item.active ? currentTheme.accentColor || '#1877f2' : '#6b7280' }}>
+                          {item.icon}
+                        </span>
+                        {item.label}
+                      </Link>
+                    ))}
+                  </nav>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </div>

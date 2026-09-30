@@ -307,7 +307,21 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
       }}
     >
       {/* Quick / Shop All commerce mode switcher */}
-      <div className="px-4 md:px-6 lg:px-8 pt-2 flex justify-center">
+      {/* Hamburger sits inline, at the same height as the toggle pill, so it's never floating/misaligned.
+          It's absolutely positioned within this relative row so the toggle pill stays truly centered. */}
+      <div className="relative px-4 md:px-6 lg:px-8 pt-2 flex justify-center">
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent('openSidebarMenu'))}
+          aria-label={t('common.menu', 'Menu')}
+          className="absolute left-4 md:hidden top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1a1a2e" strokeWidth="2.2" strokeLinecap="round">
+            <line x1="4" y1="7" x2="20" y2="7" />
+            <line x1="4" y1="12" x2="20" y2="12" />
+            <line x1="4" y1="17" x2="20" y2="17" />
+          </svg>
+        </button>
         <div className="inline-flex items-center bg-white/70 backdrop-blur-sm rounded-full p-1 gap-1 shadow-sm">
           <button
             type="button"
@@ -334,9 +348,10 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
       <div>
         <div ref={topSectionRef} className="px-4 md:px-6 lg:px-8 pt-2 md:pt-3 pb-1">
           <div className="flex items-center gap-3">
-            {/* Logo */}
+            {/* Logo - no card/background so it shows directly on the hero, and any
+                future logo swap in Admin > App Settings automatically stays background-free */}
             <div
-              className="bg-white rounded-2xl p-1 shadow-sm border border-white/90 flex items-center justify-center flex-shrink-0 overflow-hidden"
+              className="flex items-center justify-center flex-shrink-0 overflow-hidden"
               style={{
                 width: '56px',
                 height: '56px',

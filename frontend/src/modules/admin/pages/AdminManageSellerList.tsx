@@ -132,6 +132,11 @@ export default function AdminManageSellerList() {
     const [isSavingCommissions, setIsSavingCommissions] = useState(false);
     const [commissionSuccess, setCommissionSuccess] = useState('');
 
+    // Categories Modal state (which header categories this seller is allowed to sell/list products under)
+    const [selectedCategoryNames, setSelectedCategoryNames] = useState<string[]>([]);
+    const [isSavingCategories, setIsSavingCategories] = useState(false);
+    const [categoriesError, setCategoriesError] = useState('');
+
     // Fetch sellers from backend
     useEffect(() => {
         const fetchSellers = async () => {
@@ -532,14 +537,60 @@ export default function AdminManageSellerList() {
         }
     };
 
-    const handleViewCategories = (seller: Seller) => {
+    const handleViewCategories = async (seller: Seller) => {
         setSelectedSeller(seller);
+        setSelectedCategoryNames(seller.categories || []);
+        setCategoriesError('');
         setIsModalOpen(true);
+
+        // Reuse the same Published header-category list the commission modal uses
+        if (headerCategories.length === 0) {
+            try {
+                const hcList = await getHeaderCategoriesAdmin();
+                setHeaderCategories(hcList);
+            } catch (err) {
+                console.error('Error fetching header categories:', err);
+            }
+        }
+    };
+
+    const toggleCategorySelection = (categoryName: string) => {
+        setSelectedCategoryNames((prev) =>
+            prev.includes(categoryName)
+                ? prev.filter((name) => name !== categoryName)
+                : [...prev, categoryName]
+        );
+    };
+
+    const handleSaveCategories = async () => {
+        if (!selectedSeller) return;
+
+        try {
+            setIsSavingCategories(true);
+            setCategoriesError('');
+            const response = await updateSeller(selectedSeller._id, { categories: selectedCategoryNames });
+            if (response.success && response.data) {
+                const updatedSeller = mapSellerToFrontend(response.data);
+                setSellers((prev) => prev.map((s) => (s._id === selectedSeller._id ? updatedSeller : s)));
+                setSuccessMessage('Seller categories updated successfully');
+                setTimeout(() => setSuccessMessage(''), 3000);
+                setIsModalOpen(false);
+                setSelectedSeller(null);
+            } else {
+                setCategoriesError(response.message || 'Failed to update categories');
+            }
+        } catch (err: any) {
+            console.error('Error saving seller categories:', err);
+            setCategoriesError(err.response?.data?.message || 'Failed to update categories. Please try again.');
+        } finally {
+            setIsSavingCategories(false);
+        }
     };
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setSelectedSeller(null);
+        setCategoriesError('');
     };
 
     return (
@@ -747,7 +798,7 @@ export default function AdminManageSellerList() {
                                                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                                                         <circle cx="12" cy="12" r="3"></circle>
                                                     </svg>
-                                                    View ({seller.categories.length})
+                                                    Manage ({seller.categories.length})
                                                 </button>
                                             </td>
                                             <td className="p-4 align-middle">
@@ -887,7 +938,7 @@ export default function AdminManageSellerList() {
                         {/* Modal Header */}
                         <div className="bg-teal-600 text-white px-6 py-4 rounded-t-lg flex items-center justify-between">
                             <div>
-                                <h3 className="text-lg font-semibold">Categories</h3>
+                                <h3 className="text-lg font-semibold">Manage Categories</h3>
                                 <p className="text-sm text-teal-100 mt-1">{selectedSeller.storeName} - {selectedSeller.name}</p>
                             </div>
                             <button
@@ -904,35 +955,63 @@ export default function AdminManageSellerList() {
 
                         {/* Modal Body */}
                         <div className="p-6 overflow-y-auto flex-1">
-                            {selectedSeller.categories.length > 0 ? (
+                            <p className="text-xs text-neutral-500 mb-4">
+                                Check the categories this seller is allowed to list products under. Sellers only pick
+                                categories once at signup and have no way to update this themselves afterwards — this
+                                is the only place new categories can be granted to an existing seller.
+                            </p>
+                            {categoriesError && (
+                                <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
+                                    {categoriesError}
+                                </div>
+                            )}
+                            {headerCategories.length > 0 ? (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    {selectedSeller.categories.map((category, index) => (
-                                        <div
-                                            key={index}
-                                            className="flex items-center gap-2 px-4 py-3 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors"
-                                        >
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-teal-600 flex-shrink-0">
-                                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                                            </svg>
-                                            <span className="text-sm font-medium text-teal-900">{category}</span>
-                                        </div>
-                                    ))}
+                                    {headerCategories.map((hc) => {
+                                        const checked = selectedCategoryNames.includes(hc.name);
+                                        return (
+                                            <label
+                                                key={hc._id}
+                                                className={`flex items-center gap-2 px-4 py-3 border rounded-lg cursor-pointer transition-colors ${
+                                                    checked
+                                                        ? 'bg-teal-50 border-teal-200 hover:bg-teal-100'
+                                                        : 'bg-white border-neutral-200 hover:bg-neutral-50'
+                                                }`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={checked}
+                                                    onChange={() => toggleCategorySelection(hc.name)}
+                                                    className="w-4 h-4 accent-teal-600 flex-shrink-0"
+                                                />
+                                                <span className={`text-sm font-medium ${checked ? 'text-teal-900' : 'text-neutral-700'}`}>
+                                                    {hc.name}
+                                                </span>
+                                            </label>
+                                        );
+                                    })}
                                 </div>
                             ) : (
                                 <div className="text-center py-8 text-neutral-400">
-                                    <p>No categories assigned to this seller.</p>
+                                    <p>Loading categories...</p>
                                 </div>
                             )}
                         </div>
 
                         {/* Modal Footer */}
-                        <div className="px-6 py-4 border-t border-neutral-200 flex justify-end">
+                        <div className="px-6 py-4 border-t border-neutral-200 flex justify-end gap-2">
                             <button
                                 onClick={handleCloseModal}
-                                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded text-sm font-medium transition-colors"
+                                className="px-4 py-2 border border-neutral-300 text-neutral-700 hover:bg-neutral-50 rounded text-sm font-medium transition-colors"
                             >
-                                Close
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSaveCategories}
+                                disabled={isSavingCategories}
+                                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {isSavingCategories ? 'Saving...' : 'Save Changes'}
                             </button>
                         </div>
                     </div>

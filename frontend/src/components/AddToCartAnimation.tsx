@@ -8,7 +8,7 @@ import { Product } from '../types/domain';
 interface AddToCartAnimationProps {
   /**
    * Bottom offset from the bottom of the viewport (in pixels)
-   * Default: 96px
+   * Default: 20px (there is no bottom tab bar anymore — navigation moved to the sidebar)
    */
   bottomOffset?: number;
 
@@ -43,7 +43,7 @@ interface AddToCartAnimationProps {
  * listens for cart changes to trigger appropriate animations.
  */
 export default function AddToCartAnimation({
-  bottomOffset = 96,
+  bottomOffset = 20,
   pillClassName = '',
   hideOnPages = true,
   linkTo = '/checkout',
