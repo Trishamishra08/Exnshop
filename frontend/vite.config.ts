@@ -69,9 +69,15 @@ export default defineConfig({
           if (id.includes('framer-motion') || id.includes('gsap')) {
             return 'ui-vendor';
           }
-          if (id.includes('apexcharts') || id.includes('recharts')) {
+          if (id.includes('apexcharts')) {
             return 'chart-vendor';
           }
+          // recharts is intentionally NOT force-grouped into chart-vendor: it calls
+          // React.forwardRef at module top-level, and forcing it into a shared vendor
+          // chunk alongside apexcharts produced a chunk-load-order race where that code
+          // ran before react-vendor had finished initializing ("Cannot read properties
+          // of undefined (reading 'forwardRef')"). Left unchunked, Rollup bundles it
+          // with whichever chunk actually imports it and orders that load correctly.
           if (id.includes('@react-google-maps') || id.includes('leaflet')) {
             return 'map-vendor';
           }
