@@ -44,7 +44,7 @@ export interface IProduct extends Document {
   publish: boolean;
   popular: boolean;
   dealOfDay: boolean;
-  status: "Active" | "Inactive" | "Pending" | "Rejected";
+  status: "Draft" | "Active" | "Inactive" | "Pending" | "Rejected";
 
   // Product Details
   manufacturer?: string;
@@ -82,6 +82,7 @@ export interface IProduct extends Document {
   requiresApproval: boolean;
   approvedBy?: mongoose.Types.ObjectId;
   approvedAt?: Date;
+  rejectionReason?: string;
 
   // Commission
   commission?: number;
@@ -228,9 +229,13 @@ const ProductSchema = new Schema<IProduct>(
       type: Boolean,
       default: false,
     },
+    // Catalog lifecycle: Draft (seller still editing, never submitted) →
+    // Pending (submitted, awaiting admin review) → Active (approved, live) OR
+    // Rejected (seller edits and resubmits → back to Pending). Inactive is the
+    // seller's own "unpublish a live product" state, independent of approval.
     status: {
       type: String,
-      enum: ["Active", "Inactive", "Pending", "Rejected"],
+      enum: ["Draft", "Active", "Inactive", "Pending", "Rejected"],
       default: "Active",
     },
 
@@ -302,10 +307,12 @@ const ProductSchema = new Schema<IProduct>(
       default: [],
     },
 
-    // Approval (removed - all products are auto-published)
+    // Approval — every seller-created product starts Pending and is hidden
+    // from customers (query filters on status:"Active") until an admin
+    // approves it via adminProductController.approveProductRequest.
     requiresApproval: {
       type: Boolean,
-      default: false,
+      default: true,
     },
     approvedBy: {
       type: Schema.Types.ObjectId,
@@ -313,6 +320,10 @@ const ProductSchema = new Schema<IProduct>(
     },
     approvedAt: {
       type: Date,
+    },
+    rejectionReason: {
+      type: String,
+      trim: true,
     },
 
     // Commission

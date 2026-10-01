@@ -159,10 +159,13 @@ export const createProduct = asyncHandler(
       }
     }
 
-    // 6. Set product status - All products are published automatically without approval
-    newProductData.publish = true;
-    newProductData.status = "Active";
-    newProductData.requiresApproval = false;
+    // 6. Catalog workflow: a seller can save a product as a Draft (still editing,
+    // never sent to admin) or Submit it for review. Customer-facing queries only
+    // ever show status:"Active", so both Draft and Pending stay hidden until an
+    // admin approves the submission.
+    newProductData.status = productData.saveAsDraft === true ? "Draft" : "Pending";
+    newProductData.requiresApproval = true;
+    newProductData.rejectionReason = undefined;
 
     // Set default values for other required fields if not provided
     // Handle Returnability
@@ -458,6 +461,17 @@ export const updateProduct = asyncHandler(
       });
     }
 
+    // Catalog workflow: explicitly submitting a Draft or a corrected Rejected
+    // product sends it back into the admin review queue. A plain edit (no
+    // submitForReview flag) never silently resubmits or re-publishes it.
+    if (updateData.submitForReview === true) {
+      if (product.status === "Draft" || product.status === "Rejected") {
+        updateData.status = "Pending";
+        updateData.rejectionReason = undefined;
+      }
+    }
+    delete updateData.submitForReview;
+
     // Apply updates
     Object.assign(product, updateData);
 
@@ -660,6 +674,281 @@ export const bulkUpdateStock = asyncHandler(
       success: true,
       message: "Bulk stock update processed",
       data: results,
+    });
+  }
+);
+
+/**
+ * Download the CSV template for bulk product upload.
+ */
+export const getBulkUploadTemplate = asyncHandler(
+  async (_req: Request, res: Response) => {
+    const headers = [
+      "productName",
+      "headerCategory",
+      "category",
+      "subcategory",
+      "brand",
+      "smallDescription",
+      "variationTitle",
+      "price",
+      "discPrice",
+      "stock",
+      "isReturnable",
+      "maxReturnDays",
+      "mainImageUrl",
+    ];
+    const example = [
+      "Aashirvaad Atta 5kg",
+      "Grocery",
+      "Atta Rice & Dal",
+      "Chakki Atta",
+      "",
+      "Whole wheat atta, stone-ground",
+      "5kg",
+      "250",
+      "220",
+      "50",
+      "false",
+      "",
+      "https://example.com/atta.jpg",
+    ];
+    const csvContent = `${headers.join(",")}\n${example
+      .map((v) => `"${v.replace(/"/g, '""')}"`)
+      .join(",")}\n`;
+
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=exnshop_bulk_product_template.csv"
+    );
+    return res.status(200).send(csvContent);
+  }
+);
+
+/**
+ * Bulk upload products from a CSV file. Every row goes through the exact same
+ * validation and admin-approval gate as a single product add (status: "Pending"),
+ * just applied 1000-rows-at-a-time instead of one at a time.
+ */
+export const bulkUploadProducts = asyncHandler(
+  async (req: Request, res: Response) => {
+    const sellerId = (req as any).user.userId;
+
+    if (!(req as any).file) {
+      return res.status(400).json({
+        success: false,
+        message: "Please upload a CSV file",
+      });
+    }
+
+    const seller = await Seller.findById(sellerId).select("categories");
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: "Seller not found",
+      });
+    }
+
+    const csvParser = require("csv-parser");
+    const { Readable } = require("stream");
+
+    const rows: any[] = await new Promise((resolve, reject) => {
+      const parsed: any[] = [];
+      Readable.from((req as any).file.buffer)
+        .pipe(csvParser())
+        .on("data", (row: any) => parsed.push(row))
+        .on("end", () => resolve(parsed))
+        .on("error", (err: Error) => reject(err));
+    });
+
+    if (rows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "CSV file has no data rows",
+      });
+    }
+    if (rows.length > 1000) {
+      return res.status(400).json({
+        success: false,
+        message: "A single bulk upload is limited to 1000 rows. Please split your file.",
+      });
+    }
+
+    const errors: { row: number; reason: string }[] = [];
+    let successCount = 0;
+
+    // Cache category/brand lookups across rows to avoid redundant queries on large files.
+    const headerCategoryCache = new Map<string, any>();
+    const categoryCache = new Map<string, any>();
+    const subCategoryCache = new Map<string, any>();
+    const brandCache = new Map<string, any>();
+
+    for (let i = 0; i < rows.length; i++) {
+      const rowNum = i + 2; // +1 for header row, +1 for 1-indexing
+      const row = rows[i];
+
+      try {
+        const productName = (row.productName || "").trim();
+        if (!productName) {
+          errors.push({ row: rowNum, reason: "productName is required" });
+          continue;
+        }
+
+        const price = Number(row.price);
+        if (!price || isNaN(price) || price <= 0) {
+          errors.push({ row: rowNum, reason: "price must be a positive number" });
+          continue;
+        }
+
+        const discPrice = row.discPrice ? Number(row.discPrice) : 0;
+        if (discPrice && discPrice > price) {
+          errors.push({ row: rowNum, reason: "discPrice cannot be greater than price" });
+          continue;
+        }
+
+        const stock = row.stock !== undefined && row.stock !== "" ? Number(row.stock) : 0;
+        if (isNaN(stock) || stock < 0) {
+          errors.push({ row: rowNum, reason: "stock must be a non-negative number" });
+          continue;
+        }
+
+        // Header category (required, must be one the seller is allowed to sell in)
+        let headerCategoryDoc: any = null;
+        const headerCategoryName = (row.headerCategory || "").trim();
+        if (headerCategoryName) {
+          const cacheKey = headerCategoryName.toLowerCase();
+          if (headerCategoryCache.has(cacheKey)) {
+            headerCategoryDoc = headerCategoryCache.get(cacheKey);
+          } else {
+            headerCategoryDoc = await HeaderCategory.findOne({
+              name: new RegExp(`^${headerCategoryName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+            });
+            headerCategoryCache.set(cacheKey, headerCategoryDoc);
+          }
+          if (!headerCategoryDoc) {
+            errors.push({ row: rowNum, reason: `Header category "${headerCategoryName}" not found` });
+            continue;
+          }
+          if (
+            seller.categories &&
+            seller.categories.length > 0 &&
+            !seller.categories.includes(headerCategoryDoc.name)
+          ) {
+            errors.push({
+              row: rowNum,
+              reason: `You are not authorized to add products in "${headerCategoryDoc.name}"`,
+            });
+            continue;
+          }
+        }
+
+        // Category (optional)
+        let categoryDoc: any = null;
+        const categoryName = (row.category || "").trim();
+        if (categoryName) {
+          const cacheKey = categoryName.toLowerCase();
+          if (categoryCache.has(cacheKey)) {
+            categoryDoc = categoryCache.get(cacheKey);
+          } else {
+            categoryDoc = await Category.findOne({
+              name: new RegExp(`^${categoryName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+            });
+            categoryCache.set(cacheKey, categoryDoc);
+          }
+          if (!categoryDoc) {
+            errors.push({ row: rowNum, reason: `Category "${categoryName}" not found` });
+            continue;
+          }
+        }
+
+        // Subcategory (optional)
+        let subCategoryDoc: any = null;
+        const subCategoryName = (row.subcategory || "").trim();
+        if (subCategoryName) {
+          const cacheKey = subCategoryName.toLowerCase();
+          if (subCategoryCache.has(cacheKey)) {
+            subCategoryDoc = subCategoryCache.get(cacheKey);
+          } else {
+            subCategoryDoc = await SubCategory.findOne({
+              subcategoryName: new RegExp(`^${subCategoryName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+            });
+            subCategoryCache.set(cacheKey, subCategoryDoc);
+          }
+          // Not found is non-fatal for subcategory — just leave it unset.
+        }
+
+        // Brand (optional)
+        let brandDoc: any = null;
+        const brandName = (row.brand || "").trim();
+        if (brandName) {
+          const cacheKey = brandName.toLowerCase();
+          if (brandCache.has(cacheKey)) {
+            brandDoc = brandCache.get(cacheKey);
+          } else {
+            const Brand = require("../../../models/Brand").default;
+            brandDoc = await Brand.findOne({
+              name: new RegExp(`^${brandName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+            });
+            brandCache.set(cacheKey, brandDoc);
+          }
+          // Not found is non-fatal for brand — just leave it unset.
+        }
+
+        const isReturnable = String(row.isReturnable).toLowerCase() !== "false";
+        const maxReturnDays = row.maxReturnDays ? Number(row.maxReturnDays) || 0 : 0;
+        const variationTitle = (row.variationTitle || "Default").trim();
+
+        await Product.create({
+          seller: sellerId,
+          productName,
+          headerCategoryId: headerCategoryDoc?._id,
+          category: categoryDoc?._id,
+          subcategory: subCategoryDoc?._id,
+          brand: brandDoc?._id,
+          smallDescription: (row.smallDescription || "").trim() || undefined,
+          mainImage: (row.mainImageUrl || "").trim() || undefined,
+          galleryImages: [],
+          price,
+          discPrice,
+          stock,
+          isReturnable,
+          maxReturnDays,
+          variations: [
+            {
+              name: "Variation",
+              value: variationTitle,
+              price,
+              discPrice,
+              stock,
+              status: stock > 0 ? "In stock" : "Sold out",
+            },
+          ],
+          publish: true,
+          popular: false,
+          dealOfDay: false,
+          tags: [],
+          totalAllowedQuantity: 10,
+          // Same admin-approval gate as a single product add.
+          status: "Pending",
+          requiresApproval: true,
+        });
+
+        successCount++;
+      } catch (err: any) {
+        errors.push({ row: rowNum, reason: err.message || "Unknown error" });
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Processed ${rows.length} rows: ${successCount} submitted for review, ${errors.length} failed.`,
+      data: {
+        totalRows: rows.length,
+        successCount,
+        errorCount: errors.length,
+        errors,
+      },
     });
   }
 );

@@ -48,6 +48,14 @@ import * as faqController from "../modules/admin/controllers/adminFAQController"
 
 import * as policyController from "../modules/admin/controllers/adminPolicyController";
 import * as sellerController from "../modules/admin/controllers/adminSellerController";
+import * as courierController from "../modules/admin/controllers/adminCourierController";
+import { getAllClaims, decideClaim } from "../modules/seller/controllers/claimController";
+import {
+  getAllTickets,
+  getTicketByIdAdmin,
+  replyToTicketAsAdmin,
+} from "../modules/seller/controllers/supportTicketController";
+import { getAllCampaignsAdmin, forcePauseCampaign } from "../modules/seller/controllers/campaignController";
 
 // Profile Controllers
 import * as profileController from "../modules/admin/controllers/adminProfileController";
@@ -143,8 +151,7 @@ router.get("/products", productController.getProducts);
 router.get("/products/:id", productController.getProductById);
 router.put("/products/:id", productController.updateProduct);
 router.delete("/products/:id", productController.deleteProduct);
-// Product approval no longer needed - products show directly in list
-// router.patch("/products/:id/approve", productController.approveProductRequest);
+router.patch("/products/:id/approve", productController.approveProductRequest);
 router.post("/products/bulk-import", productController.bulkImportProducts);
 router.put("/products/bulk-update", productController.bulkUpdateProducts);
 
@@ -305,6 +312,26 @@ router.delete("/policies/:id", policyController.deletePolicy);
 
 // ==================== Seller Routes ====================
 router.get("/sellers", sellerController.getAllSellers);
+
+// ==================== Courier/Logistics Routes ====================
+router.get("/couriers", courierController.getCouriers);
+router.get("/couriers/:id", courierController.getCourierById);
+router.post("/couriers", courierController.createCourier);
+router.put("/couriers/:id", courierController.updateCourier);
+router.delete("/couriers/:id", courierController.deleteCourier);
+
+// ==================== Dispute/Claim Routes ====================
+router.get("/claims", getAllClaims);
+router.patch("/claims/:id/decide", decideClaim);
+
+// ==================== Support Ticket Routes ====================
+router.get("/support-tickets", getAllTickets);
+router.get("/support-tickets/:id", getTicketByIdAdmin);
+router.post("/support-tickets/:id/reply", replyToTicketAsAdmin);
+
+// ==================== Advertisement Campaign Routes ====================
+router.get("/campaigns", getAllCampaignsAdmin);
+router.patch("/campaigns/:id/pause", forcePauseCampaign);
 
 // ==================== Shop Management ====================
 // Legacy routes (keep for backward compatibility)

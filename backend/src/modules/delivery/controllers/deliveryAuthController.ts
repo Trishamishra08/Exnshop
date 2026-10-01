@@ -3,22 +3,59 @@ import Delivery from "../../../models/Delivery";
 import {
   sendSmsOtp as sendSmsOtpService,
   verifySmsOtp as verifySmsOtpService,
+  sendEmailOtp,
+  verifyEmailOtp,
 } from "../../../services/otpService";
 import { generateToken } from "../../../services/jwtService";
 import { asyncHandler } from "../../../utils/asyncHandler";
 // import { uploadDocument } from "../../../services/uploadService"; // File does not exist
 
 /**
- * Send SMS OTP to delivery mobile number
+ * Send OTP to delivery partner — by email (current default login method) or,
+ * if a mobile number is sent instead, falls back to the original SMS OTP flow.
  */
 export const sendSmsOtp = asyncHandler(async (req: Request, res: Response) => {
+  const email = req.body.email ? String(req.body.email).trim() : '';
+
+  if (email) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid email address is required",
+      });
+    }
+
+    const delivery = await Delivery.findOne({ email: email.toLowerCase() });
+    if (!delivery) {
+      return res.status(400).json({
+        success: false,
+        message: "Delivery partner not found with this email. Please register first.",
+      });
+    }
+
+    try {
+      const result = await sendEmailOtp(email, "Delivery", delivery.name);
+      return res.status(200).json({
+        success: true,
+        message: result.message,
+        sessionId: result.sessionId,
+      });
+    } catch (error: any) {
+      console.error(`[DELIVERY_AUTH] send-email-otp error for ${email}:`, error.message);
+      return res.status(400).json({
+        success: false,
+        message: error.message || "Failed to send OTP. Please try again.",
+      });
+    }
+  }
+
   const rawMobile = req.body.mobile;
   const mobile = rawMobile != null ? String(rawMobile).trim().replace(/\D/g, '').slice(0, 10) : '';
 
   if (!mobile || mobile.length !== 10) {
     return res.status(400).json({
       success: false,
-      message: "Valid 10-digit mobile number is required",
+      message: "Valid email address is required",
     });
   }
 
@@ -51,18 +88,12 @@ export const sendSmsOtp = asyncHandler(async (req: Request, res: Response) => {
 });
 
 /**
- * Verify SMS OTP and login delivery partner
+ * Verify OTP and login delivery partner — by email or mobile, matching
+ * whichever sendSmsOtp was called with.
  */
 export const verifySmsOtp = asyncHandler(
   async (req: Request, res: Response) => {
-    const { mobile, otp, sessionId } = req.body;
-
-    if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid 10-digit mobile number is required",
-      });
-    }
+    const { mobile, email, otp, sessionId } = req.body;
 
     if (!otp || !/^[0-9]{4,6}$/.test(otp)) {
       return res.status(400).json({
@@ -78,23 +109,34 @@ export const verifySmsOtp = asyncHandler(
       });
     }
 
-    // Verify SMS OTP
-    const isValid = await verifySmsOtpService(
-      sessionId,
-      otp,
-      mobile,
-      "Delivery",
-    );
+    let delivery;
 
-    if (!isValid) {
-      return res.status(401).json({
-        success: false,
-        message: "OTP should be valid. Please try again.",
-      });
+    if (email) {
+      const isValid = await verifyEmailOtp(email, otp, "Delivery");
+      if (!isValid) {
+        return res.status(401).json({
+          success: false,
+          message: "OTP should be valid. Please try again.",
+        });
+      }
+      delivery = await Delivery.findOne({ email: email.toLowerCase().trim() }).select("-password");
+    } else {
+      if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
+        return res.status(400).json({
+          success: false,
+          message: "Valid email address is required",
+        });
+      }
+
+      const isValid = await verifySmsOtpService(sessionId, otp, mobile, "Delivery");
+      if (!isValid) {
+        return res.status(401).json({
+          success: false,
+          message: "OTP should be valid. Please try again.",
+        });
+      }
+      delivery = await Delivery.findOne({ mobile }).select("-password");
     }
-
-    // Find delivery partner
-    const delivery = await Delivery.findOne({ mobile }).select("-password");
 
     if (!delivery) {
       return res.status(401).json({

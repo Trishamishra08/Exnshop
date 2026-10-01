@@ -36,6 +36,8 @@ export interface Product {
   publish: boolean;
   popular: boolean;
   dealOfDay: boolean;
+  status?: "Draft" | "Active" | "Inactive" | "Pending" | "Rejected";
+  rejectionReason?: string;
   seoTitle?: string;
   seoKeywords?: string;
   seoImageAlt?: string;
@@ -103,6 +105,10 @@ export interface CreateProductData {
   variationType?: string;
   isShopByStoreOnly?: boolean;
   shopId?: string;
+  /** New products only: true = save hidden as a draft, never entering the admin review queue. */
+  saveAsDraft?: boolean;
+  /** Editing an existing Draft/Rejected product only: true = resubmit it for admin review. */
+  submitForReview?: boolean;
 }
 
 export interface Shop {
@@ -240,5 +246,39 @@ export const getShops = async (): Promise<ApiResponse<Shop[]>> => {
  */
 export const getAllowedHeaderCategories = async (): Promise<ApiResponse<any[]>> => {
   const response = await api.get<ApiResponse<any[]>>("/products/allowed-header-categories");
+  return response.data;
+};
+
+/**
+ * Download the CSV template for bulk product upload.
+ */
+export const downloadBulkUploadTemplate = async (): Promise<Blob> => {
+  const response = await api.get("/products/bulk-upload-template", {
+    responseType: "blob",
+  });
+  return response.data as unknown as Blob;
+};
+
+export interface BulkUploadResult {
+  totalRows: number;
+  successCount: number;
+  errorCount: number;
+  errors: { row: number; reason: string }[];
+}
+
+/**
+ * Upload a CSV file to bulk-create products. Every row goes through the same
+ * admin-approval gate as a single product add.
+ */
+export const bulkUploadProducts = async (
+  file: File
+): Promise<ApiResponse<BulkUploadResult>> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await api.post<ApiResponse<BulkUploadResult>>(
+    "/products/bulk-upload",
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
   return response.data;
 };

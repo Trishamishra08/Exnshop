@@ -19,4 +19,8 @@ router.get("/profile", authenticate, sellerAuthController.getProfile);
 router.put("/profile", authenticate, sellerAuthController.updateProfile);
 router.put("/toggle-shop-status", authenticate, sellerAuthController.toggleShopStatus);
 
+// Email verification (protected)
+router.post("/send-email-verification", authenticate, sellerAuthController.sendEmailVerification);
+router.post("/verify-email", authenticate, sellerAuthController.verifyEmail);
+
 export default router;

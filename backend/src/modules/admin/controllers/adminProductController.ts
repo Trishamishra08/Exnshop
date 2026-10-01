@@ -8,6 +8,7 @@ import Inventory from "../../../models/Inventory";
 import Seller from "../../../models/Seller";
 import HeaderCategory from "../../../models/HeaderCategory";
 import { cache } from "../../../utils/cache";
+import { sendProductApprovalNotification } from "../../../services/notificationService";
 
 // ==================== Category Controllers ====================
 
@@ -1241,6 +1242,18 @@ export const approveProductRequest = asyncHandler(
         success: false,
         message: "Product not found",
       });
+    }
+
+    const sellerId = (product.seller as any)?._id?.toString() || product.seller?.toString();
+    if (sellerId) {
+      sendProductApprovalNotification(
+        sellerId,
+        product._id.toString(),
+        status === "Active" ? "Approved" : "Rejected",
+        rejectionReason
+      ).catch((err) =>
+        console.error("Failed to send product approval notification:", err)
+      );
     }
 
     return res.status(200).json({

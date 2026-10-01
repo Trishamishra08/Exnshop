@@ -2,9 +2,12 @@ import { Request, Response } from "express";
 import Product from "../../../models/Product";
 import Category from "../../../models/Category";
 import SubCategory from "../../../models/SubCategory";
+import Seller from "../../../models/Seller";
 import mongoose from "mongoose";
 import { findSellersWithinRange } from "../../../utils/locationHelper";
 import AppSettings from "../../../models/AppSettings";
+import { parseChannelQueryParam, filterSellerIdsByChannel, resolveSellerChannel } from "../../../utils/commerceChannelHelper";
+import { getActiveCampaignsForProducts, recordImpressions, recordClick } from "../../../services/campaignService";
 
 // Get products with filtering options (public)
 export const getProducts = async (req: Request, res: Response) => {
@@ -22,6 +25,7 @@ export const getProducts = async (req: Request, res: Response) => {
       minDiscount,
       latitude, // User location latitude
       longitude, // User location longitude
+      mode, // 'quick' | 'ecommerce' — which catalog tab the customer is browsing
     } = req.query;
 
     const query: any = {
@@ -34,21 +38,26 @@ export const getProducts = async (req: Request, res: Response) => {
       ],
     };
 
-    // Products from both Quick and E-commerce sellers are shown together — the
-    // customer can browse and add from either channel in the same session
-    // (cart/checkout split by channel behind the scenes). Only location still
-    // gates visibility.
+    // Quick and E-commerce are still separate catalogs to the customer — a
+    // seller registered only for Quick must never appear while browsing
+    // ECommerce ("Shop All"), and vice versa. Location narrows it further.
+    const channel = parseChannelQueryParam(mode);
     const userLat = latitude ? parseFloat(latitude as string) : null;
     const userLng = longitude ? parseFloat(longitude as string) : null;
 
+    // nearbySellerIds is the pure location-based set (used below for the
+    // per-product `isAvailable` flag); query.seller is separately narrowed to
+    // the requested channel so it doesn't leak into that distance check.
     let nearbySellerIds: mongoose.Types.ObjectId[] = [];
     if (userLat && userLng && !isNaN(userLat) && !isNaN(userLng)) {
       nearbySellerIds = await findSellersWithinRange(userLat, userLng);
-      query.seller = { $in: nearbySellerIds };
+      query.seller = { $in: await filterSellerIdsByChannel(nearbySellerIds, channel) };
+    } else if (channel) {
+      // No location, but still restrict to the requested channel.
+      query.seller = { $in: await Seller.find({ channels: channel }).distinct("_id") };
     }
-    // No location provided: don't filter by seller at all (matches prior
-    // behavior for the no-location case, which also skipped seller filtering
-    // other than the channel gate we're now removing).
+    // No location and no channel: don't filter by seller at all (matches
+    // original no-location, no-channel-preference behavior).
 
     // Helper to resolve category/subcategory ID from slug or ID
     const resolveId = async (
@@ -196,6 +205,22 @@ export const getProducts = async (req: Request, res: Response) => {
       return prodObj;
     });
 
+    // Mark sponsored products (active ad campaigns) and log impressions.
+    // Fully additive/non-blocking — never allowed to break a listing response.
+    try {
+      const campaignMap = await getActiveCampaignsForProducts(
+        formattedProducts.map((p: any) => p._id)
+      );
+      if (campaignMap.size > 0) {
+        formattedProducts.forEach((p: any) => {
+          if (campaignMap.has(p._id.toString())) p.isSponsored = true;
+        });
+        recordImpressions(Array.from(campaignMap.values()).map((c: any) => c._id));
+      }
+    } catch (err) {
+      console.error("Failed to mark sponsored products:", err);
+    }
+
     return res.status(200).json({
       success: true,
       data: formattedProducts,
@@ -215,11 +240,23 @@ export const getProducts = async (req: Request, res: Response) => {
   }
 };
 
+// Log a click on a sponsored product card (public, fire-and-forget from the frontend)
+export const logAdClick = async (req: Request, res: Response) => {
+  try {
+    await recordClick(req.params.id);
+    return res.status(200).json({ success: true, message: "Click recorded" });
+  } catch (error: any) {
+    // Never let ad-tracking failures surface as a real error to the customer app.
+    return res.status(200).json({ success: true, message: "Click recorded" });
+  }
+};
+
 // Get single product by ID (public)
 export const getProductById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { latitude, longitude } = req.query; // User location
+    const { latitude, longitude, mode } = req.query; // User location + browsing channel
+    const channel = parseChannelQueryParam(mode);
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -248,10 +285,23 @@ export const getProductById = async (req: Request, res: Response) => {
       });
     }
 
+    const seller = product.seller as any;
+
+    // A seller registered only for Quick must never be reachable while the
+    // customer is browsing in ECommerce ("Shop All") mode, and vice versa —
+    // not even by navigating straight to the product's URL (shared link,
+    // stale search result, etc). Only enforced when the caller actually
+    // specified which channel they're browsing.
+    if (channel && Array.isArray(seller?.channels) && !seller.channels.includes(channel)) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found or unavailable",
+      });
+    }
+
     // Parse location
     const userLat = latitude ? parseFloat(latitude as string) : null;
     const userLng = longitude ? parseFloat(longitude as string) : null;
-    const seller = product.seller as any;
 
     // Initialize availability flag
     let isAvailableAtLocation = false;
@@ -322,11 +372,16 @@ export const getProductById = async (req: Request, res: Response) => {
       similarProductsQuery.category = categoryId;
     }
 
-    // Filter similar products by location when sellers are in range (no channel
-    // gate — both Quick and E-commerce sellers' products are shown together).
+    // Filter similar products by location and by the same browsing channel as
+    // the product being viewed (falls back to the product's own channel when
+    // the caller didn't pass `mode`, so a Quick product's "similar products"
+    // don't surface ECommerce-only sellers).
+    const similarProductsChannel = channel ?? resolveSellerChannel((seller as any)?.channels);
     if (userLat && userLng && !isNaN(userLat) && !isNaN(userLng)) {
       const nearby = await findSellersWithinRange(userLat, userLng);
-      similarProductsQuery.seller = { $in: nearby };
+      similarProductsQuery.seller = { $in: await filterSellerIdsByChannel(nearby, similarProductsChannel) };
+    } else {
+      similarProductsQuery.seller = { $in: await Seller.find({ channels: similarProductsChannel }).distinct("_id") };
     }
 
     const similarProducts = await Product.find(similarProductsQuery)

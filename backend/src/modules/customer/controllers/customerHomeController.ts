@@ -9,6 +9,7 @@ import BestsellerCard from "../../../models/BestsellerCard";
 import LowestPricesProduct from "../../../models/LowestPricesProduct";
 import PromoStrip from "../../../models/PromoStrip";
 import Seller from "../../../models/Seller";
+import { parseChannelQueryParam, filterSellerIdsByChannel } from "../../../utils/commerceChannelHelper";
 import mongoose from "mongoose";
 import { cache } from "../../../utils/cache";
 import { findSellersWithinRange } from "../../../utils/locationHelper";
@@ -17,7 +18,8 @@ import { findSellersWithinRange } from "../../../utils/locationHelper";
 async function fetchSectionData(
   section: any,
   nearbySellerIds?: mongoose.Types.ObjectId[],
-  hasUserLocation?: boolean
+  hasUserLocation?: boolean,
+  shouldRestrictToNearby?: boolean
 ): Promise<any[]> {
   try {
     const { categories, subCategories, displayType, limit } = section;
@@ -150,10 +152,10 @@ async function fetchSectionData(
         ],
       };
 
-      // If we have a user location and nearby sellers, filter products by seller service radius.
-      // Otherwise, show all products but mark availability status.
-      if (nearbySellerIds && nearbySellerIds.length > 0) {
-        query.seller = { $in: nearbySellerIds };
+      // If a location or channel restriction was requested, honor it even down to
+      // zero matching sellers — never silently show every seller's products.
+      if (shouldRestrictToNearby) {
+        query.seller = { $in: nearbySellerIds || [] };
       }
 
       // Only filter by category if categories are explicitly selected
@@ -270,7 +272,7 @@ async function fetchSectionData(
 
 // Get Home Page Content
 export const getHomeContent = async (req: Request, res: Response) => {
-  const { headerCategorySlug, latitude, longitude } = req.query; // Get header category slug and location from query params
+  const { headerCategorySlug, latitude, longitude, mode } = req.query; // Get header category slug, location and browsing channel from query params
 
   try {
     // Find sellers within user's location range
@@ -283,12 +285,25 @@ export const getHomeContent = async (req: Request, res: Response) => {
       !isNaN(userLat) &&
       !isNaN(userLng);
 
-    // Both Quick and E-commerce sellers' products are shown together — no
-    // commerce-channel gate here, only location.
+    // Quick and E-commerce are separate catalogs to the customer — a seller
+    // registered only for Quick must never show up while the customer is
+    // browsing in "Shop All" (ECommerce) mode, and vice versa.
+    const channel = parseChannelQueryParam(mode);
     let nearbySellerIds: mongoose.Types.ObjectId[] = [];
     if (hasUserLocation) {
-      nearbySellerIds = await findSellersWithinRange(userLat, userLng);
+      nearbySellerIds = await filterSellerIdsByChannel(
+        await findSellersWithinRange(userLat, userLng),
+        channel
+      );
+    } else if (channel) {
+      nearbySellerIds = await Seller.find({ channels: channel }).distinct("_id");
     }
+    // Whether a location or channel restriction was actually requested. When true,
+    // sections below must filter to `nearbySellerIds` even if it's empty (i.e. show
+    // nothing for that section) — NOT fall back to showing every seller's products,
+    // which would leak a Quick-only seller's items into "Shop All"/ECommerce browsing
+    // (or vice versa) whenever no sellers happened to match the requested channel.
+    const shouldRestrictToNearby = hasUserLocation || !!channel;
 
     // 1. Featured / Bestsellers - Get bestseller cards from admin configuration
     const bestsellerCards = await BestsellerCard.find({
@@ -321,8 +336,9 @@ export const getHomeContent = async (req: Request, res: Response) => {
             publish: true,
           };
 
-          // When location is known and sellers are in range, prefer preview images for in-range sellers.
-          if (nearbySellerIds.length > 0) {
+          // When a location or channel restriction was requested, honor it even if
+          // it yields zero matching sellers.
+          if (shouldRestrictToNearby) {
             productQuery.seller = { $in: nearbySellerIds };
           }
 
@@ -438,9 +454,11 @@ export const getHomeContent = async (req: Request, res: Response) => {
           translations: product.translations || {},
         };
       })
-      // Show in-range products when sellers exist; when no sellers in range or no location, show preview products
+      // Restrict to in-range/in-channel products whenever a location or channel was
+      // requested — including down to zero results, never a silent fallback to
+      // showing every seller's products regardless of channel.
       .filter((p: any) => {
-        if (nearbySellerIds.length > 0) {
+        if (shouldRestrictToNearby) {
           return p.isAvailable === true;
         }
         return true;
@@ -470,7 +488,7 @@ export const getHomeContent = async (req: Request, res: Response) => {
             _id: { $in: validProdIds.slice(0, 4) },
             status: "Active",
             publish: true,
-            ...(nearbySellerIds.length > 0 ? { seller: { $in: nearbySellerIds } } : {}),
+            ...(shouldRestrictToNearby ? { seller: { $in: nearbySellerIds } } : {}),
           })
             .select("mainImage")
             .lean();
@@ -492,8 +510,9 @@ export const getHomeContent = async (req: Request, res: Response) => {
       })
     );
 
-    // When location is known and sellers are in range, filter shops that have in-range products.
-    const visibleShops = (nearbySellerIds.length > 0)
+    // When a location or channel restriction was requested, only show shops that have
+    // in-range/in-channel products.
+    const visibleShops = shouldRestrictToNearby
       ? shops.filter((s: any) => Array.isArray(s.productImages) && s.productImages.length > 0)
       : shops;
 
@@ -521,8 +540,9 @@ export const getHomeContent = async (req: Request, res: Response) => {
       publish: true,
     };
 
-    // When location is known and sellers are in range, prefer preview images for in-range sellers.
-    if (nearbySellerIds.length > 0) {
+    // When a location or channel restriction was requested, honor it even if it
+    // yields zero matching sellers.
+    if (shouldRestrictToNearby) {
       foodProductsQuery.seller = { $in: nearbySellerIds };
     }
 
@@ -703,7 +723,8 @@ export const getHomeContent = async (req: Request, res: Response) => {
         const sectionData = await fetchSectionData(
           section,
           nearbySellerIds,
-          hasUserLocation
+          hasUserLocation,
+          shouldRestrictToNearby
         );
         
         return {
@@ -761,9 +782,10 @@ export const getHomeContent = async (req: Request, res: Response) => {
                 : false;
             return { ...p, isAvailable };
           })
-          // When sellers are in range, prefer in-range products; otherwise show preview products
+          // Restrict to in-range/in-channel products whenever a location or channel
+          // was requested — including down to zero results.
           .filter((p: any) => {
-            if (nearbySellerIds.length > 0) {
+            if (shouldRestrictToNearby) {
               return p.isAvailable === true;
             }
             return true;

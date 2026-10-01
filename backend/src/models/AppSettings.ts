@@ -87,6 +87,10 @@ export interface IAppSettings extends Document {
    *  of what's on their Seller.categories record — no per-seller assignment needed. */
   sellerCategoryVisibility: "all" | "assigned";
 
+  // Advertisement System — flat cost-per-click charged against a campaign's budget
+  // each time a sponsored product card is clicked. Admin-editable fee rule.
+  adCostPerClick: number;
+
   // Policies
   privacyPolicy?: string;
   termsOfService?: string;
@@ -359,6 +363,13 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       type: String,
       enum: ["all", "assigned"],
       default: "assigned",
+    },
+
+    // Advertisement System
+    adCostPerClick: {
+      type: Number,
+      default: 2,
+      min: [0, "Cost per click cannot be negative"],
     },
 
     // Policies

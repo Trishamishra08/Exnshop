@@ -1,6 +1,7 @@
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useLocation } from '../../hooks/useLocation';
+import { useCommerceMode } from '../../context/CommerceModeContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../../components/ui/button';
 import { Product } from '../../types/domain';
@@ -21,6 +22,7 @@ export default function SpiritualStore() {
   const navigate = useNavigate();
   const { cart, addToCart, updateQuantity } = useCart();
   const { location: userLocation } = useLocation();
+  const { mode } = useCommerceMode();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -29,7 +31,7 @@ export default function SpiritualStore() {
       try {
         setLoading(true);
         // Assuming 'spiritual' is the correct category ID in your database
-        const response = await getProducts({ category: 'spiritual' });
+        const response = await getProducts({ category: 'spiritual', mode: mode === 'ECommerce' ? 'ecommerce' : 'quick' });
         // Correctly casting or mapping the response data
         setProducts(response.data as unknown as Product[]);
       } catch (error) {
@@ -40,7 +42,7 @@ export default function SpiritualStore() {
     };
 
     fetchProducts();
-  }, []);
+  }, [mode]);
 
   return (
     <div className="min-h-screen bg-white">

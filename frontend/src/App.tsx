@@ -151,6 +151,18 @@ const SellerSubCategory = lazyWithRetry(
 const SellerAddProduct = lazyWithRetry(
   () => import("./modules/seller/pages/SellerAddProduct"), "SellerAddProduct"
 );
+const SellerBulkUpload = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerBulkUpload"), "SellerBulkUpload"
+);
+const SellerClaims = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerClaims"), "SellerClaims"
+);
+const SellerSupportTickets = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerSupportTickets"), "SellerSupportTickets"
+);
+const SellerCampaigns = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerCampaigns"), "SellerCampaigns"
+);
 const SellerTaxes = lazyWithRetry(() => import("./modules/seller/pages/SellerTaxes"), "SellerTaxes");
 const SellerProductList = lazyWithRetry(
   () => import("./modules/seller/pages/SellerProductList"), "SellerProductList"
@@ -206,6 +218,21 @@ const AdminStockManagement = lazyWithRetry(
 );
 const AdminProductEdit = lazyWithRetry(
   () => import("./modules/admin/pages/AdminProductEdit"), "AdminProductEdit"
+);
+const AdminProductApprovals = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminProductApprovals"), "AdminProductApprovals"
+);
+const AdminCourierManagement = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminCourierManagement"), "AdminCourierManagement"
+);
+const AdminClaims = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminClaims"), "AdminClaims"
+);
+const AdminSupportTickets = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminSupportTickets"), "AdminSupportTickets"
+);
+const AdminCampaigns = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminCampaigns"), "AdminCampaigns"
 );
 const AdminSubcategoryOrder = lazyWithRetry(
   () => import("./modules/admin/pages/AdminSubcategoryOrder"), "AdminSubcategoryOrder"
@@ -669,6 +696,22 @@ function App() {
                                         element={<SellerAddProduct />}
                                       />
                                       <Route
+                                        path="product/bulk-upload"
+                                        element={<SellerBulkUpload />}
+                                      />
+                                      <Route
+                                        path="claims"
+                                        element={<SellerClaims />}
+                                      />
+                                      <Route
+                                        path="support-tickets"
+                                        element={<SellerSupportTickets />}
+                                      />
+                                      <Route
+                                        path="campaigns"
+                                        element={<SellerCampaigns />}
+                                      />
+                                      <Route
                                         path="product/taxes"
                                         element={<SellerTaxes />}
                                       />
@@ -756,6 +799,26 @@ function App() {
                                       <Route
                                         path="product/list"
                                         element={<AdminStockManagement />}
+                                      />
+                                      <Route
+                                        path="product/approvals"
+                                        element={<AdminProductApprovals />}
+                                      />
+                                      <Route
+                                        path="couriers"
+                                        element={<AdminCourierManagement />}
+                                      />
+                                      <Route
+                                        path="claims"
+                                        element={<AdminClaims />}
+                                      />
+                                      <Route
+                                        path="support-tickets"
+                                        element={<AdminSupportTickets />}
+                                      />
+                                      <Route
+                                        path="campaigns"
+                                        element={<AdminCampaigns />}
                                       />
                                       <Route
                                         path="product/edit/:id"

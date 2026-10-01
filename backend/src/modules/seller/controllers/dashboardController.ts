@@ -5,6 +5,7 @@ import Seller from "../../../models/Seller";
 import OrderItem from "../../../models/OrderItem";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import { getCommissionSummary } from "../../../services/commissionService";
+import Campaign from "../../../models/Campaign";
 import mongoose from "mongoose";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -38,6 +39,7 @@ export const getDashboardStats = asyncHandler(
             totalSubcategoryCount,
             totalCustomerCount,
             commissionSummary,
+            campaignSpendResult,
         ] = await Promise.all([
             Order.countDocuments({ _id: { $in: sellerOrderIds }, status: { $ne: "Pending" } }),
             Order.countDocuments({ _id: { $in: sellerOrderIds }, status: "Delivered" }),
@@ -51,7 +53,13 @@ export const getDashboardStats = asyncHandler(
             Product.distinct("subcategory", { seller: sellerId }).then(ids => ids.length),
             Order.distinct("customer", { _id: { $in: sellerOrderIds }, status: { $ne: "Pending" } }).then(ids => ids.length),
             getCommissionSummary(sellerId.toString(), "SELLER"),
+            Campaign.aggregate([
+                { $match: { seller: sellerId } },
+                { $group: { _id: null, totalSpend: { $sum: "$spend" } } },
+            ]),
         ]);
+
+        const advertisementSpend = campaignSpendResult[0]?.totalSpend || 0;
 
         const commissionData = commissionSummary?.data || { pending: 0, paid: 0, nextSettlementDate: null };
 
@@ -240,8 +248,7 @@ export const getDashboardStats = asyncHandler(
                     availableBalance: Math.round(sellerDoc?.balance || 0),
                     onHoldBalance: Math.round(sellerDoc?.onHoldBalance || 0),
                     nextSettlementDate: commissionData.nextSettlementDate,
-                    // Not yet implemented (no Advertisement/Campaign module exists yet)
-                    advertisementSpend: 0,
+                    advertisementSpend: Math.round(advertisementSpend),
                     // Charts
                     yearlyOrderData,
                     dailyOrderData,

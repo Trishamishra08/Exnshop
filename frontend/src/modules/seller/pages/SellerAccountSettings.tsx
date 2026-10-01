@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getSellerProfile, updateSellerProfile } from '../../../services/api/auth/sellerAuthService';
+import { getSellerProfile, updateSellerProfile, sendEmailVerification, verifySellerEmail } from '../../../services/api/auth/sellerAuthService';
 import { useAuth } from '../../../context/AuthContext';
 import { getHeaderCategoriesPublic, HeaderCategory } from '../../../services/api/headerCategoryService';
 import GoogleMapsAutocomplete from '../../../components/GoogleMapsAutocomplete';
@@ -24,12 +24,15 @@ const SellerAccountSettings = () => {
         category: '',
         categories: [] as string[],
         address: '',
+        returnAddress: '',
         city: '',
         searchLocation: '',
         latitude: '',
         longitude: '',
         serviceRadiusKm: '10',
         panCard: '',
+        gstin: '',
+        businessType: '',
         taxName: '',
         taxNumber: '',
         accountName: '',
@@ -43,8 +46,14 @@ const SellerAccountSettings = () => {
         storeBanner: '',
         storeDescription: '',
         commission: 0,
-        status: ''
+        status: '',
+        isEmailVerified: false,
+        profileCompletionPercentage: 0,
     });
+    const [sameAsReturnAddress, setSameAsReturnAddress] = useState(true);
+    const [emailVerifyLoading, setEmailVerifyLoading] = useState(false);
+    const [emailCodeSent, setEmailCodeSent] = useState(false);
+    const [emailCodeInput, setEmailCodeInput] = useState('');
 
     useEffect(() => {
         fetchProfile();
@@ -78,6 +87,7 @@ const SellerAccountSettings = () => {
                     searchLocation: data.searchLocation || data.address || '',
                     serviceRadiusKm: (data.serviceRadiusKm || 10).toString(),
                 });
+                setSameAsReturnAddress(!data.returnAddress || data.returnAddress === data.address);
             } else {
                 setError(response.message || 'Failed to fetch profile');
             }
@@ -135,6 +145,7 @@ const SellerAccountSettings = () => {
             const updateData = {
                 ...sellerData,
                 serviceRadiusKm: radius,
+                returnAddress: sameAsReturnAddress ? sellerData.address : sellerData.returnAddress,
             };
 
             const response = await updateSellerProfile(updateData);
@@ -246,6 +257,18 @@ const SellerAccountSettings = () => {
                             )}
                         </motion.button>
                     </div>
+                    <div className="mt-4">
+                        <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                            <span>Profile completion</span>
+                            <span className="font-semibold text-gray-700">{sellerData.profileCompletionPercentage || 0}%</span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <div
+                                className={`h-full rounded-full transition-all duration-500 ${(sellerData.profileCompletionPercentage || 0) >= 100 ? 'bg-green-500' : 'bg-teal-500'}`}
+                                style={{ width: `${sellerData.profileCompletionPercentage || 0}%` }}
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -345,7 +368,77 @@ const SellerAccountSettings = () => {
 
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                                     <InputGroup label="Full Name" name="sellerName" value={sellerData.sellerName} onChange={handleInputChange} disabled={!isEditing} autoComplete="name" />
-                                                    <InputGroup label="Email Address" name="email" value={sellerData.email} onChange={handleInputChange} disabled={!isEditing} type="email" autoComplete="email" />
+                                                    <div>
+                                                        <InputGroup label="Email Address" name="email" value={sellerData.email} onChange={handleInputChange} disabled={!isEditing} type="email" autoComplete="email" />
+                                                        <div className="mt-1.5 ml-1">
+                                                            {sellerData.isEmailVerified ? (
+                                                                <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700">
+                                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                                                                    Verified
+                                                                </span>
+                                                            ) : emailCodeSent ? (
+                                                                <div className="flex items-center gap-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={emailCodeInput}
+                                                                        onChange={(e) => setEmailCodeInput(e.target.value)}
+                                                                        placeholder="6-digit code"
+                                                                        maxLength={6}
+                                                                        className="w-28 px-2 py-1 text-xs rounded border border-gray-300 focus:ring-1 focus:ring-teal-500"
+                                                                    />
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={emailVerifyLoading || emailCodeInput.length !== 6}
+                                                                        onClick={async () => {
+                                                                            try {
+                                                                                setEmailVerifyLoading(true);
+                                                                                const res = await verifySellerEmail(emailCodeInput);
+                                                                                if (res.success) {
+                                                                                    setSellerData(prev => ({ ...prev, isEmailVerified: true }));
+                                                                                    setEmailCodeSent(false);
+                                                                                } else {
+                                                                                    setError(res.message || 'Invalid code');
+                                                                                }
+                                                                            } catch (err: any) {
+                                                                                setError(err.response?.data?.message || 'Invalid code');
+                                                                            } finally {
+                                                                                setEmailVerifyLoading(false);
+                                                                            }
+                                                                        }}
+                                                                        className="text-xs font-semibold text-teal-700 hover:text-teal-800 disabled:opacity-40"
+                                                                    >
+                                                                        {emailVerifyLoading ? 'Checking...' : 'Confirm'}
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={emailVerifyLoading}
+                                                                    onClick={async () => {
+                                                                        try {
+                                                                            setEmailVerifyLoading(true);
+                                                                            const res = await sendEmailVerification();
+                                                                            if (res.success) {
+                                                                                setEmailCodeSent(true);
+                                                                                if (res.data?.devCode) {
+                                                                                    console.log('[DEV] Email verification code:', res.data.devCode);
+                                                                                }
+                                                                            } else {
+                                                                                setError(res.message || 'Failed to send verification email');
+                                                                            }
+                                                                        } catch (err: any) {
+                                                                            setError(err.response?.data?.message || 'Failed to send verification email');
+                                                                        } finally {
+                                                                            setEmailVerifyLoading(false);
+                                                                        }
+                                                                    }}
+                                                                    className="text-xs font-semibold text-amber-700 hover:text-amber-800 disabled:opacity-40"
+                                                                >
+                                                                    {emailVerifyLoading ? 'Sending...' : 'Not verified — send verification code'}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                     <InputGroup label="Mobile Number" name="mobile" value={sellerData.mobile} onChange={handleInputChange} disabled={!isEditing} type="tel" autoComplete="tel" />
 
                                                     <div className="space-y-1.5">
@@ -501,6 +594,33 @@ const SellerAccountSettings = () => {
                                                     <InputGroup label="City" name="city" value={sellerData.city} onChange={handleInputChange} disabled={!isEditing} />
 
                                                     <div className="space-y-1.5">
+                                                        <div className="flex items-center justify-between">
+                                                            <label className="text-sm font-semibold text-gray-700 ml-1">
+                                                                Return Address
+                                                            </label>
+                                                            <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer select-none">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={sameAsReturnAddress}
+                                                                    onChange={(e) => setSameAsReturnAddress(e.target.checked)}
+                                                                    disabled={!isEditing}
+                                                                    className="w-3.5 h-3.5 accent-teal-600"
+                                                                />
+                                                                Same as pickup address
+                                                            </label>
+                                                        </div>
+                                                        <textarea
+                                                            name="returnAddress"
+                                                            value={sameAsReturnAddress ? (sellerData.address || '') : (sellerData.returnAddress || '')}
+                                                            onChange={handleInputChange}
+                                                            disabled={!isEditing || sameAsReturnAddress}
+                                                            rows={3}
+                                                            placeholder="Where customer returns should be shipped back to"
+                                                            className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none disabled:bg-gray-50/50 disabled:text-gray-500 transition-all resize-none"
+                                                        />
+                                                    </div>
+
+                                                    <div className="space-y-1.5">
                                                         <label className="text-sm font-semibold text-gray-700 ml-1">
                                                             Service Radius (KM) <span className="text-red-500">*</span>
                                                         </label>
@@ -617,7 +737,9 @@ const SellerAccountSettings = () => {
                                                     </div>
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-gray-50/50 p-6 rounded-xl border border-gray-100">
                                                         <InputGroup label="PAN Card Number" name="panCard" value={sellerData.panCard} onChange={handleInputChange} disabled={!isEditing} />
-                                                        <InputGroup label="Tax Number (GST)" name="taxNumber" value={sellerData.taxNumber} onChange={handleInputChange} disabled={!isEditing} />
+                                                        <InputGroup label="GSTIN" name="gstin" value={sellerData.gstin} onChange={handleInputChange} disabled={!isEditing} />
+                                                        <InputGroup label="Business Type" name="businessType" value={sellerData.businessType} onChange={handleInputChange} disabled={!isEditing} placeholder="e.g. Proprietorship, Pvt Ltd, Partnership" />
+                                                        <InputGroup label="Tax Number (legacy, optional)" name="taxNumber" value={sellerData.taxNumber} onChange={handleInputChange} disabled={!isEditing} />
                                                     </div>
                                                 </section>
                                             </div>

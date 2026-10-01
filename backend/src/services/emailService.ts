@@ -99,6 +99,48 @@ This message was submitted through the Olovely customer application.
   }
 }
 
+/**
+ * Send a 6-digit email verification code — used for Seller (and reusable for
+ * any user type later) email verification during Phase 1 profile setup.
+ */
+export async function sendVerificationCodeEmail(
+  toEmail: string,
+  recipientName: string,
+  code: string
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    const transporter = getTransporter();
+
+    const mailOptions = {
+      from: `"${process.env.MAIL_FROM_NAME || "Exnshop"}" <${process.env.MAIL_FROM || "olovelytotalsuvidha@gmail.com"}>`,
+      to: toEmail,
+      subject: "Verify your email address",
+      html: `
+        <div style="font-family: Arial, sans-serif; color: #333; max-width: 480px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+          <div style="background-color: #0d9488; color: #ffffff; padding: 16px 24px;">
+            <h2 style="margin: 0; font-size: 20px;">Exnshop</h2>
+          </div>
+          <div style="padding: 24px; background-color: #ffffff;">
+            <p style="font-size: 14px; color: #333;">Hi ${escapeHtml(recipientName)},</p>
+            <p style="font-size: 14px; color: #333;">Use the code below to verify your email address. It expires in 10 minutes.</p>
+            <div style="text-align: center; margin: 24px 0;">
+              <span style="display: inline-block; font-size: 28px; font-weight: bold; letter-spacing: 8px; color: #0d9488; background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; padding: 12px 24px;">${code}</span>
+            </div>
+            <p style="font-size: 12px; color: #888;">If you didn't request this, you can safely ignore this email.</p>
+          </div>
+        </div>
+      `,
+      text: `Your Exnshop email verification code is: ${code} (expires in 10 minutes)`,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    return { success: true, messageId: info.messageId };
+  } catch (error: any) {
+    console.error("[EMAIL SERVICE ERROR] Failed to send verification email:", error);
+    return { success: false, error: error.message || "Failed to send email" };
+  }
+}
+
 function escapeHtml(text: string): string {
   return String(text || "")
     .replace(/&/g, "&amp;")

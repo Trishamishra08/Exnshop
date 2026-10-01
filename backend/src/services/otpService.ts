@@ -1,5 +1,7 @@
 import axios from "axios";
 import Otp from "../models/Otp";
+import EmailOtp from "../models/EmailOtp";
+import { sendVerificationCodeEmail } from "./emailService";
 
 const SMS_INDIA_HUB_API_URL =
   "http://cloud.smsindiahub.in/vendorsms/pushsms.aspx";
@@ -759,6 +761,117 @@ export async function sendOTP(
     });
     throw new Error(errorMessage);
   }
+}
+
+// ==========================================
+// Email OTP (Seller / Delivery login by email)
+// ==========================================
+
+async function saveEmailOtpToDb(
+  email: string,
+  otp: string,
+  userType: "Seller" | "Admin" | "Customer" | "Delivery",
+): Promise<void> {
+  const normalizedEmail = email.trim().toLowerCase();
+  await EmailOtp.deleteMany({ email: normalizedEmail, userType });
+  await EmailOtp.create({
+    email: normalizedEmail,
+    otp: otp.trim(),
+    userType,
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes expiry
+  });
+}
+
+async function verifyEmailOtpFromDb(
+  email: string,
+  otp: string,
+  userType: "Seller" | "Admin" | "Customer" | "Delivery",
+): Promise<boolean> {
+  const normalizedEmail = email.trim().toLowerCase();
+  const record = await EmailOtp.findOne({
+    email: normalizedEmail,
+    userType,
+    otp: otp.trim(),
+  });
+
+  if (!record) return false;
+  if (record.expiresAt < new Date()) {
+    await EmailOtp.deleteOne({ _id: record._id });
+    return false;
+  }
+
+  await EmailOtp.deleteOne({ _id: record._id });
+  return true;
+}
+
+/**
+ * Send a login OTP to the user's email — same universal-bypass (888888) and
+ * mock-mode behavior as the mobile OTP flow, but delivered via email instead
+ * of SMS. Used by Seller and Delivery login when the app is configured for
+ * email-based login instead of mobile.
+ */
+export async function sendEmailOtp(
+  email: string,
+  userType: "Seller" | "Admin" | "Customer" | "Delivery",
+  recipientName?: string,
+): Promise<OtpResponse> {
+  try {
+    const otp = generateOTP(6);
+
+    // Special bypass — same fixed test code as mobile OTP, for consistent testing.
+    const specialOtp = getSpecialOtpForMobile(email);
+    if (specialOtp) {
+      await saveEmailOtpToDb(email, specialOtp, userType);
+      return {
+        success: true,
+        sessionId: "EMAIL_SESSION_" + email.trim().toLowerCase(),
+        message: "OTP sent to your email",
+      };
+    }
+
+    await saveEmailOtpToDb(email, otp, userType);
+    if (process.env.NODE_ENV !== "production" || DEBUG_SMS) {
+      console.log(`[EMAIL OTP DEBUG] Generated OTP for ${email}: ${otp}`);
+    }
+
+    // Best-effort real send — never blocks login if the SMTP provider hiccups
+    // in dev; the OTP is already saved and the universal bypass still works.
+    sendVerificationCodeEmail(email, recipientName || "there", otp).catch((err) =>
+      console.error("Failed to send email OTP:", err),
+    );
+
+    return {
+      success: true,
+      sessionId: "EMAIL_SESSION_" + email.trim().toLowerCase(),
+      message: "OTP sent to your email",
+    };
+  } catch (error: any) {
+    console.error("Email OTP Error (sendEmailOtp):", {
+      error: error.message,
+      email,
+      userType,
+    });
+    throw new Error(error.message || "Failed to send OTP. Please try again.");
+  }
+}
+
+export async function verifyEmailOtp(
+  email: string,
+  otpInput: string,
+  userType: "Seller" | "Admin" | "Customer" | "Delivery",
+): Promise<boolean> {
+  const normalizedOtp = String(otpInput).trim().replace(/\s/g, "");
+
+  const specialOtp = getSpecialOtpForMobile(email);
+  if (specialOtp) {
+    return normalizedOtp === specialOtp;
+  }
+
+  if (!normalizedOtp || normalizedOtp.length < 4 || normalizedOtp.length > 6) {
+    return false;
+  }
+
+  return verifyEmailOtpFromDb(email, normalizedOtp, userType);
 }
 
 export async function verifyOTP(

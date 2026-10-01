@@ -94,6 +94,30 @@ export const uploadMultipleDocuments = multer({
   fileFilter: documentFileFilter,
 });
 
+// File filter + multer instance for CSV bulk-upload (products, etc.)
+const MAX_CSV_SIZE = 10 * 1024 * 1024; // 10MB
+const csvFileFilter = (
+  _req: Request,
+  file: any,
+  cb: multer.FileFilterCallback
+) => {
+  const isCsv =
+    file.mimetype === "text/csv" ||
+    file.mimetype === "application/vnd.ms-excel" ||
+    file.originalname?.toLowerCase().endsWith(".csv");
+  if (isCsv) {
+    cb(null, true);
+  } else {
+    cb(new Error("Invalid file type. Please upload a .csv file"));
+  }
+};
+
+export const uploadCsv = multer({
+  storage,
+  limits: { fileSize: MAX_CSV_SIZE },
+  fileFilter: csvFileFilter,
+});
+
 // Error handler middleware for multer errors
 export const handleUploadError = (
   err: any,

@@ -12,6 +12,8 @@ export interface Product {
   _id?: string;
   name: string;
   productName?: string;
+  /** True when this product has an active ad campaign running — shown as a "Sponsored" badge. */
+  isSponsored?: boolean;
   description?: string;
   smallDescription?: string;
   pack: string;

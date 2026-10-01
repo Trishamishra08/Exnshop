@@ -316,6 +316,24 @@ const getMenuSections = (mode: "Quick" | "ECommerce"): MenuSection[] => [
             ),
           },
           {
+            label: "Product Approvals",
+            path: "/admin/product/approvals",
+            icon: (
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9 12L11 14L15 10"></path>
+              </svg>
+            ),
+          },
+          {
             label: "Taxes",
             path: "/admin/product/taxes",
             icon: (
@@ -474,6 +492,79 @@ const getMenuSections = (mode: "Quick" | "ECommerce"): MenuSection[] => [
         ),
       },
       ...(mode === "ECommerce" ? [shipmentsItem] : [deliveryBoyItem]),
+      {
+        label: "Couriers",
+        path: "/admin/couriers",
+        icon: (
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round">
+            <rect x="1" y="3" width="15" height="13"></rect>
+            <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+            <circle cx="5.5" cy="18.5" r="2.5"></circle>
+            <circle cx="18.5" cy="18.5" r="2.5"></circle>
+          </svg>
+        ),
+      },
+      {
+        label: "Claims",
+        path: "/admin/claims",
+        icon: (
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        ),
+      },
+      {
+        label: "Seller Support",
+        path: "/admin/support-tickets",
+        icon: (
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round">
+            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+          </svg>
+        ),
+      },
+      {
+        label: "Ad Campaigns",
+        path: "/admin/campaigns",
+        icon: (
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round">
+            <path d="M3 11L22 2L13 21L11 13L3 11Z"></path>
+          </svg>
+        ),
+      },
     ],
   },
   {

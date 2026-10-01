@@ -1,6 +1,7 @@
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useLocation } from '../../hooks/useLocation';
+import { useCommerceMode } from '../../context/CommerceModeContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import Button from '../../components/ui/button';
 import { Product } from '../../types/domain';
@@ -13,6 +14,7 @@ export default function FashionStore() {
   const navigate = useNavigate();
   const { cart, addToCart, updateQuantity } = useCart();
   const { location: userLocation } = useLocation();
+  const { mode } = useCommerceMode();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -20,7 +22,7 @@ export default function FashionStore() {
     const fetchProducts = async () => {
       try {
         setLoading(true);
-        const response = await getProducts({ category: 'fashion' });
+        const response = await getProducts({ category: 'fashion', mode: mode === 'ECommerce' ? 'ecommerce' : 'quick' });
         setProducts(response.data as unknown as Product[]);
       } catch (error) {
         console.error('Failed to fetch fashion products:', error);
@@ -30,7 +32,7 @@ export default function FashionStore() {
     };
 
     fetchProducts();
-  }, []);
+  }, [mode]);
 
   return (
     <div className="min-h-screen bg-white">

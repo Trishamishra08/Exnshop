@@ -3,20 +3,74 @@ import Seller from "../../../models/Seller";
 import {
   sendOTP as sendOTPService,
   verifyOTP as verifyOTPService,
+  sendEmailOtp,
+  verifyEmailOtp,
 } from "../../../services/otpService";
 import { generateToken } from "../../../services/jwtService";
 import { asyncHandler } from "../../../utils/asyncHandler";
+import { sendVerificationCodeEmail } from "../../../services/emailService";
 
 /**
- * Send OTP to seller mobile number
+ * Profile completion percentage — a simple count of how many of the key
+ * onboarding fields (Phase 1 spec) are actually filled in, equally weighted.
+ * Computed on read rather than stored, so it's always accurate.
+ */
+const PROFILE_COMPLETION_FIELDS: Array<(s: any) => boolean> = [
+  (s) => !!s.sellerName,
+  (s) => !!s.storeName,
+  (s) => !!s.mobile,
+  (s) => !!s.email,
+  (s) => !!s.isEmailVerified,
+  (s) => !!s.panCard,
+  (s) => !!s.gstin,
+  (s) => !!s.businessType,
+  (s) => !!s.address,
+  (s) => !!s.returnAddress,
+  (s) => !!s.accountNumber,
+  (s) => !!s.ifsc,
+  (s) => !!s.logo,
+];
+
+export const computeProfileCompletion = (seller: any): number => {
+  const filled = PROFILE_COMPLETION_FIELDS.filter((check) => check(seller)).length;
+  return Math.round((filled / PROFILE_COMPLETION_FIELDS.length) * 100);
+};
+
+/**
+ * Send OTP to seller — by email (current default login method) or, if a
+ * mobile number is sent instead, falls back to the original SMS OTP flow.
  */
 export const sendOTP = asyncHandler(async (req: Request, res: Response) => {
-  const { mobile } = req.body;
+  const { mobile, email } = req.body;
+
+  if (email) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid email address is required",
+      });
+    }
+
+    const seller = await Seller.findOne({ email: email.toLowerCase().trim() });
+    if (!seller) {
+      return res.status(404).json({
+        success: false,
+        message: "No seller account found with this email",
+      });
+    }
+
+    const result = await sendEmailOtp(email, "Seller", seller.sellerName);
+    return res.status(200).json({
+      success: true,
+      message: result.message,
+      sessionId: result.sessionId,
+    });
+  }
 
   if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
     return res.status(400).json({
       success: false,
-      message: "Valid 10-digit mobile number is required",
+      message: "Valid email address is required",
     });
   }
 
@@ -39,17 +93,11 @@ export const sendOTP = asyncHandler(async (req: Request, res: Response) => {
 });
 
 /**
- * Verify OTP and login seller
+ * Verify OTP and login seller — by email or mobile, matching whichever
+ * sendOTP was called with.
  */
 export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
-  const { mobile, otp } = req.body;
-
-  if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
-    return res.status(400).json({
-      success: false,
-      message: "Valid 10-digit mobile number is required",
-    });
-  }
+  const { mobile, email, otp } = req.body;
 
   if (!otp || !/^[0-9]{4,6}$/.test(otp)) {
     return res.status(400).json({
@@ -58,17 +106,35 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  // Verify OTP
-  const isValid = await verifyOTPService(mobile, otp, "Seller");
-  if (!isValid) {
-    return res.status(401).json({
-      success: false,
-      message: "OTP should be valid. Please try again.",
-    });
+  let seller;
+
+  if (email) {
+    const isValid = await verifyEmailOtp(email, otp, "Seller");
+    if (!isValid) {
+      return res.status(401).json({
+        success: false,
+        message: "OTP should be valid. Please try again.",
+      });
+    }
+    seller = await Seller.findOne({ email: email.toLowerCase().trim() }).select("-password");
+  } else {
+    if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
+      return res.status(400).json({
+        success: false,
+        message: "Valid email address is required",
+      });
+    }
+
+    const isValid = await verifyOTPService(mobile, otp, "Seller");
+    if (!isValid) {
+      return res.status(401).json({
+        success: false,
+        message: "OTP should be valid. Please try again.",
+      });
+    }
+    seller = await Seller.findOne({ mobile }).select("-password");
   }
 
-  // Find seller
-  const seller = await Seller.findOne({ mobile }).select("-password");
   if (!seller) {
     return res.status(404).json({
       success: false,
@@ -282,8 +348,77 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
 
   return res.status(200).json({
     success: true,
-    data: seller,
+    data: {
+      ...seller.toObject(),
+      profileCompletionPercentage: computeProfileCompletion(seller),
+    },
   });
+});
+
+/**
+ * Send a 6-digit verification code to the seller's registered email.
+ */
+export const sendEmailVerification = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = (req as any).user.userId;
+  const seller = await Seller.findById(sellerId);
+  if (!seller) {
+    return res.status(404).json({ success: false, message: "Seller not found" });
+  }
+  if (seller.isEmailVerified) {
+    return res.status(400).json({ success: false, message: "Email is already verified" });
+  }
+
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  seller.emailVerificationCode = code;
+  seller.emailVerificationExpiry = new Date(Date.now() + 10 * 60 * 1000);
+  await seller.save();
+
+  const result = await sendVerificationCodeEmail(seller.email, seller.sellerName, code);
+
+  return res.status(200).json({
+    success: true,
+    message: result.success
+      ? "Verification code sent to your email"
+      : "Could not send the email right now, please try again shortly",
+    // Dev convenience only — never leak the code in production.
+    ...(process.env.NODE_ENV !== "production" ? { data: { devCode: code } } : {}),
+  });
+});
+
+/**
+ * Verify the seller's email using the code sent by sendEmailVerification.
+ */
+export const verifyEmail = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = (req as any).user.userId;
+  const { code } = req.body;
+
+  if (!code) {
+    return res.status(400).json({ success: false, message: "Verification code is required" });
+  }
+
+  const seller = await Seller.findById(sellerId).select("+emailVerificationCode +emailVerificationExpiry");
+  if (!seller) {
+    return res.status(404).json({ success: false, message: "Seller not found" });
+  }
+  if (seller.isEmailVerified) {
+    return res.status(400).json({ success: false, message: "Email is already verified" });
+  }
+  if (!seller.emailVerificationCode || !seller.emailVerificationExpiry) {
+    return res.status(400).json({ success: false, message: "Please request a verification code first" });
+  }
+  if (new Date() > seller.emailVerificationExpiry) {
+    return res.status(400).json({ success: false, message: "Verification code has expired. Please request a new one." });
+  }
+  if (seller.emailVerificationCode !== code) {
+    return res.status(400).json({ success: false, message: "Invalid verification code" });
+  }
+
+  seller.isEmailVerified = true;
+  seller.emailVerificationCode = undefined;
+  seller.emailVerificationExpiry = undefined;
+  await seller.save();
+
+  return res.status(200).json({ success: true, message: "Email verified successfully" });
 });
 
 /**
@@ -301,6 +436,9 @@ export const updateProfile = asyncHandler(
       "email",
       "status",
       "balance",
+      "isEmailVerified",
+      "emailVerificationCode",
+      "emailVerificationExpiry",
     ];
     restrictedFields.forEach((field) => delete updates[field]);
 

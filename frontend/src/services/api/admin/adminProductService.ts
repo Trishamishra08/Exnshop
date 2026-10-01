@@ -131,7 +131,7 @@ export interface Product {
   publish: boolean;
   popular: boolean;
   dealOfDay: boolean;
-  status: "Active" | "Inactive" | "Pending" | "Rejected";
+  status: "Draft" | "Active" | "Inactive" | "Pending" | "Rejected";
   manufacturer?: string;
   madeIn?: string;
   tax?: string;
@@ -147,6 +147,7 @@ export interface Product {
   requiresApproval: boolean;
   approvedBy?: string | { firstName: string; lastName: string };
   approvedAt?: string;
+  rejectionReason?: string;
   commission?: number;
   createdAt?: string;
   updatedAt?: string;
@@ -201,7 +202,7 @@ export interface GetProductsParams {
   subcategory?: string;
   brand?: string;
   seller?: string;
-  status?: "Active" | "Inactive" | "Pending" | "Rejected";
+  status?: "Draft" | "Active" | "Inactive" | "Pending" | "Rejected";
   publish?: boolean;
   channel?: "Quick" | "ECommerce";
 }

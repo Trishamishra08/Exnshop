@@ -59,18 +59,18 @@ export interface RegisterResponse {
 }
 
 /**
- * Send OTP to seller mobile number
+ * Send OTP to seller's registered email
  */
-export const sendOTP = async (mobile: string): Promise<SendOTPResponse> => {
-  const response = await api.post<SendOTPResponse>('/auth/seller/send-otp', { mobile });
+export const sendOTP = async (email: string): Promise<SendOTPResponse> => {
+  const response = await api.post<SendOTPResponse>('/auth/seller/send-otp', { email });
   return response.data;
 };
 
 /**
  * Verify OTP and login seller
  */
-export const verifyOTP = async (mobile: string, otp: string): Promise<VerifyOTPResponse> => {
-  const response = await api.post<VerifyOTPResponse>('/auth/seller/verify-otp', { mobile, otp });
+export const verifyOTP = async (email: string, otp: string): Promise<VerifyOTPResponse> => {
+  const response = await api.post<VerifyOTPResponse>('/auth/seller/verify-otp', { email, otp });
 
   if (response.data.success && response.data.data?.token) {
     const userData = {
@@ -104,6 +104,22 @@ export const getSellerProfile = async (): Promise<any> => {
  */
 export const updateSellerProfile = async (data: any): Promise<any> => {
   const response = await api.put('/auth/seller/profile', data);
+  return response.data;
+};
+
+/**
+ * Send a 6-digit code to the seller's registered email for verification.
+ */
+export const sendEmailVerification = async (): Promise<any> => {
+  const response = await api.post('/auth/seller/send-email-verification');
+  return response.data;
+};
+
+/**
+ * Verify the seller's email with the code sent by sendEmailVerification.
+ */
+export const verifySellerEmail = async (code: string): Promise<any> => {
+  const response = await api.post('/auth/seller/verify-email', { code });
   return response.data;
 };
 

@@ -6,14 +6,20 @@ export interface ISeller extends Document {
   sellerName: string;
   password: string;
   email: string;
+  isEmailVerified: boolean;
+  emailVerificationCode?: string;
+  emailVerificationExpiry?: Date;
   mobile: string;
 
   // Store Info
   storeName: string;
   panCard?: string;
+  gstin?: string;
+  businessType?: string;
   category: string;
   taxName?: string;
-  address: string;
+  address: string; // Pickup / warehouse address
+  returnAddress?: string; // Where customer returns should be shipped back to (defaults to pickup address if unset)
   taxNumber?: string;
   storeDescription?: string;
   storeBanner?: string;
@@ -119,6 +125,18 @@ const SellerSchema = new Schema<ISeller>(
         message: 'Please enter a valid email address',
       },
     },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    emailVerificationCode: {
+      type: String,
+      select: false,
+    },
+    emailVerificationExpiry: {
+      type: Date,
+      select: false,
+    },
     mobile: {
       type: String,
       required: [true, 'Mobile number is required'],
@@ -142,6 +160,15 @@ const SellerSchema = new Schema<ISeller>(
       type: String,
       trim: true,
     },
+    gstin: {
+      type: String,
+      trim: true,
+      uppercase: true,
+    },
+    businessType: {
+      type: String,
+      trim: true,
+    },
     category: {
       type: String,
       required: [true, 'Category is required'],
@@ -154,6 +181,10 @@ const SellerSchema = new Schema<ISeller>(
     address: {
       type: String,
       required: false,
+      trim: true,
+    },
+    returnAddress: {
+      type: String,
       trim: true,
     },
     taxNumber: {

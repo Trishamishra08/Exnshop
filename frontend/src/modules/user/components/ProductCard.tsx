@@ -114,8 +114,14 @@ export default function ProductCard({
   }, [packText, productName]);
 
   const handleCardClick = useCallback(() => {
+    if (product.isSponsored && productId) {
+      // Fire-and-forget ad-click tracking — never blocks navigation.
+      import('../../../services/api/config').then(({ default: api }) => {
+        api.post(`/products/${productId}/ad-click`).catch(() => { });
+      });
+    }
     navigate(`/product/${productId}`);
-  }, [navigate, productId]);
+  }, [navigate, productId, product.isSponsored]);
 
   const handleAdd = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -332,6 +338,11 @@ export default function ProductCard({
           {isQuick && isECommerce && (
             <span className="text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-1 py-0.5 rounded uppercase tracking-tight">
               Also ships
+            </span>
+          )}
+          {product.isSponsored && (
+            <span className="text-[9px] font-medium text-neutral-400 ml-auto uppercase tracking-tight">
+              Sponsored
             </span>
           )}
         </div>

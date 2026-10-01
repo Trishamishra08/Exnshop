@@ -11,6 +11,9 @@ import deliveryAuthRoutes from "./deliveryAuthRoutes";
 import { authenticate, requireUserType } from "../middleware/auth";
 import customerRoutes from "./customerRoutes";
 import sellerRoutes from "./sellerRoutes";
+import claimRoutes from "./claimRoutes";
+import supportTicketRoutes from "./supportTicketRoutes";
+import campaignRoutes from "./campaignRoutes";
 import uploadRoutes from "./uploadRoutes";
 import productRoutes from "./productRoutes";
 import headerCategoryRoutes from "./headerCategoryRoutes";
@@ -160,6 +163,15 @@ router.use("/seller/reviews", sellerReviewRoutes);
 
 // Seller management routes (protected, admin only)
 router.use("/sellers", sellerRoutes);
+
+// Seller dispute/claim routes (protected, seller only)
+router.use("/claims", claimRoutes);
+
+// Seller support ticket routes (protected, seller only)
+router.use("/support-tickets", supportTicketRoutes);
+
+// Seller advertisement campaign routes (protected, seller only)
+router.use("/campaigns", campaignRoutes);
 
 // Admin routes (protected, admin only)
 router.use("/admin", adminRoutes);

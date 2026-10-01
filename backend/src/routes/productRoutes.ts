@@ -8,11 +8,14 @@ import {
   updateStock,
   updateProductStatus,
   bulkUpdateStock,
+  getBulkUploadTemplate,
+  bulkUploadProducts,
   getShops,
   getAllowedHeaderCategories,
 } from "../modules/seller/controllers/productController";
 import { getBrands } from "../modules/admin/controllers/adminProductController";
 import { authenticate, requireUserType, requireApprovedUser } from "../middleware/auth";
+import { uploadCsv, handleUploadError } from "../middleware/upload";
 
 const router = Router();
 
@@ -29,6 +32,15 @@ router.get("/brands", getBrands);
 
 // Get all active shops - sellers need this for shop-by-store-only products
 router.get("/shops", getShops);
+
+// Bulk upload (template download + CSV upload) — must come before "/:id"
+router.get("/bulk-upload-template", getBulkUploadTemplate);
+router.post(
+  "/bulk-upload",
+  uploadCsv.single("file"),
+  handleUploadError,
+  bulkUploadProducts
+);
 
 // Create product
 router.post("/", createProduct);

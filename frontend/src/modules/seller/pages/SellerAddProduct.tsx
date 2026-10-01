@@ -70,6 +70,9 @@ export default function SellerAddProduct() {
     status: "Available" as "Available" | "Sold out",
   });
 
+  const [productStatus, setProductStatus] = useState<string>("");
+  const [rejectionReason, setRejectionReason] = useState<string>("");
+
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
   const [mainImagePreview, setMainImagePreview] = useState<string>("");
   const [galleryImageFiles, setGalleryImageFiles] = useState<File[]>([]);
@@ -193,6 +196,8 @@ export default function SellerAddProduct() {
               shopId: (product as any).shopId?._id || (product as any).shopId || "",
             });
             setVariations(product.variations);
+            setProductStatus(product.status || "");
+            setRejectionReason(product.rejectionReason || "");
             if (product.mainImageUrl || product.mainImage) {
               setMainImagePreview(
                 product.mainImageUrl || product.mainImage || ""
@@ -394,7 +399,10 @@ export default function SellerAddProduct() {
     setVariations((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (
+    e: React.FormEvent,
+    action: "draft" | "submit" | "save" = id ? "save" : "submit"
+  ) => {
     e.preventDefault();
     setUploadError("");
 
@@ -491,6 +499,12 @@ export default function SellerAddProduct() {
         variationType: formData.variationType || undefined,
         isShopByStoreOnly: formData.isShopByStoreOnly === "Yes",
         shopId: formData.isShopByStoreOnly === "Yes" && formData.shopId ? formData.shopId : undefined,
+        // Catalog workflow: new products default to "submit" (sent for admin review).
+        // "draft" keeps it hidden and editable without entering the review queue.
+        // Editing an existing Draft/Rejected product only resubmits when the
+        // seller explicitly clicks "Submit for Review" ("save" just saves edits).
+        ...(!id ? { saveAsDraft: action === "draft" } : {}),
+        ...(id ? { submitForReview: action === "submit" } : {}),
       };
 
       // Create or Update product via API
@@ -503,7 +517,13 @@ export default function SellerAddProduct() {
 
       if (response.success) {
         setSuccessMessage(
-          id ? "Product updated successfully!" : "Product added successfully!"
+          !id
+            ? action === "draft"
+              ? "Saved as draft. It won't be reviewed until you submit it."
+              : "Product submitted! It will go live once an admin approves it."
+            : action === "submit"
+              ? "Resubmitted for admin review."
+              : "Product updated successfully!"
         );
         setTimeout(() => {
           // Reset form or navigate
@@ -565,6 +585,23 @@ export default function SellerAddProduct() {
       {/* Main Content */}
       <div className="flex-1">
         <form onSubmit={handleSubmit} className="space-y-6">
+          {id && productStatus === "Rejected" && (
+            <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+              <p className="font-semibold">This product was rejected.</p>
+              <p className="text-sm mt-1">{rejectionReason || "No reason was given."}</p>
+              <p className="text-sm mt-1">Make corrections below, then click "Submit for Review" to send it back to the admin.</p>
+            </div>
+          )}
+          {id && productStatus === "Draft" && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-lg">
+              This product is a <strong>draft</strong> — it's hidden from customers and admin until you click "Submit for Review."
+            </div>
+          )}
+          {id && productStatus === "Pending" && (
+            <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg">
+              This product is <strong>pending admin review</strong>. It will go live once approved.
+            </div>
+          )}
           {/* Product Section */}
           <div className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
             <div className="bg-teal-600 text-white px-4 sm:px-6 py-3">
@@ -1336,8 +1373,26 @@ export default function SellerAddProduct() {
             </div>
           </div>
 
-          {/* Submit Button */}
-          <div className="flex justify-end pb-6">
+          {/* Submit Buttons */}
+          <div className="flex justify-end gap-3 pb-6">
+            {!id && (
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={(e) => handleSubmit(e, "draft")}
+                className="px-6 py-3 rounded-lg font-medium text-lg border border-neutral-300 text-neutral-700 hover:bg-neutral-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                Save as Draft
+              </button>
+            )}
+            {id && (productStatus === "Draft" || productStatus === "Rejected") && (
+              <button
+                type="button"
+                disabled={uploading}
+                onClick={(e) => handleSubmit(e, "submit")}
+                className="px-6 py-3 rounded-lg font-medium text-lg border border-teal-600 text-teal-700 hover:bg-teal-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                Submit for Review
+              </button>
+            )}
             <button
               type="submit"
               disabled={uploading}
@@ -1348,8 +1403,8 @@ export default function SellerAddProduct() {
               {uploading
                 ? "Processing..."
                 : id
-                  ? "Update Product"
-                  : "Add Product"}
+                  ? (productStatus === "Draft" || productStatus === "Rejected") ? "Save Changes" : "Update Product"
+                  : "Submit for Review"}
             </button>
           </div>
         </form>
