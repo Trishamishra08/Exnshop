@@ -39,6 +39,7 @@ export interface NewOrder {
     orderDate: string;
     status: string;
     amount: number;
+    items?: any[];
 }
 
 export interface DashboardResponse {

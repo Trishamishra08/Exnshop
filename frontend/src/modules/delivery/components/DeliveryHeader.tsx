@@ -55,7 +55,7 @@ export default function DeliveryHeader({ userName }: DeliveryHeaderProps) {
               </svg>
             </div>
             <div className="flex flex-col">
-              <span className="text-neutral-700 text-sm">{t("common.welcome", "Hello")}</span>
+              <span className="text-neutral-700 text-sm">{t("common.welcome", "Welcome!")}</span>
               <span className="text-neutral-900 text-xs font-medium">{displayName}</span>
             </div>
           </div>

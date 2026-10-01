@@ -293,13 +293,13 @@ export default function DeliveryDashboard() {
         {/* Wallet Balance Card */}
         <div
           onClick={() => navigate("/delivery/wallet")}
-          className="bg-gradient-to-br from-green-500 to-green-700 rounded-xl p-4 text-white shadow-md cursor-pointer active:scale-[0.98] transition-transform">
+          className="bg-[#1d4ed8] rounded-[14px] p-4 text-white shadow-sm cursor-pointer active:scale-[0.98] transition-transform">
           <div className="flex items-center justify-between mb-1">
-            <p className="text-green-100 text-xs">{t("delivery.availableWalletBalance", "Available Wallet Balance")}</p>
-            <div className="bg-green-400/30 p-1.5 rounded-lg">
+            <p className="text-blue-100 text-xs font-medium">{t("delivery.availableWalletBalance", "Available Wallet Balance")}</p>
+            <div className="bg-blue-400/30 p-1.5 rounded-lg border border-blue-400/50">
               <svg
-                width="18"
-                height="18"
+                width="16"
+                height="16"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -312,10 +312,10 @@ export default function DeliveryDashboard() {
             </div>
           </div>
           <div className="flex items-end justify-between">
-            <p className="text-2xl font-bold">
+            <p className="text-[22px] font-bold">
               ₹ {stats?.walletBalance?.toFixed(2) || "0.00"}
             </p>
-            <p className="text-green-100 text-[10px] flex items-center gap-1">
+            <p className="text-blue-100 text-[10px] flex items-center gap-1 font-medium hover:text-white transition-colors">
               {t("delivery.viewDetails", "View Details")}
               <svg
                 width="10"
@@ -335,14 +335,14 @@ export default function DeliveryDashboard() {
         {/* Real-time Seller Radius Indicator */}
         <div
           onClick={() => isOnline && navigate("/delivery/sellers-in-range")}
-          className={`p-4 rounded-xl border cursor-pointer transition-all active:scale-95 ${isOnline ? "bg-teal-50 border-teal-100 hover:bg-teal-100" : "bg-neutral-50 border-neutral-200"}`}>
+          className={`p-3.5 rounded-[14px] border cursor-pointer transition-all active:scale-95 ${isOnline ? "bg-[#f0fdf4] border-[#dcfce7] hover:bg-[#dcfce7]" : "bg-neutral-50 border-neutral-200"}`}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div
-                className={`p-2 rounded-full ${isOnline ? "bg-teal-100 text-teal-600" : "bg-neutral-200 text-neutral-400"}`}>
+                className={`p-2 rounded-full ${isOnline ? "bg-[#dcfce7] text-[#16a34a]" : "bg-neutral-200 text-neutral-400"}`}>
                 <svg
-                  width="24"
-                  height="24"
+                  width="20"
+                  height="20"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -351,12 +351,12 @@ export default function DeliveryDashboard() {
                   <circle cx="12" cy="10" r="3" />
                 </svg>
               </div>
-              <div>
+              <div className="flex flex-col">
                 <h3
-                  className={`text-sm font-semibold ${isOnline ? "text-teal-900" : "text-neutral-500"}`}>
+                  className={`text-[13px] font-bold ${isOnline ? "text-[#064e3b]" : "text-neutral-500"}`}>
                   {isOnline ? t("delivery.activeServiceAreas", "Active Service Areas") : t("delivery.offDuty", "Offline")}
                 </h3>
-                <p className="text-xs text-neutral-500">
+                <p className="text-[11px] text-neutral-500 font-medium">
                   {isOnline
                     ? `You are currently in ${sellersInRangeCount} seller radius`
                     : "Go online to track service areas"}
@@ -364,12 +364,12 @@ export default function DeliveryDashboard() {
               </div>
             </div>
             {isOnline && (
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-teal-500"></span>
+              <div className="flex items-center gap-1.5">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10b981] opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#10b981]"></span>
                 </span>
-                <span className="text-xl font-bold text-teal-600">
+                <span className="text-lg font-bold text-[#10b981]">
                   {sellersInRangeCount}
                 </span>
               </div>
