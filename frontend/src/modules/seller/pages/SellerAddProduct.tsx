@@ -437,7 +437,7 @@ export default function SellerAddProduct() {
         const compressedMainImage = await compressImage(mainImageFile);
         const mainImageResult = await uploadImage(
           compressedMainImage,
-          "olovely/products"
+          "exnshop/products"
         );
         mainImageUrl = mainImageResult.secureUrl;
         setFormData((prev) => ({
@@ -454,7 +454,7 @@ export default function SellerAddProduct() {
         );
         const galleryResults = await uploadImages(
           compressedGalleryFiles,
-          "olovely/products/gallery"
+          "exnshop/products/gallery"
         );
         galleryImageUrls = galleryResults.map((result) => result.secureUrl);
         setFormData((prev) => ({ ...prev, galleryImageUrls }));
@@ -580,11 +580,29 @@ export default function SellerAddProduct() {
     }
   };
 
+  // The page content scrolls inside its own container (not the window), so on
+  // mobile the native "scroll focused field into view" behavior fights with
+  // the on-screen keyboard resize and the wrong field can end up under/behind
+  // the keyboard. Re-center the focused field manually once the keyboard
+  // animation has mostly finished.
+  const handleFormFieldFocus = (e: React.FocusEvent<HTMLFormElement>) => {
+    const target = e.target;
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLSelectElement ||
+      target instanceof HTMLTextAreaElement
+    ) {
+      setTimeout(() => {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 300);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Main Content */}
       <div className="flex-1">
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} onFocus={handleFormFieldFocus} className="space-y-6">
           {id && productStatus === "Rejected" && (
             <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
               <p className="font-semibold">This product was rejected.</p>

@@ -1,7 +1,7 @@
 {
-  "name": "olovely-backend",
+  "name": "exnshop-backend",
   "version": "1.0.0",
-  "description": "Olovely Backend API Server",
+  "description": "Exnshop Backend API Server",
   "main": "dist/server.js",
   "scripts": {
     "postinstall": "node ./scripts/postinstall.js",

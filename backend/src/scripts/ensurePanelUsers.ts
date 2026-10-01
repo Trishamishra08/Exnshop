@@ -30,7 +30,7 @@ async function main() {
       lastName: "Admin",
     },
     {
-      email: "admin@olovely.com",
+      email: "admin@exnshop.com",
       mobile: "9876543210",
       firstName: "Exnshop",
       lastName: "Admin",

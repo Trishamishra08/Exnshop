@@ -26,6 +26,14 @@ interface AuthContextType {
   login: (token: string, userData: User) => void;
   logout: () => void;
   updateUser: (userData: User) => void;
+  /** Re-reads auth state for whichever panel the given pathname belongs to.
+   *  AuthProvider sits above BrowserRouter (so it can't use useLocation()
+   *  itself) and otherwise only computes its panel once at initial mount —
+   *  without this, a client-side navigation between panels (e.g. Customer ->
+   *  Delivery) without a full page reload leaves isAuthenticated/user/token
+   *  stuck referencing the panel that was active on first load. Called from
+   *  AuthPanelSync, a tiny component rendered inside BrowserRouter. */
+  resyncPanel: (pathname: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -167,6 +175,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthToken(token || getAuthToken(userType) || '', userType, fullUser);
   };
 
+  const resyncPanel = (pathname: string) => {
+    const panel = getPanelFromContext(undefined, pathname);
+    const storedToken = getAuthToken(panel);
+    const storedUser = getStoredUserData(panel);
+
+    if (storedToken && storedUser) {
+      const inferredUserType = inferLegacyUserType(storedUser);
+      if (inferredUserType && !storedUser.userType) {
+        storedUser.userType = inferredUserType;
+      }
+
+      if (token !== storedToken || JSON.stringify(user) !== JSON.stringify(storedUser)) {
+        setToken(storedToken);
+        setUser(storedUser);
+        setIsAuthenticated(true);
+      }
+    } else if (!storedToken && (token || isAuthenticated)) {
+      // This panel has no session of its own — don't keep showing another
+      // panel's auth state as if it belonged here.
+      setToken(null);
+      setUser(null);
+      setIsAuthenticated(false);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -176,6 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         updateUser,
+        resyncPanel,
       }}>
       {children}
     </AuthContext.Provider>

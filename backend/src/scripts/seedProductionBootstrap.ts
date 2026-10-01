@@ -33,25 +33,6 @@ async function upsertCredentials(db: mongoose.mongo.Db) {
     { upsert: true }
   );
 
-  // Keep legacy admin email working too
-  await db.collection("admins").updateOne(
-    { email: "admin@olovely.com" },
-    {
-      $set: {
-        firstName: "Exnshop",
-        lastName: "Admin",
-        email: "admin@olovely.com",
-        mobile: "9876543210",
-        password: adminHash,
-        role: "Super Admin",
-        status: "Active",
-        updatedAt: new Date(),
-      },
-      $setOnInsert: { createdAt: new Date() },
-    },
-    { upsert: true }
-  );
-
   const sellerHash = await bcrypt.hash("Seller@123", 10);
   await db.collection("sellers").updateOne(
     { _id: SELLER_ID },
@@ -90,21 +71,6 @@ async function upsertCredentials(db: mongoose.mongo.Db) {
       $setOnInsert: { createdAt: new Date() },
     },
     { upsert: true }
-  );
-
-  // Also match by email if seller was created without fixed id
-  await db.collection("sellers").updateOne(
-    { email: "seller@olovely.com" },
-    {
-      $set: {
-        password: sellerHash,
-        status: "Approved",
-        isShopOpen: true,
-        serviceRadiusKm: 500,
-        location: { type: "Point", coordinates: [75.87186, 22.71765] },
-        updatedAt: new Date(),
-      },
-    }
   );
 
   const deliveryHash = await bcrypt.hash("Delivery@123", 10);
@@ -167,7 +133,7 @@ async function upsertCredentials(db: mongoose.mongo.Db) {
   }
 
   console.log("✅ Credentials / AppSettings / Languages upserted");
-  console.log("   Admin:    admin@exnshop.com / Admin@123  (also admin@olovely.com)");
+  console.log("   Admin:    admin@exnshop.com / Admin@123");
   console.log("   Seller:   seller@exnshop.com / Seller@123  (mobile 9999999999)");
   console.log("   Delivery: delivery@exnshop.com / Delivery@123  (mobile 9888888888)");
 }

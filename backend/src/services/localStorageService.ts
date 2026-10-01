@@ -25,7 +25,7 @@ export async function uploadImageFromBuffer(
   buffer: Buffer,
   options: UploadOptions = {}
 ): Promise<UploadResult> {
-  const folder = options.folder || "olovely/products";
+  const folder = options.folder || "exnshop/products";
   const normalizedFolder = folder.replace(/^\/+/, "");
   const targetDir = path.join(UPLOADS_BASE_DIR, normalizedFolder);
   ensureDirExists(targetDir);
@@ -56,7 +56,7 @@ export async function uploadDocumentFromBuffer(
   buffer: Buffer,
   options: UploadOptions = {}
 ): Promise<UploadResult> {
-  const folder = options.folder || "olovely/documents";
+  const folder = options.folder || "exnshop/documents";
   const normalizedFolder = folder.replace(/^\/+/, "");
   const targetDir = path.join(UPLOADS_BASE_DIR, normalizedFolder);
   ensureDirExists(targetDir);

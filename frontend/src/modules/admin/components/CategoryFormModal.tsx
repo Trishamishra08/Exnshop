@@ -347,7 +347,7 @@ export default function CategoryFormModal({
         setUploading(true);
         // Compress image before upload
         const compressedFile = await compressImage(imageFile);
-        const imageResult = await uploadImage(compressedFile, "olovely/categories");
+        const imageResult = await uploadImage(compressedFile, "exnshop/categories");
         imageUrl = imageResult.secureUrl;
         setUploading(false);
       }

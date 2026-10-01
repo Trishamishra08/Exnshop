@@ -210,9 +210,9 @@ function copyShopByStoreImages() {
   });
 }
 
-// Copy olovely logo & background & manifest icons
-function copyOlovelyLogo() {
-  const files = ['olovelylogo.jpeg', 'olovelylogo.png', 'olovelylogo_transparent.png', 'login_background_mobile.jfif', 'favicon-circle.png', 'favicon-circle-192.png', 'favicon-circle-64.png', 'favicon-circle-32.png', 'favicon-squircle.png'];
+// Copy logo & background & manifest icons
+function copyBrandAssets() {
+  const files = ['login_background_mobile.jfif', 'favicon-circle.png', 'favicon-circle-192.png', 'favicon-circle-64.png', 'favicon-circle-32.png', 'favicon-squircle.png'];
   files.forEach((file) => {
     // Check public/assets first, then assetsDir
     const publicAssetPath = path.join(__dirname, '../public/assets', file);
@@ -264,7 +264,7 @@ copyProductImages();
 copyBannerImage();
 copyShopByStoreImages();
 copyLoginVideo();
-copyOlovelyLogo();
+copyBrandAssets();
 copyDeliveryIcon();
 console.log('Image copy completed!');
 

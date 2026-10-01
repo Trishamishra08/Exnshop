@@ -51,6 +51,10 @@ const CustomerSchema = new Schema<ICustomer>(
       trim: true,
     },
     email: {
+      // Login now runs on email+OTP (mobile is collected but no longer OTP-verified —
+      // no SMS OTP provider is live yet). Kept sparse+non-required at the schema
+      // level so legacy documents never fail validation on unrelated re-saves;
+      // the auth controller enforces a real email for every new signup.
       type: String,
       required: false,
       unique: true,

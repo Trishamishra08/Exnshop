@@ -78,7 +78,7 @@ export async function sendPushNotification(
         }
 
         const logoIcon = payload.icon || '/logo192.png';
-        const serverUrl = process.env.SERVER_URL || process.env.FRONTEND_URL || 'https://olovelytotal.com';
+        const serverUrl = process.env.SERVER_URL || process.env.FRONTEND_URL || 'https://exnshop.in';
         const absoluteLogoUrl = (logoIcon.startsWith('http://') || logoIcon.startsWith('https://'))
             ? logoIcon
             : `${serverUrl.replace(/\/$/, '')}${logoIcon.startsWith('/') ? '' : '/'}${logoIcon}`;
@@ -115,7 +115,7 @@ export async function sendPushNotification(
                     defaultSound: true,
                     defaultVibrateTimings: true,
                     notificationCount: 1,
-                    channelId: 'olovely_orders',
+                    channelId: 'exnshop_orders',
                 }
             },
             data: {

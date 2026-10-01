@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
 async function createFaviconWithBg() {
-  const logoPath = path.join(rootDir, 'public', 'assets', 'olovelylogo_transparent.png');
+  const logoPath = path.join(rootDir, 'public', 'exnshop_logo.png');
   
   // Trim transparent padding from the logo so the actual emblem/text fills the icon
   const trimmedLogoBuffer = await sharp(logoPath)

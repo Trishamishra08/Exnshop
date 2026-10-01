@@ -1,17 +1,17 @@
 #!/bin/bash
 
 # ============================================================
-# Olovely Total Suvidha - Production Deployment
+# Exnshop - Production Deployment
 # ============================================================
 
 set -Eeuo pipefail
 
-PROJECT_DIR="/root/olovelytotal"
+PROJECT_DIR="/root/exnshop"
 BACKEND_DIR="$PROJECT_DIR/backend"
 FRONTEND_DIR="$PROJECT_DIR/frontend"
-APP_NAME="olovely-backend"
+APP_NAME="exnshop-backend"
 PORT="5000"
-DOMAIN="olovelytotal.com"
+DOMAIN="api.exnshop.in"
 
 # ------------------------------------------------------------
 # Helper functions
@@ -99,9 +99,9 @@ log "Installing backend dependencies..."
 
 cd "$BACKEND_DIR"
 
-npm install --production=false >/tmp/olovely-backend-install.log 2>&1 \
+npm install --production=false >/tmp/exnshop-backend-install.log 2>&1 \
     || {
-        cat /tmp/olovely-backend-install.log
+        cat /tmp/exnshop-backend-install.log
         fail "Backend npm install failed."
     }
 
@@ -109,9 +109,9 @@ success "Backend dependencies installed."
 
 log "Building backend..."
 
-npm run build >/tmp/olovely-backend-build.log 2>&1 \
+npm run build >/tmp/exnshop-backend-build.log 2>&1 \
     || {
-        cat /tmp/olovely-backend-build.log
+        cat /tmp/exnshop-backend-build.log
         fail "Backend build failed."
     }
 
@@ -128,9 +128,9 @@ log "Installing frontend dependencies..."
 
 cd "$FRONTEND_DIR"
 
-npm install --production=false >/tmp/olovely-frontend-install.log 2>&1 \
+npm install --production=false >/tmp/exnshop-frontend-install.log 2>&1 \
     || {
-        cat /tmp/olovely-frontend-install.log
+        cat /tmp/exnshop-frontend-install.log
         fail "Frontend npm install failed."
     }
 
@@ -138,9 +138,9 @@ success "Frontend dependencies installed."
 
 log "Building frontend..."
 
-npm run build >/tmp/olovely-frontend-build.log 2>&1 \
+npm run build >/tmp/exnshop-frontend-build.log 2>&1 \
     || {
-        cat /tmp/olovely-frontend-build.log
+        cat /tmp/exnshop-frontend-build.log
         fail "Frontend build failed."
     }
 
@@ -177,7 +177,7 @@ process.stdin.on("data", chunk => data += chunk);
 process.stdin.on("end", () => {
     try {
         const apps = JSON.parse(data);
-        const app = apps.find(x => x.name === "olovely-backend");
+        const app = apps.find(x => x.name === "exnshop-backend");
         console.log(app?.pm2_env?.status || "unknown");
     } catch {
         console.log("unknown");
@@ -243,8 +243,8 @@ if command -v nginx >/dev/null 2>&1; then
 
     log "Checking Nginx configuration..."
 
-    if ! nginx -t >/tmp/olovely-nginx-test.log 2>&1; then
-        cat /tmp/olovely-nginx-test.log
+    if ! nginx -t >/tmp/exnshop-nginx-test.log 2>&1; then
+        cat /tmp/exnshop-nginx-test.log
         fail "Nginx configuration test failed."
     fi
 
@@ -293,7 +293,7 @@ echo ""
 echo "============================================================"
 echo "              DEPLOYMENT SUCCESSFUL 🟢"
 echo "============================================================"
-echo " Project       : Olovely Total Suvidha"
+echo " Project       : Exnshop"
 echo " Backend       : Built"
 echo " Frontend      : Built"
 echo " Environment   : Production"

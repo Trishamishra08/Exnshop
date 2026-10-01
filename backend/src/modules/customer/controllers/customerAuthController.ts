@@ -2,29 +2,30 @@ import { Request, Response } from "express";
 import Customer from "../../../models/Customer";
 import SupportedLanguage from "../../../models/SupportedLanguage";
 import {
-  sendSmsOtp as sendSmsOtpService,
-  verifySmsOtp as verifySmsOtpService,
+  sendEmailOtp,
+  verifyEmailOtp,
 } from "../../../services/otpService";
 import { generateToken } from "../../../services/jwtService";
 import { asyncHandler } from "../../../utils/asyncHandler";
 
 /**
- * Send SMS OTP to customer mobile number
- * Returns session_id for verification
+ * Send OTP to customer email. Mobile is still collected (for the profile /
+ * delivery contact field) but is no longer what the OTP is verified against —
+ * there's no live SMS OTP provider yet, so login runs on email+OTP instead.
  */
 export const sendSmsOtp = asyncHandler(async (req: Request, res: Response) => {
-  const rawMobile = req.body.mobile;
-  const mobile = rawMobile != null ? String(rawMobile).trim().replace(/\D/g, '').slice(0, 10) : '';
+  const email = req.body.email ? String(req.body.email).trim() : '';
 
-  if (!mobile || mobile.length !== 10) {
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({
       success: false,
-      message: "Valid 10-digit mobile number is required",
+      message: "Valid email address is required",
     });
   }
 
   try {
-    const result = await sendSmsOtpService(mobile, "Customer");
+    const existing = await Customer.findOne({ email: email.toLowerCase() }).select("name");
+    const result = await sendEmailOtp(email, "Customer", existing?.name);
 
     return res.status(200).json({
       success: true,
@@ -32,7 +33,7 @@ export const sendSmsOtp = asyncHandler(async (req: Request, res: Response) => {
       sessionId: result.sessionId,
     });
   } catch (error: any) {
-    console.error(`[CUSTOMER_AUTH] send-sms-otp error for ${mobile}:`, error.message);
+    console.error(`[CUSTOMER_AUTH] send-email-otp error for ${email}:`, error.message);
     return res.status(400).json({
       success: false,
       message: error.message || "Failed to send OTP. Please try again.",
@@ -41,18 +42,20 @@ export const sendSmsOtp = asyncHandler(async (req: Request, res: Response) => {
 });
 
 /**
- * Verify SMS OTP and login customer
- * Requires session_id and otp
- * Auto-creates customer if not exists
+ * Verify email OTP and login customer. Auto-creates the customer on first
+ * verification (brand-new signups need mobile too); if a legacy account
+ * already exists under this mobile number (from the old mobile-OTP days, with
+ * a placeholder email), this real email gets attached to that same account
+ * instead of creating a duplicate.
  */
 export const verifySmsOtp = asyncHandler(
   async (req: Request, res: Response) => {
-    const { mobile, otp, sessionId } = req.body;
+    const { mobile, email, otp } = req.body;
 
-    if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({
         success: false,
-        message: "Valid 10-digit mobile number is required",
+        message: "Valid email address is required",
       });
     }
 
@@ -63,20 +66,7 @@ export const verifySmsOtp = asyncHandler(
       });
     }
 
-    if (!sessionId) {
-      return res.status(400).json({
-        success: false,
-        message: "Session ID is required for verification",
-      });
-    }
-
-    // Verify SMS OTP
-    const isValid = await verifySmsOtpService(
-      sessionId,
-      otp,
-      mobile,
-      "Customer",
-    );
+    const isValid = await verifyEmailOtp(email, otp, "Customer");
     if (!isValid) {
       return res.status(401).json({
         success: false,
@@ -84,16 +74,36 @@ export const verifySmsOtp = asyncHandler(
       });
     }
 
-    // Find or create customer
-    let customer = await Customer.findOne({ phone: mobile });
+    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedMobile =
+      mobile != null ? String(mobile).trim().replace(/\D/g, "").slice(0, 10) : "";
+
+    let customer = await Customer.findOne({ email: normalizedEmail });
     let isNewUser = false;
 
+    if (!customer && normalizedMobile) {
+      // A legacy mobile-OTP-era account may already exist under this phone
+      // number with a placeholder email — attach the real email to it rather
+      // than creating a duplicate (which would collide on the unique phone index).
+      customer = await Customer.findOne({ phone: normalizedMobile });
+      if (customer) {
+        customer.email = normalizedEmail;
+        await customer.save();
+      }
+    }
+
     if (!customer) {
-      // Auto-create new customer with placeholder data
+      if (!normalizedMobile || normalizedMobile.length !== 10) {
+        return res.status(400).json({
+          success: false,
+          message: "A valid 10-digit mobile number is required to create your account",
+        });
+      }
+
       customer = await Customer.create({
-        phone: mobile,
+        phone: normalizedMobile,
         name: "User",
-        email: `${mobile}@olovely.temp`,
+        email: normalizedEmail,
         status: "Active",
         walletAmount: 0,
         totalOrders: 0,

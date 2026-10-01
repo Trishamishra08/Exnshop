@@ -235,7 +235,7 @@ export default function AdminShopByStore() {
       // Upload store image if provided
       if (storeImageFile) {
         const compressedFile = await compressImage(storeImageFile);
-        const imageResult = await uploadImage(compressedFile, "olovely/stores");
+        const imageResult = await uploadImage(compressedFile, "exnshop/stores");
         imageUrl = imageResult.secureUrl;
       } else if (editingId && !storeImagePreview) {
         // If editing and no new image and no preview, we need at least one image

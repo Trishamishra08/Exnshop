@@ -92,30 +92,45 @@ export default function SellerHeader({ onMenuClick, isSidebarOpen }: SellerHeade
             )}
           </button>
           {/* Exnshop Logo */}
-          <button
-            onClick={handleLogoClick}
-            className="hover:opacity-80 transition-opacity flex items-center gap-2"
-          >
-            <img
-              src={exnshopLogo}
-              alt="Exnshop"
-              className="h-10 sm:h-12 w-auto object-contain cursor-pointer"
-              style={{ maxWidth: '160px' }}
-            />
-            <span className="hidden sm:inline text-base font-bold text-primary tracking-tight">
-              Exnshop
-            </span>
-          </button>
+          <div className="flex flex-col items-start">
+            <button
+              onClick={handleLogoClick}
+              className="hover:opacity-80 transition-opacity flex flex-col items-start"
+            >
+              <img
+                src={exnshopLogo}
+                alt="Exnshop"
+                className="h-7 sm:h-8 w-auto object-contain cursor-pointer mb-1"
+                style={{ maxWidth: '120px' }}
+              />
+              <span className="text-[10px] font-semibold text-[#2563eb] bg-[#eff6ff] px-2.5 py-0.5 rounded-full ml-6">
+                Seller Panel
+              </span>
+            </button>
+          </div>
 
-          {/* Mobile Actions - Language & Logout */}
-          <div className="ml-auto sm:hidden flex items-center gap-1.5">
-            <LanguageSelector variant="dropdown" />
+          {/* Mobile Actions - Language, Notification & Logout */}
+          <div className="ml-auto flex sm:hidden items-center gap-1">
+            <div className="scale-90 origin-right">
+              <LanguageSelector variant="dropdown" />
+            </div>
+            
+            <button className="relative p-1.5 text-neutral-600 hover:text-neutral-900 transition-colors hidden sm:flex">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+            </button>
+
+            <button className="relative p-1.5 text-neutral-800 hover:text-black transition-colors sm:hidden">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-[1.5px] border-white"></span>
+            </button>
+            
             <button
               onClick={handleLogout}
-              className="p-1.5 text-neutral-600 hover:text-neutral-900 transition-colors"
+              className="p-1.5 text-neutral-800 hover:text-black transition-colors"
               aria-label="Logout"
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path
                   d="M9 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H9M16 17L21 12M21 12L16 7M21 12H9"
                   stroke="currentColor"

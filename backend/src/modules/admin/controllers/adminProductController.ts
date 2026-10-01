@@ -813,7 +813,7 @@ export const createProduct = asyncHandler(
           // Check for existing admin seller by email OR mobile to avoid duplicate key errors
           let adminSeller = await Seller.findOne({
             $or: [
-              { email: "admin-store@olovely.com" },
+              { email: "admin-store@exnshop.com" },
               { mobile: "9999999999" },
             ],
           });
@@ -821,9 +821,9 @@ export const createProduct = asyncHandler(
           if (!adminSeller) {
             // Create default admin seller
             adminSeller = await Seller.create({
-              sellerName: "Olovely Admin",
-              storeName: "Olovely Admin Store",
-              email: "admin-store@olovely.com",
+              sellerName: "Exnshop Admin",
+              storeName: "Exnshop Admin Store",
+              email: "admin-store@exnshop.com",
               mobile: "9999999999",
               password: "AdminStore@123", // Should be hashed by pre-save hook
               address: "",

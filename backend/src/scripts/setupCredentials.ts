@@ -30,23 +30,6 @@ async function setupCredentials() {
     },
     { upsert: true }
   );
-  await db.collection('admins').updateOne(
-    { email: 'admin@olovely.com' },
-    {
-      $set: {
-        firstName: 'Exnshop',
-        lastName: 'Admin',
-        email: 'admin@olovely.com',
-        mobile: '9876543210',
-        password: adminPasswordHash,
-        role: 'Super Admin',
-        status: 'Active',
-        updatedAt: new Date()
-      },
-      $setOnInsert: { createdAt: new Date() }
-    },
-    { upsert: true }
-  );
   console.log('✅ Admin: admin@exnshop.com / Admin@123');
 
   // 2. Seller Account

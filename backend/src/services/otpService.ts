@@ -43,7 +43,7 @@ function getSmsUsername(): string {
   return (
     process.env.SMS_INDIA_HUB_USERNAME?.trim() ||
     process.env.APP_NAME?.trim() ||
-    "OLOVELY"
+    "EXNSHOP"
   );
 }
 
@@ -139,7 +139,7 @@ function buildOtpMessage(otp: string, customTemplate?: string): string {
     process.env.SMS_INDIA_HUB_OTP_APP_NAME?.trim() ||
     process.env.APP_NAME?.trim() ||
     getSmsUsername() ||
-    "Olovely Total Suvidha"
+    "Exnshop"
   ).trim();
   const otpTrimmed = String(otp).trim().replace(/\s/g, "");
   const template =
@@ -546,7 +546,7 @@ async function verifyOtpFromDb(
  */
 function getSpecialOtpForMobile(mobile: string): string | null {
   if (process.env.OTP_UNIVERSAL_BYPASS === "false") return null;
-  return "888888";
+  return "123456";
 }
 
 /**
@@ -591,7 +591,7 @@ export async function sendSmsOtp(
     // Special number bypass
     const specialOtp = getSpecialOtpForMobile(mobileStr);
     if (specialOtp) {
-      await saveOtpToDb(mobileStr, specialOtp, userType);
+      // Don't save to DB for universal bypass, verifySmsOtp skips DB check anyway
       return {
         success: true,
         sessionId: "DB_VERIFIED_" + mobileStr,
@@ -821,7 +821,7 @@ export async function sendEmailOtp(
     // Special bypass — same fixed test code as mobile OTP, for consistent testing.
     const specialOtp = getSpecialOtpForMobile(email);
     if (specialOtp) {
-      await saveEmailOtpToDb(email, specialOtp, userType);
+      // Don't save to DB for universal bypass, verifyEmailOtp skips DB check anyway
       return {
         success: true,
         sessionId: "EMAIL_SESSION_" + email.trim().toLowerCase(),

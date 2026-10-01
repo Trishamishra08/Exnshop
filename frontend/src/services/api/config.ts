@@ -137,9 +137,17 @@ api.interceptors.response.use(
     // 403 (Forbidden) means user is authenticated but doesn't have permission - DO NOT LOGOUT
     if (error.response?.status === 401) {
       const isAuthEndpoint = error.config?.url?.includes("/auth/");
-      const hadToken = error.config?.headers?.Authorization;
 
-      if (!isAuthEndpoint && hadToken) {
+      // Previously this only redirected when a token HAD been attached and was
+      // rejected (expired/invalid). That left a real gap: if a request went out
+      // with NO token at all (e.g. a stale/mismatched panel read, a race on
+      // first load, or any other reason auth state wasn't what the UI assumed),
+      // the error silently rejected with no redirect — whatever component made
+      // the call was left showing the raw backend message ("No token
+      // provided...") instead of being bounced to the right login screen. Now
+      // ANY 401 on a protected (non-auth) endpoint redirects, whether or not a
+      // token was sent, since either way the user needs to log in again.
+      if (!isAuthEndpoint) {
         const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
 
         // Skip redirect if already on public auth pages (login/signup)

@@ -572,7 +572,7 @@ export default function AdminProductEdit() {
       // Upload main image if a new one was selected
       if (mainImageFile) {
         const compressedMainImage = await compressImage(mainImageFile);
-        const mainImageResult = await uploadImage(compressedMainImage, "olovely/products");
+        const mainImageResult = await uploadImage(compressedMainImage, "exnshop/products");
         mainImageUrl = mainImageResult.secureUrl;
       }
 
@@ -581,7 +581,7 @@ export default function AdminProductEdit() {
         const compressedGalleryFiles = await Promise.all(
           galleryImageFiles.map((file) => compressImage(file))
         );
-        const galleryResults = await uploadImages(compressedGalleryFiles, "olovely/products/gallery");
+        const galleryResults = await uploadImages(compressedGalleryFiles, "exnshop/products/gallery");
         const newUrls = galleryResults.map((res) => res.secureUrl);
         galleryImageUrls = [...galleryImageUrls, ...newUrls];
       }

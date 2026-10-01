@@ -12,10 +12,10 @@ export const getAppSettings = asyncHandler(
     // Create default settings if none exist
     if (!settings) {
       settings = await AppSettings.create({
-        appName: "Olovely Total Suvidha",
-        appLogo: "/assets/olovelylogo_transparent.png",
+        appName: "Exnshop",
+        appLogo: "/exnshop_logo.png",
         estimatedDeliveryTime: "12-15 mins",
-        contactEmail: "contact@olovely.com",
+        contactEmail: "contact@exnshop.com",
         contactPhone: "9876543210",
       });
     }

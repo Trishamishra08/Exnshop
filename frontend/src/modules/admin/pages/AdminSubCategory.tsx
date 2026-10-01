@@ -153,7 +153,7 @@ export default function AdminSubCategory() {
         const compressedFile = await compressImage(subcategoryImageFile);
         const imageResult = await uploadImage(
           compressedFile,
-          "olovely/subcategories"
+          "exnshop/subcategories"
         );
         imageUrl = imageResult.secureUrl;
       }

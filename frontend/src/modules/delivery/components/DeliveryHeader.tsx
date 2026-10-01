@@ -25,21 +25,21 @@ export default function DeliveryHeader({ userName }: DeliveryHeaderProps) {
       {/* Header Content */}
       <div className="px-4 py-3">
         {/* App Title and Language Selector */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="w-10"></div>
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <img
               src="/exnshop_logo.png"
               alt="Exnshop"
-              className="w-8 h-8 object-contain rounded-lg bg-white"
+              className="w-10 h-10 object-contain rounded-lg"
             />
-            <h1 className={`text-xl font-bold transition-colors ${
-              isOnline ? 'text-primary' : 'text-neutral-500'
-            }`}>
-              Exnshop Delivery
-            </h1>
+            <div className="flex flex-col leading-tight">
+              <span className={`text-[18px] font-extrabold ${isOnline ? 'text-primary' : 'text-neutral-500'}`}>Exnshop</span>
+              <span className={`text-[18px] font-extrabold ${isOnline ? 'text-primary' : 'text-neutral-500'}`}>Delivery</span>
+            </div>
           </div>
-          <LanguageSelector variant="dropdown" />
+          <div className="scale-90 origin-right">
+            <LanguageSelector variant="dropdown" />
+          </div>
         </div>
         
         {/* User Info Bar */}

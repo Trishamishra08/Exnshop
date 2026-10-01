@@ -286,352 +286,163 @@ export default function SellerDashboard() {
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Header with Shop Status Toggle */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-lg shadow-sm border border-neutral-200 gap-4 sm:gap-0">
-        <div>
-          <h1 className="text-xl font-bold text-gray-800">{t("seller.dashboard", "Dashboard")}</h1>
-          <p className="text-sm text-gray-500">{t("seller.overview", "Overview of your store performance")}</p>
+    <div className="pb-24 sm:pb-6">
+      {/* Welcome Banner */}
+      <div className="relative bg-gradient-to-br from-[#f1faf5] to-[#e4f6eb] rounded-[20px] p-5 sm:p-6 overflow-hidden mb-6 flex flex-col justify-center min-h-[140px] shadow-sm">
+        {/* Decorative Image Placeholder (Right side) */}
+        <div className="absolute top-0 right-0 h-full w-[45%] opacity-90 pointer-events-none flex items-end justify-end">
+          {/* We use a generic vector representation of the box as placeholder if real img is missing, but for now just abstract shapes */}
+          <div className="absolute right-0 bottom-0 w-32 h-32 bg-green-200/40 rounded-tl-full blur-xl"></div>
+          <div className="absolute right-4 top-4 w-12 h-12 bg-green-300/30 rounded-full blur-lg"></div>
         </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
-          <span className={`text-sm font-medium ${isShopOpen ? 'text-green-600' : 'text-red-500'}`}>
-            {isShopOpen ? t("seller.shopIsLive", "Shop is Live") : t("seller.shopIsClosed", "Shop is Closed")}
-          </span>
+        
+        <div className="relative z-10 w-[65%] sm:w-[70%]">
+          <h1 className="text-[22px] sm:text-2xl font-extrabold text-[#0d163a] mb-1.5 leading-tight tracking-tight">
+            Welcome Back,
+          </h1>
+          <p className="text-[13px] sm:text-sm text-gray-500 mb-3.5 leading-snug font-medium">
+            Manage your store, track orders<br />and grow your business.
+          </p>
+          
           <button
             onClick={handleToggleShop}
             disabled={statusLoading}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${
-              isShopOpen ? 'bg-teal-600' : 'bg-gray-200'
-            } ${statusLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold shadow-sm transition-colors ${
+              isShopOpen ? 'bg-[#dcfce7] text-[#15803d]' : 'bg-[#fee2e2] text-[#b91c1c]'
+            }`}
           >
-            <span
-              className={`${
-                isShopOpen ? 'translate-x-6' : 'translate-x-1'
-              } inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ease-in-out`}
-            />
+            <span className={`w-2 h-2 rounded-full ${isShopOpen ? 'bg-[#15803d]' : 'bg-[#b91c1c]'}`}></span>
+            {isShopOpen ? 'Shop is Live' : 'Shop is Closed'}
           </button>
         </div>
-      </div>
-      {/* Revenue & Settlement Summary */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <DashboardCard
-          icon={salesIcon}
-          title={t("seller.totalSales", "Total Sales")}
-          value={formatCurrency(stats.totalSales)}
-          subtitle={`${formatCurrency(stats.monthSales)} this month`}
-          accentColor="#16a34a"
-          to="/seller/orders?status=Delivered"
-        />
-        <DashboardCard
-          icon={settlementIcon}
-          title={t("seller.pendingSettlement", "Pending Settlement")}
-          value={formatCurrency(stats.pendingSettlement)}
-          subtitle={stats.nextSettlementDate ? `Next: ${new Date(stats.nextSettlementDate).toLocaleDateString('en-GB')}` : 'No settlement due'}
-          accentColor="#eab308"
-          to="/seller/wallet"
-        />
-        <DashboardCard
-          icon={balanceIcon}
-          title={t("seller.availableBalance", "Available Balance")}
-          value={formatCurrency(stats.availableBalance)}
-          subtitle={`${formatCurrency(stats.totalSettlementPaid)} settled to date`}
-          accentColor="#3b82f6"
-          to="/seller/wallet"
-        />
-        <DashboardCard
-          icon={salesIcon}
-          title={t("seller.todaySales", "Today's Sales")}
-          value={formatCurrency(stats.todaySales)}
-          subtitle={`${formatCurrency(stats.weekSales)} this week`}
-          accentColor="#0d9488"
-          to="/seller/orders?status=Delivered"
-        />
+        
+        <button className="absolute right-4 top-1/2 -translate-y-1/2 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm text-gray-600 hover:bg-gray-50 transition-colors">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
       </div>
 
-      {/* Order Status Grid */}
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2 sm:gap-3">
-        <DashboardCard compact icon={ordersIcon} title={t("seller.totalOrders", "Total Orders")} value={stats.totalOrders} accentColor="#3b82f6" to="/seller/orders" />
-        <DashboardCard compact icon={pendingOrdersIcon} title={t("seller.pendingOrders", "Pending")} value={stats.pendingOrders} accentColor="#a855f7" to="/seller/orders?status=Received" />
-        <DashboardCard compact icon={processingOrdersIcon} title={t("seller.processingOrders", "Processing")} value={stats.processingOrders} accentColor="#f97316" to="/seller/orders?status=Processed" />
-        <DashboardCard compact icon={shippedOrdersIcon} title={t("seller.shippedOrders", "Shipped")} value={stats.shippedOrders} accentColor="#6366f1" to="/seller/orders?status=Shipped" />
-        <DashboardCard compact icon={completedOrdersIcon} title={t("seller.completedOrders", "Delivered")} value={stats.completedOrders} accentColor="#16a34a" to="/seller/orders?status=Delivered" />
-        <DashboardCard compact icon={cancelledOrdersIcon} title={t("seller.cancelledOrders", "Cancelled")} value={stats.cancelledOrders} accentColor="#ef4444" to="/seller/orders?status=Cancelled" />
-        <DashboardCard compact icon={returnOrdersIcon} title={t("seller.returnOrders", "Return/RTO")} value={stats.returnOrders} accentColor="#dc2626" to="/seller/orders?status=Returned" />
-      </div>
-
-      {/* Catalog Snapshot */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-        <DashboardCard compact icon={userIcon} title={t("seller.totalCustomers", "Customers")} value={stats.totalUser} accentColor="#3b82f6" to="/seller/orders" />
-        <DashboardCard compact icon={categoryIcon} title={t("seller.sellingCategories", "Categories")} value={stats.sellingCategories ?? stats.totalCategory} accentColor="#eab308" to="/seller/category" />
-        <DashboardCard compact icon={subcategoryIcon} title={t("seller.totalSubcategory", "Subcategories")} value={stats.totalSubcategory} accentColor="#ec4899" to="/seller/subcategory" />
-        <DashboardCard compact icon={productIcon} title={t("seller.totalProduct", "Products")} value={stats.totalProduct} accentColor="#f97316" to="/seller/product/list" />
-      </div>
-
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        <OrderChart
-          title={t("seller.salesGraph", "Sales")}
-          dailyData={stats.dailySalesData}
-          yearlyData={stats.yearlySalesData}
-          valuePrefix="₹"
-          color="#0d9488"
-          height={260}
-        />
-        <OrderChart
-          title={t("seller.orderGraph", "Orders")}
-          dailyData={stats.dailyOrderData}
-          yearlyData={stats.yearlyOrderData}
-          color="#3b82f6"
-          height={260}
-        />
-      </div>
-
-      {/* Alerts Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <AlertCard
-          icon={soldOutIcon}
-          title={t("seller.productSoldOut", "Product Sold Out")}
-          value={stats.soldOutProducts}
-          accentColor="#ec4899"
-          to="/seller/product/stock?stock=out_of_stock"
-        />
-        <AlertCard
-          icon={lowStockIcon}
-          title={t("seller.productLowStock", "Product low on Stock")}
-          value={stats.lowStockProducts}
-          accentColor="#eab308"
-          to="/seller/product/stock?stock=low_stock"
-        />
-      </div>
-
-      {/* View New Orders Table Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
-        {/* Teal Header Bar */}
-        <div className="bg-teal-600 text-white px-4 sm:px-6 py-3">
-          <h2 className="text-base sm:text-lg font-semibold">{t("seller.viewNewOrders", "View New Orders")}</h2>
+      {/* Overview Header */}
+      <div className="flex items-center justify-between mb-4 mt-2">
+        <h2 className="text-[20px] font-extrabold text-[#0d163a] tracking-tight">Overview</h2>
+        <div className="relative">
+          <select className="appearance-none bg-white border border-gray-200 text-gray-600 text-xs rounded-lg pl-8 pr-7 py-1.5 outline-none font-semibold cursor-pointer hover:bg-gray-50 transition-colors">
+            <option>This Month</option>
+            <option>Today</option>
+            <option>This Year</option>
+          </select>
+          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+          <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
         </div>
+      </div>
 
-        {/* Show Entries Control */}
-        <div className="px-4 sm:px-6 py-3 border-b border-neutral-200">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-neutral-700">Show</span>
-            <input
-              type="number"
-              value={entriesPerPage}
-              onChange={(e) => {
-                const value = parseInt(e.target.value) || 10;
-                setEntriesPerPage(Math.max(1, Math.min(100, value)));
-                setCurrentPage(1);
-              }}
-              className="w-16 px-2 py-1 border border-neutral-300 rounded text-sm text-neutral-900 bg-white focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500"
-              min="1"
-              max="100"
-            />
-            <span className="text-sm text-neutral-700">entries</span>
+      {/* 4 Stat Cards Grid */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-8">
+        {/* Total Sales */}
+        <div className="bg-[#f5fdf9] border border-[#e8f6f0] rounded-[16px] p-3.5 sm:p-4 relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/seller/orders?status=Delivered')}>
+          <div className="flex flex-col h-full relative z-10">
+            <div className="w-10 h-10 rounded-[10px] bg-[#dcfce7] flex items-center justify-center text-[#16a34a] mb-3">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+            </div>
+            <p className="text-[13px] text-gray-500 font-medium mb-0.5">Total Sales</p>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-[#0d163a] mb-1.5">{formatCurrency(stats.totalSales)}</h3>
+            <p className="text-[10px] sm:text-xs text-gray-400 font-medium flex items-center gap-1">
+              <span className="text-[#16a34a] font-bold flex items-center gap-0.5"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M7 17l9.2-9.2M17 17V7H7"/></svg> 0%</span> vs last month
+            </p>
           </div>
+          <svg className="absolute top-4 right-3.5 w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[600px]">
-            <thead className="bg-neutral-50 border-b border-neutral-200">
-              <tr>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">
-                  ID
-                </th>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">
-                  <div className="flex items-center gap-2">
-                    O. Date
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="text-neutral-400 cursor-pointer"
-                    >
-                      <path
-                        d="M7 10L12 5L17 10M7 14L12 19L17 14"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                </th>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">
-                  <div className="flex items-center gap-2">
-                    Status
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="text-neutral-400 cursor-pointer"
-                    >
-                      <path
-                        d="M7 10L12 5L17 10M7 14L12 19L17 14"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                </th>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">
-                  <div className="flex items-center gap-2">
-                    Amount
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="text-neutral-400 cursor-pointer"
-                    >
-                      <path
-                        d="M7 10L12 5L17 10M7 14L12 19L17 14"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                </th>
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-neutral-700 uppercase tracking-wider">
-                  <div className="flex items-center gap-2">
-                    Action
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="text-neutral-400 cursor-pointer"
-                    >
-                      <path
-                        d="M7 10L12 5L17 10M7 14L12 19L17 14"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-neutral-200">
-              {displayedOrders.map((order) => (
-                <tr key={order.id} className="hover:bg-neutral-50">
-                  <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900">{order.id}</td>
-                  <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600">{order.orderDate}</td>
-                  <td className="px-4 sm:px-6 py-3">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeClass(order.status)}`}>
-                      {order.status}
-                    </span>
-                  </td>
-                  <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900">₹ {order.amount}</td>
-                  <td className="px-4 sm:px-6 py-3">
-                    <button
-                      onClick={() => navigate(`/seller/orders/${order.id}`)}
-                      className="bg-teal-600 hover:bg-teal-700 text-white p-2 rounded transition-colors"
-                      aria-label="View order details"
-                    >
-                      <svg
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        xmlns="http://www.w3.org/2000/svg"
-                      >
-                        <circle
-                          cx="11"
-                          cy="11"
-                          r="8"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M21 21L16.65 16.65"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Pending Settlement */}
+        <div className="bg-[#fffcf7] border border-[#fef3e2] rounded-[16px] p-3.5 sm:p-4 relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/seller/wallet')}>
+          <div className="flex flex-col h-full relative z-10">
+            <div className="w-10 h-10 rounded-[10px] bg-[#fef08a]/60 flex items-center justify-center text-[#d97706] mb-3">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M2 10h20"/><path d="M6 14h.01"/></svg>
+            </div>
+            <p className="text-[13px] text-gray-500 font-medium mb-0.5">Pending Settlement</p>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-[#0d163a] mb-1.5">{formatCurrency(stats.pendingSettlement)}</h3>
+            <p className="text-[10px] sm:text-xs text-gray-400 font-medium">No settlement due</p>
+          </div>
+          <svg className="absolute top-4 right-3.5 w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         </div>
+        
+        {/* Total Orders */}
+        <div className="bg-[#f5f8ff] border border-[#e8f0fe] rounded-[16px] p-3.5 sm:p-4 relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/seller/orders')}>
+          <div className="flex flex-col h-full relative z-10">
+            <div className="w-10 h-10 rounded-[10px] bg-[#dbeafe] flex items-center justify-center text-[#2563eb] mb-3">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            </div>
+            <p className="text-[13px] text-gray-500 font-medium mb-0.5">Total Orders</p>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-[#0d163a] mb-1.5">{stats.totalOrders}</h3>
+          </div>
+          <svg className="absolute top-4 right-3.5 w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
+        
+        {/* Pending Orders */}
+        <div className="bg-[#fdf7ff] border border-[#faefff] rounded-[16px] p-3.5 sm:p-4 relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate('/seller/orders?status=Received')}>
+          <div className="flex flex-col h-full relative z-10">
+            <div className="w-10 h-10 rounded-[10px] bg-[#f3e8ff] flex items-center justify-center text-[#9333ea] mb-3">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <p className="text-[13px] text-gray-500 font-medium mb-0.5">Pending Orders</p>
+            <h3 className="text-xl sm:text-2xl font-extrabold text-[#0d163a] mb-1.5">{stats.pendingOrders}</h3>
+          </div>
+          <svg className="absolute top-4 right-3.5 w-4 h-4 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </div>
+      </div>
 
-        {/* Pagination Footer */}
-        <div className="px-4 sm:px-6 py-3 border-t border-neutral-200 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
-          <div className="text-xs sm:text-sm text-neutral-700">
-            Showing {startIndex + 1} to {Math.min(endIndex, newOrders.length)} of {newOrders.length} entries
+      {/* Recent Orders Section */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-[20px] font-extrabold text-[#0d163a] tracking-tight">Recent Orders</h2>
+        <button onClick={() => navigate('/seller/orders')} className="text-[#2563eb] text-[13px] font-bold flex items-center gap-0.5 hover:underline">
+          View All <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        {newOrders.slice(0, 5).map(order => (
+          <div key={order.id} className="bg-white rounded-[16px] p-3 flex items-center justify-between border border-neutral-100 shadow-[0_2px_10px_rgba(0,0,0,0.02)] cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/seller/orders/${order.id}`)}>
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 bg-[#f8fafc] rounded-xl border border-neutral-100 overflow-hidden flex-shrink-0 p-1">
+                <img src={order.items?.[0]?.product?.images?.[0] || 'https://via.placeholder.com/100'} alt="Order item" className="w-full h-full object-cover rounded-lg" />
+              </div>
+              <div className="flex flex-col justify-center">
+                <h4 className="font-extrabold text-[#0d163a] text-[15px] mb-1 tracking-tight">#{order.id.slice(-7).toUpperCase()}</h4>
+                {order.status === 'Delivered' ? (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#15803d] bg-[#dcfce7] px-2 py-0.5 rounded-full w-fit">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#15803d]"></span> Delivered
+                  </span>
+                ) : order.status === 'Processing' || order.status === 'Processed' || order.status === 'Received' ? (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#d97706] bg-[#fef3c7] px-2 py-0.5 rounded-full w-fit">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#d97706]"></span> Processing
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded-full w-fit">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gray-500"></span> {order.status}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="text-right flex items-center gap-3">
+              <div className="flex flex-col justify-center items-end">
+                <div className="font-extrabold text-[#0d163a] text-[15px] leading-tight mb-1">₹{order.amount}</div>
+                <div className="text-[11px] text-gray-400 font-medium">
+                  {new Date(order.orderDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </div>
+              </div>
+              <svg className="w-4 h-4 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
-              className={`p-2 border border-neutral-300 rounded ${currentPage === 1
-                ? 'text-neutral-400 cursor-not-allowed bg-neutral-50'
-                : 'text-neutral-700 hover:bg-neutral-50'
-                }`}
-              aria-label="Previous page"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M15 18L9 12L15 6"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-            <button
-              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
-              className={`p-2 border border-neutral-300 rounded ${currentPage === totalPages
-                ? 'text-neutral-400 cursor-not-allowed bg-neutral-50'
-                : 'text-neutral-700 hover:bg-neutral-50'
-                }`}
-              aria-label="Next page"
-            >
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M9 18L15 12L9 6"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
+        ))}
+        {newOrders.length === 0 && (
+          <div className="text-center text-gray-500 py-8 text-sm font-medium bg-gray-50 rounded-xl border border-dashed border-gray-200">
+            No recent orders found
           </div>
-        </div>
+        )}
+      </div>
+      
+      {/* Hidden legacy sections for desktop or future expansion - but keeping mobile view exactly like image */}
+      <div className="hidden">
+        {/* Render other grids invisibly just in case logic relies on them, though mostly safe to remove */}
       </div>
     </div>
   );

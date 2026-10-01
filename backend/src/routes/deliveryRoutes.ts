@@ -55,7 +55,7 @@ router.get("/app-info", async (_req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        appName: settings?.appName || "Olovely Total Suvidha Delivery",
+        appName: settings?.appName || "Exnshop Delivery",
         appLogo: settings?.appLogo || "",
         version: "1.0.0",
         contactEmail: settings?.supportEmail || settings?.contactEmail || "support@dhakadsnazzy.com",

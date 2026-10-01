@@ -277,7 +277,7 @@ router.post("/test", async (req: Request, res: Response): Promise<void> => {
     // Send test notification
     const response = await sendPushNotification(uniqueTokens, {
       title: "🔔 Test Notification",
-      body: "This is a test push notification from Olovely Total Suvidha!",
+      body: "This is a test push notification from Exnshop!",
       data: {
         type: "test",
         timestamp: new Date().toISOString(),

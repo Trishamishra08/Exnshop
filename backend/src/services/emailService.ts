@@ -6,7 +6,7 @@ function getTransporter() {
     port: Number(process.env.SMTP_PORT) || 587,
     secure: process.env.SMTP_SECURE === "true", // false for port 587
     auth: {
-      user: process.env.SMTP_USER || "olovelytotalsuvidha@gmail.com",
+      user: process.env.SMTP_USER || "",
       pass: process.env.SMTP_PASS || "",
     },
   });
@@ -26,14 +26,14 @@ export async function sendSupportEmail(payload: ISupportEmailPayload): Promise<{
     const transporter = getTransporter();
 
     const mailOptions = {
-      from: `"${process.env.MAIL_FROM_NAME || 'Olovely Total Suvidha'}" <${process.env.MAIL_FROM || 'olovelytotalsuvidha@gmail.com'}>`,
-      to: "olovelytotalsuvidha@gmail.com",
+      from: `"${process.env.MAIL_FROM_NAME || 'Exnshop'}" <${process.env.MAIL_FROM || process.env.SMTP_USER}>`,
+      to: process.env.SUPPORT_EMAIL || process.env.SMTP_USER,
       replyTo: payload.email,
-      subject: `[Olovely Support] ${payload.subject}`,
+      subject: `[Exnshop Support] ${payload.subject}`,
       html: `
         <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
           <div style="background-color: #16a34a; color: #ffffff; padding: 16px 24px;">
-            <h2 style="margin: 0; font-size: 20px;">Olovely Total Suvidha</h2>
+            <h2 style="margin: 0; font-size: 20px;">Exnshop</h2>
             <p style="margin: 4px 0 0 0; font-size: 14px; opacity: 0.9;">Customer Support Request</p>
           </div>
           <div style="padding: 24px; background-color: #ffffff;">
@@ -69,12 +69,12 @@ ${escapeHtml(payload.message)}
             </div>
           </div>
           <div style="background-color: #f3f4f6; color: #6b7280; padding: 12px 24px; font-size: 12px; text-align: center; border-top: 1px solid #e5e7eb;">
-            This message was submitted through the Olovely customer application support form.
+            This message was submitted through the Exnshop customer application support form.
           </div>
         </div>
       `,
       text: `
-Olovely Total Suvidha - Customer Support Request
+Exnshop - Customer Support Request
 ------------------------------------------------
 Customer Name: ${payload.name}
 Customer Email: ${payload.email}
@@ -86,7 +86,7 @@ Message:
 ${payload.message}
 
 ------------------------------------------------
-This message was submitted through the Olovely customer application.
+This message was submitted through the Exnshop customer application.
       `,
     };
 
@@ -112,7 +112,7 @@ export async function sendVerificationCodeEmail(
     const transporter = getTransporter();
 
     const mailOptions = {
-      from: `"${process.env.MAIL_FROM_NAME || "Exnshop"}" <${process.env.MAIL_FROM || "olovelytotalsuvidha@gmail.com"}>`,
+      from: `"${process.env.MAIL_FROM_NAME || "Exnshop"}" <${process.env.MAIL_FROM || process.env.SMTP_USER}>`,
       to: toEmail,
       subject: "Verify your email address",
       html: `

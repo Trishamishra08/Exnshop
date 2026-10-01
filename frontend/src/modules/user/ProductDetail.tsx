@@ -1004,7 +1004,7 @@ export default function ProductDetail() {
                         Customer Care Details:
                       </span>
                       <span className="text-xs text-neutral-600">
-                        Email: {appSettings?.supportEmail || appSettings?.contactEmail || 'OLOVELYTOTALSUVIDHA@GMAIL.COM'} | Phone: +91 {appSettings?.supportPhone || appSettings?.contactPhone || '9601715367'}
+                        Email: {appSettings?.supportEmail || appSettings?.contactEmail || 'support@exnshop.com'} | Phone: +91 {appSettings?.supportPhone || appSettings?.contactPhone || '9601715367'}
                       </span>
                     </div>
                     <div className="flex items-start">

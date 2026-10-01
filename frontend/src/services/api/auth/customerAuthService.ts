@@ -27,21 +27,21 @@ export interface VerifyOTPResponse {
 }
 
 /**
- * Send SMS OTP to customer mobile number.
- * Mobile must be 10-digit string (e.g. "9755620716"). Backend normalizes and sends as 91XXXXXXXXXX to SMS gateway.
+ * Send OTP to customer email. Login now runs on email+OTP — there's no live
+ * SMS OTP provider yet, so mobile is collected but no longer OTP-verified.
  */
-export const sendOTP = async (mobile: string): Promise<SendOTPResponse> => {
-  const mobileStr = String(mobile ?? '').replace(/\D/g, '').slice(0, 10);
-  const response = await api.post<SendOTPResponse>('/auth/customer/send-sms-otp', { mobile: mobileStr });
+export const sendOTP = async (email: string): Promise<SendOTPResponse> => {
+  const response = await api.post<SendOTPResponse>('/auth/customer/send-sms-otp', { email });
   return response.data;
 };
 
 /**
- * Verify SMS OTP and login customer
- * Auto-creates customer if not exists
+ * Verify email OTP and login customer. `mobile` is required only the first
+ * time (new account creation) — pass it every time, it's ignored for
+ * existing accounts.
  */
-export const verifyOTP = async (mobile: string, otp: string, sessionId?: string): Promise<VerifyOTPResponse> => {
-  const response = await api.post<VerifyOTPResponse>('/auth/customer/verify-sms-otp', { mobile, otp, sessionId });
+export const verifyOTP = async (email: string, otp: string, sessionId?: string, mobile?: string): Promise<VerifyOTPResponse> => {
+  const response = await api.post<VerifyOTPResponse>('/auth/customer/verify-sms-otp', { email, otp, sessionId, mobile });
 
   if (response.data.success && response.data.data.token) {
     const userData = {

@@ -140,7 +140,7 @@ export default function AdminCoupon() {
       // Upload coupon image if provided
       if (couponImageFile) {
         const compressedFile = await compressImage(couponImageFile);
-        const imageResult = await uploadImage(compressedFile, "olovely/coupons");
+        const imageResult = await uploadImage(compressedFile, "exnshop/coupons");
         imageUrl = imageResult.secureUrl;
       }
 

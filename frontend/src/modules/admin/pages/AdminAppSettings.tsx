@@ -113,7 +113,7 @@ export default function AdminAppSettings() {
     } catch (err: any) {
       console.error('Save settings error:', err);
       if (err.response?.status === 401 || err.response?.status === 403) {
-        setErrorMessage('Admin session expired or unauthorized. Please log in at the Admin Portal (admin@olovely.com / Admin@123) to save changes.');
+        setErrorMessage('Admin session expired or unauthorized. Please log in at the Admin Portal (admin@exnshop.com / Admin@123) to save changes.');
       } else {
         setErrorMessage(err.response?.data?.message || 'Failed to save settings');
       }

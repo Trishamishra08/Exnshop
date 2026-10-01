@@ -1843,7 +1843,7 @@ export default function OrderDetail() {
           amount={order.totalAmount || order.total || 0}
           customerDetails={{
             name: user?.name || order.customerName || order.address?.name || "Customer",
-            email: user?.email || order.customerEmail || "customer@olovely.com",
+            email: user?.email || order.customerEmail || "customer@exnshop.com",
             phone: user?.phone || order.customerPhone || order.address?.phone || "9999999999",
           }}
           onSuccess={(paymentId) => {

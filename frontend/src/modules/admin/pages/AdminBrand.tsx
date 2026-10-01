@@ -123,7 +123,7 @@ export default function AdminBrand() {
       // Upload brand image if a new file is selected
       if (brandImageFile) {
         const compressedFile = await compressImage(brandImageFile);
-        const imageResult = await uploadImage(compressedFile, "olovely/brands");
+        const imageResult = await uploadImage(compressedFile, "exnshop/brands");
         imageUrl = imageResult.secureUrl;
       }
 
