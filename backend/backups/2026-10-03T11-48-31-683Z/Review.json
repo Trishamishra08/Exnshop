@@ -1,0 +1,17 @@
+[
+  {
+    "_id": "6aa53c55ce732b5a4280220e",
+    "product": "6aa531d9ce732b5a42800502",
+    "order": "6aa5323dce732b5a42800828",
+    "customer": "6aa10d4182aa4a5582ebfa37",
+    "rating": 5,
+    "title": "very good product",
+    "images": [],
+    "status": "Approved",
+    "isVerifiedPurchase": true,
+    "helpfulCount": 0,
+    "createdAt": "2026-09-12T11:49:41.769Z",
+    "updatedAt": "2026-09-12T11:49:41.769Z",
+    "__v": 0
+  }
+]

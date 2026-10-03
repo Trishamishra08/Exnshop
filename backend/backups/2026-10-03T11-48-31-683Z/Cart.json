@@ -1,0 +1,101 @@
+[
+  {
+    "_id": "6aa10d4182aa4a5582ebfa40",
+    "customer": "6aa10d4182aa4a5582ebfa37",
+    "items": [],
+    "total": 0,
+    "createdAt": "2026-09-09T07:39:45.690Z",
+    "updatedAt": "2026-09-12T11:31:54.737Z",
+    "__v": 36
+  },
+  {
+    "_id": "6aa282f299a1fbeac7fa3230",
+    "customer": "6aa282f299a1fbeac7fa3226",
+    "items": [
+      "6aa2830e99a1fbeac7fa330b"
+    ],
+    "total": 98,
+    "createdAt": "2026-09-10T10:14:10.283Z",
+    "updatedAt": "2026-09-10T10:14:38.972Z",
+    "__v": 1
+  },
+  {
+    "_id": "6aa2833f99a1fbeac7fa3382",
+    "customer": "6aa2833f99a1fbeac7fa337e",
+    "items": [],
+    "total": 0,
+    "createdAt": "2026-09-10T10:15:27.664Z",
+    "updatedAt": "2026-09-10T10:15:27.664Z",
+    "__v": 0
+  },
+  {
+    "_id": "6aa2836b99a1fbeac7fa34bf",
+    "customer": "6aa2836a99a1fbeac7fa34b7",
+    "items": [],
+    "total": 0,
+    "createdAt": "2026-09-10T10:16:11.068Z",
+    "updatedAt": "2026-09-10T10:16:11.068Z",
+    "__v": 0
+  },
+  {
+    "_id": "6ab4d3ba58bdf49ce0a0448a",
+    "customer": "6ab4cbf87f7f264620a5a22b",
+    "items": [],
+    "total": 0,
+    "createdAt": "2026-09-24T07:39:38.878Z",
+    "updatedAt": "2026-09-24T07:39:38.878Z",
+    "__v": 0
+  },
+  {
+    "_id": "6ab6c0e8632f5df5b59f92cc",
+    "customer": "6ab4cbf87f7f264620a5a22b",
+    "channel": "ECommerce",
+    "items": [],
+    "total": 0,
+    "createdAt": "2026-09-25T18:43:52.919Z",
+    "updatedAt": "2026-09-28T12:55:05.475Z",
+    "__v": 4
+  },
+  {
+    "_id": "6ab78655df04b5ecb1a71095",
+    "customer": "6ab4cbf87f7f264620a5a22b",
+    "channel": "Quick",
+    "items": [
+      "6abd4503a42cb68c26c633cc"
+    ],
+    "total": 0,
+    "createdAt": "2026-09-26T08:46:13.800Z",
+    "updatedAt": "2026-10-03T11:27:04.513Z",
+    "__v": 28
+  },
+  {
+    "_id": "6ab78655df04b5ecb1a71099",
+    "customer": "6ab4cbf87f7f264620a5a22b",
+    "channel": "Quick",
+    "items": [],
+    "total": 0,
+    "createdAt": "2026-09-26T08:46:13.821Z",
+    "updatedAt": "2026-09-26T08:46:13.821Z",
+    "__v": 0
+  },
+  {
+    "_id": "6abba570941c6a2e3069b4f8",
+    "customer": "6aa282f299a1fbeac7fa3226",
+    "channel": "Quick",
+    "items": [],
+    "total": 0,
+    "createdAt": "2026-09-29T11:48:00.555Z",
+    "updatedAt": "2026-10-01T12:59:33.445Z",
+    "__v": 5
+  },
+  {
+    "_id": "6abe58c1da58e1977d840fdb",
+    "customer": "6aa282f299a1fbeac7fa3226",
+    "channel": "ECommerce",
+    "items": [],
+    "total": 0,
+    "createdAt": "2026-10-01T12:57:37.541Z",
+    "updatedAt": "2026-10-01T12:57:37.541Z",
+    "__v": 0
+  }
+]

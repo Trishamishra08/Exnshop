@@ -1,0 +1,28 @@
+[
+  {
+    "_id": "6aa533a4ce732b5a42800a5d",
+    "deliveryBoy": "6aa05ee9604296e8da12109d",
+    "order": "6aa5323dce732b5a42800828",
+    "amount": 22,
+    "remark": "Auto-generated from delivered COD order ORD1789211444436245",
+    "status": "Collected",
+    "createdAt": "2026-09-12T11:12:36.843Z",
+    "updatedAt": "2026-09-12T11:18:45.567Z",
+    "__v": 0,
+    "collectedAt": "2026-09-12T11:18:45.567Z",
+    "collectedBy": "6a9fe5f52b460b582422497b"
+  },
+  {
+    "_id": "6aa538aece732b5a4280174c",
+    "deliveryBoy": "6aa05ee9604296e8da12109d",
+    "order": "6aa5382ace732b5a428015fa",
+    "amount": 22,
+    "remark": "Auto-generated from delivered COD order ORD1789212714478999",
+    "status": "Collected",
+    "createdAt": "2026-09-12T11:34:06.901Z",
+    "updatedAt": "2026-09-12T11:36:45.697Z",
+    "__v": 0,
+    "collectedAt": "2026-09-12T11:36:45.696Z",
+    "collectedBy": "6a9fe5f52b460b582422497b"
+  }
+]

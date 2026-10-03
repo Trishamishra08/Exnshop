@@ -1,0 +1,175 @@
+[
+  {
+    "_id": "6aa10d4182aa4a5582ebfa37",
+    "name": "Kuldeep",
+    "email": "sharmakuldeep9761@gmail.com",
+    "phone": "8817469588",
+    "status": "Active",
+    "totalOrders": 0,
+    "totalSpent": 0,
+    "walletAmount": 20,
+    "notificationPreferences": {
+      "email": true,
+      "sms": true,
+      "push": true
+    },
+    "donationStats": {
+      "totalDonated": 0
+    },
+    "accountPrivacy": {
+      "hideSensitiveItems": false
+    },
+    "fcmTokens": [],
+    "fcmTokenMobile": [],
+    "preferredLanguage": null,
+    "registrationDate": "2026-09-09T07:39:45.542Z",
+    "createdAt": "2026-09-09T07:39:45.543Z",
+    "updatedAt": "2026-09-12T11:42:21.868Z",
+    "refCode": "USERBCWT",
+    "deliveryOtp": "4587",
+    "__v": 0
+  },
+  {
+    "_id": "6aa282f299a1fbeac7fa3226",
+    "name": "Trisha Mishra",
+    "email": "exnshop@gmail.com",
+    "phone": "9999999999",
+    "status": "Active",
+    "totalOrders": 0,
+    "totalSpent": 0,
+    "walletAmount": 0,
+    "notificationPreferences": {
+      "email": true,
+      "sms": true,
+      "push": true
+    },
+    "donationStats": {
+      "totalDonated": 0
+    },
+    "accountPrivacy": {
+      "hideSensitiveItems": false
+    },
+    "fcmTokens": [],
+    "fcmTokenMobile": [
+      "f8cotuHfQiiUSz7yRu4Wbc:APA91bE5hHnnqmVUxRP39oLReAioOeP6F-xayqB33L5eXoO-VquGUi4WN3vtXZarIgZVbZZ1Aeln1Fn8YHL_lpgBLopkVNDA5swd-KLG_c3vkMGPhYdy6_Y"
+    ],
+    "preferredLanguage": null,
+    "registrationDate": "2026-09-10T10:14:10.147Z",
+    "createdAt": "2026-09-10T10:14:10.148Z",
+    "updatedAt": "2026-10-01T12:57:33.176Z",
+    "refCode": "USERK35L",
+    "deliveryOtp": "3046",
+    "__v": 1,
+    "address": "Corporate House, HO-406, RNT Marg, Near D.A.V.V, Flim Colony, Chhoti Gwaltoli, Indore, Madhya Pradesh 452001, India",
+    "city": "Chhoti Gwaltoli",
+    "latitude": 22.717632761058002,
+    "locationUpdatedAt": "2026-09-30T06:59:53.685Z",
+    "longitude": 75.87195516238462,
+    "pincode": "452001",
+    "state": "Madhya Pradesh"
+  },
+  {
+    "_id": "6aa2833f99a1fbeac7fa337e",
+    "name": "User",
+    "email": "9888888888@olovely.temp",
+    "phone": "9888888888",
+    "status": "Active",
+    "totalOrders": 0,
+    "totalSpent": 0,
+    "walletAmount": 0,
+    "notificationPreferences": {
+      "email": true,
+      "sms": true,
+      "push": true
+    },
+    "donationStats": {
+      "totalDonated": 0
+    },
+    "accountPrivacy": {
+      "hideSensitiveItems": false
+    },
+    "fcmTokens": [],
+    "fcmTokenMobile": [],
+    "preferredLanguage": null,
+    "registrationDate": "2026-09-10T10:15:27.304Z",
+    "createdAt": "2026-09-10T10:15:27.305Z",
+    "updatedAt": "2026-09-10T10:15:27.305Z",
+    "refCode": "USER2MFC",
+    "deliveryOtp": "4116",
+    "__v": 0
+  },
+  {
+    "_id": "6aa2836a99a1fbeac7fa34b7",
+    "name": "User",
+    "email": "9876543210@olovely.temp",
+    "phone": "9876543210",
+    "status": "Active",
+    "totalOrders": 0,
+    "totalSpent": 0,
+    "walletAmount": 0,
+    "notificationPreferences": {
+      "email": true,
+      "sms": true,
+      "push": true
+    },
+    "donationStats": {
+      "totalDonated": 0
+    },
+    "accountPrivacy": {
+      "hideSensitiveItems": false
+    },
+    "fcmTokens": [],
+    "fcmTokenMobile": [],
+    "preferredLanguage": null,
+    "registrationDate": "2026-09-10T10:16:10.938Z",
+    "createdAt": "2026-09-10T10:16:10.938Z",
+    "updatedAt": "2026-09-10T10:16:10.938Z",
+    "refCode": "USEREMQ6",
+    "deliveryOtp": "1454",
+    "__v": 0
+  },
+  {
+    "_id": "6ab4cbf87f7f264620a5a22b",
+    "name": "Exnshop Customer",
+    "email": "trishamishra115@gmail.com",
+    "phone": "8839044030",
+    "status": "Active",
+    "totalOrders": 0,
+    "totalSpent": 0,
+    "walletAmount": 100,
+    "notificationPreferences": {
+      "email": true,
+      "sms": true,
+      "push": true
+    },
+    "donationStats": {
+      "totalDonated": 0
+    },
+    "accountPrivacy": {
+      "hideSensitiveItems": false
+    },
+    "fcmTokens": [],
+    "fcmTokenMobile": [
+      "ddsgps_6QmKhaBdZFz3Qpr:APA91bHE6NaKadYHyayJ9B2xDdMWlhgZ2M3l6n72mW2pO2a6Su0HL-kzRRQCkO8PQnmmO94F7rfYXsKVfU5PMWTQPiZAG5QRwB31oJllyjp7s7DMQTMk0HM",
+      "d65WLeNGQiOQe8lvNlPYqe:APA91bGrlKq90XygZDFm2Aj-PxsoB44CmU_s1X4zXuqYjA8yu8S4NpjvNACLDGhyNOJ4EMi9QpYpz5TNEUU2-3HnP4vk1cJ678pxJ-2LpYensByO7OQBsjQ",
+      "cggu9AKGQhqSKSZS08FlLS:APA91bHxhvzN3TS9kIXZu_4wXLpN6kpJWoDHIl7ADjitLCB9H19Aj4OabcXjLKYSw1pFYLkfaJS6fGoY_UeNI_H0j1B1K-PTP7nhcV1Zj_UvshXbalEg2x4",
+      "cggu9AKGQhqSKSZS08FlLS:APA91bHxhvzN3TS9kIXZu_4wXLpN6kpJWoDHIl7ADjitLCB9H19Aj4OabcXjLKYSw1pFYLkfaJS6fGoY_UeNI_H0j1B1K-PTP7nhcV1Zj_UvshXbalEg2x4",
+      "f8cotuHfQiiUSz7yRu4Wbc:APA91bE5hHnnqmVUxRP39oLReAioOeP6F-xayqB33L5eXoO-VquGUi4WN3vtXZarIgZVbZZ1Aeln1Fn8YHL_lpgBLopkVNDA5swd-KLG_c3vkMGPhYdy6_Y",
+      "f8cotuHfQiiUSz7yRu4Wbc:APA91bE5hHnnqmVUxRP39oLReAioOeP6F-xayqB33L5eXoO-VquGUi4WN3vtXZarIgZVbZZ1Aeln1Fn8YHL_lpgBLopkVNDA5swd-KLG_c3vkMGPhYdy6_Y"
+    ],
+    "preferredLanguage": null,
+    "registrationDate": "2026-09-24T07:06:32.511Z",
+    "createdAt": "2026-09-24T07:06:32.512Z",
+    "updatedAt": "2026-10-03T11:27:04.101Z",
+    "refCode": "EXNS2CXT",
+    "deliveryOtp": "2389",
+    "__v": 12,
+    "address": "109-B, Chhoti Gwaltoli, Indore, Madhya Pradesh 452001, India",
+    "city": "Chhoti Gwaltoli",
+    "latitude": 22.717352,
+    "locationUpdatedAt": "2026-09-28T10:50:17.773Z",
+    "longitude": 75.87163,
+    "pincode": "452001",
+    "state": "Madhya Pradesh"
+  }
+]

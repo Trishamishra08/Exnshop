@@ -1,0 +1,145 @@
+[
+  {
+    "_id": "6a7d5b02259ec525f6753de4",
+    "address": "Sector 17A, Gautam Buddha Nagar, Uttar Pradesh 203201, India",
+    "balance": 18,
+    "categories": [
+      "Grocery",
+      "Fruits & Vegetables"
+    ],
+    "category": "Grocery",
+    "categoryCommissions": [],
+    "city": "Gautam Buddha Nagar",
+    "commission": 0,
+    "createdAt": "2026-09-08T19:15:53.031Z",
+    "email": "exnshopseller@gmail.com",
+    "isShopOpen": true,
+    "latitude": "28.35863",
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        75.87186,
+        22.71765
+      ]
+    },
+    "longitude": "77.549869",
+    "mobile": "9999999999",
+    "onHoldBalance": 0,
+    "requireProductApproval": false,
+    "sellerName": "Exnshop Supermart",
+    "serviceRadiusKm": 500,
+    "status": "Approved",
+    "storeName": "Exnshop Supermart",
+    "updatedAt": "2026-10-01T12:15:39.580Z",
+    "viewCustomerDetails": true,
+    "fcmTokenMobile": [],
+    "fcmTokens": [],
+    "searchLocation": "Sector 17A, Gautam Buddha Nagar, Uttar Pradesh 203201, India",
+    "workingHours": {
+      "offDays": []
+    }
+  },
+  {
+    "_id": "6ab4cbf87f7f264620a5a220",
+    "sellerName": "Exnshop Seller",
+    "email": "seller@exnshop.io",
+    "mobile": "8839044030",
+    "storeName": "Exnshop Store",
+    "category": "Grocery",
+    "address": "Indore, Madhya Pradesh",
+    "workingHours": {
+      "offDays": []
+    },
+    "city": "Indore",
+    "latitude": "22.717650",
+    "longitude": "75.871860",
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        75.87186,
+        22.71765
+      ]
+    },
+    "serviceRadiusKm": 100.1,
+    "requireProductApproval": false,
+    "viewCustomerDetails": true,
+    "commission": 0,
+    "status": "Approved",
+    "balance": 18,
+    "onHoldBalance": 9,
+    "categories": [
+      "Grocery",
+      "Fruits & Vegetables"
+    ],
+    "isShopOpen": true,
+    "fcmTokens": [],
+    "fcmTokenMobile": [
+      "cVMjXk5AQM-trVCC4fAUBi:APA91bFI0V167vFQBLGFgK7Ka1SuDbDT4tpwNdGa2sDLDxI89HhxDIIpR61cpIcasZMTMv76JRVi0ZG3rV01V6ao7vhMME3UU3yZMx-o4d9ZZrJtcoZNXZk",
+      "etHknbStQEiraDfpeDUIa8:APA91bFLrHaun_-0Byu8haz4YD3AfRzosRbH3hCMbOl9ncT0X8D0Z05K2kD69OSwzkHB7uTvKTY6trrxla4WX10S8Dye9JUwOQu79ekGnKNbWS1YijsOQgQ",
+      "d3oQ9rncSASiCRpxTqCVzC:APA91bEdEo7bVFkz5GpKMFGeFSTfGk0Fpa9xRPmDCwS0Fw0m2_u1plClhiyoEBYRZIgNUAbxb7_gQensQUodvrzI_pQb8FfP4TZ1kpzWzklDCDAu0kMqOMo",
+      "eMK30stYTwun4rGY3mL0vv:APA91bGgHik7yXuXu4ds43vZA4QuFBbLh1x7KJjXn08-QwLJTCtwquTfnOemaZFC2sIsEUzJv6_101NeNakmCuLw7EVqVTsdWnmxPLOrRTBuDBA6SwKPfP0",
+      "dC-TmswLTq69vqXFI5liD7:APA91bHk1mTGo8xBnjAoFShPfx7sZoO-15b-PUjiziJjyFiuVzwHVsIhSg8jjbRr_q-LAKQ-MuNK17U1CAcYO8kOTv8GWN9f5TIGkR6WT_hmZ9548lhYn9Q"
+    ],
+    "categoryCommissions": [],
+    "createdAt": "2026-09-24T07:06:32.314Z",
+    "updatedAt": "2026-10-02T13:56:31.629Z",
+    "__v": 5,
+    "channels": [
+      "Quick",
+      "ECommerce"
+    ],
+    "logo": "",
+    "supportsInstantDelivery": true,
+    "isEmailVerified": false
+  },
+  {
+    "_id": "6abcd106a42cb68c26c6246d",
+    "sellerName": "Harshvardhan",
+    "email": "harshvardhanpanc145@gmail.com",
+    "mobile": "6268423925",
+    "storeName": "Harshuu shop",
+    "category": "Fruits & Vegetables",
+    "address": "22.717389, 75.871633",
+    "workingHours": {
+      "offDays": []
+    },
+    "city": "Indore",
+    "searchLocation": "22.717389, 75.871633",
+    "latitude": "22.717389",
+    "longitude": "75.871633",
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        75.871633,
+        22.717389
+      ]
+    },
+    "serviceRadiusKm": 10,
+    "requireProductApproval": false,
+    "viewCustomerDetails": false,
+    "commission": 0,
+    "status": "Approved",
+    "balance": 90,
+    "onHoldBalance": 0,
+    "categories": [
+      "Fruits & Vegetables",
+      "Snacks & Drinks",
+      "Grocery",
+      "Wedding"
+    ],
+    "isShopOpen": true,
+    "channels": [
+      "Quick"
+    ],
+    "supportsInstantDelivery": true,
+    "fcmTokens": [],
+    "fcmTokenMobile": [
+      "dC-TmswLTq69vqXFI5liD7:APA91bHk1mTGo8xBnjAoFShPfx7sZoO-15b-PUjiziJjyFiuVzwHVsIhSg8jjbRr_q-LAKQ-MuNK17U1CAcYO8kOTv8GWN9f5TIGkR6WT_hmZ9548lhYn9Q"
+    ],
+    "categoryCommissions": [],
+    "createdAt": "2026-09-30T09:06:14.499Z",
+    "updatedAt": "2026-09-30T09:20:25.019Z",
+    "__v": 1,
+    "isEmailVerified": false
+  }
+]

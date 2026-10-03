@@ -1,0 +1,109 @@
+[
+  {
+    "_id": "6aa05ee9604296e8da12109d",
+    "mobile": "9888888888",
+    "address": "Indore City, Madhya Pradesh",
+    "available": "Available",
+    "balance": 2,
+    "cashCollected": 0,
+    "city": "Indore",
+    "createdAt": "2026-09-08T19:15:53.231Z",
+    "email": "delivery@exnshop.com",
+    "isOnline": true,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        77.963279,
+        27.742546
+      ]
+    },
+    "name": "Exnshop Delivery Partner",
+    "pendingAdminPayout": 0,
+    "pincode": "452001",
+    "settings": {
+      "notifications": true,
+      "location": true,
+      "sound": true
+    },
+    "status": "Active",
+    "updatedAt": "2026-09-12T11:36:45.726Z",
+    "vehicleNumber": "MP09-EX-1234",
+    "vehicleType": "Bike",
+    "__v": 1,
+    "fcmTokenMobile": [],
+    "fcmTokens": []
+  },
+  {
+    "_id": "6ab4cbf87f7f264620a5a227",
+    "name": "Exnshop Delivery Partner",
+    "mobile": "8839044030",
+    "email": "delivery@exnshop.io",
+    "address": "Indore City, Madhya Pradesh",
+    "city": "Indore",
+    "pincode": "452001",
+    "vehicleNumber": "MP09-EX-4030",
+    "vehicleType": "Bike",
+    "status": "Active",
+    "isOnline": true,
+    "available": "Available",
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        75.8716288,
+        22.717394
+      ]
+    },
+    "balance": 5.5,
+    "cashCollected": 0,
+    "pendingAdminPayout": 0,
+    "settings": {
+      "notifications": true,
+      "location": true,
+      "sound": true
+    },
+    "fcmTokens": [],
+    "fcmTokenMobile": [
+      "cwQzMDEGRPaE9SMpYOeNts:APA91bGVI5fsJzAe9cLyqdQ239ppg5Lt7Ua3LCzWBr87nb-9S1e-Blpm87aHfqh47g2uH-T93fD14F6D3KIAfUQNzJ1DWdgpo42jsInQ0WCU2Kxl9qOd6TE",
+      "dUb2koxPSX2GcgMrBAYA-8:APA91bEgqVMnjjRJUb69KXp07nNYJcxaflOFauZ7Yn_nYeoYA628XiyHAJm2_A646VEJ0l-E8Tk_z2qQO4b9V07iV-XCsufajS3x359GZJPL4Z6I4TzDX3M"
+    ],
+    "createdAt": "2026-09-24T07:06:32.434Z",
+    "updatedAt": "2026-10-01T13:04:03.458Z",
+    "__v": 6
+  },
+  {
+    "_id": "6abe4eed63ee66167196d535",
+    "email": "exnshopdriver@gmail.com",
+    "address": "Indore City, Madhya Pradesh",
+    "available": "Available",
+    "balance": 0,
+    "cashCollected": 0,
+    "city": "Indore",
+    "createdAt": "2026-10-01T12:15:39.734Z",
+    "fcmTokenMobile": [
+      "cwQzMDEGRPaE9SMpYOeNts:APA91bGVI5fsJzAe9cLyqdQ239ppg5Lt7Ua3LCzWBr87nb-9S1e-Blpm87aHfqh47g2uH-T93fD14F6D3KIAfUQNzJ1DWdgpo42jsInQ0WCU2Kxl9qOd6TE"
+    ],
+    "fcmTokens": [],
+    "isOnline": true,
+    "location": {
+      "type": "Point",
+      "coordinates": [
+        77.6981,
+        28.9791
+      ]
+    },
+    "mobile": "9999999999",
+    "name": "Exnshop Demo Driver",
+    "pendingAdminPayout": 0,
+    "pincode": "452001",
+    "settings": {
+      "notifications": true,
+      "location": true,
+      "sound": true
+    },
+    "status": "Active",
+    "updatedAt": "2026-10-03T08:40:57.814Z",
+    "vehicleNumber": "MP09-EX-9999",
+    "vehicleType": "Bike",
+    "__v": 1
+  }
+]

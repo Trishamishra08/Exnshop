@@ -1,0 +1,94 @@
+[
+  {
+    "_id": "6aa532b8ce732b5a42800913",
+    "order": "6aa5323dce732b5a42800828",
+    "deliveryBoy": "6aa05ee9604296e8da12109d",
+    "currentLocation": {
+      "latitude": 27.742546,
+      "longitude": 77.963279,
+      "timestamp": "2026-09-12T11:11:09.213Z"
+    },
+    "latitude": 27.742546,
+    "longitude": 77.963279,
+    "route": [
+      {
+        "lat": 27.742546,
+        "lng": 77.963279
+      },
+      {
+        "lat": 27.742546,
+        "lng": 77.963279
+      }
+    ],
+    "eta": 225,
+    "distance": 112292.44000969129,
+    "status": "in_transit",
+    "createdAt": "2026-09-12T11:08:40.819Z",
+    "updatedAt": "2026-09-12T11:11:09.215Z",
+    "__v": 1
+  },
+  {
+    "_id": "6abbb1c31fd1543c6d03a8ba",
+    "order": "6abbb0f51fd1543c6d03a6c1",
+    "deliveryBoy": "6ab4cbf87f7f264620a5a227",
+    "currentLocation": {
+      "latitude": 22.7173909,
+      "longitude": 75.8716429,
+      "timestamp": "2026-09-29T13:13:45.664Z"
+    },
+    "latitude": 22.7173909,
+    "longitude": 75.8716429,
+    "route": [
+      {
+        "lat": 22.7173863,
+        "lng": 75.8716408
+      },
+      {
+        "lat": 22.717386,
+        "lng": 75.8716404
+      },
+      {
+        "lat": 22.7173948,
+        "lng": 75.871625
+      },
+      {
+        "lat": 22.7173909,
+        "lng": 75.8716429
+      }
+    ],
+    "eta": 1,
+    "distance": 270.73987684829723,
+    "status": "in_transit",
+    "createdAt": "2026-09-29T12:40:35.739Z",
+    "updatedAt": "2026-09-29T13:13:45.665Z",
+    "__v": 3
+  },
+  {
+    "_id": "6abcd443a42cb68c26c62d54",
+    "order": "6abcd410a42cb68c26c62c42",
+    "deliveryBoy": "6ab4cbf87f7f264620a5a227",
+    "currentLocation": {
+      "latitude": 22.7181188,
+      "longitude": 75.8691903,
+      "timestamp": "2026-09-30T09:20:27.385Z"
+    },
+    "latitude": 22.7181188,
+    "longitude": 75.8691903,
+    "route": [
+      {
+        "lat": 22.7173922,
+        "lng": 75.8716382
+      },
+      {
+        "lat": 22.7181188,
+        "lng": 75.8691903
+      }
+    ],
+    "eta": 1,
+    "distance": 288.4780996729976,
+    "status": "in_transit",
+    "createdAt": "2026-09-30T09:20:03.221Z",
+    "updatedAt": "2026-09-30T09:20:27.387Z",
+    "__v": 1
+  }
+]

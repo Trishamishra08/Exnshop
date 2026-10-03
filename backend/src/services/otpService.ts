@@ -538,6 +538,14 @@ async function verifyOtpFromDb(
   return true;
 }
 
+// Fixed test login for the Admin panel specifically — this mobile always
+// accepts 123456, regardless of OTP_UNIVERSAL_BYPASS, since Admin has no
+// real SMS gateway configured and no email-OTP option yet. Scoped to this
+// one literal number only; every other mobile/email still goes through the
+// normal real-OTP flow below.
+const ADMIN_TEST_BYPASS_MOBILE = "9876543210";
+const ADMIN_TEST_BYPASS_OTP = "123456";
+
 /**
  * Every mobile number defaults to the fixed test OTP 888888 — no real SMS is
  * sent, and login accepts only this code. Set OTP_UNIVERSAL_BYPASS=false to
@@ -545,6 +553,7 @@ async function verifyOtpFromDb(
  * actually sending/verifying a random OTP per number.
  */
 function getSpecialOtpForMobile(mobile: string): string | null {
+  if (String(mobile).trim() === ADMIN_TEST_BYPASS_MOBILE) return ADMIN_TEST_BYPASS_OTP;
   if (process.env.OTP_UNIVERSAL_BYPASS === "false") return null;
   return "123456";
 }

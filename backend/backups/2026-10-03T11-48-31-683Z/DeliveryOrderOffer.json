@@ -1,0 +1,50 @@
+[
+  {
+    "_id": "6aa5328e604296e8da12b627",
+    "deliveryBoy": "6aa05ee9604296e8da12109d",
+    "order": "6aa5323dce732b5a42800828",
+    "__v": 0,
+    "createdAt": "2026-09-12T11:07:58.847Z",
+    "deliveryBoyEarning": 1,
+    "notifiedAt": "2026-09-12T11:07:58.846Z",
+    "status": "accepted",
+    "updatedAt": "2026-09-12T11:08:03.771Z",
+    "respondedAt": "2026-09-12T11:08:03.770Z"
+  },
+  {
+    "_id": "6aa5387a604296e8da12b62f",
+    "order": "6aa5382ace732b5a428015fa",
+    "deliveryBoy": "6aa05ee9604296e8da12109d",
+    "__v": 0,
+    "createdAt": "2026-09-12T11:33:14.009Z",
+    "deliveryBoyEarning": 1,
+    "notifiedAt": "2026-09-12T11:33:14.008Z",
+    "status": "accepted",
+    "updatedAt": "2026-09-12T11:33:19.600Z",
+    "respondedAt": "2026-09-12T11:33:19.600Z"
+  },
+  {
+    "_id": "6abbb11263ee66167196852c",
+    "order": "6abbb0f51fd1543c6d03a6c1",
+    "deliveryBoy": "6ab4cbf87f7f264620a5a227",
+    "__v": 0,
+    "createdAt": "2026-09-29T12:37:38.881Z",
+    "deliveryBoyEarning": 0.5,
+    "notifiedAt": "2026-09-29T12:37:38.880Z",
+    "status": "accepted",
+    "updatedAt": "2026-09-29T12:39:45.574Z",
+    "respondedAt": "2026-09-29T12:39:45.573Z"
+  },
+  {
+    "_id": "6abcd42663ee66167196b588",
+    "deliveryBoy": "6ab4cbf87f7f264620a5a227",
+    "order": "6abcd410a42cb68c26c62c42",
+    "__v": 0,
+    "createdAt": "2026-09-30T09:19:34.488Z",
+    "deliveryBoyEarning": 5,
+    "notifiedAt": "2026-09-30T09:19:34.487Z",
+    "status": "accepted",
+    "updatedAt": "2026-09-30T09:20:00.173Z",
+    "respondedAt": "2026-09-30T09:20:00.172Z"
+  }
+]

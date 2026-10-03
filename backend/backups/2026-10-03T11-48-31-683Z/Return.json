@@ -1,0 +1,31 @@
+[
+  {
+    "_id": "6aa5398dce732b5a428018dc",
+    "order": "6aa5382ace732b5a428015fa",
+    "orderItem": "6aa5382ace732b5a4280160d",
+    "customer": "6aa10d4182aa4a5582ebfa37",
+    "requestType": "RETURN",
+    "reason": "Damaged product",
+    "description": "",
+    "status": "Completed",
+    "quantity": 1,
+    "images": [],
+    "pickupOtpAttempts": 0,
+    "pickupOtpVerified": true,
+    "financialSettlementStatus": "Completed",
+    "createdAt": "2026-09-12T11:37:49.435Z",
+    "updatedAt": "2026-09-12T11:42:21.884Z",
+    "__v": 0,
+    "approvedAt": "2026-09-12T11:39:43.294Z",
+    "processedAt": "2026-09-12T11:42:21.883Z",
+    "processedBy": "6a7d5b02259ec525f6753de4",
+    "assignedAt": "2026-09-12T11:40:11.376Z",
+    "deliveryBoy": "6aa05ee9604296e8da12109d",
+    "pickupOtpExpiresAt": "2026-09-12T11:50:39.460Z",
+    "pickedUpAt": "2026-09-12T11:40:57.411Z",
+    "inTransitAt": "2026-09-12T11:41:15.425Z",
+    "handedToSellerAt": "2026-09-12T11:41:37.924Z",
+    "refundAmount": 20,
+    "refundId": "6aa53a9dce732b5a42801ccd"
+  }
+]

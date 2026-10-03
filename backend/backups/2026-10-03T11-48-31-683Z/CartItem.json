@@ -1,0 +1,22 @@
+[
+  {
+    "_id": "6aa2830e99a1fbeac7fa330b",
+    "cart": "6aa282f299a1fbeac7fa3230",
+    "product": "6aa05efe8cd27d5fc75119ae",
+    "quantity": 1,
+    "variation": "6aa2830899a1fbeac7fa32ee",
+    "createdAt": "2026-09-10T10:14:38.950Z",
+    "updatedAt": "2026-09-10T10:14:38.950Z",
+    "__v": 0
+  },
+  {
+    "_id": "6abd4503a42cb68c26c633cc",
+    "cart": "6ab78655df04b5ecb1a71095",
+    "product": "6aa05f018cd27d5fc75119c2",
+    "quantity": 1,
+    "variation": "1 kg",
+    "createdAt": "2026-09-30T17:21:07.708Z",
+    "updatedAt": "2026-09-30T17:21:07.708Z",
+    "__v": 0
+  }
+]

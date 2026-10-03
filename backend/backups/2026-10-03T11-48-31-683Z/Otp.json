@@ -1,0 +1,178 @@
+[
+  {
+    "_id": "6aa27db57a07e08ef98c1151",
+    "mobile": "8630632380",
+    "otp": "8411",
+    "userType": "Customer",
+    "expiresAt": "2026-09-10T09:56:49.860Z",
+    "isVerified": false,
+    "createdAt": "2026-09-10T09:51:49.862Z",
+    "updatedAt": "2026-09-10T09:51:49.862Z",
+    "__v": 0
+  },
+  {
+    "_id": "6aa2833c99a1fbeac7fa337b",
+    "mobile": "9888888888",
+    "otp": "9484",
+    "userType": "Customer",
+    "expiresAt": "2026-09-10T10:20:24.078Z",
+    "isVerified": false,
+    "createdAt": "2026-09-10T10:15:24.079Z",
+    "updatedAt": "2026-09-10T10:15:24.079Z",
+    "__v": 0
+  },
+  {
+    "_id": "6aa2836899a1fbeac7fa34b4",
+    "mobile": "9876543210",
+    "otp": "1139",
+    "userType": "Customer",
+    "expiresAt": "2026-09-10T10:21:08.131Z",
+    "isVerified": false,
+    "createdAt": "2026-09-10T10:16:08.133Z",
+    "updatedAt": "2026-09-10T10:16:08.133Z",
+    "__v": 0
+  },
+  {
+    "_id": "6aa52eadce732b5a427fffa1",
+    "mobile": "9888888888",
+    "otp": "9561",
+    "userType": "Delivery",
+    "expiresAt": "2026-09-12T10:56:25.776Z",
+    "isVerified": false,
+    "createdAt": "2026-09-12T10:51:25.778Z",
+    "updatedAt": "2026-09-12T10:51:25.778Z",
+    "__v": 0
+  },
+  {
+    "_id": "6aa52ebace732b5a427fffbd",
+    "mobile": "9999999999",
+    "otp": "0893",
+    "userType": "Seller",
+    "expiresAt": "2026-09-12T10:56:38.087Z",
+    "isVerified": false,
+    "createdAt": "2026-09-12T10:51:38.088Z",
+    "updatedAt": "2026-09-12T10:51:38.088Z",
+    "__v": 0
+  },
+  {
+    "_id": "6aad603b3964507088ab3817",
+    "mobile": "9456618669",
+    "otp": "1950",
+    "userType": "Customer",
+    "expiresAt": "2026-09-18T16:05:59.485Z",
+    "isVerified": false,
+    "createdAt": "2026-09-18T16:00:59.497Z",
+    "updatedAt": "2026-09-18T16:00:59.497Z",
+    "__v": 0
+  },
+  {
+    "_id": "6aad605e3964507088ab381a",
+    "mobile": "7060340420",
+    "otp": "6870",
+    "userType": "Customer",
+    "expiresAt": "2026-09-18T16:06:34.830Z",
+    "isVerified": false,
+    "createdAt": "2026-09-18T16:01:34.833Z",
+    "updatedAt": "2026-09-18T16:01:34.833Z",
+    "__v": 0
+  },
+  {
+    "_id": "6ab7832323a52db95a526dbf",
+    "mobile": "8817469588",
+    "otp": "491466",
+    "userType": "Customer",
+    "expiresAt": "2026-09-26T08:37:35.896Z",
+    "isVerified": false,
+    "createdAt": "2026-09-26T08:32:35.897Z",
+    "updatedAt": "2026-09-26T08:32:35.897Z",
+    "__v": 0
+  },
+  {
+    "_id": "6ab7833223a52db95a526dc5",
+    "mobile": "7017200263",
+    "otp": "855738",
+    "userType": "Customer",
+    "expiresAt": "2026-09-26T08:37:50.785Z",
+    "isVerified": false,
+    "createdAt": "2026-09-26T08:32:50.786Z",
+    "updatedAt": "2026-09-26T08:32:50.786Z",
+    "__v": 0
+  },
+  {
+    "_id": "6aba64a77283a72503465e8a",
+    "mobile": "9876543210",
+    "otp": "123456",
+    "userType": "Admin",
+    "expiresAt": "2026-09-28T13:04:19.426Z",
+    "isVerified": false,
+    "createdAt": "2026-09-28T12:59:19.427Z",
+    "updatedAt": "2026-09-28T12:59:19.427Z",
+    "__v": 0
+  },
+  {
+    "_id": "6abb98ae868dd7d3086d3dd5",
+    "mobile": "9898989898",
+    "otp": "873324",
+    "userType": "Customer",
+    "expiresAt": "2026-09-29T10:58:34.435Z",
+    "isVerified": false,
+    "createdAt": "2026-09-29T10:53:34.437Z",
+    "updatedAt": "2026-09-29T10:53:34.437Z",
+    "__v": 0
+  },
+  {
+    "_id": "6abba56a941c6a2e3069b4e0",
+    "mobile": "9999999999",
+    "otp": "888888",
+    "userType": "Customer",
+    "expiresAt": "2026-09-29T11:52:54.954Z",
+    "isVerified": false,
+    "createdAt": "2026-09-29T11:47:54.967Z",
+    "updatedAt": "2026-09-29T11:47:54.967Z",
+    "__v": 0
+  },
+  {
+    "_id": "6abbb15c1fd1543c6d03a726",
+    "mobile": "8839044030",
+    "otp": "888888",
+    "userType": "Seller",
+    "expiresAt": "2026-09-29T12:43:52.834Z",
+    "isVerified": false,
+    "createdAt": "2026-09-29T12:38:52.835Z",
+    "updatedAt": "2026-09-29T12:38:52.835Z",
+    "__v": 0
+  },
+  {
+    "_id": "6abcd27da42cb68c26c62550",
+    "mobile": "8839044030",
+    "otp": "888888",
+    "userType": "Delivery",
+    "expiresAt": "2026-09-30T09:17:29.086Z",
+    "isVerified": false,
+    "createdAt": "2026-09-30T09:12:29.087Z",
+    "updatedAt": "2026-09-30T09:12:29.087Z",
+    "__v": 0
+  },
+  {
+    "_id": "6abcd30ea42cb68c26c62788",
+    "mobile": "6268423925",
+    "otp": "888888",
+    "userType": "Seller",
+    "expiresAt": "2026-09-30T09:19:54.815Z",
+    "isVerified": false,
+    "createdAt": "2026-09-30T09:14:54.816Z",
+    "updatedAt": "2026-09-30T09:14:54.816Z",
+    "__v": 0
+  },
+  {
+    "_id": "6abcd3c8a42cb68c26c62946",
+    "mobile": "8839044030",
+    "otp": "888888",
+    "userType": "Customer",
+    "expiresAt": "2026-09-30T09:23:00.755Z",
+    "isVerified": false,
+    "createdAt": "2026-09-30T09:18:00.756Z",
+    "updatedAt": "2026-09-30T09:18:00.756Z",
+    "__v": 0
+  }
+]

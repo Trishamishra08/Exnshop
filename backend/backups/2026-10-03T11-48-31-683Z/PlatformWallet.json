@@ -1,0 +1,14 @@
+[
+  {
+    "_id": "6a9fe8b52b460b5824224a7b",
+    "totalPlatformEarning": 72,
+    "currentPlatformBalance": 51.5,
+    "totalAdminEarning": 17.5,
+    "pendingFromDeliveryBoy": 0,
+    "sellerPendingPayouts": 18,
+    "deliveryBoyPendingPayouts": 2.5,
+    "createdAt": "2026-09-08T10:51:33.748Z",
+    "updatedAt": "2026-09-30T06:01:25.068Z",
+    "__v": 0
+  }
+]

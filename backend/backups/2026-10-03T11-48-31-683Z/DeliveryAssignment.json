@@ -1,0 +1,24 @@
+[
+  {
+    "_id": "6aa5328e604296e8da12b626",
+    "order": "6aa5323dce732b5a42800828",
+    "__v": 0,
+    "assignedAt": "2026-09-12T11:07:58.786Z",
+    "assignedBy": "6a7d5b02259ec525f6753de4",
+    "createdAt": "2026-09-12T11:07:58.787Z",
+    "deliveryBoy": "6aa05ee9604296e8da12109d",
+    "status": "Assigned",
+    "updatedAt": "2026-09-12T11:07:58.787Z"
+  },
+  {
+    "_id": "6aa53879604296e8da12b62e",
+    "order": "6aa5382ace732b5a428015fa",
+    "__v": 0,
+    "assignedAt": "2026-09-12T11:33:13.962Z",
+    "assignedBy": "6a7d5b02259ec525f6753de4",
+    "createdAt": "2026-09-12T11:33:13.963Z",
+    "deliveryBoy": "6aa05ee9604296e8da12109d",
+    "status": "Assigned",
+    "updatedAt": "2026-09-12T11:33:13.963Z"
+  }
+]

@@ -1,0 +1,13 @@
+[
+  {
+    "_id": "6aa53a9dce732b5a42801ccd",
+    "order": "6aa5382ace732b5a428015fa",
+    "customer": "6aa10d4182aa4a5582ebfa37",
+    "amount": 20,
+    "reason": "Damaged product",
+    "status": "Completed",
+    "createdAt": "2026-09-12T11:42:21.877Z",
+    "updatedAt": "2026-09-12T11:42:21.877Z",
+    "__v": 0
+  }
+]

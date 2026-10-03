@@ -1,0 +1,23 @@
+[
+  {
+    "_id": "6aa5322fce732b5a428007f8",
+    "customer": "6aa10d4182aa4a5582ebfa37",
+    "products": [
+      "6aa05efe8cd27d5fc75119b2"
+    ],
+    "createdAt": "2026-09-12T11:06:23.396Z",
+    "updatedAt": "2026-09-12T11:06:23.396Z",
+    "__v": 0
+  },
+  {
+    "_id": "6ab7ff1323a52db95a528e43",
+    "customer": "6ab4cbf87f7f264620a5a22b",
+    "products": [
+      "6aa05efd8cd27d5fc75119ab",
+      "6ab8018823a52db95a52955d"
+    ],
+    "createdAt": "2026-09-26T17:21:23.353Z",
+    "updatedAt": "2026-09-29T10:53:08.168Z",
+    "__v": 1
+  }
+]
