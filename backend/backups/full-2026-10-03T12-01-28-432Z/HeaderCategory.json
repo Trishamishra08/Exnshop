@@ -1,0 +1,151 @@
+[
+  {
+    "_id": "6a9fe5f52b460b582422497e",
+    "name": "Wedding",
+    "iconLibrary": "Custom",
+    "iconName": "wedding",
+    "slug": "wedding",
+    "order": 1,
+    "status": "Published",
+    "__v": 0,
+    "createdAt": "2026-09-08T10:39:49.366Z",
+    "updatedAt": "2026-09-08T10:39:49.366Z"
+  },
+  {
+    "_id": "6a9fe5f52b460b582422497f",
+    "name": "Winter",
+    "iconLibrary": "Custom",
+    "iconName": "winter",
+    "slug": "winter",
+    "order": 2,
+    "status": "Published",
+    "__v": 0,
+    "createdAt": "2026-09-08T10:39:49.366Z",
+    "updatedAt": "2026-09-08T10:39:49.366Z"
+  },
+  {
+    "_id": "6a9fe5f52b460b5824224980",
+    "name": "Electronics",
+    "iconLibrary": "Custom",
+    "iconName": "electronics",
+    "slug": "electronics",
+    "order": 7,
+    "status": "Published",
+    "__v": 0,
+    "createdAt": "2026-09-08T10:39:49.366Z",
+    "updatedAt": "2026-09-08T19:16:01.183Z",
+    "icon": "📱"
+  },
+  {
+    "_id": "6a9fe5f52b460b5824224981",
+    "name": "Beauty",
+    "iconLibrary": "Custom",
+    "iconName": "beauty",
+    "slug": "beauty",
+    "order": 8,
+    "status": "Published",
+    "__v": 0,
+    "createdAt": "2026-09-08T10:39:49.367Z",
+    "updatedAt": "2026-09-08T19:16:01.310Z",
+    "icon": "💄"
+  },
+  {
+    "_id": "6a9fe5f52b460b5824224982",
+    "name": "Grocery",
+    "iconLibrary": "Custom",
+    "iconName": "grocery",
+    "slug": "grocery",
+    "order": 1,
+    "status": "Published",
+    "__v": 0,
+    "createdAt": "2026-09-08T10:39:49.367Z",
+    "updatedAt": "2026-09-08T19:16:00.458Z",
+    "icon": "🛒"
+  },
+  {
+    "_id": "6a9fe5f52b460b5824224983",
+    "name": "Fashion",
+    "iconLibrary": "Custom",
+    "iconName": "fashion",
+    "slug": "fashion",
+    "order": 9,
+    "status": "Published",
+    "__v": 0,
+    "createdAt": "2026-09-08T10:39:49.367Z",
+    "updatedAt": "2026-09-08T19:16:01.430Z",
+    "icon": "👗"
+  },
+  {
+    "_id": "6a9fe5f52b460b5824224984",
+    "name": "Sports",
+    "iconLibrary": "Custom",
+    "iconName": "sports",
+    "slug": "sports",
+    "order": 10,
+    "status": "Published",
+    "__v": 0,
+    "createdAt": "2026-09-08T10:39:49.367Z",
+    "updatedAt": "2026-09-08T19:16:01.560Z",
+    "icon": "⚽"
+  },
+  {
+    "_id": "6aa05ef08cd27d5fc7511957",
+    "name": "All",
+    "slug": "all",
+    "icon": "✨",
+    "order": 0,
+    "status": "Published",
+    "createdAt": "2026-09-08T19:16:00.344Z",
+    "updatedAt": "2026-09-08T19:16:00.344Z"
+  },
+  {
+    "_id": "6aa05ef08cd27d5fc7511958",
+    "name": "Fruits & Vegetables",
+    "slug": "fruits-vegetables",
+    "icon": "🍎",
+    "order": 2,
+    "status": "Published",
+    "createdAt": "2026-09-08T19:16:00.572Z",
+    "updatedAt": "2026-09-08T19:16:00.572Z"
+  },
+  {
+    "_id": "6aa05ef08cd27d5fc7511959",
+    "name": "Dairy & Breakfast",
+    "slug": "dairy-breakfast",
+    "icon": "🥛",
+    "order": 3,
+    "status": "Published",
+    "createdAt": "2026-09-08T19:16:00.687Z",
+    "updatedAt": "2026-09-08T19:16:00.687Z"
+  },
+  {
+    "_id": "6aa05ef08cd27d5fc751195a",
+    "name": "Snacks & Drinks",
+    "slug": "snacks-drinks",
+    "icon": "🍿",
+    "order": 4,
+    "status": "Published",
+    "createdAt": "2026-09-08T19:16:00.824Z",
+    "updatedAt": "2026-09-08T19:16:00.824Z"
+  },
+  {
+    "_id": "6aa05ef08cd27d5fc751195b",
+    "name": "Personal Care",
+    "slug": "personal-care",
+    "icon": "🧴",
+    "order": 5,
+    "status": "Published",
+    "createdAt": "2026-09-08T19:16:00.935Z",
+    "updatedAt": "2026-09-08T19:16:00.935Z"
+  },
+  {
+    "_id": "6aa05ef18cd27d5fc751195c",
+    "name": "Household",
+    "slug": "household",
+    "icon": "🧹",
+    "order": 6,
+    "status": "Published",
+    "createdAt": "2026-09-08T19:16:01.056Z",
+    "updatedAt": "2026-09-08T19:16:01.056Z"
+  }
+]

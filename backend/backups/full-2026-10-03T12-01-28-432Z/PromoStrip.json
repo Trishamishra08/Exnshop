@@ -1,0 +1,49 @@
+[
+  {
+    "_id": "6aa05f038cd27d5fc75119e2",
+    "headerCategorySlug": "all",
+    "heading": "HOUSEFULL",
+    "saleText": "SUPER SAVER SALE",
+    "crazyDealsTitle": "CRAZY DEALS",
+    "startDate": "2026-09-07T19:16:19.538Z",
+    "endDate": "2026-10-08T19:16:19.538Z",
+    "categoryCards": [
+      {
+        "categoryId": "6aa05d064e1b476de7e32667",
+        "title": "Atta & Staples",
+        "badge": "Up to 25% OFF",
+        "order": 1
+      },
+      {
+        "categoryId": "6aa05d054e1b476de7e32664",
+        "title": "Dairy & Farm",
+        "badge": "Up to 20% OFF",
+        "order": 2
+      },
+      {
+        "categoryId": "6aa05d064e1b476de7e3266d",
+        "title": "Munchies & Snacks",
+        "badge": "Up to 30% OFF",
+        "order": 3
+      },
+      {
+        "categoryId": "6aa05d054e1b476de7e32660",
+        "title": "Fresh Produce",
+        "badge": "Up to 40% OFF",
+        "order": 4
+      }
+    ],
+    "featuredProducts": [
+      "6aa05efd8cd27d5fc75119ab",
+      "6aa05efd8cd27d5fc75119ac",
+      "6aa05efd8cd27d5fc75119ad",
+      "6aa05efe8cd27d5fc75119ae",
+      "6aa05efe8cd27d5fc75119af",
+      "6aa05efe8cd27d5fc75119b0"
+    ],
+    "isActive": true,
+    "order": 1,
+    "createdAt": "2026-09-08T19:16:19.538Z",
+    "updatedAt": "2026-09-08T19:16:19.538Z"
+  }
+]

@@ -1,0 +1,98 @@
+[
+  {
+    "_id": "6aa05f038cd27d5fc75119dc",
+    "storeId": "supermarket-essentials",
+    "name": "Exnshop Supermart",
+    "image": "/assets/shopbystore/fashion.jpg",
+    "order": 1,
+    "products": [
+      "6aa05efd8cd27d5fc75119ab",
+      "6aa05efd8cd27d5fc75119ac",
+      "6aa05efd8cd27d5fc75119ad",
+      "6aa05efe8cd27d5fc75119ae"
+    ],
+    "isActive": true,
+    "createdAt": "2026-09-08T19:16:19.412Z",
+    "updatedAt": "2026-09-08T19:16:19.412Z"
+  },
+  {
+    "_id": "6aa05f038cd27d5fc75119dd",
+    "storeId": "dairy-farm-fresh",
+    "name": "Daily Dairy & Bakery",
+    "image": "/assets/shopbystore/pet.jpg",
+    "order": 2,
+    "products": [
+      "6aa05efe8cd27d5fc75119af",
+      "6aa05efe8cd27d5fc75119b0",
+      "6aa05efe8cd27d5fc75119b1",
+      "6aa05efe8cd27d5fc75119b2"
+    ],
+    "isActive": true,
+    "createdAt": "2026-09-08T19:16:19.412Z",
+    "updatedAt": "2026-09-08T19:16:19.412Z"
+  },
+  {
+    "_id": "6aa05f038cd27d5fc75119de",
+    "storeId": "snack-refreshment",
+    "name": "Snack & Munchies Hub",
+    "image": "/assets/shopbystore/sports.jpg",
+    "order": 3,
+    "products": [
+      "6aa05efe8cd27d5fc75119b3",
+      "6aa05efe8cd27d5fc75119b4",
+      "6aa05eff8cd27d5fc75119b5",
+      "6aa05eff8cd27d5fc75119b6"
+    ],
+    "isActive": true,
+    "createdAt": "2026-09-08T19:16:19.412Z",
+    "updatedAt": "2026-09-08T19:16:19.412Z"
+  },
+  {
+    "_id": "6aa05f038cd27d5fc75119df",
+    "storeId": "organic-green",
+    "name": "Farm Fresh Organic",
+    "image": "/assets/shopbystore/pharma.jpg",
+    "order": 4,
+    "products": [
+      "6aa05eff8cd27d5fc75119b7",
+      "6aa05eff8cd27d5fc75119b8",
+      "6aa05f008cd27d5fc75119b9",
+      "6aa05f008cd27d5fc75119ba"
+    ],
+    "isActive": true,
+    "createdAt": "2026-09-08T19:16:19.412Z",
+    "updatedAt": "2026-09-08T19:16:19.412Z"
+  },
+  {
+    "_id": "6aa05f038cd27d5fc75119e0",
+    "storeId": "home-cleaning",
+    "name": "Clean Home & Care",
+    "image": "/assets/shopbystore/toy.jpg",
+    "order": 5,
+    "products": [
+      "6aa05f008cd27d5fc75119bb",
+      "6aa05f008cd27d5fc75119bc",
+      "6aa05f008cd27d5fc75119bd",
+      "6aa05f008cd27d5fc75119be"
+    ],
+    "isActive": true,
+    "createdAt": "2026-09-08T19:16:19.412Z",
+    "updatedAt": "2026-09-08T19:16:19.412Z"
+  },
+  {
+    "_id": "6aa05f038cd27d5fc75119e1",
+    "storeId": "spiritual-store",
+    "name": "Pooja & Spiritual Needs",
+    "image": "/assets/shopbystore/spiritual.jpg",
+    "order": 6,
+    "products": [
+      "6aa05f008cd27d5fc75119bf",
+      "6aa05f008cd27d5fc75119c0",
+      "6aa05f018cd27d5fc75119c1",
+      "6aa05f018cd27d5fc75119c2"
+    ],
+    "isActive": true,
+    "createdAt": "2026-09-08T19:16:19.412Z",
+    "updatedAt": "2026-09-08T19:16:19.412Z"
+  }
+]

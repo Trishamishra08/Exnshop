@@ -1,0 +1,56 @@
+[
+  {
+    "_id": "6aa05f038cd27d5fc75119ce",
+    "name": "Atta, Rice & Dal",
+    "category": "6aa05d064e1b476de7e32667",
+    "order": 1,
+    "isActive": true,
+    "createdAt": "2026-09-08T19:16:19.099Z",
+    "updatedAt": "2026-09-08T19:16:19.099Z"
+  },
+  {
+    "_id": "6aa05f038cd27d5fc75119cf",
+    "name": "Dairy, Bread & Eggs",
+    "category": "6aa05d054e1b476de7e32664",
+    "order": 2,
+    "isActive": true,
+    "createdAt": "2026-09-08T19:16:19.099Z",
+    "updatedAt": "2026-09-08T19:16:19.099Z"
+  },
+  {
+    "_id": "6aa05f038cd27d5fc75119d0",
+    "name": "Snacks & Munchies",
+    "category": "6aa05d064e1b476de7e3266d",
+    "order": 3,
+    "isActive": true,
+    "createdAt": "2026-09-08T19:16:19.099Z",
+    "updatedAt": "2026-09-08T19:16:19.099Z"
+  },
+  {
+    "_id": "6aa05f038cd27d5fc75119d1",
+    "name": "Fruits & Vegetables",
+    "category": "6aa05d054e1b476de7e32660",
+    "order": 4,
+    "isActive": true,
+    "createdAt": "2026-09-08T19:16:19.099Z",
+    "updatedAt": "2026-09-08T19:16:19.099Z"
+  },
+  {
+    "_id": "6aa05f038cd27d5fc75119d2",
+    "name": "Cold Drinks & Juices",
+    "category": "6aa05d064e1b476de7e32676",
+    "order": 5,
+    "isActive": true,
+    "createdAt": "2026-09-08T19:16:19.099Z",
+    "updatedAt": "2026-09-08T19:16:19.099Z"
+  },
+  {
+    "_id": "6aa05f038cd27d5fc75119d3",
+    "name": "Bakery & Biscuits",
+    "category": "6aa05d064e1b476de7e32670",
+    "order": 6,
+    "isActive": true,
+    "createdAt": "2026-09-08T19:16:19.099Z",
+    "updatedAt": "2026-09-08T19:16:19.099Z"
+  }
+]

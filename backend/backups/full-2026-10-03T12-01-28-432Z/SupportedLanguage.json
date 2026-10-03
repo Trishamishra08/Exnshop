@@ -1,0 +1,54 @@
+[
+  {
+    "_id": "6a9fe6e52b460b582422498a",
+    "code": "en",
+    "name": "English",
+    "nativeName": "English",
+    "flag": "🇬🇧",
+    "isDefault": true,
+    "isActive": true,
+    "sortOrder": 1,
+    "createdAt": "2026-09-08T10:43:49.793Z",
+    "updatedAt": "2026-09-08T19:15:53.355Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a9fe6e52b460b5824224997",
+    "code": "hi",
+    "name": "Hindi",
+    "nativeName": "हिन्दी",
+    "flag": "🇮🇳",
+    "isDefault": false,
+    "isActive": true,
+    "sortOrder": 2,
+    "createdAt": "2026-09-08T10:43:49.855Z",
+    "updatedAt": "2026-09-08T19:15:53.432Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a9fe6e52b460b582422499b",
+    "code": "mr",
+    "name": "Marathi",
+    "nativeName": "मराठी",
+    "flag": "🇮🇳",
+    "isDefault": false,
+    "isActive": true,
+    "sortOrder": 3,
+    "createdAt": "2026-09-08T10:43:49.910Z",
+    "updatedAt": "2026-09-08T10:43:49.910Z",
+    "__v": 0
+  },
+  {
+    "_id": "6a9fe6e52b460b582422499f",
+    "code": "gu",
+    "name": "Gujarati",
+    "nativeName": "ગુજરાતી",
+    "flag": "🇮🇳",
+    "isDefault": false,
+    "isActive": true,
+    "sortOrder": 4,
+    "createdAt": "2026-09-08T10:43:49.959Z",
+    "updatedAt": "2026-09-08T10:43:49.959Z",
+    "__v": 0
+  }
+]
