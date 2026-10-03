@@ -7,7 +7,7 @@ import AppSettings from "../models/AppSettings";
 import mongoose from "mongoose";
 
 export type WalletUserType = "SELLER" | "DELIVERY_BOY" | "CUSTOMER";
-export type WalletCategory = "COD_RETURN_REFUND" | "ORDER_CANCELLATION_REFUND" | "ORDER_PAYMENT" | "MANUAL_ADMIN_CREDIT" | "MANUAL_ADMIN_DEBIT";
+export type WalletCategory = "COD_RETURN_REFUND" | "ORDER_CANCELLATION_REFUND" | "ORDER_PAYMENT" | "MANUAL_ADMIN_CREDIT" | "MANUAL_ADMIN_DEBIT" | "RTO_REVERSE_SHIPPING_DEBIT";
 
 /**
  * Credit wallet

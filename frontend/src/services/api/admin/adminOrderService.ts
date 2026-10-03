@@ -59,7 +59,18 @@ export interface Order {
   | "Delivered"
   | "Cancelled"
   | "Rejected"
-  | "Returned";
+  | "Returned"
+  | "RTO";
+  rtoDetails?: {
+    markedAt: string;
+    markedByRole: "Delivery" | "Admin";
+    reasonCode: string;
+    reason?: string;
+    courierName?: string;
+    reverseShippingCost: number;
+    resolutionStatus: "Pending" | "InTransitBackToSeller" | "ReceivedBySeller" | "Lost" | "Disposed";
+    resolvedAt?: string;
+  };
   deliveryOption?: "Instant" | "Standard";
   deliveryPreference?: "Self" | "Admin";
   deliveryBoy?:
@@ -376,6 +387,28 @@ export const updateShipment = async (
 ): Promise<ApiResponse<Order>> => {
   const response = await api.patch<ApiResponse<Order>>(
     `/admin/shipments/${id}`,
+    data,
+  );
+  return response.data;
+};
+
+export interface MarkOrderRtoData {
+  reasonCode: string;
+  reason?: string;
+  reverseShippingCost?: number;
+}
+
+/**
+ * Mark an E-Commerce (courier-shipped) order as RTO (Return To Origin) —
+ * the customer refused the parcel or was unreachable. Restores inventory
+ * and debits the seller for the reverse-shipping cost.
+ */
+export const markOrderRto = async (
+  id: string,
+  data: MarkOrderRtoData,
+): Promise<ApiResponse<{ order: Order }>> => {
+  const response = await api.post<ApiResponse<{ order: Order }>>(
+    `/admin/orders/${id}/mark-rto`,
     data,
   );
   return response.data;

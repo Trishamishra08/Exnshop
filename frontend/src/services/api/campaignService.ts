@@ -8,10 +8,29 @@ export interface CampaignMetrics {
     roas: number;
 }
 
+export interface CampaignProductMetrics extends CampaignMetrics {
+    product: string;
+    cpcBid: number;
+}
+
+export interface CampaignMetricsResult {
+    overall: CampaignMetrics;
+    byProduct: CampaignProductMetrics[];
+}
+
+export interface CampaignProduct {
+    product: string | { _id: string; productName: string; mainImage?: string; price?: number };
+    cpcBid: number;
+    spend: number;
+    todaySpend: number;
+    impressions: number;
+    clicks: number;
+}
+
 export interface Campaign {
     _id: string;
     seller: string | { sellerName: string; storeName: string };
-    product: string | { _id: string; productName: string; mainImage?: string; price?: number };
+    products: CampaignProduct[];
     dailyBudget: number;
     totalBudget: number;
     startDate: string;
@@ -22,7 +41,12 @@ export interface Campaign {
     impressions: number;
     clicks: number;
     createdAt: string;
-    metrics: CampaignMetrics;
+    metrics: CampaignMetricsResult;
+}
+
+export interface ProductBidInput {
+    productId: string;
+    cpcBid: number;
 }
 
 interface ApiResponse<T> {
@@ -32,7 +56,7 @@ interface ApiResponse<T> {
 }
 
 export const createCampaign = async (data: {
-    productId: string;
+    products: ProductBidInput[];
     dailyBudget: number;
     totalBudget: number;
     startDate: string;
@@ -47,6 +71,20 @@ export const getMyCampaigns = async (): Promise<ApiResponse<Campaign[]>> => {
     return response.data;
 };
 
+export const updateCampaign = async (
+    id: string,
+    data: Partial<{
+        products: ProductBidInput[];
+        dailyBudget: number;
+        totalBudget: number;
+        startDate: string;
+        endDate: string;
+    }>
+): Promise<ApiResponse<Campaign>> => {
+    const response = await api.put<ApiResponse<Campaign>>(`/campaigns/${id}`, data);
+    return response.data;
+};
+
 export const updateCampaignStatus = async (
     id: string,
     status: "Active" | "Paused"
@@ -57,5 +95,18 @@ export const updateCampaignStatus = async (
 
 export const deleteCampaign = async (id: string): Promise<ApiResponse<void>> => {
     const response = await api.delete<ApiResponse<void>>(`/campaigns/${id}`);
+    return response.data;
+};
+
+export interface BidFeedback {
+    percentile: number;
+    label: "Low" | "Fair" | "Good" | "Great";
+    suggestedMinimum: number;
+}
+
+export const getBidFeedback = async (categoryId: string, cpcBid: number): Promise<ApiResponse<BidFeedback>> => {
+    const response = await api.get<ApiResponse<BidFeedback>>("/campaigns/bid-feedback", {
+        params: { categoryId, cpcBid },
+    });
     return response.data;
 };

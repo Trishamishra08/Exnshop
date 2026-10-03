@@ -1,7 +1,7 @@
 import axios from "axios";
 import Otp from "../models/Otp";
 import EmailOtp from "../models/EmailOtp";
-import { sendVerificationCodeEmail } from "./emailService";
+import { sendOtpEmail, OtpUserType, OtpPurpose } from "./emailService";
 
 const SMS_INDIA_HUB_API_URL =
   "http://cloud.smsindiahub.in/vendorsms/pushsms.aspx";
@@ -814,6 +814,7 @@ export async function sendEmailOtp(
   email: string,
   userType: "Seller" | "Admin" | "Customer" | "Delivery",
   recipientName?: string,
+  purpose: OtpPurpose = "login",
 ): Promise<OtpResponse> {
   try {
     const otp = generateOTP(6);
@@ -836,7 +837,7 @@ export async function sendEmailOtp(
 
     // Best-effort real send — never blocks login if the SMTP provider hiccups
     // in dev; the OTP is already saved and the universal bypass still works.
-    sendVerificationCodeEmail(email, recipientName || "there", otp).catch((err) =>
+    sendOtpEmail(email, recipientName || "there", otp, userType as OtpUserType, purpose).catch((err) =>
       console.error("Failed to send email OTP:", err),
     );
 

@@ -164,6 +164,9 @@ const SellerSupportTickets = lazyWithRetry(
 const SellerCampaigns = lazyWithRetry(
   () => import("./modules/seller/pages/SellerCampaigns"), "SellerCampaigns"
 );
+const SellerRtoDashboard = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerRtoDashboard"), "SellerRtoDashboard"
+);
 const SellerTaxes = lazyWithRetry(() => import("./modules/seller/pages/SellerTaxes"), "SellerTaxes");
 const SellerProductList = lazyWithRetry(
   () => import("./modules/seller/pages/SellerProductList"), "SellerProductList"
@@ -234,6 +237,9 @@ const AdminSupportTickets = lazyWithRetry(
 );
 const AdminCampaigns = lazyWithRetry(
   () => import("./modules/admin/pages/AdminCampaigns"), "AdminCampaigns"
+);
+const AdminRtoManagement = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminRtoManagement"), "AdminRtoManagement"
 );
 const AdminSubcategoryOrder = lazyWithRetry(
   () => import("./modules/admin/pages/AdminSubcategoryOrder"), "AdminSubcategoryOrder"
@@ -706,6 +712,10 @@ function App() {
                                         element={<SellerClaims />}
                                       />
                                       <Route
+                                        path="rto-dashboard"
+                                        element={<SellerRtoDashboard />}
+                                      />
+                                      <Route
                                         path="support-tickets"
                                         element={<SellerSupportTickets />}
                                       />
@@ -821,6 +831,10 @@ function App() {
                                       <Route
                                         path="campaigns"
                                         element={<AdminCampaigns />}
+                                      />
+                                      <Route
+                                        path="rto-events"
+                                        element={<AdminRtoManagement />}
                                       />
                                       <Route
                                         path="product/edit/:id"

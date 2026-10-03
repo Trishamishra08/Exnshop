@@ -18,7 +18,7 @@ export const processOrderStatusTransition = async (
   }
 
   // Clear tracking cache if order is completed, cancelled, or rejected
-  if (["Delivered", "Cancelled", "Returned", "Failed", "Rejected"].includes(newStatus)) {
+  if (["Delivered", "Cancelled", "Returned", "Failed", "Rejected", "RTO"].includes(newStatus)) {
     clearOrderCache(orderId);
   }
 
@@ -29,6 +29,14 @@ export const processOrderStatusTransition = async (
       if (["Processed", "Shipped"].includes(previousStatus)) {
         await restoreInventory(order.items as any[]);
       }
+      break;
+
+    case "RTO":
+      // The parcel never reached the customer — restore inventory exactly
+      // like a cancellation, regardless of which pre-RTO status it came from
+      // (Shipped/Picked up/On the way/Out for Delivery all mean stock left
+      // the seller but the customer never received it).
+      await restoreInventory(order.items as any[]);
       break;
 
     case "Processed":

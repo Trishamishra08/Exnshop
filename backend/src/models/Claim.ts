@@ -5,6 +5,7 @@ export interface IClaim extends Document {
   order: mongoose.Types.ObjectId;
   orderNumber?: string;
   returnRequest?: mongoose.Types.ObjectId;
+  rtoEvent?: mongoose.Types.ObjectId;
   reason: string;
   description?: string;
   photos: string[];
@@ -37,6 +38,10 @@ const ClaimSchema = new Schema<IClaim>(
     returnRequest: {
       type: Schema.Types.ObjectId,
       ref: "Return",
+    },
+    rtoEvent: {
+      type: Schema.Types.ObjectId,
+      ref: "RTOEvent",
     },
     reason: {
       type: String,

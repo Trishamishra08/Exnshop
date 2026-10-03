@@ -526,11 +526,13 @@ export default function Checkout() {
   const packagingFeeRate = appSettings.packagingFee ?? 30;
   const giftPackagingFee = giftPackaging ? packagingFeeRate : 0;
 
-  // GST is admin-managed (AppSettingsContext -> gstEnabled/gstRate) and is applied
-  // on the taxable value of goods (product subtotal after coupon discount).
-  // Delivery fee, handling fee, tip, and gift packaging are not taxed.
-  // Mirrors the calculation performed server-side in customerOrderController.
-  const gstRate = appSettings.gstEnabled ? Number(appSettings.gstRate) || 0 : 0;
+  // GST is category-driven: each product is taxed at its own category's rate
+  // (set by admin on the category), not one flat marketplace-wide rate. The
+  // cart API returns a blended rate for this cart's current item mix as a
+  // preview — the authoritative per-item charge is computed server-side at
+  // order creation (see backend taxService.computeItemGst). Delivery fee,
+  // handling fee, tip, and gift packaging are not taxed.
+  const gstRate = appSettings.gstEnabled ? Number(cart?.gstRate) || 0 : 0;
   const gstAmount = Number(
     (
       (Math.max(0, discountedTotal - currentCouponDiscount) * gstRate) /

@@ -2,12 +2,22 @@ import { useState, useEffect } from "react";
 import {
   getShipmentOrders,
   updateShipment,
+  markOrderRto,
   type Order,
 } from "../../../services/api/admin/adminOrderService";
 import { useAuth } from "../../../context/AuthContext";
 import { useToast } from "../../../context/ToastContext";
 
 const SHIPMENT_STATUSES = ["Processed", "Shipped", "Out for Delivery", "Delivered", "Cancelled"];
+const RTO_ELIGIBLE_STATUSES = ["Shipped", "Picked up", "On the way", "Out for Delivery"];
+const RTO_REASON_CODES = [
+  "Customer Refused",
+  "Customer Unreachable",
+  "Address Not Found",
+  "COD Not Ready",
+  "Damaged In Transit",
+  "Other",
+];
 
 interface RowDraft {
   courierName: string;
@@ -26,6 +36,12 @@ export default function AdminShipments() {
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [drafts, setDrafts] = useState<Record<string, RowDraft>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+
+  const [rtoModalOrderId, setRtoModalOrderId] = useState<string | null>(null);
+  const [rtoReasonCode, setRtoReasonCode] = useState(RTO_REASON_CODES[0]);
+  const [rtoReason, setRtoReason] = useState("");
+  const [rtoCost, setRtoCost] = useState("");
+  const [rtoSaving, setRtoSaving] = useState(false);
 
   const fetchOrders = async () => {
     try {
@@ -106,6 +122,36 @@ export default function AdminShipments() {
     }
   };
 
+  const openRtoModal = (orderId: string) => {
+    setRtoModalOrderId(orderId);
+    setRtoReasonCode(RTO_REASON_CODES[0]);
+    setRtoReason("");
+    setRtoCost("");
+  };
+
+  const handleConfirmRto = async () => {
+    if (!rtoModalOrderId) return;
+    try {
+      setRtoSaving(true);
+      const response = await markOrderRto(rtoModalOrderId, {
+        reasonCode: rtoReasonCode,
+        reason: rtoReason || undefined,
+        reverseShippingCost: rtoCost ? Number(rtoCost) : undefined,
+      });
+      if (response.success) {
+        showToast("Order marked as RTO", "success");
+        setRtoModalOrderId(null);
+        fetchOrders();
+      } else {
+        showToast(response.message || "Failed to mark order as RTO", "error");
+      }
+    } catch (err: any) {
+      showToast(err.response?.data?.message || "Failed to mark order as RTO", "error");
+    } finally {
+      setRtoSaving(false);
+    }
+  };
+
   return (
     <div className="p-4 md:p-6">
       <div className="mb-4">
@@ -138,7 +184,7 @@ export default function AdminShipments() {
           className="px-3 py-2 text-sm border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
         >
           <option>All Status</option>
-          {SHIPMENT_STATUSES.map((s) => (
+          {[...SHIPMENT_STATUSES, "RTO"].map((s) => (
             <option key={s}>{s}</option>
           ))}
         </select>
@@ -231,13 +277,27 @@ export default function AdminShipments() {
                       </select>
                     </td>
                     <td className="px-4 py-3">
-                      <button
-                        onClick={() => handleSave(order._id)}
-                        disabled={savingId === order._id}
-                        className="px-3 py-1.5 text-xs font-semibold bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50"
-                      >
-                        {savingId === order._id ? "Saving..." : "Save"}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleSave(order._id)}
+                          disabled={savingId === order._id}
+                          className="px-3 py-1.5 text-xs font-semibold bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50"
+                        >
+                          {savingId === order._id ? "Saving..." : "Save"}
+                        </button>
+                        {order.status === "RTO" ? (
+                          <span className="px-2 py-1 text-xs font-semibold bg-red-100 text-red-700 rounded-lg whitespace-nowrap">
+                            RTO
+                          </span>
+                        ) : RTO_ELIGIBLE_STATUSES.includes(order.status) ? (
+                          <button
+                            onClick={() => openRtoModal(order._id)}
+                            className="px-3 py-1.5 text-xs font-semibold bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 transition-colors whitespace-nowrap"
+                          >
+                            Mark RTO
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -246,6 +306,66 @@ export default function AdminShipments() {
           </tbody>
         </table>
       </div>
+
+      {rtoModalOrderId && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6">
+            <h2 className="text-lg font-bold text-neutral-900 mb-1">Mark Order as RTO</h2>
+            <p className="text-sm text-neutral-500 mb-4">
+              The courier is returning this parcel to the seller. This restores inventory and charges the seller the reverse-shipping cost.
+            </p>
+
+            <label className="block text-xs font-semibold text-neutral-600 mb-1">Reason</label>
+            <select
+              value={rtoReasonCode}
+              onChange={(e) => setRtoReasonCode(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg mb-3 focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              {RTO_REASON_CODES.map((code) => (
+                <option key={code} value={code}>{code}</option>
+              ))}
+            </select>
+
+            <label className="block text-xs font-semibold text-neutral-600 mb-1">Notes (optional)</label>
+            <textarea
+              value={rtoReason}
+              onChange={(e) => setRtoReason(e.target.value)}
+              rows={2}
+              className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg mb-3 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              placeholder="Any extra detail..."
+            />
+
+            <label className="block text-xs font-semibold text-neutral-600 mb-1">
+              Reverse shipping cost charged to seller (₹)
+            </label>
+            <input
+              type="number"
+              min={0}
+              value={rtoCost}
+              onChange={(e) => setRtoCost(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-neutral-300 rounded-lg mb-5 focus:outline-none focus:ring-2 focus:ring-primary/20"
+              placeholder="e.g. 60"
+            />
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setRtoModalOrderId(null)}
+                disabled={rtoSaving}
+                className="px-4 py-2 text-sm font-semibold text-neutral-600 hover:bg-neutral-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmRto}
+                disabled={rtoSaving}
+                className="px-4 py-2 text-sm font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {rtoSaving ? "Marking..." : "Mark as RTO"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

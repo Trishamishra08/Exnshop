@@ -10,6 +10,7 @@ export interface ICategory extends Document {
   groupCategory?: string;
   totalSubcategories?: number;
   commissionRate?: number;
+  taxId?: mongoose.Types.ObjectId;
   status: "Active" | "Inactive";
   parentId?: mongoose.Types.ObjectId;
   headerCategoryId?: mongoose.Types.ObjectId;
@@ -71,6 +72,11 @@ const CategorySchema = new Schema<ICategory>(
       default: 0,
       min: [0, "Commission rate cannot be negative"],
       max: [100, "Commission rate cannot exceed 100%"],
+    },
+    taxId: {
+      type: Schema.Types.ObjectId,
+      ref: "Tax",
+      default: null,
     },
     status: {
       type: String,

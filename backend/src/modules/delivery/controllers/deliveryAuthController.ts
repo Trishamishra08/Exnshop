@@ -34,7 +34,12 @@ export const sendSmsOtp = asyncHandler(async (req: Request, res: Response) => {
     }
 
     try {
-      const result = await sendEmailOtp(email, "Delivery", delivery.name);
+      // A delivery partner registers via a plain form (no OTP at signup) then
+      // the frontend immediately calls this same endpoint to verify their
+      // email — treat an account created moments ago as "just registered"
+      // for a welcome-toned email instead of a plain login code.
+      const isJustRegistered = Date.now() - new Date(delivery.createdAt).getTime() < 5 * 60 * 1000;
+      const result = await sendEmailOtp(email, "Delivery", delivery.name, isJustRegistered ? "register" : "login");
       return res.status(200).json({
         success: true,
         message: result.message,

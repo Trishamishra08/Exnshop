@@ -332,6 +332,7 @@ export const updateOrderStatus = asyncHandler(
       "Cancelled",
       "Rejected",
       "Returned",
+      "RTO",
     ];
 
     const matchedStatus = validStatuses.find(
@@ -342,6 +343,13 @@ export const updateOrderStatus = asyncHandler(
       return res.status(400).json({
         success: false,
         message: `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
+      });
+    }
+
+    if (matchedStatus === "RTO") {
+      return res.status(400).json({
+        success: false,
+        message: "Use the dedicated Mark as RTO action — it handles inventory restoration and the seller's reverse-shipping charge correctly.",
       });
     }
 
@@ -1000,4 +1008,99 @@ export const updateShipment = asyncHandler(
       data: order,
     });
   },
+);
+
+/**
+ * Admin marks an order as RTO (Return To Origin) — the customer refused the
+ * parcel or was unreachable, so it's going back to the seller. ECommerce/
+ * courier-shipped orders only.
+ */
+export const markOrderRtoAdmin = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { reasonCode, reason, reverseShippingCost } = req.body;
+    const adminId = req.user?.userId;
+
+    if (!adminId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    if (!reasonCode) {
+      return res.status(400).json({ success: false, message: "reasonCode is required" });
+    }
+
+    try {
+      const { initiateRto } = await import("../../../services/rtoService");
+      const result = await initiateRto({
+        orderId: id,
+        reasonCode,
+        reason,
+        reverseShippingCost,
+        markedBy: adminId,
+        markedByRole: "Admin",
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Order marked as RTO",
+        data: { order: result.order },
+      });
+    } catch (error: any) {
+      return res.status(400).json({
+        success: false,
+        message: error.message || "Failed to mark order as RTO",
+      });
+    }
+  }
+);
+
+/**
+ * Admin updates an RTO event's physical resolution status (e.g. the courier
+ * confirms the parcel reached the seller's warehouse).
+ */
+export const updateRtoResolutionAdmin = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { rtoEventId } = req.params;
+    const { resolutionStatus } = req.body;
+
+    const validResolutions = ["InTransit", "ReceivedBySeller", "Disposed", "Lost"];
+    if (!validResolutions.includes(resolutionStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid resolutionStatus. Must be one of: ${validResolutions.join(", ")}`,
+      });
+    }
+
+    try {
+      const { updateRtoResolution } = await import("../../../services/rtoService");
+      const rtoEvent = await updateRtoResolution(rtoEventId, resolutionStatus);
+      return res.status(200).json({ success: true, data: rtoEvent });
+    } catch (error: any) {
+      return res.status(400).json({
+        success: false,
+        message: error.message || "Failed to update RTO resolution",
+      });
+    }
+  }
+);
+
+/**
+ * List RTO events for the admin RTO management page.
+ */
+export const getRtoEventsAdmin = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { status, sellerId } = req.query;
+    const RTOEvent = (await import("../../../models/RTOEvent")).default;
+
+    const query: any = {};
+    if (status) query.status = status;
+    if (sellerId) query.seller = sellerId;
+
+    const rtoEvents = await RTOEvent.find(query)
+      .populate("order", "orderNumber total")
+      .populate("seller", "sellerName storeName")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({ success: true, data: rtoEvents });
+  }
 );

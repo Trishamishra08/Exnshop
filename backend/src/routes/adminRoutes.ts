@@ -84,6 +84,9 @@ import * as lowestPricesController from "../modules/admin/controllers/adminLowes
 // PromoStrip Controllers
 import * as promoStripController from "../modules/admin/controllers/adminPromoStripController";
 
+// RTO Promo Banner Controllers
+import * as rtoPromoBannerController from "../modules/admin/controllers/adminRtoPromoBannerController";
+
 const router = Router();
 
 // All routes require admin authentication
@@ -170,6 +173,11 @@ router.get("/orders/export/csv", orderController.exportOrders);
 // ==================== Shipment Routes (E-Commerce channel, manual pre-Shiprocket) ====================
 router.get("/shipments", orderController.getShipmentOrders);
 router.patch("/shipments/:id", orderController.updateShipment);
+
+// ==================== RTO Routes ====================
+router.get("/rto-events", orderController.getRtoEventsAdmin);
+router.post("/orders/:id/mark-rto", orderController.markOrderRtoAdmin);
+router.patch("/rto-events/:rtoEventId/resolution", orderController.updateRtoResolutionAdmin);
 
 // ==================== Return Request Routes ====================
 router.get("/return-requests", orderController.getReturnRequests);
@@ -385,5 +393,11 @@ router.get("/promo-strips/:id", promoStripController.getPromoStripById);
 router.post("/promo-strips", promoStripController.createPromoStrip);
 router.put("/promo-strips/:id", promoStripController.updatePromoStrip);
 router.delete("/promo-strips/:id", promoStripController.deletePromoStrip);
+
+// ==================== RTO Promo Banner Routes ====================
+router.get("/rto-promo-banners", rtoPromoBannerController.getAllRtoPromoBanners);
+router.post("/rto-promo-banners", rtoPromoBannerController.createRtoPromoBanner);
+router.put("/rto-promo-banners/:id", rtoPromoBannerController.updateRtoPromoBanner);
+router.delete("/rto-promo-banners/:id", rtoPromoBannerController.deleteRtoPromoBanner);
 
 export default router;

@@ -21,6 +21,7 @@ import { debitWallet } from "../../../services/walletManagementService";
 import { commitCouponUsage } from "../../../services/couponService";
 import { createShiprocketOrder } from "../../../services/shiprocketService";
 import { resolveSellerChannel, CommerceChannel } from "../../../utils/commerceChannelHelper";
+import { computeItemGst, GstLineInput } from "../../../services/taxService";
 
 type ChannelOrderResult =
   | { success: true; order: any; walletAmountUsed: number }
@@ -117,6 +118,7 @@ async function buildAndSaveChannelOrder(params: {
   let calculatedSubtotal = 0;
   const orderItemIds: mongoose.Types.ObjectId[] = [];
   const sellerIds = new Set<string>();
+  const gstLineInputs: GstLineInput[] = [];
 
   for (const item of items) {
     if (!item.product || !item.product.id) {
@@ -332,6 +334,18 @@ async function buildAndSaveChannelOrder(params: {
       await newOrderItem.save();
     }
     orderItemIds.push(newOrderItem._id as mongoose.Types.ObjectId);
+
+    const categoryRef: any = product.category;
+    const categoryId = categoryRef?._id
+      ? new mongoose.Types.ObjectId(categoryRef._id)
+      : categoryRef && mongoose.isValidObjectId(categoryRef)
+        ? new mongoose.Types.ObjectId(categoryRef)
+        : null;
+    gstLineInputs.push({
+      orderItemId: newOrderItem._id as mongoose.Types.ObjectId,
+      categoryId,
+      itemTotal,
+    });
   }
 
   // Enforce minimum order value against THIS group's own item subtotal.
@@ -567,15 +581,35 @@ Gift Packaging Fee: ₹${giftPackagingFee}`);
     }
   }
 
-  // GST is admin-managed via AppSettings (gstEnabled/gstRate) and, like the
-  // other shared fees, is only charged on the order that owns them for this
-  // checkout — computed on this group's own taxable value (product subtotal
-  // after discount); delivery fees, platform fees, tips, and gift packaging
-  // are not taxed.
-  const gstRate = isSharedFeeOwner && settings?.gstEnabled ? Number(settings.gstRate) || 0 : 0;
-  const taxableAmount = Math.max(0, productSubtotalForCoupon - discountAmount);
-  const gstAmount = Number(((taxableAmount * gstRate) / 100).toFixed(2));
+  // GST is category-driven: each item is taxed at its own category's tax
+  // rate (set by admin on the category), not one flat marketplace-wide rate.
+  // Like the other shared fees, it's only charged on the order that owns
+  // them for this checkout (delivery fees, platform fees, tips, and gift
+  // packaging are not taxed).
+  const gstEnabledForOrder = isSharedFeeOwner && !!settings?.gstEnabled;
+  const { lines: gstLines, totalGst: gstAmount } = await computeItemGst(
+    gstLineInputs,
+    productSubtotalForCoupon,
+    discountAmount,
+    gstEnabledForOrder,
+  );
   newOrder.tax = gstAmount;
+
+  if (gstEnabledForOrder && gstLines.length > 0) {
+    const bulkOps = gstLines.map((line) => ({
+      updateOne: {
+        filter: { _id: line.orderItemId },
+        update: {
+          $set: {
+            categoryId: line.categoryId ?? undefined,
+            gstRate: line.gstRate,
+            gstAmount: line.gstAmount,
+          },
+        },
+      },
+    }));
+    await OrderItem.bulkWrite(bulkOps, session ? { session } : undefined);
+  }
 
   const finalTotal = Math.max(
     0,

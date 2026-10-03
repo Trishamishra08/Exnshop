@@ -1022,3 +1022,58 @@ export const rejectOrderController = asyncHandler(
   }
 );
 
+/**
+ * Delivery partner marks an order as RTO (Return To Origin) — the customer
+ * refused the parcel or was unreachable, so it's going back to the seller.
+ * ECommerce/courier-shipped orders only.
+ */
+export const markOrderRtoController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const deliveryId = req.user?.userId;
+    const { reasonCode, reason, reverseShippingCost } = req.body;
+
+    if (!deliveryId) {
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+
+    if (!reasonCode) {
+      return res.status(400).json({ success: false, message: "reasonCode is required" });
+    }
+
+    const order = await Order.findById(id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    if (order.deliveryBoy?.toString() !== deliveryId) {
+      return res
+        .status(403)
+        .json({ success: false, message: "This order is not assigned to you" });
+    }
+
+    try {
+      const { initiateRto } = await import("../../../services/rtoService");
+      const result = await initiateRto({
+        orderId: id,
+        reasonCode,
+        reason,
+        reverseShippingCost,
+        markedBy: deliveryId,
+        markedByRole: "Delivery",
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: "Order marked as RTO",
+        data: { order: result.order },
+      });
+    } catch (error: any) {
+      return res.status(400).json({
+        success: false,
+        message: error.message || "Failed to mark order as RTO",
+      });
+    }
+  }
+);
+

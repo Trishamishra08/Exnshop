@@ -212,10 +212,15 @@ export const getProducts = async (req: Request, res: Response) => {
         formattedProducts.map((p: any) => p._id)
       );
       if (campaignMap.size > 0) {
+        const impressionEntries: { campaignId: any; productId: string }[] = [];
         formattedProducts.forEach((p: any) => {
-          if (campaignMap.has(p._id.toString())) p.isSponsored = true;
+          const winner = campaignMap.get(p._id.toString());
+          if (winner) {
+            p.isSponsored = true;
+            impressionEntries.push({ campaignId: winner.campaign._id, productId: p._id });
+          }
         });
-        recordImpressions(Array.from(campaignMap.values()).map((c: any) => c._id));
+        recordImpressions(impressionEntries);
       }
     } catch (err) {
       console.error("Failed to mark sponsored products:", err);

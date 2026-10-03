@@ -25,7 +25,7 @@ export const sendSmsOtp = asyncHandler(async (req: Request, res: Response) => {
 
   try {
     const existing = await Customer.findOne({ email: email.toLowerCase() }).select("name");
-    const result = await sendEmailOtp(email, "Customer", existing?.name);
+    const result = await sendEmailOtp(email, "Customer", existing?.name, existing ? "login" : "register");
 
     return res.status(200).json({
       success: true,

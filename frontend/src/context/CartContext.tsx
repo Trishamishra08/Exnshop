@@ -170,17 +170,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setPlatformFee(response.data.platformFee);
         setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
         setMinimumOrderValue(response.data.minimumOrderValue);
+        setGstRate(response.data.gstRate);
       } else if (!options?.preserveItems) {
         setItems([]);
         setEstimatedFee(undefined);
         setPlatformFee(undefined);
         setFreeDeliveryThreshold(undefined);
         setMinimumOrderValue(undefined);
+        setGstRate(undefined);
       } else {
         setEstimatedFee(undefined);
         setPlatformFee(undefined);
         setFreeDeliveryThreshold(undefined);
         setMinimumOrderValue(undefined);
+        setGstRate(undefined);
       }
     } catch (error) {
       console.error("Failed to fetch cart:", error);
@@ -279,6 +282,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [platformFee, setPlatformFee] = useState<number | undefined>(undefined);
   const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState<number | undefined>(undefined);
   const [minimumOrderValue, setMinimumOrderValue] = useState<number | undefined>(undefined);
+  const [gstRate, setGstRate] = useState<number | undefined>(undefined);
 
   // Both channels' carts together, for the unified cart/checkout UI — populated
   // independently of the single active-`mode` cart above (which existing
@@ -302,6 +306,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           platformFee: raw?.platformFee,
           freeDeliveryThreshold: raw?.freeDeliveryThreshold,
           minimumOrderValue: raw?.minimumOrderValue,
+          gstRate: raw?.gstRate,
         });
         setCartGroups({
           quick: toGroupCart(response.data.quick),
@@ -335,10 +340,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       platformFee,
       freeDeliveryThreshold,
       minimumOrderValue,
+      gstRate,
       debug_config: (items as any).debug_config,
       backendTotal: (items as any).backendTotal
     };
-  }, [items, estimatedFee, estimatedDistanceKm, instantDeliveryAvailable, platformFee, freeDeliveryThreshold, minimumOrderValue]);
+  }, [items, estimatedFee, estimatedDistanceKm, instantDeliveryAvailable, platformFee, freeDeliveryThreshold, minimumOrderValue, gstRate]);
 
   const addToCart = async (product: Product, sourceElement?: HTMLElement | null) => {
     if (!isAuthenticated) {
@@ -487,6 +493,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             setPlatformFee(response.data.platformFee);
             setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
             setMinimumOrderValue(response.data.minimumOrderValue);
+            setGstRate(response.data.gstRate);
           } else {
             refreshMergedCart().catch(() => {});
           }
@@ -543,6 +550,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           setPlatformFee(response.data.platformFee);
           setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
           setMinimumOrderValue(response.data.minimumOrderValue);
+          setGstRate(response.data.gstRate);
         }
       } catch (error) {
         console.error("Remove from cart failed", error);
@@ -641,6 +649,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           setPlatformFee(response.data.platformFee);
           setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
           setMinimumOrderValue(response.data.minimumOrderValue);
+          setGstRate(response.data.gstRate);
         }
       } catch (error) {
         console.error("Update quantity failed", error);

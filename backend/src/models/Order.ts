@@ -63,7 +63,8 @@ export interface IOrder extends Document {
   | "Delivered"
   | "Cancelled"
   | "Rejected"
-  | "Returned";
+  | "Returned"
+  | "RTO";
 
   // Delivery Assignment
   deliveryBoy?: mongoose.Types.ObjectId;
@@ -154,6 +155,27 @@ export interface IOrder extends Document {
     trackingUrl?: string;
     status?: string;
     pickupScheduledAt?: Date;
+  };
+
+  // RTO (Return To Origin — courier tried to deliver, customer refused or was
+  // unreachable, parcel goes back to the seller without ever being accepted).
+  // ECommerce/courier-shipped orders only — see RTOEvent for the queryable
+  // per-seller record this snapshot summarizes.
+  rtoDetails?: {
+    markedAt: Date;
+    markedBy: mongoose.Types.ObjectId;
+    markedByRole: "Delivery" | "Admin";
+    reasonCode: string;
+    reason?: string;
+    courierName?: string;
+    reverseShippingCost: number;
+    resolutionStatus:
+      | "Pending"
+      | "InTransitBackToSeller"
+      | "ReceivedBySeller"
+      | "Lost"
+      | "Disposed";
+    resolvedAt?: Date;
   };
 
   createdAt: Date;
@@ -340,6 +362,7 @@ const OrderSchema = new Schema<IOrder>(
         "Cancelled",
         "Rejected",
         "Returned",
+        "RTO",
       ],
       default: "Received",
     },
@@ -533,6 +556,21 @@ const OrderSchema = new Schema<IOrder>(
       trackingUrl: { type: String, trim: true },
       status: { type: String, trim: true },
       pickupScheduledAt: { type: Date },
+    },
+    rtoDetails: {
+      markedAt: { type: Date },
+      markedBy: { type: Schema.Types.ObjectId },
+      markedByRole: { type: String, enum: ["Delivery", "Admin"] },
+      reasonCode: { type: String, trim: true },
+      reason: { type: String, trim: true },
+      courierName: { type: String, trim: true },
+      reverseShippingCost: { type: Number, default: 0, min: 0 },
+      resolutionStatus: {
+        type: String,
+        enum: ["Pending", "InTransitBackToSeller", "ReceivedBySeller", "Lost", "Disposed"],
+        default: "Pending",
+      },
+      resolvedAt: { type: Date },
     },
   },
   {

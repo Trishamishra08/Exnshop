@@ -5,6 +5,7 @@ import {
   updateCampaign,
   updateCampaignStatus,
   deleteCampaign,
+  getBidFeedback,
 } from "../modules/seller/controllers/campaignController";
 import { authenticate, requireUserType, requireApprovedUser } from "../middleware/auth";
 
@@ -16,6 +17,7 @@ router.use(requireApprovedUser);
 
 router.post("/", createCampaign);
 router.get("/my", getMyCampaigns);
+router.get("/bid-feedback", getBidFeedback);
 router.put("/:id", updateCampaign);
 router.patch("/:id/status", updateCampaignStatus);
 router.delete("/:id", deleteCampaign);

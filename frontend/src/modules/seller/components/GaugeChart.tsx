@@ -8,11 +8,11 @@ interface GaugeChartProps {
 export default function GaugeChart({ value, maxValue, label, format = "currency" }: GaugeChartProps) {
   const percentage = Math.min((value / maxValue) * 100, 100);
   const angle = (percentage / 100) * 180 - 90; // -90 to 90 degrees
-  
+
   const radius = 80;
   const centerX = 120;
   const centerY = 120;
-  
+
   // Calculate needle position
   const needleLength = radius * 0.7;
   const needleX = centerX + needleLength * Math.cos((angle * Math.PI) / 180);
@@ -22,10 +22,10 @@ export default function GaugeChart({ value, maxValue, label, format = "currency"
     <div className="flex flex-col items-center">
       <svg width="240" height="160" viewBox="0 0 240 160" className="w-full h-auto">
         <defs>
-          <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#eab308" />
-            <stop offset="50%" stopColor="#3b82f6" />
-            <stop offset="100%" stopColor="#16a34a" />
+          <linearGradient id="gaugeGradientSeller" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="#16a34a" />
+            <stop offset="50%" stopColor="#eab308" />
+            <stop offset="100%" stopColor="#dc2626" />
           </linearGradient>
         </defs>
 
@@ -33,7 +33,7 @@ export default function GaugeChart({ value, maxValue, label, format = "currency"
         <path
           d={`M ${centerX - radius} ${centerY} A ${radius} ${radius} 0 0 1 ${centerX + radius} ${centerY}`}
           fill="none"
-          stroke="url(#gaugeGradient)"
+          stroke="url(#gaugeGradientSeller)"
           strokeWidth="20"
           strokeLinecap="round"
         />
@@ -56,7 +56,7 @@ export default function GaugeChart({ value, maxValue, label, format = "currency"
         <text x={centerX - radius - 10} y={centerY + 5} className="text-xs fill-neutral-600" textAnchor="end">0</text>
         <text x={centerX + radius + 10} y={centerY + 5} className="text-xs fill-neutral-600" textAnchor="start">{maxValue}</text>
       </svg>
-      
+
       <div className="mt-2 text-center">
         <div className="text-2xl font-bold text-neutral-900">
           {format === "percent" ? `${value.toFixed(2)}%` : `₹${value.toFixed(2)}`}
@@ -66,4 +66,3 @@ export default function GaugeChart({ value, maxValue, label, format = "currency"
     </div>
   );
 }
-

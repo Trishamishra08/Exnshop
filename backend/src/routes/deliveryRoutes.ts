@@ -94,6 +94,7 @@ router.post("/orders/:id/send-delivery-otp", requireApprovedUser, deliveryOrderC
 router.post("/orders/:id/verify-delivery-otp", requireApprovedUser, deliveryOrderController.verifyDeliveryOtpController);
 router.post("/orders/:id/accept", requireApprovedUser, deliveryOrderController.acceptOrderController);
 router.post("/orders/:id/reject", requireApprovedUser, deliveryOrderController.rejectOrderController);
+router.post("/orders/:id/mark-rto", requireApprovedUser, deliveryOrderController.markOrderRtoController);
 
 // Proximity and pickup routes (require approval)
 router.post("/orders/:id/check-seller-proximity", requireApprovedUser, deliveryOrderController.checkSellerProximity);

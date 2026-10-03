@@ -8,6 +8,7 @@ import {
 } from '../../../services/api/campaignService';
 import { getProducts, Product } from '../../../services/api/productService';
 import { useToast } from '../../../context/ToastContext';
+import ProductMultiSelect, { SelectedProductBid } from '../components/ProductMultiSelect';
 
 export default function SellerCampaigns() {
     const { showToast } = useToast();
@@ -16,8 +17,9 @@ export default function SellerCampaigns() {
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [detailsCampaign, setDetailsCampaign] = useState<Campaign | null>(null);
 
-    const [productId, setProductId] = useState('');
+    const [selectedProducts, setSelectedProducts] = useState<SelectedProductBid[]>([]);
     const [dailyBudget, setDailyBudget] = useState('');
     const [totalBudget, setTotalBudget] = useState('');
     const [startDate, setStartDate] = useState('');
@@ -41,7 +43,7 @@ export default function SellerCampaigns() {
     }, []);
 
     const openCreateModal = () => {
-        setProductId('');
+        setSelectedProducts([]);
         setDailyBudget('');
         setTotalBudget('');
         const today = new Date().toISOString().split('T')[0];
@@ -52,14 +54,19 @@ export default function SellerCampaigns() {
     };
 
     const handleCreate = async () => {
-        if (!productId || !dailyBudget || !totalBudget || !startDate || !endDate) {
-            showToast('All fields are required', 'error');
+        if (selectedProducts.length === 0 || !dailyBudget || !totalBudget || !startDate || !endDate) {
+            showToast('Select at least one product and fill all fields', 'error');
+            return;
+        }
+        const missingBid = selectedProducts.find((p) => !p.cpcBid || Number(p.cpcBid) <= 0);
+        if (missingBid) {
+            showToast('Every selected product needs a bid greater than ₹0', 'error');
             return;
         }
         try {
             setSaving(true);
             const response = await createCampaign({
-                productId,
+                products: selectedProducts.map((p) => ({ productId: p.productId, cpcBid: Number(p.cpcBid) })),
                 dailyBudget: Number(dailyBudget),
                 totalBudget: Number(totalBudget),
                 startDate,
@@ -107,9 +114,12 @@ export default function SellerCampaigns() {
         }
     };
 
-    const getProductLabel = (product: Campaign['product']) => {
-        if (typeof product === 'string') return product;
-        return product?.productName || '—';
+    const getProductsLabel = (campaign: Campaign) => {
+        const names = campaign.products.map((p) =>
+            typeof p.product === 'string' ? p.product : p.product?.productName || '—'
+        );
+        if (names.length <= 2) return names.join(', ');
+        return `${names.slice(0, 2).join(', ')} +${names.length - 2} more`;
     };
 
     const statusBadge = (status: Campaign['status']) => {
@@ -128,7 +138,7 @@ export default function SellerCampaigns() {
                 <div className="bg-teal-600 text-white px-4 sm:px-6 py-3 flex items-center justify-between">
                     <div>
                         <h2 className="text-lg font-semibold">Advertisement Campaigns</h2>
-                        <p className="text-sm text-teal-100 mt-1">Promote a product to appear as "Sponsored" in customer search and category listings.</p>
+                        <p className="text-sm text-teal-100 mt-1">Promote products to appear as "Sponsored" in customer search and category listings.</p>
                     </div>
                     <button
                         onClick={openCreateModal}
@@ -141,13 +151,13 @@ export default function SellerCampaigns() {
                 {loading ? (
                     <div className="p-8 text-center text-neutral-500">Loading campaigns...</div>
                 ) : campaigns.length === 0 ? (
-                    <div className="p-12 text-center text-neutral-400">No campaigns yet. Create one to start promoting a product.</div>
+                    <div className="p-12 text-center text-neutral-400">No campaigns yet. Create one to start promoting your products.</div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-neutral-50 text-xs font-bold text-neutral-800 border-b border-neutral-200">
-                                    <th className="p-4">Product</th>
+                                    <th className="p-4">Products</th>
                                     <th className="p-4">Budget</th>
                                     <th className="p-4">Spend</th>
                                     <th className="p-4">Impressions</th>
@@ -163,15 +173,19 @@ export default function SellerCampaigns() {
                             <tbody>
                                 {campaigns.map((campaign) => (
                                     <tr key={campaign._id} className="hover:bg-neutral-50 transition-colors text-sm text-neutral-700 border-b border-neutral-200">
-                                        <td className="p-4 align-middle font-medium">{getProductLabel(campaign.product)}</td>
+                                        <td className="p-4 align-middle font-medium max-w-[220px]">
+                                            <button onClick={() => setDetailsCampaign(campaign)} className="text-left hover:underline">
+                                                {getProductsLabel(campaign)}
+                                            </button>
+                                        </td>
                                         <td className="p-4 align-middle text-xs">₹{campaign.dailyBudget}/day<br />₹{campaign.totalBudget} total</td>
                                         <td className="p-4 align-middle">₹{campaign.spend.toFixed(0)}</td>
                                         <td className="p-4 align-middle">{campaign.impressions}</td>
                                         <td className="p-4 align-middle">{campaign.clicks}</td>
-                                        <td className="p-4 align-middle">{campaign.metrics?.ctr.toFixed(1) || 0}%</td>
-                                        <td className="p-4 align-middle">{campaign.metrics?.orders || 0}</td>
-                                        <td className="p-4 align-middle">₹{campaign.metrics?.revenue.toFixed(0) || 0}</td>
-                                        <td className="p-4 align-middle">{campaign.metrics?.roas.toFixed(2) || 0}x</td>
+                                        <td className="p-4 align-middle">{campaign.metrics?.overall.ctr.toFixed(1) || 0}%</td>
+                                        <td className="p-4 align-middle">{campaign.metrics?.overall.orders || 0}</td>
+                                        <td className="p-4 align-middle">₹{campaign.metrics?.overall.revenue.toFixed(0) || 0}</td>
+                                        <td className="p-4 align-middle">{campaign.metrics?.overall.roas.toFixed(2) || 0}x</td>
                                         <td className="p-4 align-middle">{statusBadge(campaign.status)}</td>
                                         <td className="p-4 align-middle">
                                             <div className="flex items-center gap-2">
@@ -202,20 +216,15 @@ export default function SellerCampaigns() {
             </div>
 
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" onClick={() => setIsModalOpen(false)}>
-                    <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4" onClick={(e) => e.stopPropagation()}>
-                        <div className="bg-teal-600 text-white px-6 py-4 rounded-t-lg">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" onClick={() => setIsModalOpen(false)}>
+                    <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                        <div className="bg-teal-600 text-white px-6 py-4 rounded-t-lg sticky top-0">
                             <h3 className="text-lg font-semibold">New Campaign</h3>
                         </div>
                         <div className="p-6 space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-neutral-700 mb-1">Select Product</label>
-                                <select value={productId} onChange={(e) => setProductId(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm bg-white">
-                                    <option value="">Select a product</option>
-                                    {products.map((p) => (
-                                        <option key={p._id} value={p._id}>{p.productName}</option>
-                                    ))}
-                                </select>
+                                <label className="block text-sm font-medium text-neutral-700 mb-1">Select Products &amp; Set Bids</label>
+                                <ProductMultiSelect products={products} selected={selectedProducts} onChange={setSelectedProducts} />
                                 {products.length === 0 && (
                                     <p className="text-xs text-neutral-400 mt-1">No active products found. Add and get a product approved first.</p>
                                 )}
@@ -238,13 +247,58 @@ export default function SellerCampaigns() {
                                     <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500" />
                                 </div>
                             </div>
-                            <p className="text-xs text-neutral-400">Campaigns are created as Draft — activate it from the list once you're ready to start spending.</p>
+                            <p className="text-xs text-neutral-400">
+                                This budget is shared across all selected products — whichever gets clicked draws from it. Campaigns are created as Draft — activate it from the list once you're ready to start spending.
+                            </p>
                         </div>
-                        <div className="px-6 py-4 border-t border-neutral-200 flex justify-end gap-2">
+                        <div className="px-6 py-4 border-t border-neutral-200 flex justify-end gap-2 sticky bottom-0 bg-white">
                             <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 border border-neutral-300 text-neutral-700 hover:bg-neutral-50 rounded text-sm font-medium">Cancel</button>
                             <button onClick={handleCreate} disabled={saving} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded text-sm font-medium disabled:opacity-50">
                                 {saving ? 'Creating...' : 'Create Campaign'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {detailsCampaign && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" onClick={() => setDetailsCampaign(null)}>
+                    <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                        <div className="bg-teal-600 text-white px-6 py-4 rounded-t-lg flex items-center justify-between sticky top-0">
+                            <h3 className="text-lg font-semibold">Per-Product Performance</h3>
+                            <button onClick={() => setDetailsCampaign(null)} className="text-teal-100 hover:text-white text-sm">Close</button>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-neutral-50 text-xs font-bold text-neutral-800 border-b border-neutral-200">
+                                        <th className="p-3">Product</th>
+                                        <th className="p-3">CPC Bid</th>
+                                        <th className="p-3">Orders</th>
+                                        <th className="p-3">Revenue</th>
+                                        <th className="p-3">CTR</th>
+                                        <th className="p-3">ROAS</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {detailsCampaign.metrics?.byProduct.map((row) => {
+                                        const productEntry = detailsCampaign.products.find(
+                                            (p) => (typeof p.product === 'string' ? p.product : p.product._id) === row.product
+                                        );
+                                        const name = productEntry && typeof productEntry.product !== 'string' ? productEntry.product.productName : row.product;
+                                        return (
+                                            <tr key={row.product} className="text-sm text-neutral-700 border-b border-neutral-100">
+                                                <td className="p-3">{name}</td>
+                                                <td className="p-3">₹{row.cpcBid}</td>
+                                                <td className="p-3">{row.orders}</td>
+                                                <td className="p-3">₹{row.revenue.toFixed(0)}</td>
+                                                <td className="p-3">{row.ctr.toFixed(1)}%</td>
+                                                <td className="p-3">{row.roas.toFixed(2)}x</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>

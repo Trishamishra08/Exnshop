@@ -1206,24 +1206,6 @@ export default function AdminProductEdit() {
 
               <div>
                 <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Select Tax (GST)
-                </label>
-                <select
-                  name="tax"
-                  value={formData.tax}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white">
-                  <option value="">No Tax / Select Tax</option>
-                  {taxes.map((t) => (
-                    <option key={t._id} value={t._id}>
-                      {t.name} ({t.percentage}%)
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
                   Is Returnable?
                 </label>
                 <select

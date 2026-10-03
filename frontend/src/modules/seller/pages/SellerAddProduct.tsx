@@ -23,7 +23,6 @@ import {
   SubCategory,
   SubSubCategory,
 } from "../../../services/api/categoryService";
-import { getActiveTaxes, Tax } from "../../../services/api/taxService";
 import { getBrands, Brand } from "../../../services/api/brandService";
 import {
   HeaderCategory,
@@ -86,7 +85,6 @@ export default function SellerAddProduct() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<SubCategory[]>([]);
   const [subSubCategories, setSubSubCategories] = useState<SubSubCategory[]>([]);
-  const [taxes, setTaxes] = useState<Tax[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [headerCategories, setHeaderCategories] = useState<HeaderCategory[]>(
     []
@@ -99,7 +97,6 @@ export default function SellerAddProduct() {
         // Use Promise.allSettled to ensure one failing API doesn't break all others
         const results = await Promise.allSettled([
           getCategories(),
-          getActiveTaxes(),
           getBrands(),
           getAllowedHeaderCategories(),
           getShops(),
@@ -110,19 +107,14 @@ export default function SellerAddProduct() {
           setCategories(results[0].value.data);
         }
 
-        // Handle taxes
-        if (results[1].status === "fulfilled" && results[1].value.success) {
-          setTaxes(results[1].value.data);
-        }
-
         // Handle brands
-        if (results[2].status === "fulfilled" && results[2].value.success) {
-          setBrands(results[2].value.data);
+        if (results[1].status === "fulfilled" && results[1].value.success) {
+          setBrands(results[1].value.data);
         }
 
         // Handle header categories (now filtered by seller's allowed categories)
-        if (results[3].status === "fulfilled") {
-          const headerCatRes = results[3].value;
+        if (results[2].status === "fulfilled") {
+          const headerCatRes = results[2].value;
           if (headerCatRes && headerCatRes.success && Array.isArray(headerCatRes.data)) {
             // Already filtered by backend, only Published ones returned
             setHeaderCategories(headerCatRes.data);
@@ -136,11 +128,11 @@ export default function SellerAddProduct() {
         }
 
         // Handle shops (optional - for Shop By Store feature)
-        if (results[4].status === "fulfilled" && results[4].value.success) {
-          setShops(results[4].value.data);
-        } else if (results[4].status === "rejected") {
+        if (results[3].status === "fulfilled" && results[3].value.success) {
+          setShops(results[3].value.data);
+        } else if (results[3].status === "rejected") {
           // Shops API failed - this is non-critical, log and continue
-          console.warn("Failed to fetch shops (Shop By Store feature may be unavailable):", results[4].reason?.message || "Unknown error");
+          console.warn("Failed to fetch shops (Shop By Store feature may be unavailable):", results[3].reason?.message || "Unknown error");
         }
       } catch (err) {
         console.error("Error fetching form data:", err);
@@ -422,6 +414,15 @@ export default function SellerAddProduct() {
         setUploadError("Please select a category.");
         return;
       }
+    }
+
+    // A product with no main image silently goes live with no image on the
+    // customer side (shows a letter placeholder instead) — require one
+    // before it can be submitted for review or saved live. Drafts aren't
+    // customer-visible yet, so they're exempt.
+    if (action !== "draft" && !mainImageFile && !formData.mainImageUrl) {
+      setUploadError("Please upload a product main image.");
+      return;
     }
 
     setUploading(true);
@@ -1084,23 +1085,6 @@ export default function SellerAddProduct() {
                     placeholder="Enter Made In"
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Select Tax
-                  </label>
-                  <select
-                    name="tax"
-                    value={formData.tax}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white">
-                    <option value="">Select Tax</option>
-                    {taxes.map((tax) => (
-                      <option key={tax._id} value={tax._id}>
-                        {tax.name} ({tax.percentage}%)
-                      </option>
-                    ))}
-                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-2">

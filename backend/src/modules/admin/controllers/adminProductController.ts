@@ -7,6 +7,7 @@ import Product from "../../../models/Product";
 import Inventory from "../../../models/Inventory";
 import Seller from "../../../models/Seller";
 import HeaderCategory from "../../../models/HeaderCategory";
+import Tax from "../../../models/Tax";
 import { cache } from "../../../utils/cache";
 import { sendProductApprovalNotification } from "../../../services/notificationService";
 
@@ -26,6 +27,7 @@ export const createCategory = asyncHandler(
       groupCategory,
       parentId,
       headerCategoryId,
+      taxId,
       status = "Active",
     } = req.body;
 
@@ -34,6 +36,16 @@ export const createCategory = asyncHandler(
         success: false,
         message: "Category name is required",
       });
+    }
+
+    if (taxId) {
+      const tax = await Tax.findById(taxId);
+      if (!tax) {
+        return res.status(400).json({
+          success: false,
+          message: "Selected tax rate not found",
+        });
+      }
     }
 
     let finalHeaderCategoryId = headerCategoryId;
@@ -127,6 +139,7 @@ export const createCategory = asyncHandler(
       parentId: parentId || null,
       headerCategoryId: finalHeaderCategoryId || null,
       commissionRate: req.body.commissionRate || 0,
+      taxId: taxId || null,
       status,
     });
 
@@ -182,6 +195,7 @@ export const getCategories = asyncHandler(
     const categories = await Category.find(query)
       .populate("parentId", "name")
       .populate("headerCategoryId", "name status")
+      .populate("taxId", "name percentage status")
       .sort(sort);
 
     // Count child categories for each category
@@ -274,6 +288,17 @@ export const updateCategory = asyncHandler(
       }
     }
 
+    // Validate taxId if being updated
+    if (updateData.taxId) {
+      const tax = await Tax.findById(updateData.taxId);
+      if (!tax) {
+        return res.status(400).json({
+          success: false,
+          message: "Selected tax rate not found",
+        });
+      }
+    }
+
     // Validate headerCategoryId if being updated
     if (updateData.headerCategoryId !== undefined) {
       // If category has children, they should inherit the same header category
@@ -321,7 +346,8 @@ export const updateCategory = asyncHandler(
       }
     )
       .populate("parentId", "name")
-      .populate("headerCategoryId", "name status");
+      .populate("headerCategoryId", "name status")
+      .populate("taxId", "name percentage status");
 
     // Invalidate category caches
     cache.delete("customer-categories-list");
@@ -867,6 +893,14 @@ export const createProduct = asyncHandler(
       productData.status = "Active";
       productData.publish = true;
       productData.requiresApproval = false;
+
+      // Every product-create form in this app (seller add/edit, bulk upload)
+      // sends the uploaded Cloudinary URL as `mainImageUrl` — map it to the
+      // actual schema field so it isn't silently dropped.
+      if (productData.mainImageUrl) {
+        productData.mainImage = productData.mainImageUrl;
+        delete productData.mainImageUrl;
+      }
 
       const product = await Product.create(productData);
 

@@ -41,9 +41,12 @@ export default function AdminCampaigns() {
         return seller?.storeName || seller?.sellerName || '—';
     };
 
-    const getProductLabel = (product: Campaign['product']) => {
-        if (typeof product === 'string') return product;
-        return product?.productName || '—';
+    const getProductsLabel = (campaign: Campaign) => {
+        const names = campaign.products.map((p) =>
+            typeof p.product === 'string' ? p.product : p.product?.productName || '—'
+        );
+        if (names.length <= 2) return names.join(', ');
+        return `${names.slice(0, 2).join(', ')} +${names.length - 2} more`;
     };
 
     const statusBadge = (status: Campaign['status']) => {
@@ -89,12 +92,12 @@ export default function AdminCampaigns() {
                                     {campaigns.map((campaign) => (
                                         <tr key={campaign._id} className="hover:bg-neutral-50 transition-colors text-sm text-neutral-700 border-b border-neutral-200">
                                             <td className="p-4 align-middle">{getSellerLabel(campaign.seller)}</td>
-                                            <td className="p-4 align-middle">{getProductLabel(campaign.product)}</td>
+                                            <td className="p-4 align-middle max-w-[220px]">{getProductsLabel(campaign)}</td>
                                             <td className="p-4 align-middle text-xs">₹{campaign.dailyBudget}/day<br />₹{campaign.totalBudget} total</td>
                                             <td className="p-4 align-middle">₹{campaign.spend.toFixed(0)}</td>
-                                            <td className="p-4 align-middle">{campaign.metrics?.orders || 0}</td>
-                                            <td className="p-4 align-middle">₹{campaign.metrics?.revenue.toFixed(0) || 0}</td>
-                                            <td className="p-4 align-middle">{campaign.metrics?.roas.toFixed(2) || 0}x</td>
+                                            <td className="p-4 align-middle">{campaign.metrics?.overall.orders || 0}</td>
+                                            <td className="p-4 align-middle">₹{campaign.metrics?.overall.revenue.toFixed(0) || 0}</td>
+                                            <td className="p-4 align-middle">{campaign.metrics?.overall.roas.toFixed(2) || 0}x</td>
                                             <td className="p-4 align-middle">{statusBadge(campaign.status)}</td>
                                             <td className="p-4 align-middle">
                                                 {campaign.status === 'Active' && (

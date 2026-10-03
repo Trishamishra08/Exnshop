@@ -17,6 +17,10 @@ export interface Cart {
   platformFee?: number;
   freeDeliveryThreshold?: number;
   minimumOrderValue?: number;
+  // Blended GST rate for this cart's current item mix (category-driven,
+  // preview only — see backend taxService.computeItemGst for the actual
+  // per-item charge computed at order creation).
+  gstRate?: number;
   debug_config?: any;
   backendTotal?: number;
 }

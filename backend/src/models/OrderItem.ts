@@ -20,7 +20,7 @@ export interface IOrderItem extends Document {
   variantTitle?: string;
 
   // Status
-  status: "Pending" | "Shipped" | "Delivered" | "Cancelled" | "Returned";
+  status: "Pending" | "Shipped" | "Delivered" | "Cancelled" | "Returned" | "RTO";
   // Per-seller acceptance tracking (independent of main order status)
   sellerStatus: "Pending" | "Accepted" | "Rejected";
   subtotal: number;
@@ -32,6 +32,15 @@ export interface IOrderItem extends Document {
   isReturnable: boolean;
   returnWindowDays: number;
   returnDeadline?: Date;
+
+  // GST snapshot (category-driven — see taxService.computeItemGst)
+  categoryId?: mongoose.Types.ObjectId;
+  gstRate: number;
+  gstAmount: number;
+
+  // RTO (set once this item's share of an RTO has been settled, so a retry
+  // or double-call can't reverse/debit the same item twice)
+  rtoReversed?: boolean;
 
   createdAt: Date;
   updatedAt: Date;
@@ -100,7 +109,7 @@ const OrderItemSchema = new Schema<IOrderItem>(
     // Status
     status: {
       type: String,
-      enum: ["Pending", "Shipped", "Delivered", "Cancelled", "Returned"],
+      enum: ["Pending", "Shipped", "Delivered", "Cancelled", "Returned", "RTO"],
       default: "Pending",
     },
     // Per-seller acceptance tracking
@@ -136,6 +145,25 @@ const OrderItemSchema = new Schema<IOrderItem>(
     },
     returnDeadline: {
       type: Date,
+    },
+    // GST snapshot (category-driven)
+    categoryId: {
+      type: Schema.Types.ObjectId,
+      ref: "Category",
+    },
+    gstRate: {
+      type: Number,
+      default: 0,
+      min: [0, "GST rate cannot be negative"],
+    },
+    gstAmount: {
+      type: Number,
+      default: 0,
+      min: [0, "GST amount cannot be negative"],
+    },
+    rtoReversed: {
+      type: Boolean,
+      default: false,
     },
   },
   {

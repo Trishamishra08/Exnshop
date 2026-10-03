@@ -9,6 +9,7 @@ import AppSettings from '../../../models/AppSettings';
 import { getRoadDistances } from '../../../services/mapService';
 import Seller from '../../../models/Seller';
 import { resolveSellerChannel } from '../../../utils/commerceChannelHelper';
+import Category from '../../../models/Category';
 
 // Resolve the active commerce channel from query (GET) or body (mutations), defaulting to "Quick"
 const getChannel = (req: Request): 'Quick' | 'ECommerce' => {
@@ -80,12 +81,50 @@ const calculateDeliveryStuff = async (total: number, items: any[], userLat: numb
     let freeDeliveryThreshold = 0;
     let minimumOrderValue = 0;
     let estimatedDistanceKm: number | null = null;
+    // Blended GST rate for this cart's current item mix — a preview only
+    // (no coupon discount applied here, that happens at checkout). The
+    // actual charge at order creation is computed per-item from each
+    // product's own category, via taxService.computeItemGst.
+    let gstRate = 0;
 
     try {
         const settings = await AppSettings.findOne();
         platformFee = settings?.platformFee ?? 2;
         freeDeliveryThreshold = settings?.freeDeliveryThreshold ?? 199;
         minimumOrderValue = settings?.minimumOrderValue ?? 0;
+
+        if (settings?.gstEnabled) {
+            const categoryIds = Array.from(
+                new Set(
+                    items
+                        .map((item: any) => item.product?.category?.toString())
+                        .filter(Boolean)
+                )
+            );
+            if (categoryIds.length > 0) {
+                const categories = await Category.find({ _id: { $in: categoryIds } }).populate(
+                    'taxId',
+                    'percentage status'
+                );
+                const rateByCategory = new Map<string, number>();
+                for (const cat of categories) {
+                    const tax = cat.taxId as any;
+                    const rate = tax && tax.status === 'Active' ? Number(tax.percentage) || 0 : 0;
+                    rateByCategory.set((cat._id as mongoose.Types.ObjectId).toString(), rate);
+                }
+                let gstAmountRaw = 0;
+                let taxableSubtotal = 0;
+                for (const item of items) {
+                    const price = calculateItemPrice(item.product, item.variation);
+                    const itemTotal = price * item.quantity;
+                    const catId = item.product?.category?.toString();
+                    const rate = catId ? rateByCategory.get(catId) || 0 : 0;
+                    gstAmountRaw += (itemTotal * rate) / 100;
+                    taxableSubtotal += itemTotal;
+                }
+                gstRate = taxableSubtotal > 0 ? Number(((gstAmountRaw / taxableSubtotal) * 100).toFixed(4)) : 0;
+            }
+        }
 
         if (channel === 'ECommerce') {
             // No rider fee for E-commerce — ships via courier separately.
@@ -161,6 +200,7 @@ const calculateDeliveryStuff = async (total: number, items: any[], userLat: numb
         platformFee,
         freeDeliveryThreshold,
         minimumOrderValue,
+        gstRate,
     };
 };
 

@@ -59,7 +59,12 @@ export const sendOTP = asyncHandler(async (req: Request, res: Response) => {
       });
     }
 
-    const result = await sendEmailOtp(email, "Seller", seller.sellerName);
+    // A seller registers via a plain form (no OTP at signup) then the frontend
+    // immediately calls this same endpoint to verify their email — treat an
+    // account created moments ago as "just registered" for a welcome-toned
+    // email instead of a plain login code.
+    const isJustRegistered = Date.now() - new Date(seller.createdAt).getTime() < 5 * 60 * 1000;
+    const result = await sendEmailOtp(email, "Seller", seller.sellerName, isJustRegistered ? "register" : "login");
     return res.status(200).json({
       success: true,
       message: result.message,

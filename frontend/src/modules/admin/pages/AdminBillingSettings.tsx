@@ -254,7 +254,8 @@ export default function AdminBillingSettings() {
                     <h2 className="text-lg font-semibold text-gray-900 mb-2">Tax (GST)</h2>
                     <p className="text-sm text-gray-500 mb-6">
                         When enabled, GST is calculated on the product subtotal (after any coupon discount) and shown
-                        to customers as a separate line item at checkout.
+                        to customers as a separate line item at checkout. The actual rate charged comes from each
+                        product's own Category (set on the Categories page) — not the flat rate below.
                     </p>
 
                     <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 hover:bg-gray-100/50 transition-all mb-4">
@@ -277,7 +278,7 @@ export default function AdminBillingSettings() {
                     {gstEnabled && (
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-md">
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                                GST Rate (%)
+                                Legacy flat GST Rate (%) — no longer used
                             </label>
                             <div className="relative">
                                 <input
@@ -292,6 +293,9 @@ export default function AdminBillingSettings() {
                                 />
                                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
                             </div>
+                            <p className="mt-1 text-xs text-gray-500">
+                                Checkout no longer uses this — set a GST rate on each Category instead. Kept here only for old reporting references.
+                            </p>
                             <p className="mt-1 text-xs text-gray-500">Applied to the product subtotal on every order.</p>
                         </motion.div>
                     )}

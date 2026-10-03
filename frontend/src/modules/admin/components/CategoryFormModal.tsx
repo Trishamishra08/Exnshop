@@ -19,6 +19,7 @@ import {
   getHeaderCategoriesAdmin,
   HeaderCategory,
 } from "../../../services/api/headerCategoryService";
+import { getActiveTaxes, Tax } from "../../../services/api/taxService";
 
 interface CategoryFormModalProps {
   isOpen: boolean;
@@ -50,6 +51,7 @@ export default function CategoryFormModal({
     hasWarning: false,
     groupCategory: "",
     commissionRate: 0,
+    taxId: null as string | null,
   });
 
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -62,6 +64,7 @@ export default function CategoryFormModal({
     []
   );
   const [loadingHeaderCategories, setLoadingHeaderCategories] = useState(false);
+  const [taxes, setTaxes] = useState<Tax[]>([]);
   const [isDragging, setIsDragging] = useState(false);
 
   // Flatten categories for search and parent selection
@@ -80,6 +83,7 @@ export default function CategoryFormModal({
   useEffect(() => {
     if (isOpen) {
       fetchHeaderCategories();
+      fetchTaxes();
     }
   }, [isOpen]);
 
@@ -100,6 +104,25 @@ export default function CategoryFormModal({
     }
   };
 
+  const fetchTaxes = async () => {
+    try {
+      const response = await getActiveTaxes();
+      if (response.success) {
+        setTaxes(response.data);
+      }
+    } catch (error) {
+      console.error("Error fetching taxes:", error);
+      setTaxes([]);
+    }
+  };
+
+  // taxId can arrive either as a raw string id or a populated {_id, ...} object
+  const extractTaxId = (value: Category["taxId"]): string | null => {
+    if (!value) return null;
+    if (typeof value === "string") return value;
+    return value._id || null;
+  };
+
   useEffect(() => {
     if (isOpen) {
       if (mode === "edit" && category) {
@@ -115,6 +138,7 @@ export default function CategoryFormModal({
           hasWarning: category.hasWarning || false,
           groupCategory: category.groupCategory || "",
           commissionRate: category.commissionRate || 0,
+          taxId: extractTaxId(category.taxId),
         });
         if (category.image) {
           setImagePreview(category.image);
@@ -157,6 +181,9 @@ export default function CategoryFormModal({
           hasWarning: false,
           groupCategory: "",
           commissionRate: 0,
+          // Subcategories commonly share the parent's GST slab — inherit as a
+          // convenient default, admin can still change it.
+          taxId: extractTaxId(parentCategory.taxId),
         });
       } else {
         // Reset form for new category
@@ -171,6 +198,7 @@ export default function CategoryFormModal({
           hasWarning: false,
           groupCategory: "",
           commissionRate: 0,
+          taxId: null,
         });
       }
       setImageFile(null);
@@ -363,6 +391,7 @@ export default function CategoryFormModal({
         hasWarning: formData.hasWarning,
         groupCategory: formData.groupCategory || undefined,
         commissionRate: formData.commissionRate,
+        taxId: formData.taxId,
       };
 
       await onSubmit(submitData);
@@ -705,6 +734,31 @@ export default function CategoryFormModal({
             {errors.order && (
               <p className="mt-1 text-sm text-red-600">{errors.order}</p>
             )}
+          </div>
+
+          {/* GST / Tax Rate - products in this category always use this rate */}
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-neutral-700 mb-2">
+              GST / Tax Rate
+            </label>
+            <select
+              name="taxId"
+              value={formData.taxId || ""}
+              onChange={(e) =>
+                setFormData({ ...formData, taxId: e.target.value || null })
+              }
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+            >
+              <option value="">No tax (0% GST)</option>
+              {taxes.map((tax) => (
+                <option key={tax._id} value={tax._id}>
+                  {tax.name} ({tax.percentage}%)
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-neutral-500">
+              Every product in this category is taxed at this rate. Leave as "No tax" and customers pay 0% GST on these products.
+            </p>
           </div>
 
           {/* Commission Rate - Only for SubSubCategories (Level 3) */}

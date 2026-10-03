@@ -5,24 +5,47 @@ import Product from "../../../models/Product";
 import {
   computeCampaignMetrics,
   completeExpiredCampaigns,
+  getBidCompetitiveness,
+  getSuggestedMinimumCpc,
 } from "../../../services/campaignService";
+
+interface ProductBidInput {
+  productId: string;
+  cpcBid: number;
+}
 
 export const createCampaign = asyncHandler(async (req: Request, res: Response) => {
   const sellerId = (req as any).user.userId;
-  const { productId, dailyBudget, totalBudget, startDate, endDate } = req.body;
+  const { products, dailyBudget, totalBudget, startDate, endDate } = req.body as {
+    products: ProductBidInput[];
+    dailyBudget: number;
+    totalBudget: number;
+    startDate: string;
+    endDate: string;
+  };
 
-  if (!productId || !dailyBudget || !totalBudget || !startDate || !endDate) {
+  if (!Array.isArray(products) || products.length === 0 || !dailyBudget || !totalBudget || !startDate || !endDate) {
     return res.status(400).json({
       success: false,
-      message: "productId, dailyBudget, totalBudget, startDate and endDate are required",
+      message: "products (at least one), dailyBudget, totalBudget, startDate and endDate are required",
     });
   }
 
-  const product = await Product.findOne({ _id: productId, seller: sellerId });
-  if (!product) {
+  for (const p of products) {
+    if (!p.productId || p.cpcBid === undefined || Number(p.cpcBid) < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Every product needs a productId and a non-negative cpcBid",
+      });
+    }
+  }
+
+  const productIds = products.map((p) => p.productId);
+  const ownedProducts = await Product.find({ _id: { $in: productIds }, seller: sellerId }).select("_id");
+  if (ownedProducts.length !== productIds.length) {
     return res.status(404).json({
       success: false,
-      message: "Product not found or doesn't belong to you",
+      message: "One or more products were not found or don't belong to you",
     });
   }
 
@@ -35,7 +58,14 @@ export const createCampaign = asyncHandler(async (req: Request, res: Response) =
 
   const campaign = await Campaign.create({
     seller: sellerId,
-    product: productId,
+    products: products.map((p) => ({
+      product: p.productId,
+      cpcBid: Number(p.cpcBid),
+      spend: 0,
+      todaySpend: 0,
+      impressions: 0,
+      clicks: 0,
+    })),
     dailyBudget: Number(dailyBudget),
     totalBudget: Number(totalBudget),
     startDate,
@@ -55,7 +85,7 @@ export const getMyCampaigns = asyncHandler(async (req: Request, res: Response) =
   await completeExpiredCampaigns();
 
   const campaigns = await Campaign.find({ seller: sellerId })
-    .populate("product", "productName mainImage price")
+    .populate("products.product", "productName mainImage price")
     .sort({ createdAt: -1 });
 
   const withMetrics = await Promise.all(
@@ -75,7 +105,13 @@ export const getMyCampaigns = asyncHandler(async (req: Request, res: Response) =
 export const updateCampaign = asyncHandler(async (req: Request, res: Response) => {
   const sellerId = (req as any).user.userId;
   const { id } = req.params;
-  const { dailyBudget, totalBudget, startDate, endDate } = req.body;
+  const { dailyBudget, totalBudget, startDate, endDate, products } = req.body as {
+    dailyBudget?: number;
+    totalBudget?: number;
+    startDate?: string;
+    endDate?: string;
+    products?: ProductBidInput[];
+  };
 
   const campaign = await Campaign.findOne({ _id: id, seller: sellerId });
   if (!campaign) {
@@ -84,7 +120,7 @@ export const updateCampaign = asyncHandler(async (req: Request, res: Response) =
   if (campaign.status === "Active" || campaign.status === "Completed") {
     return res.status(400).json({
       success: false,
-      message: "Pause the campaign before editing its budget or dates",
+      message: "Pause the campaign before editing its budget, dates, or products",
     });
   }
 
@@ -92,6 +128,43 @@ export const updateCampaign = asyncHandler(async (req: Request, res: Response) =
   if (totalBudget !== undefined) campaign.totalBudget = Number(totalBudget);
   if (startDate !== undefined) campaign.startDate = new Date(startDate);
   if (endDate !== undefined) campaign.endDate = new Date(endDate);
+
+  if (products !== undefined) {
+    if (!Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({ success: false, message: "At least one product is required" });
+    }
+    for (const p of products) {
+      if (!p.productId || p.cpcBid === undefined || Number(p.cpcBid) < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Every product needs a productId and a non-negative cpcBid",
+        });
+      }
+    }
+    const productIds = products.map((p) => p.productId);
+    const ownedProducts = await Product.find({ _id: { $in: productIds }, seller: sellerId }).select("_id");
+    if (ownedProducts.length !== productIds.length) {
+      return res.status(404).json({
+        success: false,
+        message: "One or more products were not found or don't belong to you",
+      });
+    }
+
+    // Preserve existing spend/impressions/clicks for products that stay in
+    // the campaign; new products start fresh.
+    const existingByProduct = new Map(campaign.products.map((p) => [p.product.toString(), p]));
+    campaign.products = products.map((p) => {
+      const existing = existingByProduct.get(p.productId);
+      return {
+        product: p.productId as any,
+        cpcBid: Number(p.cpcBid),
+        spend: existing?.spend || 0,
+        todaySpend: existing?.todaySpend || 0,
+        impressions: existing?.impressions || 0,
+        clicks: existing?.clicks || 0,
+      };
+    });
+  }
 
   await campaign.save();
 
@@ -158,12 +231,34 @@ export const deleteCampaign = asyncHandler(async (req: Request, res: Response) =
   return res.status(200).json({ success: true, message: "Campaign deleted successfully" });
 });
 
+/**
+ * Live feedback while a seller is choosing a bid: how their proposed CPC
+ * compares to other active bids on products in the same category, plus a
+ * suggested minimum to reference.
+ */
+export const getBidFeedback = asyncHandler(async (req: Request, res: Response) => {
+  const { categoryId, cpcBid } = req.query;
+  if (!categoryId || cpcBid === undefined) {
+    return res.status(400).json({ success: false, message: "categoryId and cpcBid are required" });
+  }
+
+  const [competitiveness, suggestedMinimum] = await Promise.all([
+    getBidCompetitiveness(categoryId as string, Number(cpcBid)),
+    getSuggestedMinimumCpc(),
+  ]);
+
+  return res.status(200).json({
+    success: true,
+    data: { ...competitiveness, suggestedMinimum },
+  });
+});
+
 // ==================== Admin ====================
 
 export const getAllCampaignsAdmin = asyncHandler(async (_req: Request, res: Response) => {
   await completeExpiredCampaigns();
   const campaigns = await Campaign.find({})
-    .populate("product", "productName mainImage")
+    .populate("products.product", "productName mainImage")
     .populate("seller", "sellerName storeName")
     .sort({ createdAt: -1 });
 

@@ -14,6 +14,7 @@ import sellerRoutes from "./sellerRoutes";
 import claimRoutes from "./claimRoutes";
 import supportTicketRoutes from "./supportTicketRoutes";
 import campaignRoutes from "./campaignRoutes";
+import rtoRoutes from "./rtoRoutes";
 import uploadRoutes from "./uploadRoutes";
 import productRoutes from "./productRoutes";
 import headerCategoryRoutes from "./headerCategoryRoutes";
@@ -172,6 +173,9 @@ router.use("/support-tickets", supportTicketRoutes);
 
 // Seller advertisement campaign routes (protected, seller only)
 router.use("/campaigns", campaignRoutes);
+
+// Seller RTO/Return dashboard routes (protected, seller only)
+router.use("/seller/rto", rtoRoutes);
 
 // Admin routes (protected, admin only)
 router.use("/admin", adminRoutes);
