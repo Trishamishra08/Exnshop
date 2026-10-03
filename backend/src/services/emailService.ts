@@ -1,15 +1,27 @@
 import nodemailer from "nodemailer";
 
-function getTransporter() {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "smtp.gmail.com",
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === "true", // false for port 587
-    auth: {
-      user: process.env.SMTP_USER || "",
-      pass: process.env.SMTP_PASS || "",
-    },
-  });
+// A fresh SMTP connection (DNS + TCP + TLS + auth handshake) adds a few
+// real seconds to every single send when created per-call — reuse one
+// pooled transporter instead, so a send right after another (e.g. a user
+// hitting "Resend") goes out over an already-open connection.
+let cachedTransporter: nodemailer.Transporter | null = null;
+
+function getTransporter(): nodemailer.Transporter {
+  if (!cachedTransporter) {
+    cachedTransporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST || "smtp.gmail.com",
+      port: Number(process.env.SMTP_PORT) || 587,
+      secure: process.env.SMTP_SECURE === "true", // false for port 587
+      auth: {
+        user: process.env.SMTP_USER || "",
+        pass: process.env.SMTP_PASS || "",
+      },
+      pool: true,
+      maxConnections: 5,
+      maxMessages: 100,
+    });
+  }
+  return cachedTransporter;
 }
 
 export interface ISupportEmailPayload {
