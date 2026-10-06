@@ -268,7 +268,10 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
   const delivery = await Delivery.findById(userId).select("-password");
 
   if (!delivery) {
-    return res.status(404).json({
+    // The token is still validly signed/unexpired, but the account it
+    // points to no longer exists (e.g. after a database reset) — treat
+    // this the same as an invalid session so the client logs out cleanly.
+    return res.status(401).json({
       success: false,
       message: "Delivery partner not found",
     });

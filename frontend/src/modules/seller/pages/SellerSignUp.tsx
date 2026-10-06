@@ -226,12 +226,14 @@ export default function SellerSignUp() {
             <p className="text-xs text-slate-500 mt-0.5">Create your Exnshop seller account</p>
           </div>
 
-          {/* Scrollable Form Body */}
-          <div className="px-5 py-4 overflow-y-auto ssignup-scroll" style={{ maxHeight: '58vh', scrollbarWidth: 'none' }}>
+          {/* Scrollable Form Body — the submit button lives outside this, in a
+              sticky footer below, so it's never pushed off-screen on a long
+              form with a hidden scrollbar (the earlier bug). */}
+          <div className="px-5 py-4 overflow-y-auto ssignup-scroll" style={{ maxHeight: '50vh', scrollbarWidth: 'none' }}>
             <style>{`.ssignup-scroll::-webkit-scrollbar{display:none}`}</style>
 
             {!showOTP ? (
-              <form onSubmit={handleSubmit}>
+              <form id="seller-signup-form" onSubmit={handleSubmit}>
 
                 {/* ── Required Info ── */}
                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Required Info</p>
@@ -418,32 +420,6 @@ export default function SellerSignUp() {
                 {/* Hidden coord fields */}
                 <input type="hidden" name="latitude" value={formData.latitude} />
                 <input type="hidden" name="longitude" value={formData.longitude} />
-
-                {/* Error */}
-                {error && (
-                  <div className="mb-3 text-xs font-medium text-red-600 bg-red-50 border border-red-200/80 p-2.5 rounded-xl text-center">{error}</div>
-                )}
-
-                {/* Submit */}
-                <button type="submit" disabled={loading}
-                  className={`w-full h-11 rounded-xl font-semibold text-sm tracking-wide transition-all flex items-center justify-center shadow-md ${!loading ? 'bg-gradient-to-r from-blue-700 via-blue-600 to-teal-600 text-white hover:from-blue-800 hover:to-teal-700 shadow-blue-900/20 cursor-pointer active:scale-[0.99]' : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none'}`}>
-                  {loading ? (
-                    <span className="inline-flex items-center gap-2 text-white">
-                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
-                      Creating Account...
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-2">
-                      Create Seller Account
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-                    </span>
-                  )}
-                </button>
-
-                <p className="text-xs text-slate-500 text-center font-medium mt-3">
-                  Already a seller?{' '}
-                  <span onClick={() => navigate('/seller/login')} className="text-blue-700 font-semibold hover:underline cursor-pointer">Log in →</span>
-                </p>
               </form>
             ) : (
               /* OTP Step */
@@ -478,6 +454,36 @@ export default function SellerSignUp() {
               </div>
             )}
           </div>
+
+          {/* Sticky action footer — always visible, never pushed off-screen
+              by the scrollable field area above. */}
+          {!showOTP && (
+            <div className="px-5 pt-3 pb-1 border-t border-slate-100">
+              {error && (
+                <div className="mb-3 text-xs font-medium text-red-600 bg-red-50 border border-red-200/80 p-2.5 rounded-xl text-center">{error}</div>
+              )}
+
+              <button type="submit" form="seller-signup-form" disabled={loading}
+                className={`w-full h-11 rounded-xl font-semibold text-sm tracking-wide transition-all flex items-center justify-center shadow-md ${!loading ? 'bg-gradient-to-r from-blue-700 via-blue-600 to-teal-600 text-white hover:from-blue-800 hover:to-teal-700 shadow-blue-900/20 cursor-pointer active:scale-[0.99]' : 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none'}`}>
+                {loading ? (
+                  <span className="inline-flex items-center gap-2 text-white">
+                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                    Creating Account...
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-2">
+                    Create Seller Account
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                  </span>
+                )}
+              </button>
+
+              <p className="text-xs text-slate-500 text-center font-medium mt-3">
+                Already a seller?{' '}
+                <span onClick={() => navigate('/seller/login')} className="text-blue-700 font-semibold hover:underline cursor-pointer">Log in →</span>
+              </p>
+            </div>
+          )}
 
           {/* Card Footer */}
           <div className="px-5 pb-4">

@@ -26,7 +26,12 @@ export default function Account() {
         }
       } catch (err: any) {
         setError(err.response?.data?.message || 'Failed to load profile');
-        if (err.response?.status === 401) {
+        // A stale token can still pass auth (valid signature, not expired)
+        // but point at a customer that no longer exists — e.g. after a
+        // database reset. Treat that the same as an expired session.
+        const status = err.response?.status;
+        const message = err.response?.data?.message;
+        if (status === 401 || (status === 404 && message === 'Customer not found')) {
           authLogout();
         }
       } finally {
@@ -107,9 +112,14 @@ export default function Account() {
       <div className="pb-24 md:pb-8 bg-white min-h-screen flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-600 mb-4">{error}</p>
-          <button onClick={() => navigate(-1)} className="px-4 py-2 bg-teal-600 text-white rounded">
-            {t("common.back", "Go Back")}
-          </button>
+          <div className="flex items-center justify-center gap-3">
+            <button onClick={() => navigate(-1)} className="px-4 py-2 bg-teal-600 text-white rounded">
+              {t("common.back", "Go Back")}
+            </button>
+            <button onClick={handleLogout} className="px-4 py-2 border border-neutral-300 text-neutral-700 rounded hover:bg-neutral-50">
+              {t("common.logout", "Logout")}
+            </button>
+          </div>
         </div>
       </div>
     );

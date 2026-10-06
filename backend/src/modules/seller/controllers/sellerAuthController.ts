@@ -345,7 +345,10 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
 
   const seller = await Seller.findById(sellerId).select("-password");
   if (!seller) {
-    return res.status(404).json({
+    // The token is still validly signed/unexpired, but the account it
+    // points to no longer exists (e.g. after a database reset) — treat
+    // this the same as an invalid session so the client logs out cleanly.
+    return res.status(401).json({
       success: false,
       message: "Seller not found",
     });
