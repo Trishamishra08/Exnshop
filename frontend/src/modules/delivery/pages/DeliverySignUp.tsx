@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   register,
-  sendOTP,
-  verifyOTP,
+  sendMobileOTP,
+  verifyMobileOTP,
 } from "../../../services/api/auth/deliveryAuthService";
 import { removeAuthToken } from "../../../services/api/config";
 import { uploadDocument } from "../../../services/api/uploadService";
@@ -132,7 +132,7 @@ export default function DeliverySignUp() {
       if (response.success) {
         removeAuthToken("delivery");
         try {
-          const otpRes = await sendOTP(formData.email);
+          const otpRes = await sendMobileOTP(formData.mobile);
           if (otpRes.sessionId) setSessionId(otpRes.sessionId);
           setShowOTP(true);
         } catch (otpErr: any) {
@@ -151,7 +151,7 @@ export default function DeliverySignUp() {
     setLoading(true);
     setError("");
     try {
-      const response = await verifyOTP(formData.email, otp, sessionId);
+      const response = await verifyMobileOTP(formData.mobile, otp, sessionId);
       if (response.success) navigate("/delivery");
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || "Invalid OTP. Please try again.");
@@ -391,8 +391,8 @@ export default function DeliverySignUp() {
               <div className="space-y-4 py-2">
                 <div className="text-center">
                   <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3 text-2xl">📱</div>
-                  <h3 className="text-base font-bold text-slate-900">Verify Your Email</h3>
-                  <p className="text-xs text-slate-500 mt-1">Enter the 6-digit code sent to <span className="font-bold text-blue-700">{formData.email}</span></p>
+                  <h3 className="text-base font-bold text-slate-900">Verify Your Mobile</h3>
+                  <p className="text-xs text-slate-500 mt-1">Enter the 6-digit code sent to <span className="font-bold text-blue-700">{formData.mobile}</span></p>
                 </div>
 
                 <div className="flex justify-center">
@@ -408,7 +408,7 @@ export default function DeliverySignUp() {
                     className="flex-1 h-10 rounded-xl font-semibold text-xs bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95 transition-all border border-slate-200 cursor-pointer flex items-center justify-center">
                     ← Back
                   </button>
-                  <button onClick={async () => { setLoading(true); setError(""); try { const r = await sendOTP(formData.email); if (r.sessionId) setSessionId(r.sessionId); } catch (e: any) { setError(e.message || "Failed to resend."); } finally { setLoading(false); } }} disabled={loading}
+                  <button onClick={async () => { setLoading(true); setError(""); try { const r = await sendMobileOTP(formData.mobile); if (r.sessionId) setSessionId(r.sessionId); } catch (e: any) { setError(e.message || "Failed to resend."); } finally { setLoading(false); } }} disabled={loading}
                     className="flex-1 h-10 rounded-xl font-semibold text-xs bg-blue-50 text-blue-700 border border-blue-200/80 hover:bg-blue-100 active:scale-95 transition-all cursor-pointer flex items-center justify-center">
                     {loading ? "Sending..." : "Resend OTP"}
                   </button>

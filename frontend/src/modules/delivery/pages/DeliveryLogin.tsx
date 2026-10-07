@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { sendOTP, verifyOTP } from '../../../services/api/auth/deliveryAuthService';
+import { sendOTP, verifyOTP, sendMobileOTP, verifyMobileOTP } from '../../../services/api/auth/deliveryAuthService';
 import OTPInput from '../../../components/OTPInput';
 import { useAuth } from '../../../context/AuthContext';
 import { removeAuthToken, getAuthToken } from '../../../services/api/config';
@@ -43,11 +43,10 @@ export default function DeliveryLogin() {
     setLoading(true);
     setError('');
     setIsNotRegistered(false);
-    const targetEmail = isValidEmail ? email : `${mobileNumber}@delivery.exnshop.com`;
     setInfoMessage(`An OTP will be sent to ${isValidEmail ? email : `+91 ${mobileNumber}`}`);
 
     try {
-      const response = await sendOTP(targetEmail);
+      const response = isValidEmail ? await sendOTP(email) : await sendMobileOTP(mobileNumber);
       if (response.success && response.sessionId) {
         setSessionId(response.sessionId);
         setShowOTP(true);
@@ -76,10 +75,10 @@ export default function DeliveryLogin() {
     setLoading(true);
     setError('');
 
-    const targetEmail = isValidEmail ? email : `${mobileNumber}@delivery.exnshop.com`;
-
     try {
-      const response = await verifyOTP(targetEmail, otp, sessionId);
+      const response = isValidEmail
+        ? await verifyOTP(email, otp, sessionId)
+        : await verifyMobileOTP(mobileNumber, otp, sessionId);
       if (response.success && response.data) {
         login(response.data.token, {
           ...response.data.user,

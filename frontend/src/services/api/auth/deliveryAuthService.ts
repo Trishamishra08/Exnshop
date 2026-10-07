@@ -68,6 +68,11 @@ export const sendOTP = async (email: string): Promise<SendOTPResponse> => {
   return response.data;
 };
 
+export const sendMobileOTP = async (mobile: string): Promise<SendOTPResponse> => {
+  const response = await api.post('/auth/delivery/send-sms-otp', { mobile });
+  return response.data;
+};
+
 // Verify email OTP
 export const verifyOTP = async (
   email: string,
@@ -76,6 +81,28 @@ export const verifyOTP = async (
 ): Promise<VerifyOTPResponse> => {
   const response = await api.post('/auth/delivery/verify-sms-otp', {
     email,
+    otp,
+    sessionId,
+  });
+
+  if (response.data.success && response.data.data?.token) {
+    const userData = {
+      ...response.data.data.user,
+      userType: 'Delivery' as const,
+    };
+    setAuthToken(response.data.data.token, 'Delivery', userData);
+  }
+
+  return response.data;
+};
+
+export const verifyMobileOTP = async (
+  mobile: string,
+  otp: string,
+  sessionId?: string
+): Promise<VerifyOTPResponse> => {
+  const response = await api.post('/auth/delivery/verify-sms-otp', {
+    mobile,
     otp,
     sessionId,
   });
