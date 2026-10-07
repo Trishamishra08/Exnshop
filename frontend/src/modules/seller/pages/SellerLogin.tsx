@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { sendOTP, verifyOTP } from '../../../services/api/auth/sellerAuthService';
+import { sendOTP, verifyOTP, sendMobileOTP, verifyMobileOTP } from '../../../services/api/auth/sellerAuthService';
 import OTPInput from '../../../components/OTPInput';
 import { useAuth } from '../../../context/AuthContext';
 import AnimatedLogo from '../../../components/AnimatedLogo';
@@ -32,11 +32,10 @@ export default function SellerLogin() {
 
     setLoading(true);
     setError('');
-    const targetEmail = isValidEmail ? email : `${mobileNumber}@seller.exnshop.com`;
     setInfoMessage(`An OTP will be sent to ${isValidEmail ? email : `+91 ${mobileNumber}`}`);
 
     try {
-      const response = await sendOTP(targetEmail);
+      const response = isValidEmail ? await sendOTP(email) : await sendMobileOTP(mobileNumber);
       if (response.success) {
         setShowOTP(true);
         setInfoMessage('');
@@ -56,10 +55,8 @@ export default function SellerLogin() {
     setLoading(true);
     setError('');
 
-    const targetEmail = isValidEmail ? email : `${mobileNumber}@seller.exnshop.com`;
-
     try {
-      const response = await verifyOTP(targetEmail, otp);
+      const response = isValidEmail ? await verifyOTP(email, otp) : await verifyMobileOTP(mobileNumber, otp);
       if (response.success && response.data) {
         login(response.data.token, {
           id: response.data.user.id,

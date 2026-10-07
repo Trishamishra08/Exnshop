@@ -192,6 +192,15 @@ export default function GoogleMapsAutocomplete({
         disabled={disabled}
         required={required}
         autoComplete="off"
+        onKeyDown={(e) => {
+          // Enter here means "pick the highlighted Places suggestion," not
+          // "submit the form" — inside a <form>, the browser's default Enter
+          // behavior submits it the instant a suggestion is chosen, so block
+          // that and let the Places widget's own selection handling run.
+          if (e.key === "Enter") {
+            e.preventDefault();
+          }
+        }}
       />
       {error && apiKey && (
         <p className="mt-1 text-xs text-red-600">{error}</p>
