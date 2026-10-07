@@ -501,6 +501,13 @@ export default function Categories() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
                           </svg>
                         </div>
+
+                        {/* Bestseller ribbon */}
+                        {category.isBestseller && (
+                          <div className="absolute top-1 left-1 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
+                            {t("common.bestseller", "Bestseller")}
+                          </div>
+                        )}
                       </div>
 
                       {/* Category Name below container - max 2 lines, clean line-wrapping */}

@@ -824,6 +824,7 @@ export async function sendEmailOtp(
   userType: "Seller" | "Admin" | "Customer" | "Delivery",
   recipientName?: string,
   purpose: OtpPurpose = "login",
+  awaitDelivery: boolean = false,
 ): Promise<OtpResponse> {
   try {
     const otp = generateOTP(6);
@@ -844,11 +845,22 @@ export async function sendEmailOtp(
       console.log(`[EMAIL OTP DEBUG] Generated OTP for ${email}: ${otp}`);
     }
 
-    // Best-effort real send — never blocks login if the SMTP provider hiccups
-    // in dev; the OTP is already saved and the universal bypass still works.
-    sendOtpEmail(email, recipientName || "there", otp, userType as OtpUserType, purpose).catch((err) =>
-      console.error("Failed to send email OTP:", err),
-    );
+    if (awaitDelivery) {
+      // Caller needs to know the send actually succeeded (e.g. seller signup,
+      // where we roll back the just-created account if the email never goes
+      // out) — so wait for it and surface a real failure instead of lying.
+      const result = await sendOtpEmail(email, recipientName || "there", otp, userType as OtpUserType, purpose);
+      if (!result.success) {
+        await EmailOtp.deleteMany({ email: email.trim().toLowerCase(), userType });
+        throw new Error(result.error || "Failed to send verification email");
+      }
+    } else {
+      // Best-effort real send — never blocks login if the SMTP provider hiccups
+      // in dev; the OTP is already saved and the universal bypass still works.
+      sendOtpEmail(email, recipientName || "there", otp, userType as OtpUserType, purpose).catch((err) =>
+        console.error("Failed to send email OTP:", err),
+      );
+    }
 
     return {
       success: true,

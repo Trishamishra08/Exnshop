@@ -17,6 +17,7 @@ export interface Category {
     subcategories?: Category[];
     headerCategoryId?: string | { _id: string; name?: string };
     totalProducts?: number;
+    isBestseller?: boolean;
 }
 
 export interface GetProductsParams {

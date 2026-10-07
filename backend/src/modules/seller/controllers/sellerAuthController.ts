@@ -315,6 +315,23 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     channels,
   });
 
+  // Signup isn't complete until the email is actually verifiable — if the
+  // verification email can't be delivered (bad SMTP creds, provider outage,
+  // etc.), undo the account instead of leaving an orphaned Pending seller
+  // that the person can never log into and can't re-register over (mobile
+  // and email are unique).
+  try {
+    await sendEmailOtp(email, "Seller", sellerName, "register", true);
+  } catch (otpErr: any) {
+    await Seller.deleteOne({ _id: seller._id });
+    return res.status(502).json({
+      success: false,
+      message:
+        otpErr.message ||
+        "Couldn't send the verification email. Please check your email address and try again.",
+    });
+  }
+
   // Generate token
   const token = generateToken(seller._id.toString(), "Seller");
 

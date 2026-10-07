@@ -121,12 +121,7 @@ export default function SellerSignUp() {
       });
       if (response.success) {
         removeAuthToken('seller');
-        try {
-          await sendOTP(formData.email);
-          setShowOTP(true);
-        } catch (otpErr: any) {
-          setError(otpErr.response?.data?.message || 'Registration successful but failed to send OTP.');
-        }
+        setShowOTP(true);
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed. Please try again.');
