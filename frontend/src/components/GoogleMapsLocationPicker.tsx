@@ -134,6 +134,21 @@ export default function GoogleMapsLocationPicker({
                                 }
                             }
 
+                            // Last resort: some precise/rural pins have no
+                            // postal_code component on ANY result at all, but
+                            // Indian pincodes (6 digits) almost always still
+                            // show up inside the plain formatted_address text
+                            // (e.g. "...Indore, Madhya Pradesh 452001, India").
+                            if (!pincode) {
+                                for (const result of results) {
+                                    const match = result.formatted_address?.match(/\b\d{6}\b/);
+                                    if (match) {
+                                        pincode = match[0];
+                                        break;
+                                    }
+                                }
+                            }
+
                             onLocationSelect(lat, lng, {
                                 street: street.trim() || results[0].formatted_address || '',
                                 city,
