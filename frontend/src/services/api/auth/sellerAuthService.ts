@@ -44,7 +44,9 @@ export interface RegisterData {
 export interface RegisterResponse {
   success: boolean;
   message: string;
-  data: {
+  // register() now only stages a draft and sends the OTP — the real account
+  // (and this data) only exists after verify-otp succeeds.
+  data?: {
     token: string;
     user: {
       id: string;

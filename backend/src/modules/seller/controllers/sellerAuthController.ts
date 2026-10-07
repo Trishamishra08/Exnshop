@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import Seller from "../../../models/Seller";
+import PendingSellerRegistration from "../../../models/PendingSellerRegistration";
 import {
   sendOTP as sendOTPService,
   verifyOTP as verifyOTPService,
@@ -51,20 +52,26 @@ export const sendOTP = asyncHandler(async (req: Request, res: Response) => {
       });
     }
 
-    const seller = await Seller.findOne({ email: email.toLowerCase().trim() });
+    const normalizedEmail = email.toLowerCase().trim();
+    const seller = await Seller.findOne({ email: normalizedEmail });
+
+    // Resend during an in-progress signup: no real Seller yet, but a staged
+    // draft exists — resend against that instead of requiring an account.
+    let recipientName = seller?.sellerName;
+    let purpose: "register" | "login" = "login";
     if (!seller) {
-      return res.status(404).json({
-        success: false,
-        message: "No seller account found with this email",
-      });
+      const pending = await PendingSellerRegistration.findOne({ email: normalizedEmail });
+      if (!pending) {
+        return res.status(404).json({
+          success: false,
+          message: "No seller account or pending signup found with this email",
+        });
+      }
+      recipientName = pending.sellerName;
+      purpose = "register";
     }
 
-    // A seller registers via a plain form (no OTP at signup) then the frontend
-    // immediately calls this same endpoint to verify their email — treat an
-    // account created moments ago as "just registered" for a welcome-toned
-    // email instead of a plain login code.
-    const isJustRegistered = Date.now() - new Date(seller.createdAt).getTime() < 5 * 60 * 1000;
-    const result = await sendEmailOtp(email, "Seller", seller.sellerName, isJustRegistered ? "register" : "login");
+    const result = await sendEmailOtp(email, "Seller", recipientName, purpose, true);
     return res.status(200).json({
       success: true,
       message: result.message,
@@ -121,7 +128,46 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
         message: "OTP should be valid. Please try again.",
       });
     }
-    seller = await Seller.findOne({ email: email.toLowerCase().trim() }).select("-password");
+    const normalizedEmail = email.toLowerCase().trim();
+    seller = await Seller.findOne({ email: normalizedEmail }).select("-password");
+
+    // No existing account yet — this verification is completing a signup,
+    // not a login. Promote the staged draft into the real Seller collection
+    // now that the OTP has actually been confirmed.
+    if (!seller) {
+      const pending = await PendingSellerRegistration.findOne({ email: normalizedEmail });
+      if (!pending) {
+        return res.status(404).json({
+          success: false,
+          message: "Your signup session expired. Please sign up again.",
+        });
+      }
+
+      seller = await Seller.create({
+        sellerName: pending.sellerName,
+        mobile: pending.mobile,
+        email: pending.email,
+        storeName: pending.storeName,
+        category: pending.category,
+        address: pending.address,
+        city: pending.city,
+        ...(pending.serviceableArea && { serviceableArea: pending.serviceableArea }),
+        searchLocation: pending.searchLocation,
+        latitude: pending.latitude,
+        longitude: pending.longitude,
+        location: pending.location,
+        serviceRadiusKm: pending.serviceRadiusKm,
+        status: "Pending",
+        requireProductApproval: false,
+        viewCustomerDetails: false,
+        commission: 0,
+        balance: 0,
+        categories: pending.categories,
+        channels: pending.channels,
+      });
+
+      await PendingSellerRegistration.deleteOne({ _id: pending._id });
+    }
   } else {
     if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
       return res.status(400).json({
@@ -266,7 +312,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  // Check if seller already exists
+  // Check if a real (verified) seller already exists
   const existingSeller = await Seller.findOne({
     $or: [{ mobile }, { email }],
   });
@@ -287,12 +333,15 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
         }
       : undefined;
 
-  // Create new seller with GeoJSON location (password not required during signup)
-  const seller = await Seller.create({
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Nothing touches the real Seller collection yet — stage the signup as a
+  // draft keyed by email, so re-submitting (e.g. after a failed OTP send)
+  // just replaces the previous draft instead of erroring.
+  const pendingData = {
     sellerName,
     mobile,
-    email,
-    // password field removed - sellers don't need password during signup
+    email: normalizedEmail,
     storeName,
     category,
     address,
@@ -301,29 +350,27 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     searchLocation: req.body.searchLocation,
     latitude: latitude != null ? latitude.toString() : undefined,
     longitude: longitude != null ? longitude.toString() : undefined,
-    location, // GeoJSON location for geospatial queries
-    serviceRadiusKm, // Service radius in kilometers
-    status: "Pending",
-    requireProductApproval: false,
-    viewCustomerDetails: false,
-    commission: 0,
-    balance: 0,
+    location,
+    serviceRadiusKm,
     categories:
       Array.isArray(req.body.categories) && req.body.categories.length > 0
         ? req.body.categories
         : [category],
     channels,
-  });
+  };
 
-  // Signup isn't complete until the email is actually verifiable — if the
-  // verification email can't be delivered (bad SMTP creds, provider outage,
-  // etc.), undo the account instead of leaving an orphaned Pending seller
-  // that the person can never log into and can't re-register over (mobile
-  // and email are unique).
+  await PendingSellerRegistration.findOneAndUpdate(
+    { email: normalizedEmail },
+    pendingData,
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+
+  // Draft is saved — now try to actually deliver the OTP. If this fails, the
+  // draft stays (so "Resend OTP" can retry) but we tell the caller honestly
+  // instead of claiming success.
   try {
     await sendEmailOtp(email, "Seller", sellerName, "register", true);
   } catch (otpErr: any) {
-    await Seller.deleteOne({ _id: seller._id });
     return res.status(502).json({
       success: false,
       message:
@@ -332,25 +379,9 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  // Generate token
-  const token = generateToken(seller._id.toString(), "Seller");
-
-  return res.status(201).json({
+  return res.status(200).json({
     success: true,
-    message: "Seller registered successfully. Awaiting admin approval.",
-    data: {
-      token,
-      user: {
-        id: seller._id,
-        sellerName: seller.sellerName,
-        mobile: seller.mobile,
-        email: seller.email,
-        storeName: seller.storeName,
-        status: seller.status,
-        address: seller.address,
-        city: seller.city,
-      },
-    },
+    message: "Verification code sent. Please check your email to complete signup.",
   });
 });
 
