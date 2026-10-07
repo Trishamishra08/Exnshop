@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { sendOTP, verifyOTP, sendMobileOTP, verifyMobileOTP } from '../../../services/api/auth/sellerAuthService';
+import { sendMobileOTP, verifyMobileOTP } from '../../../services/api/auth/sellerAuthService';
 import OTPInput from '../../../components/OTPInput';
 import { useAuth } from '../../../context/AuthContext';
 import AnimatedLogo from '../../../components/AnimatedLogo';
@@ -10,7 +10,6 @@ export default function SellerLogin() {
   const location = useLocation();
   const { login } = useAuth();
 
-  const [email, setEmail] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
   const [showOTP, setShowOTP] = useState(false);
@@ -20,22 +19,20 @@ export default function SellerLogin() {
   const [bgImgOk, setBgImgOk] = useState(true);
   const [showForgotModal, setShowForgotModal] = useState(false);
 
-  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const isValidMobile = mobileNumber.length === 10;
-  const isFormValid = isValidEmail || isValidMobile;
+  const isFormValid = mobileNumber.length === 10;
 
   const handleLogin = async () => {
     if (!isFormValid) {
-      setError('Please enter a valid email address or 10-digit mobile number');
+      setError('Please enter a valid 10-digit mobile number');
       return;
     }
 
     setLoading(true);
     setError('');
-    setInfoMessage(`An OTP will be sent to ${isValidEmail ? email : `+91 ${mobileNumber}`}`);
+    setInfoMessage(`An OTP will be sent to +91 ${mobileNumber}`);
 
     try {
-      const response = isValidEmail ? await sendOTP(email) : await sendMobileOTP(mobileNumber);
+      const response = await sendMobileOTP(mobileNumber);
       if (response.success) {
         setShowOTP(true);
         setInfoMessage('');
@@ -56,7 +53,7 @@ export default function SellerLogin() {
     setError('');
 
     try {
-      const response = isValidEmail ? await verifyOTP(email, otp) : await verifyMobileOTP(mobileNumber, otp);
+      const response = await verifyMobileOTP(mobileNumber, otp);
       if (response.success && response.data) {
         login(response.data.token, {
           id: response.data.user.id,
@@ -178,29 +175,8 @@ export default function SellerLogin() {
                   Seller Login
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 font-normal mt-0.5">
-                  Enter your email or mobile number to continue
+                  Enter your mobile number to continue
                 </p>
-              </div>
-
-              {/* Email Address Input */}
-              <div className="w-full mb-3">
-                <div className="flex items-center h-11 sm:h-12 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:bg-white focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/15 transition-all shadow-xs">
-                  <div className="w-11 h-full bg-slate-100/90 border-r border-slate-200/90 text-slate-500 flex items-center justify-center flex-shrink-0">
-                    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect width="20" height="16" x="2" y="4" rx="2" />
-                      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                    </svg>
-                  </div>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => { setEmail(e.target.value.trim()); setError(''); }}
-                    placeholder="Enter your email address"
-                    className="flex-1 h-full px-3.5 text-sm sm:text-base font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none bg-transparent"
-                    disabled={loading}
-                    autoFocus
-                  />
-                </div>
               </div>
 
               {/* Mobile Number Input */}
@@ -218,6 +194,7 @@ export default function SellerLogin() {
                     className="flex-1 h-full px-3.5 text-sm sm:text-base font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none bg-transparent"
                     maxLength={10}
                     disabled={loading}
+                    autoFocus
                   />
                 </div>
               </div>
@@ -306,9 +283,7 @@ export default function SellerLogin() {
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 font-normal mt-1">
                   Enter the 6-digit code sent to{' '}
-                  <span className="font-bold text-blue-700">
-                    {isValidEmail ? email : `+91 ${mobileNumber}`}
-                  </span>
+                  <span className="font-bold text-blue-700">+91 {mobileNumber}</span>
                 </p>
               </div>
 
@@ -376,7 +351,7 @@ export default function SellerLogin() {
             </div>
             <h3 className="text-lg font-bold text-slate-900">Forgot Login Details?</h3>
             <p className="text-xs text-slate-600 mt-2 leading-relaxed">
-              Please enter your registered email address or mobile number on the login screen to receive a one-time OTP for direct login.
+              Please enter your registered mobile number on the login screen to receive a one-time OTP for direct login.
             </p>
             <p className="text-xs text-slate-500 mt-2">
               For assistance, email Seller Support at <strong className="text-slate-800">support@exnshop.com</strong>
