@@ -68,11 +68,30 @@ export const sendOTP = async (email: string): Promise<SendOTPResponse> => {
   return response.data;
 };
 
+export const sendMobileOTP = async (mobile: string): Promise<SendOTPResponse> => {
+  const response = await api.post<SendOTPResponse>('/auth/seller/send-otp', { mobile });
+  return response.data;
+};
+
 /**
  * Verify OTP and login seller
  */
 export const verifyOTP = async (email: string, otp: string): Promise<VerifyOTPResponse> => {
   const response = await api.post<VerifyOTPResponse>('/auth/seller/verify-otp', { email, otp });
+
+  if (response.data.success && response.data.data?.token) {
+    const userData = {
+      ...response.data.data.user,
+      userType: 'Seller' as const,
+    };
+    setAuthToken(response.data.data.token, 'Seller', userData);
+  }
+
+  return response.data;
+};
+
+export const verifyMobileOTP = async (mobile: string, otp: string): Promise<VerifyOTPResponse> => {
+  const response = await api.post<VerifyOTPResponse>('/auth/seller/verify-otp', { mobile, otp });
 
   if (response.data.success && response.data.data?.token) {
     const userData = {

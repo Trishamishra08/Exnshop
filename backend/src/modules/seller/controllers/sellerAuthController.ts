@@ -86,13 +86,17 @@ export const sendOTP = asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  // Check if seller exists with this mobile
+  // Resend during an in-progress signup: no real Seller yet, but a staged
+  // draft exists — resend against that instead of requiring an account.
   const seller = await Seller.findOne({ mobile });
   if (!seller) {
-    return res.status(404).json({
-      success: false,
-      message: "Seller not found with this mobile number",
-    });
+    const pending = await PendingSellerRegistration.findOne({ mobile });
+    if (!pending) {
+      return res.status(404).json({
+        success: false,
+        message: "Seller not found with this mobile number",
+      });
+    }
   }
 
   // Send OTP - for login, always use default OTP
@@ -184,6 +188,44 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
       });
     }
     seller = await Seller.findOne({ mobile }).select("-password");
+
+    // No existing account yet — this verification is completing a signup,
+    // not a login. Promote the staged draft into the real Seller collection
+    // now that the OTP has actually been confirmed.
+    if (!seller) {
+      const pending = await PendingSellerRegistration.findOne({ mobile });
+      if (!pending) {
+        return res.status(404).json({
+          success: false,
+          message: "Your signup session expired. Please sign up again.",
+        });
+      }
+
+      seller = await Seller.create({
+        sellerName: pending.sellerName,
+        mobile: pending.mobile,
+        email: pending.email,
+        storeName: pending.storeName,
+        category: pending.category,
+        address: pending.address,
+        city: pending.city,
+        ...(pending.serviceableArea && { serviceableArea: pending.serviceableArea }),
+        searchLocation: pending.searchLocation,
+        latitude: pending.latitude,
+        longitude: pending.longitude,
+        location: pending.location,
+        serviceRadiusKm: pending.serviceRadiusKm,
+        status: "Pending",
+        requireProductApproval: false,
+        viewCustomerDetails: false,
+        commission: 0,
+        balance: 0,
+        categories: pending.categories,
+        channels: pending.channels,
+      });
+
+      await PendingSellerRegistration.deleteOne({ _id: pending._id });
+    }
   }
 
   if (!seller) {
@@ -336,8 +378,8 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   const normalizedEmail = email.toLowerCase().trim();
 
   // Nothing touches the real Seller collection yet — stage the signup as a
-  // draft keyed by email, so re-submitting (e.g. after a failed OTP send)
-  // just replaces the previous draft instead of erroring.
+  // draft keyed by mobile (the OTP channel), so re-submitting (e.g. after a
+  // failed OTP send) just replaces the previous draft instead of erroring.
   const pendingData = {
     sellerName,
     mobile,
@@ -360,28 +402,29 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   };
 
   await PendingSellerRegistration.findOneAndUpdate(
-    { email: normalizedEmail },
+    { mobile },
     pendingData,
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
 
   // Draft is saved — now try to actually deliver the OTP. If this fails, the
   // draft stays (so "Resend OTP" can retry) but we tell the caller honestly
-  // instead of claiming success.
+  // instead of claiming success. Under OTP_UNIVERSAL_BYPASS (the default),
+  // this always resolves immediately with no real SMS sent.
   try {
-    await sendEmailOtp(email, "Seller", sellerName, "register", true);
+    await sendOTPService(mobile, "Seller", true);
   } catch (otpErr: any) {
     return res.status(502).json({
       success: false,
       message:
         otpErr.message ||
-        "Couldn't send the verification email. Please check your email address and try again.",
+        "Couldn't send the verification code. Please check your mobile number and try again.",
     });
   }
 
   return res.status(200).json({
     success: true,
-    message: "Verification code sent. Please check your email to complete signup.",
+    message: "Verification code sent. Please check your mobile to complete signup.",
   });
 });
 
