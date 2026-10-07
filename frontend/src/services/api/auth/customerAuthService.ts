@@ -27,21 +27,20 @@ export interface VerifyOTPResponse {
 }
 
 /**
- * Send OTP to customer email. Login now runs on email+OTP — there's no live
- * SMS OTP provider yet, so mobile is collected but no longer OTP-verified.
+ * Send OTP to customer mobile (real SMS, or the fixed 123456 test code under
+ * OTP_UNIVERSAL_BYPASS — no live SMS provider required for that).
  */
-export const sendOTP = async (email: string): Promise<SendOTPResponse> => {
-  const response = await api.post<SendOTPResponse>('/auth/customer/send-sms-otp', { email });
+export const sendOTP = async (mobile: string): Promise<SendOTPResponse> => {
+  const response = await api.post<SendOTPResponse>('/auth/customer/send-sms-otp', { mobile });
   return response.data;
 };
 
 /**
- * Verify email OTP and login customer. `mobile` is required only the first
- * time (new account creation) — pass it every time, it's ignored for
- * existing accounts.
+ * Verify mobile OTP and login customer. `email` is optional and only
+ * attached to the account if provided.
  */
-export const verifyOTP = async (email: string, otp: string, sessionId?: string, mobile?: string): Promise<VerifyOTPResponse> => {
-  const response = await api.post<VerifyOTPResponse>('/auth/customer/verify-sms-otp', { email, otp, sessionId, mobile });
+export const verifyOTP = async (mobile: string, otp: string, sessionId?: string, email?: string): Promise<VerifyOTPResponse> => {
+  const response = await api.post<VerifyOTPResponse>('/auth/customer/verify-sms-otp', { mobile, otp, sessionId, email });
 
   if (response.data.success && response.data.data.token) {
     const userData = {

@@ -24,18 +24,17 @@ export default function Login({ mode = 'login' }: LoginProps) {
   const [infoMessage, setInfoMessage] = useState('');
   const [bgImgOk, setBgImgOk] = useState(true);
 
-  const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const canContinue = isValidEmail && mobileNumber.length === 10;
+const canContinue = mobileNumber.length === 10;
 
   const handleContinue = async () => {
     if (!canContinue) return;
 
     setLoading(true);
     setError('');
-    setInfoMessage('An OTP will be sent to your email');
+    setInfoMessage('An OTP will be sent to your mobile number');
 
     try {
-      const response = await sendOTP(email);
+      const response = await sendOTP(mobileNumber);
       if (response.sessionId) {
         setSessionId(response.sessionId);
       }
@@ -54,7 +53,7 @@ export default function Login({ mode = 'login' }: LoginProps) {
     setError('');
 
     try {
-      const response = await verifyOTP(email, otp, sessionId, mobileNumber);
+      const response = await verifyOTP(mobileNumber, otp, sessionId, email || undefined);
       if (response.success && response.data) {
         const userData = {
           id: response.data.user.id,
@@ -177,11 +176,11 @@ export default function Login({ mode = 'login' }: LoginProps) {
                   {isSignup ? 'Sign up' : 'Log in'}
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 font-normal mt-1">
-                  Enter your email and mobile number to continue
+                  Enter your mobile number to continue
                 </p>
               </div>
 
-              {/* Email Input */}
+              {/* Email Input (optional) */}
               <div className="w-full mb-3.5">
                 <div className="flex items-center h-12 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:bg-white focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/15 transition-all shadow-xs">
                   <div className="w-11 h-full flex items-center justify-center text-slate-400 flex-shrink-0">
@@ -194,7 +193,7 @@ export default function Login({ mode = 'login' }: LoginProps) {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value.trim())}
-                    placeholder="Enter your email address"
+                    placeholder="Enter your email address (optional)"
                     className="flex-1 h-full pr-3.5 text-sm sm:text-base font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none bg-transparent"
                     disabled={loading}
                     autoFocus
@@ -286,11 +285,11 @@ export default function Login({ mode = 'login' }: LoginProps) {
               {/* OTP Verification Header */}
               <div className="w-full mb-4 text-center">
                 <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                  Verify Email
+                  Verify Mobile
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 font-normal mt-1">
                   Enter the 6-digit code sent to{' '}
-                  <span className="font-bold text-blue-700">{email}</span>
+                  <span className="font-bold text-blue-700">+91 {mobileNumber}</span>
                 </p>
               </div>
 
