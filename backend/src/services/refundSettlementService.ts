@@ -7,6 +7,7 @@ import Return from "../models/Return";
 import Customer from "../models/Customer";
 import Refund from "../models/Refund";
 import { processRefund } from "./paymentService";
+import { processCashfreeRefundForPayment } from "./cashfreeService";
 import { debitWallet, creditWallet } from "./walletManagementService";
 
 export interface IItemRefundCalculation {
@@ -145,15 +146,22 @@ export const handleOnlineOrderCancellation = async (
           : await Payment.findOne({ $or: queryOrs });
 
         if (payment && payment.status !== "Refunded") {
-          const refundResult = await processRefund(
-            payment._id.toString(),
-            onlineAmountToRefund,
-            cancellationReason || "Order cancelled before delivery",
-            session || undefined
-          );
+          const refundResult = payment.paymentGateway === "Cashfree"
+            ? await processCashfreeRefundForPayment(
+                payment._id.toString(),
+                onlineAmountToRefund,
+                cancellationReason || "Order cancelled before delivery",
+                session || undefined
+              )
+            : await processRefund(
+                payment._id.toString(),
+                onlineAmountToRefund,
+                cancellationReason || "Order cancelled before delivery",
+                session || undefined
+              );
 
           if (!refundResult.success) {
-            throw new Error(refundResult.message || "Failed to process Razorpay online refund");
+            throw new Error(refundResult.message || "Failed to process online refund");
           }
 
           payment.status = "Refunded";
@@ -446,22 +454,29 @@ export const executeReturnRefundAndReversal = async (
       if (remainingProductRefund > 0) {
         if (order.onlineAmountPaid && order.onlineAmountPaid > 0) {
           matchedPayment = await Payment.findOne({
-            $or: [{ order: order._id }, { razorpayPaymentId: order.paymentId }]
+            $or: [{ order: order._id }, { razorpayPaymentId: order.paymentId }, { cashfreeOrderId: order.paymentId }]
           }).session(session);
 
-          if (matchedPayment && matchedPayment.razorpayPaymentId) {
-            const razorpayRefundAmount = Math.min(order.onlineAmountPaid, remainingProductRefund);
-            const refundResult = await processRefund(
-              matchedPayment._id.toString(),
-              razorpayRefundAmount,
-              `Return refund for order #${order.orderNumber}`,
-              session
-            );
+          if (matchedPayment && (matchedPayment.razorpayPaymentId || matchedPayment.cashfreeOrderId)) {
+            const onlineRefundAmount = Math.min(order.onlineAmountPaid, remainingProductRefund);
+            const refundResult = matchedPayment.paymentGateway === "Cashfree"
+              ? await processCashfreeRefundForPayment(
+                  matchedPayment._id.toString(),
+                  onlineRefundAmount,
+                  `Return refund for order #${order.orderNumber}`,
+                  session
+                )
+              : await processRefund(
+                  matchedPayment._id.toString(),
+                  onlineRefundAmount,
+                  `Return refund for order #${order.orderNumber}`,
+                  session
+                );
 
             if (refundResult.success) {
-              refundDetails.razorpayRefundAmount = razorpayRefundAmount;
+              refundDetails.razorpayRefundAmount = onlineRefundAmount;
               refundDetails.refundResult = refundResult.data;
-              matchedPayment.refundAmount = (matchedPayment.refundAmount || 0) + razorpayRefundAmount;
+              matchedPayment.refundAmount = (matchedPayment.refundAmount || 0) + onlineRefundAmount;
               if (matchedPayment.refundAmount >= order.total) {
                 matchedPayment.status = "Refunded";
                 order.paymentStatus = "Refunded";
@@ -471,7 +486,7 @@ export const executeReturnRefundAndReversal = async (
               await matchedPayment.save({ session });
               await order.save({ session });
             } else {
-              console.warn(`[RETURN REFUND] Razorpay refund note: ${refundResult.message}`);
+              console.warn(`[RETURN REFUND] Online refund note: ${refundResult.message}`);
             }
           }
         }

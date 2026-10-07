@@ -37,6 +37,40 @@ export const verifyPayment = async (paymentData: {
 };
 
 /**
+ * Create Cashfree order for payment. Pass a single order id for an ordinary
+ * checkout, or an array (a mixed Quick + E-commerce checkout) to have one
+ * Cashfree charge cover both linked orders.
+ */
+export const createCashfreeOrder = async (orderIdOrIds: string | string[]) => {
+    try {
+        const body = Array.isArray(orderIdOrIds) ? { orderIds: orderIdOrIds } : { orderId: orderIdOrIds };
+        const response = await api.post('/payment/cashfree/create-order', body);
+        return response.data;
+    } catch (error: any) {
+        console.error('Error creating Cashfree order:', error);
+        throw error;
+    }
+};
+
+/**
+ * Verify payment after Cashfree checkout closes. Pass `orderId` for a single
+ * order, or `orderIds` for a mixed checkout's linked orders.
+ */
+export const verifyCashfreePayment = async (paymentData: {
+    orderId?: string;
+    orderIds?: string[];
+    cfOrderId: string;
+}) => {
+    try {
+        const response = await api.post('/payment/cashfree/verify', paymentData);
+        return response.data;
+    } catch (error: any) {
+        console.error('Error verifying Cashfree payment:', error);
+        throw error;
+    }
+};
+
+/**
  * Get payment history (if needed)
  */
 export const getPaymentHistory = async () => {

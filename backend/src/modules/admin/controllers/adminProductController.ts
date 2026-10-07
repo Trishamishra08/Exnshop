@@ -144,7 +144,7 @@ export const createCategory = asyncHandler(
     });
 
     // Invalidate category caches
-    cache.delete("customer-categories-list");
+    cache.delete("customer-categories-list-v3");
     cache.delete("customer-categories-tree");
     cache.invalidatePattern(/^customer-category-/);
 
@@ -350,7 +350,7 @@ export const updateCategory = asyncHandler(
       .populate("taxId", "name percentage status");
 
     // Invalidate category caches
-    cache.delete("customer-categories-list");
+    cache.delete("customer-categories-list-v3");
     cache.delete("customer-categories-tree");
     cache.invalidatePattern(/^customer-category-/);
 
@@ -408,7 +408,7 @@ export const deleteCategory = asyncHandler(
     }
 
     // Invalidate category caches
-    cache.delete("customer-categories-list");
+    cache.delete("customer-categories-list-v3");
     cache.delete("customer-categories-tree");
     cache.invalidatePattern(/^customer-category-/);
 

@@ -25,3 +25,19 @@ declare module '*.webp' {
   export default value;
 }
 
+declare module '@cashfreepayments/cashfree-js' {
+  interface CashfreeCheckoutOptions {
+    paymentSessionId: string;
+    redirectTarget?: '_self' | '_blank' | '_modal' | HTMLElement;
+  }
+  interface CashfreeCheckoutResult {
+    error?: { message: string; [key: string]: any };
+    redirect?: boolean;
+    paymentDetails?: { paymentMessage?: string; [key: string]: any };
+  }
+  interface Cashfree {
+    checkout: (options: CashfreeCheckoutOptions) => Promise<CashfreeCheckoutResult>;
+  }
+  export function load(options: { mode: 'sandbox' | 'production' }): Promise<Cashfree>;
+}
+

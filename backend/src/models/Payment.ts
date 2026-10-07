@@ -15,6 +15,10 @@ export interface IPayment extends Document {
   razorpayPaymentId?: string;
   razorpaySignature?: string;
 
+  // Cashfree Specific
+  cashfreeOrderId?: string;
+  cashfreePaymentId?: string;
+
   // Amount
   amount: number;
   currency: string;
@@ -96,6 +100,16 @@ const PaymentSchema = new Schema<IPayment>(
       trim: true,
     },
     razorpaySignature: {
+      type: String,
+      trim: true,
+    },
+
+    // Cashfree Specific
+    cashfreeOrderId: {
+      type: String,
+      trim: true,
+    },
+    cashfreePaymentId: {
       type: String,
       trim: true,
     },

@@ -89,7 +89,17 @@ app.use(cors(corsOptions));
 
 import path from "path";
 
-app.use(express.json());
+// Capture the raw request body bytes alongside the parsed JSON — needed by
+// webhook signature checks (e.g. Cashfree's) that must HMAC the exact bytes
+// the sender signed, not a re-serialized copy of the parsed object (key
+// order/whitespace can differ and silently break verification).
+app.use(
+  express.json({
+    verify: (req: any, _res, buf) => {
+      req.rawBody = buf;
+    },
+  })
+);
 app.use(express.urlencoded({ extended: true }));
 
 // Serve local uploaded files statically

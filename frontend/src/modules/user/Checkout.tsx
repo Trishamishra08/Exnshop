@@ -38,6 +38,7 @@ import { addToWishlist } from "../../services/api/customerWishlistService";
 import { updateProfile } from "../../services/api/customerService";
 import { calculateProductPrice } from "../../utils/priceUtils";
 import RazorpayCheckout from "../../components/RazorpayCheckout";
+import CashfreeCheckout from "../../components/CashfreeCheckout";
 import { getCustomerWalletBalance } from "../../services/api/customerWalletService";
 
 // const STORAGE_KEY = 'saved_address'; // Removed
@@ -158,6 +159,9 @@ export default function Checkout() {
   // Razorpay Payment State
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
   const [showRazorpayCheckout, setShowRazorpayCheckout] = useState(false);
+
+  // Which online gateway the customer picked — only relevant when paymentMethod === "Online"
+  const [selectedGateway, setSelectedGateway] = useState<"razorpay" | "cashfree">("razorpay");
 
   // Check if user has placeholder data (needs profile completion)
   const isPlaceholderUser =
@@ -2012,6 +2016,29 @@ export default function Checkout() {
             </button>
           </div>
         )}
+
+        {!(walletDeduction === grandTotal) && paymentMethod === "Online" && (
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            <button
+              onClick={() => setSelectedGateway("razorpay")}
+              className={`py-2 rounded-lg border text-xs font-semibold transition-all ${
+                selectedGateway === "razorpay"
+                  ? "border-green-600 bg-green-50 text-green-700"
+                  : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
+              }`}>
+              Razorpay
+            </button>
+            <button
+              onClick={() => setSelectedGateway("cashfree")}
+              className={`py-2 rounded-lg border text-xs font-semibold transition-all ${
+                selectedGateway === "cashfree"
+                  ? "border-green-600 bg-green-50 text-green-700"
+                  : "border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300"
+              }`}>
+              Cashfree
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Bill details */}
@@ -2775,33 +2802,61 @@ export default function Checkout() {
         }
       `}</style>
 
-      {/* Razorpay Checkout Modal */}
+      {/* Online Payment Checkout Modal — Razorpay or Cashfree, per selectedGateway */}
       {showRazorpayCheckout && pendingOrderId && user && (
-        <RazorpayCheckout
-          orderId={pendingOrderId}
-          amount={grandTotal}
-          customerDetails={{
-            name: user.name || "Customer",
-            email: user.email || "",
-            phone: user.phone || "",
-          }}
-          onSuccess={(paymentId) => {
-            setShowRazorpayCheckout(false);
-            setPlacedOrderId(pendingOrderId);
-            setPendingOrderId(null);
-            clearCart();
-            setShowOrderSuccess(true);
-            showGlobalToast("Payment successful!", "success");
-          }}
-          onFailure={(error) => {
-            setShowRazorpayCheckout(false);
-            setPendingOrderId(null);
-            showGlobalToast(
-              error || "Payment failed. Please try again.",
-              "error",
-            );
-          }}
-        />
+        selectedGateway === "cashfree" ? (
+          <CashfreeCheckout
+            orderId={pendingOrderId}
+            amount={grandTotal}
+            customerDetails={{
+              name: user.name || "Customer",
+              email: user.email || "",
+              phone: user.phone || "",
+            }}
+            onSuccess={(paymentId) => {
+              setShowRazorpayCheckout(false);
+              setPlacedOrderId(pendingOrderId);
+              setPendingOrderId(null);
+              clearCart();
+              setShowOrderSuccess(true);
+              showGlobalToast("Payment successful!", "success");
+            }}
+            onFailure={(error) => {
+              setShowRazorpayCheckout(false);
+              setPendingOrderId(null);
+              showGlobalToast(
+                error || "Payment failed. Please try again.",
+                "error",
+              );
+            }}
+          />
+        ) : (
+          <RazorpayCheckout
+            orderId={pendingOrderId}
+            amount={grandTotal}
+            customerDetails={{
+              name: user.name || "Customer",
+              email: user.email || "",
+              phone: user.phone || "",
+            }}
+            onSuccess={(paymentId) => {
+              setShowRazorpayCheckout(false);
+              setPlacedOrderId(pendingOrderId);
+              setPendingOrderId(null);
+              clearCart();
+              setShowOrderSuccess(true);
+              showGlobalToast("Payment successful!", "success");
+            }}
+            onFailure={(error) => {
+              setShowRazorpayCheckout(false);
+              setPendingOrderId(null);
+              showGlobalToast(
+                error || "Payment failed. Please try again.",
+                "error",
+              );
+            }}
+          />
+        )
       )}
     </div>
   );
