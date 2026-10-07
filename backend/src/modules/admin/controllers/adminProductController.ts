@@ -1258,6 +1258,15 @@ export const approveProductRequest = asyncHandler(
       approvedAt: new Date(),
     };
 
+    // Approving means "this is now live" — the seller's Add Product form
+    // defaults Publish to No, so without this an approved product still
+    // never appears to customers (customer queries require both
+    // status: "Active" AND publish: true) until the seller separately
+    // remembers to flip Publish themselves.
+    if (status === "Active") {
+      updateData.publish = true;
+    }
+
     if (status === "Rejected" && rejectionReason) {
       updateData.rejectionReason = rejectionReason;
     }
