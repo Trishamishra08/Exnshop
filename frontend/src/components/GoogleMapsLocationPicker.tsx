@@ -77,38 +77,62 @@ export default function GoogleMapsLocationPicker({
                     const geocoder = new google.maps.Geocoder();
                     geocoder.geocode({ location: { lat, lng } }, (results, status) => {
                         if (status === 'OK' && results && results[0]) {
-                            const addressComponents = results[0].address_components;
                             let street = '';
                             let city = '';
                             let state = '';
                             let pincode = '';
                             let landmark = '';
 
-                            // Parse address components
-                            addressComponents.forEach(component => {
-                                const types = component.types;
-                                if (types.includes('street_number')) {
-                                    street = component.long_name + ' ' + street;
+                            // results[0] is usually the most specific ("rooftop") match
+                            // and often lacks locality/postal_code components entirely —
+                            // those typically show up on a broader result further down
+                            // the array. Scan every result, keep the first non-empty
+                            // value found for each field (results[0] still wins when it
+                            // does have the field, since it's checked first).
+                            for (const result of results) {
+                                for (const component of result.address_components) {
+                                    const types = component.types;
+                                    if (!street && types.includes('route')) {
+                                        const streetNumber = result.address_components.find(c =>
+                                            c.types.includes('street_number')
+                                        )?.long_name;
+                                        street = streetNumber
+                                            ? `${streetNumber} ${component.long_name}`
+                                            : component.long_name;
+                                    }
+                                    if (!city && types.includes('locality')) {
+                                        city = component.long_name;
+                                    }
+                                    if (!state && types.includes('administrative_area_level_1')) {
+                                        state = component.long_name;
+                                    }
+                                    if (!pincode && types.includes('postal_code')) {
+                                        pincode = component.long_name;
+                                    }
+                                    if (!landmark && (types.includes('point_of_interest') || types.includes('establishment') || types.includes('premise'))) {
+                                        landmark = component.long_name;
+                                    } else if (!landmark && (types.includes('sublocality') || types.includes('sublocality_level_1'))) {
+                                        landmark = component.long_name;
+                                    }
                                 }
-                                if (types.includes('route')) {
-                                    street += component.long_name;
+                                if (street && city && state && pincode && landmark) break;
+                            }
+
+                            // City/pincode often use a broader admin level in smaller
+                            // towns where 'locality' isn't set — fall back to those.
+                            if (!city || !pincode) {
+                                for (const result of results) {
+                                    for (const component of result.address_components) {
+                                        const types = component.types;
+                                        if (!city && (types.includes('administrative_area_level_3') || types.includes('administrative_area_level_2'))) {
+                                            city = component.long_name;
+                                        }
+                                        if (!pincode && types.includes('postal_code')) {
+                                            pincode = component.long_name;
+                                        }
+                                    }
                                 }
-                                if (types.includes('locality')) {
-                                    city = component.long_name;
-                                }
-                                if (types.includes('administrative_area_level_1')) {
-                                    state = component.long_name;
-                                }
-                                if (types.includes('postal_code')) {
-                                    pincode = component.long_name;
-                                }
-                                // Landmarks
-                                if (types.includes('point_of_interest') || types.includes('establishment') || types.includes('premise')) {
-                                    landmark = component.long_name;
-                                } else if (!landmark && (types.includes('sublocality') || types.includes('sublocality_level_1'))) {
-                                    landmark = component.long_name;
-                                }
-                            });
+                            }
 
                             onLocationSelect(lat, lng, {
                                 street: street.trim() || results[0].formatted_address || '',
