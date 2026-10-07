@@ -547,10 +547,10 @@ const ADMIN_TEST_BYPASS_MOBILE = "9876543210";
 const ADMIN_TEST_BYPASS_OTP = "123456";
 
 /**
- * Every mobile number defaults to the fixed test OTP 888888 — no real SMS is
- * sent, and login accepts only this code. Set OTP_UNIVERSAL_BYPASS=false to
- * turn this off (e.g. before going live with real users) and fall back to
- * actually sending/verifying a random OTP per number.
+ * Every mobile number and email defaults to the fixed test OTP 123456 — no
+ * real SMS/email is sent, and login/signup accepts only this code. Set
+ * OTP_UNIVERSAL_BYPASS=false to turn this off (e.g. before going live with
+ * real users) and fall back to actually sending/verifying a random OTP.
  */
 function getSpecialOtpForMobile(mobile: string): string | null {
   if (String(mobile).trim() === ADMIN_TEST_BYPASS_MOBILE) return ADMIN_TEST_BYPASS_OTP;
