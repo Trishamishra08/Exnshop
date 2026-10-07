@@ -9,7 +9,6 @@ import { errorHandler } from "./middleware/errorHandler";
 import { notFound } from "./middleware/notFound";
 import { ensureDefaultAdmin } from "./utils/ensureDefaultAdmin";
 import { ensurePanelUsers } from "./utils/ensurePanelUsers";
-import { seedHeaderCategories } from "./utils/seedHeaderCategories";
 import { initializeSocket } from "./socket/socketService";
 import { initializeFirebaseAdmin } from "./services/firebaseAdmin";
 
@@ -165,7 +164,6 @@ async function startServer() {
     await connectDB();
     await ensureDefaultAdmin();
     await ensurePanelUsers();
-    await seedHeaderCategories();
     initializeFirebaseAdmin();
     console.log(`   \x1b[36mSocket.IO:\x1b[0m ✓ Ready`);
 
