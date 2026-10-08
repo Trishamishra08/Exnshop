@@ -15,7 +15,6 @@ export default function Login({ mode = 'login' }: LoginProps) {
   const navigate = useNavigate();
   const { login } = useAuth();
   const { setLanguage } = useLanguage();
-  const [email, setEmail] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
   const [showOTP, setShowOTP] = useState(false);
   const [sessionId, setSessionId] = useState('');
@@ -53,7 +52,7 @@ const canContinue = mobileNumber.length === 10;
     setError('');
 
     try {
-      const response = await verifyOTP(mobileNumber, otp, sessionId, email || undefined);
+      const response = await verifyOTP(mobileNumber, otp, sessionId);
       if (response.success && response.data) {
         const userData = {
           id: response.data.user.id,
@@ -180,28 +179,6 @@ const canContinue = mobileNumber.length === 10;
                 </p>
               </div>
 
-              {/* Email Input (optional) */}
-              <div className="w-full mb-3.5">
-                <div className="flex items-center h-12 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:bg-white focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/15 transition-all shadow-xs">
-                  <div className="w-11 h-full flex items-center justify-center text-slate-400 flex-shrink-0">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="2" y="4" width="20" height="16" rx="2" />
-                      <path d="m22 7-10 5L2 7" />
-                    </svg>
-                  </div>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value.trim())}
-                    placeholder="Enter your email address (optional)"
-                    className="flex-1 h-full pr-3.5 text-sm sm:text-base font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none bg-transparent"
-                    disabled={loading}
-                    autoFocus
-                    id="customer-email-input"
-                  />
-                </div>
-              </div>
-
               {/* Mobile Number Input */}
               <div className="w-full mb-3.5">
                 <div className="flex items-center h-12 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:bg-white focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/15 transition-all shadow-xs">
@@ -219,6 +196,7 @@ const canContinue = mobileNumber.length === 10;
                     className="flex-1 h-full px-3.5 text-sm sm:text-base font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none bg-transparent"
                     maxLength={10}
                     disabled={loading}
+                    autoFocus
                     id="customer-mobile-input"
                   />
                 </div>
