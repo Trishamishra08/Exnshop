@@ -5,10 +5,10 @@
   "main": "dist/server.js",
   "scripts": {
     "postinstall": "node ./scripts/postinstall.js",
-    "build": "node api.js && node ./scripts/hostinger-build.js",
+    "build": "node ./scripts/hostinger-build.js",
     "build:tsc": "node ./node_modules/typescript/bin/tsc -p tsconfig.json",
-    "start": "node api.js && node dist/server.js",
-    "dev": "node api.js && tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
     "test": "tsx test-auth.ts",
     "test:auth": "tsx src/scripts/testAuth.ts",
     "test:integration": "tsx src/scripts/test-frontend-backend-auth.ts",
