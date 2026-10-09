@@ -231,9 +231,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const isAuthPage = ['/login', '/signup', '/seller/login', '/seller/signup', '/delivery/login', '/delivery/signup', '/admin/login'].includes(location.pathname);
   const isHomePage = location.pathname === '/' || location.pathname === '/user/home';
   const isOrderAgainPage = location.pathname === '/order-again';
+  // Order tracking has its own dedicated status header (and, for ECommerce
+  // orders shipped via courier, the generic "Delivering in 10-15 mins" rider
+  // estimate is actively wrong) — same exclusion reasoning as checkout/cart.
+  const isOrderDetailPage = /^\/orders\/[^/]+$/.test(location.pathname);
 
   // Show header on search, category, etc. (excluding Home & OrderAgain pages which render HomeHero)
-  const showHeader = !isCheckoutPage && !isCartPage && !isAuthPage && !isHomePage && !isOrderAgainPage;
+  const showHeader = !isCheckoutPage && !isCartPage && !isAuthPage && !isHomePage && !isOrderAgainPage && !isOrderDetailPage;
   // Hide search bar everywhere as requested by user
   const showSearchBar = false;
   const showFooter = !isCheckoutPage && !isProductDetailPage && !isAuthPage;

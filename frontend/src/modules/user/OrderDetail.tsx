@@ -520,7 +520,11 @@ export default function OrderDetail() {
   const isTerminalOrDelivered = Boolean(
     activeOrderStatus && ["Delivered", "Completed", "Cancelled", "Returned"].includes(activeOrderStatus)
   );
-  const isLiveTrackingEnabled = Boolean(order && activeOrderStatus && !isTerminalOrDelivered);
+  // ECommerce orders ship via courier (Shiprocket) — there's no rider socket
+  // feed to connect to, unlike Quick orders.
+  const isLiveTrackingEnabled = Boolean(
+    order && activeOrderStatus && !isTerminalOrDelivered && (order as any)?.channel !== "ECommerce"
+  );
 
 
   const {
@@ -874,23 +878,27 @@ export default function OrderDetail() {
     );
   }
 
+  // ECommerce orders ship via courier (Shiprocket) — no live rider location
+  // or minute-level ETA exists for them, unlike Quick orders.
+  const isECommerce = (order as any)?.channel === "ECommerce";
+
   const statusConfig: Record<
     string,
     { title: string; subtitle: string; color: string }
   > = {
     Received: {
       title: "Order received",
-      subtitle: "Order will reach you shortly",
+      subtitle: isECommerce ? "We're preparing your order for shipment" : "Order will reach you shortly",
       color: "bg-emerald-700",
     },
     Accepted: {
-      title: "Preparing your order",
-      subtitle: `Arriving in ${estimatedTime} mins`,
+      title: isECommerce ? "Order confirmed" : "Preparing your order",
+      subtitle: isECommerce ? "Your order will be shipped soon" : `Arriving in ${estimatedTime} mins`,
       color: "bg-emerald-700",
     },
     "On the way": {
-      title: "Out for delivery",
-      subtitle: `Arriving in ${estimatedTime} mins`,
+      title: isECommerce ? "Shipped" : "Out for delivery",
+      subtitle: isECommerce ? "Your order is on its way via courier" : `Arriving in ${estimatedTime} mins`,
       color: "bg-emerald-700",
     },
     Delivered: {
@@ -1040,8 +1048,9 @@ export default function OrderDetail() {
         </div>
       </motion.div>
 
-      {/* Map Section */}
-      {!showConfirmation && !['Delivered', 'Cancelled', 'Returned'].includes(order?.status) && (
+      {/* Map Section — Quick orders only; ECommerce ships via courier with
+          no live rider location to plot */}
+      {!showConfirmation && !isECommerce && !['Delivered', 'Cancelled', 'Returned'].includes(order?.status) && (
         <GoogleMapsTracking
           sellerLocations={sellerLocations.map(s => ({
             lat: s.latitude,
@@ -1129,7 +1138,9 @@ export default function OrderDetail() {
                   Payment of ₹{order.totalAmount?.toFixed(0) || order.total?.toFixed(0) || "0"} pending
                 </p>
                 <p className="text-sm text-gray-500 mt-1">
-                  Pay now, or pay to the delivery partner using Cash/UPI
+                  {isECommerce
+                    ? "Pay now, or pay cash on delivery"
+                    : "Pay now, or pay to the delivery partner using Cash/UPI"}
                 </p>
               </div>
               <Button
@@ -1146,8 +1157,8 @@ export default function OrderDetail() {
           <PromoCarousel />
         )}
 
-        {/* Delivery Partner Assignment - Only show if no partner assigned yet during active delivery */}
-        {!order?.deliveryPartner && !["Delivered", "Completed", "Cancelled", "Returned"].includes(orderStatus) && (
+        {/* Delivery Partner Assignment - Quick orders only; ECommerce ships via courier, no rider gets assigned */}
+        {!isECommerce && !order?.deliveryPartner && !["Delivered", "Completed", "Cancelled", "Returned"].includes(orderStatus) && (
           <motion.div
             className="bg-white rounded-xl p-4 shadow-sm"
             initial={{ opacity: 0, y: 20 }}
@@ -1166,13 +1177,13 @@ export default function OrderDetail() {
           </motion.div>
         )}
 
-        {/* Tip Section - Only for active orders */}
-        {!["Delivered", "Completed", "Cancelled", "Returned"].includes(orderStatus) && (
+        {/* Tip Section - Quick orders only; no rider to tip on an ECommerce courier shipment */}
+        {!isECommerce && !["Delivered", "Completed", "Cancelled", "Returned"].includes(orderStatus) && (
           <TipSection />
         )}
 
-        {/* Delivery Partner Safety - Only for active orders */}
-        {!["Delivered", "Completed", "Cancelled", "Returned"].includes(orderStatus) && (
+        {/* Delivery Partner Safety - Quick orders only */}
+        {!isECommerce && !["Delivered", "Completed", "Cancelled", "Returned"].includes(orderStatus) && (
           <motion.button
             className="w-full bg-white rounded-xl p-4 shadow-sm flex items-center gap-3"
             initial={{ opacity: 0, y: 20 }}
