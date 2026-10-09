@@ -1430,9 +1430,11 @@ export default function Checkout() {
                     <div className="flex items-center justify-between mt-1.5">
                       <div className="flex items-center gap-1.5 bg-white border-2 border-green-600 rounded-full px-1.5 py-0.5">
                         <button
-                          onClick={() =>
-                            updateQuantity(item.product?.id, item.quantity - 1)
-                          }
+                          onClick={() => {
+                            const variantId = (item.product as any)?.variantId || (item.product as any)?.selectedVariant?._id;
+                            const variantTitle = (item.product as any)?.variantTitle || (item.product as any)?.pack;
+                            updateQuantity(item.product?.id, item.quantity - 1, variantId, variantTitle);
+                          }}
                           className="w-5 h-5 flex items-center justify-center text-green-600 font-bold hover:bg-green-50 rounded-full transition-colors text-xs">
                           −
                         </button>
@@ -1440,9 +1442,11 @@ export default function Checkout() {
                           {item.quantity}
                         </span>
                         <button
-                          onClick={() =>
-                            updateQuantity(item.product?.id, item.quantity + 1)
-                          }
+                          onClick={() => {
+                            const variantId = (item.product as any)?.variantId || (item.product as any)?.selectedVariant?._id;
+                            const variantTitle = (item.product as any)?.variantTitle || (item.product as any)?.pack;
+                            updateQuantity(item.product?.id, item.quantity + 1, variantId, variantTitle);
+                          }}
                           className="w-5 h-5 flex items-center justify-center text-green-600 font-bold hover:bg-green-50 rounded-full transition-colors text-xs">
                           +
                         </button>
