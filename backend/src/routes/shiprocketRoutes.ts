@@ -1,12 +1,47 @@
 import { Router, Request, Response } from "express";
-import Order from "../models/Order";
+import Order, { IOrder } from "../models/Order";
 
 const router = Router();
 
+// Terminal statuses that should never be overwritten by a late/out-of-order webhook
+const TERMINAL_STATUSES = new Set(["Delivered", "Cancelled", "Rejected", "Returned"]);
+
+/**
+ * Maps Shiprocket's free-form `current_status` values onto our Order status enum.
+ * Returns undefined when the status isn't recognized, so the caller can leave
+ * `order.status` untouched while still recording the raw Shiprocket status.
+ */
+function mapShiprocketStatus(rawStatus: string | undefined): IOrder["status"] | undefined {
+  if (!rawStatus) return undefined;
+  const normalized = rawStatus.trim().toUpperCase().replace(/[_-]/g, " ");
+
+  if (["DELIVERED", "RTO DELIVERED"].includes(normalized)) return "Delivered";
+  if (normalized.startsWith("RTO")) return "RTO";
+  if (["OUT FOR DELIVERY"].includes(normalized)) return "Out for Delivery";
+  if (["PICKED UP", "PICKUP COMPLETE"].includes(normalized)) return "Picked up";
+  if (
+    [
+      "SHIPPED",
+      "IN TRANSIT",
+      "READY TO SHIP",
+      "PICKUP SCHEDULED",
+      "PICKUP GENERATED",
+      "PICKUP QUEUED",
+      "INVOICED",
+      "MANIFEST GENERATED",
+    ].includes(normalized)
+  )
+    return "Shipped";
+  if (["CANCELED", "CANCELLED"].includes(normalized)) return "Cancelled";
+
+  return undefined;
+}
+
 /**
  * Shiprocket tracking webhook — receives shipment status updates and
- * reflects them onto the matching Order's `shiprocket` sub-document.
- * Configure this URL (`/api/webhooks/shiprocket`) in the Shiprocket dashboard.
+ * reflects them onto the matching Order's `shiprocket` sub-document, and
+ * (when recognized) onto the customer/admin-facing `order.status` field too.
+ * Configure this URL (`/api/v1/webhooks/shiprocket`) in the Shiprocket dashboard.
  */
 router.post("/shiprocket", async (req: Request, res: Response) => {
   try {
@@ -30,6 +65,15 @@ router.post("/shiprocket", async (req: Request, res: Response) => {
       status: current_status || order.shiprocket?.status,
       trackingUrl: track_url || order.shiprocket?.trackingUrl,
     };
+
+    const mappedStatus = mapShiprocketStatus(current_status);
+    if (mappedStatus && !TERMINAL_STATUSES.has(order.status)) {
+      order.status = mappedStatus;
+      if (mappedStatus === "Delivered" && !order.deliveredAt) {
+        order.deliveredAt = new Date();
+      }
+    }
+
     await order.save();
 
     return res.status(200).json({ success: true });
