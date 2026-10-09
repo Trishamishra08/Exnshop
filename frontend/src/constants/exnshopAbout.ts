@@ -45,7 +45,7 @@ Today ExnShop serves businesses across 28 states, with fintech services layered 
   office: {
     legalName: 'EXNSHOP TECHNOLOGY PRIVATE LIMITED',
     label: 'Registered Office',
-    address: 'C 119 Sector 2, Noida, Gautam Buddha Nagar, Uttar Pradesh, India, 201301',
+    address: '232, 2nd Floor, Paramount Golfforeste, BGH A Site-C, Opp. Sector Zeta, Surajpur, Greater Noida, Uttar Pradesh, India, 201306',
     cin: 'U63120UW2026PTC256257',
     phone: '6399376602',
     email: 'support@exnshop.in',

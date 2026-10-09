@@ -64,11 +64,11 @@ async function seed() {
       contactPhone: "6399376602",
       supportEmail: "support@exnshop.in",
       supportPhone: "6399376602",
-      companyAddress: "C 119 Sector 2, Noida, Gautam Buddha Nagar, Uttar Pradesh, India, 201301",
-      companyCity: "Noida",
+      companyAddress: "232, 2nd Floor, Paramount Golfforeste, BGH A Site-C, Opp. Sector Zeta, Surajpur, Greater Noida, Uttar Pradesh, India, 201306",
+      companyCity: "Greater Noida",
       companyState: "Uttar Pradesh",
       companyCountry: "India",
-      companyPincode: "201301",
+      companyPincode: "201306",
       aboutUs: ABOUT_US,
     });
     console.log("Created AppSettings with About Us");
@@ -79,11 +79,11 @@ async function seed() {
     settings.contactPhone = "6399376602";
     settings.supportPhone = "6399376602";
     settings.companyAddress =
-      "C 119 Sector 2, Noida, Gautam Buddha Nagar, Uttar Pradesh, India, 201301";
-    settings.companyCity = "Noida";
+      "232, 2nd Floor, Paramount Golfforeste, BGH A Site-C, Opp. Sector Zeta, Surajpur, Greater Noida, Uttar Pradesh, India, 201306";
+    settings.companyCity = "Greater Noida";
     settings.companyState = "Uttar Pradesh";
     settings.companyCountry = "India";
-    settings.companyPincode = "201301";
+    settings.companyPincode = "201306";
     settings.aboutUs = ABOUT_US as any;
     await settings.save();
     console.log("Updated AppSettings About Us + registered office");

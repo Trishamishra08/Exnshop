@@ -66,7 +66,7 @@ We may revise these Terms at any time. Updated Terms will be posted on this page
 
 17. Contact Us
 EXNSHOP TECHNOLOGY PRIVATE LIMITED
-C 119 Sector 2, Noida, Gautam Buddha Nagar, Uttar Pradesh, India, 201301
+232, 2nd Floor, Paramount Golfforeste, BGH A Site-C, Opp. Sector Zeta, Surajpur, Greater Noida, Uttar Pradesh, India, 201306
 CIN: U63120UW2026PTC256257
 Contact No: 6399376602
 Email: support@exnshop.in
@@ -130,7 +130,7 @@ Fintech services (DMT, AEPS, RECHARGE, BBPS) are transactional services provided
 11. Contact Us
 For any refund-related queries, please contact us at:
 EXNSHOP TECHNOLOGY PRIVATE LIMITED
-C 119 Sector 2, Noida, Gautam Buddha Nagar, Uttar Pradesh, India, 201301
+232, 2nd Floor, Paramount Golfforeste, BGH A Site-C, Opp. Sector Zeta, Surajpur, Greater Noida, Uttar Pradesh, India, 201306
 CIN: U63120UW2026PTC256257
 Contact No: 6399376602
 Email: support@exnshop.in
@@ -190,7 +190,7 @@ We may update this Privacy Policy from time to time. The revised version will be
 12. Contact Us
 For privacy-related questions or requests:
 EXNSHOP TECHNOLOGY PRIVATE LIMITED
-C 119 Sector 2, Noida, Gautam Buddha Nagar, Uttar Pradesh, India, 201301
+232, 2nd Floor, Paramount Golfforeste, BGH A Site-C, Opp. Sector Zeta, Surajpur, Greater Noida, Uttar Pradesh, India, 201306
 CIN: U63120UW2026PTC256257
 Contact No: 6399376602
 Email: support@exnshop.in
