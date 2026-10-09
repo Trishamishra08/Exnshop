@@ -63,65 +63,62 @@ Phone: 6399376602`;
 export const EXNSHOP_TERMS_AND_RETURN_POLICY = EXNSHOP_TERMS_AND_CONDITIONS;
 
 /** ExnShop Refund & Cancellation Policy */
-export const EXNSHOP_REFUND_POLICY = `1. Overview
-This Refund & Cancellation Policy forms part of the ExnShop Terms & Conditions and applies to all orders placed on the Platform. Refunds are processed through Razorpay, our payment gateway, to the original payment instrument wherever possible.
+export const EXNSHOP_REFUND_POLICY = `RETURN & REFUND POLICY
+
+Effective Date: 09 October 2026
+
+1. Overview
+EXNSHOP TECHNOLOGY PRIVATE LIMITED operates a marketplace connecting customers with independent sellers. This policy explains the procedure for order cancellations, returns, replacements and refunds.
 
 2. Order Cancellation
-Before dispatch: A buyer may cancel an order before it is dispatched by the seller and receive a full refund.
-After dispatch: Cancellation is not possible once the order is dispatched; the return process applies instead.
-Seller-initiated: If a seller is unable to fulfil an order, it will be cancelled and the buyer refunded in full within 5–7 business days.
-By ExnShop: We may cancel orders that violate our Terms, are fraudulent, or fail payment verification, with a full refund to the buyer.
+Customers may request cancellation before dispatch, subject to the order status and applicable conditions.
 
-3. Refund Eligibility
-A buyer may request a refund in the following situations:
+After dispatch, cancellation may not be available. Eligible returns may instead be requested after delivery.
 
-The product received is damaged, defective or significantly different from the listing.
-The order is short-shipped or the wrong product is delivered.
-The order is cancelled before dispatch.
-The seller fails to dispatch within the stated dispatch time plus a 3-day grace period.
-Refund requests must be raised from the buyer dashboard within 7 days of delivery, along with supporting photographs or evidence where applicable.
+If payment has already been collected for an order that is successfully cancelled, the applicable refund will be initiated.
 
-4. Non-Refundable Cases
-Products returned without original packaging, accessories or in used condition (unless defective).
-Custom-manufactured or made-to-order goods, unless defective.
-Requests raised beyond the 7-day return window.
-Goods damaged due to misuse, improper handling or buyer negligence after delivery.
+3. Eligible Returns
+A customer may request a return or replacement, where applicable, for:
 
-5. Refund Process
-The buyer raises a return/refund request from the buyer dashboard with reason and evidence.
-The seller reviews and responds within 3 business days.
-Where required, the buyer ships the product back to the seller in original condition.
-On verification, ExnShop approves the refund and initiates it through Razorpay.
-The refund is credited to the original payment instrument per the timeline below.
+Damaged or defective products.
+Incorrect products or quantities.
+Products materially different from the listing.
+Missing items.
+Other cases covered by the product listing or applicable law.
 
-6. Refund Timeline
-UPI / Wallets: 3–5 business days.
-Credit / Debit Cards & Net-Banking: 5–7 business days, depending on the issuing bank.
-COD / Credit Terms: Refund, where applicable, is processed to the registered bank account within 7–10 business days.
-Refund timelines are indicative and depend on the buyer’s bank and payment gateway.
+Customers should submit return requests within the period shown on the relevant product page or order details. If no period is displayed, contact customer support for clarification.
 
-7. Refund Mode
-All refunds are credited back to the original source of payment through Razorpay. Where the original instrument is unavailable (e.g. expired card), the refund is processed to the buyer’s registered bank account after verification.
+4. Product-Specific Restrictions
+Certain products may have disclosed restrictions on change-of-mind returns because of hygiene, safety, personalisation or other legitimate reasons.
 
-8. Shipping & Return Costs
-If the return is due to a seller error or defective product, the seller bears return shipping costs. If the return is due to buyer preference or a non-defect reason, the buyer bears return shipping costs. Original forward shipping is non-refundable in such cases.
+Such restrictions do not remove remedies required by law for defective, counterfeit, incorrect or misrepresented products.
 
-9. COD & Credit Terms
-For Cash on Delivery orders, refunds (where applicable) are credited to the buyer’s registered bank account and are not given in cash. For orders placed on approved credit terms, refunds are adjusted against outstanding credit or settled to the registered account.
+5. Return Procedure
+Customers should contact support@exnshop.in with the order ID, reason for return and relevant supporting information.
 
-10. Fintech Services
-Fintech services (DMT, AEPS, RECHARGE, BBPS) are transactional services provided through partner networks. Failed or unsuccessful transactions are auto-refunded to the source instrument within 5–7 business days. Successful transactions are non-refundable.
+If the return is approved, customers will receive instructions for collection or return shipping.
 
-11. Contact Us
-For any refund-related queries, please contact us at:
+6. Refund Eligibility
+Refunds may be available for eligible cancellations, approved returns, confirmed non-delivery, duplicate payments, qualifying payment failures and other cases where a refund is required by law.
+
+7. Refund Timeline
+Once a refund is approved, EXNSHOP aims to initiate it within 5–7 business days. The time required for the amount to appear in the customer's account may vary according to the bank and payment provider.
+
+If a payment is debited but the transaction fails, the transaction will be checked and the reversal or refund will be handled according to the payment provider's process and applicable requirements.
+
+8. Refund Method
+Refunds will ordinarily be made to the original payment method, wherever supported. Any alternative method must be lawful and appropriately agreed upon.
+
+Customers will never be asked to disclose their UPI PIN, OTP or banking password to receive a refund.
+
+9. Shipping Charges
+Shipping charges will be refunded where required by law or where the circumstances of the cancellation, return or non-delivery qualify for reimbursement. Any disclosed exclusion must be legally permissible.
+
+10. Contact Us
 EXNSHOP TECHNOLOGY PRIVATE LIMITED
-232, 2nd Floor, Paramount Golfforeste, BGH A Site-C, Opp. Sector Zeta, Surajpur, Greater Noida, Uttar Pradesh, India, 201306
-CIN: U63120UW2026PTC256257
-Contact No: 6399376602
 Email: support@exnshop.in
-
-See also our Terms & Conditions and Privacy Policy.
-https://www.exnshop.in/terms`;
+Phone: 6399376602
+Address: 232, 2nd Floor, Paramount Golfforeste, BGH, A Site-C, Opposite Sector Zeta, Surajpur, Greater Noida, Uttar Pradesh – 201306, India`;
 
 /** ExnShop Privacy Policy — https://exnshop.in/privacy-policy */
 export const EXNSHOP_PRIVACY_POLICY = `1. Introduction
