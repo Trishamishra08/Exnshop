@@ -709,7 +709,7 @@ export const createOrder = async (req: Request, res: Response) => {
       session = null;
     }
 
-    const { items, address, paymentMethod, fees, deliveryOption, couponCode, tipAmount, giftPackaging, useWallet } = req.body;
+    const { items, address, paymentMethod, fees, deliveryOption, couponCode, tipAmount, giftPackaging, useWallet, channel: requestedChannel } = req.body;
     const userId = req.user!.userId;
 
     // Log incoming request for debugging (development mode only)
@@ -850,7 +850,13 @@ export const createOrder = async (req: Request, res: Response) => {
       const productSeller = await Product.findById(item.product.id)
         .select("seller")
         .populate("seller", "channels");
-      const itemChannel = resolveSellerChannel((productSeller?.seller as any)?.channels);
+      // Same dual-channel ambiguity as addToCart: a seller enabled for both
+      // channels is otherwise resolved independently of which cart the item
+      // was actually added to, so it could silently re-land in the Quick
+      // channel at checkout even though it was added (and shown) in the
+      // ECommerce cart — skipping Shiprocket, which only fires for ECommerce
+      // orders. Honor the checkout request's declared channel for those.
+      const itemChannel = resolveSellerChannel((productSeller?.seller as any)?.channels, requestedChannel);
       itemsByChannel[itemChannel].push(item);
     }
 
