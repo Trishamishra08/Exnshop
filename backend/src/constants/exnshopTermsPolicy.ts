@@ -2,80 +2,65 @@
  * Shared ExnShop Terms & Conditions text.
  * Source: https://www.exnshop.in/terms
  */
-export const EXNSHOP_TERMS_AND_CONDITIONS = `1. Acceptance of Terms
-These Terms & Conditions (“Terms”) govern your access to and use of the ExnShop B2B marketplace (the “Platform”) operated by EXNSHOP TECHNOLOGY PRIVATE LIMITED (“ExnShop”, “we”, “us”). By registering, browsing or transacting on the Platform, you accept these Terms in full. If you do not agree, please do not use the Platform.
+export const EXNSHOP_TERMS_AND_CONDITIONS = `TERMS & CONDITIONS
 
-2. Definitions
-Platform — the ExnShop website and services.
-Buyer — a registered user purchasing goods on the Platform.
-Seller — a registered user listing and selling goods.
-MOQ — Minimum Order Quantity required per listing.
-Order — a confirmed purchase request placed by a Buyer.
+Effective Date: 09 October 2026
+Website: https://exnshop.in
 
-3. Accounts & Eligibility
-You must be at least 18 years old and legally capable of entering into binding contracts to use the Platform. You agree to provide accurate and complete information at registration and to keep your credentials confidential. You are responsible for all activity under your account.
+1. Introduction
+EXNSHOP TECHNOLOGY PRIVATE LIMITED operates an online marketplace that connects independent sellers with customers through its website and mobile application.
 
-4. Buyer Obligations
-Provide a valid GSTIN where required for B2B transactions and invoicing.
-Place orders meeting the seller’s MOQ and tier pricing.
-Make timely payments through the available payment methods.
-Accept delivery of confirmed orders and raise returns within the applicable window.
+By accessing or using EXNSHOP, creating an account or placing an order, you agree to these Terms & Conditions and the other applicable policies published on our platform.
 
-5. Seller Obligations
-Maintain accurate business and KYC information and a valid GST registration.
-List only goods you are authorised to sell and that comply with Indian law.
-Fulfil confirmed orders within the stated dispatch time.
-Honour tier pricing, MOQ and refund commitments published on the Platform.
-Accept that ExnShop may charge a commission on completed transactions.
-
-6. Listings & MOQ
-Sellers are responsible for the accuracy of product listings including description, images, HSN code, price, MOQ and stock. ExnShop may review, approve, reject or remove any listing that violates these Terms or applicable law. MOQ and tier pricing displayed at checkout are binding on both parties once an order is confirmed.
-
-7. Payments & Razorpay
-Payments on the Platform are processed through Razorpay, our authorised payment gateway aggregator regulated by the Reserve Bank of India. Available methods may include UPI, net-banking, credit/debit cards, wallets and COD, subject to eligibility.
-
-By making a payment you authorise Razorpay to charge your chosen instrument. Razorpay’s terms of service apply to all payment transactions. ExnShop is not liable for delays or failures attributable to the payment gateway or your bank. Seller settlements are processed after deducting applicable commissions, taxes and refunds.
-
-8. Pricing & GST
-All prices are displayed in Indian Rupees (INR) and are exclusive of GST unless otherwise stated. Applicable GST is calculated at checkout based on the HSN code and place of supply. A GST-compliant tax invoice is generated for every confirmed order.
-
-9. Dispatch & Delivery
-Sellers commit to dispatch within the dispatch time shown on each listing. Estimated delivery timelines depend on the courier and destination and are indicative only. ExnShop is not liable for delays caused by logistics partners, force majeure or events beyond its reasonable control.
-
-10. Returns & Refunds
-Returns and refunds are governed by our Refund Policy. Eligible refunds are processed to the original payment instrument through Razorpay within the timelines stated therein.
-
-11. Intellectual Property
-All content on the Platform including the ExnShop name, logo, design, text and software is owned by or licensed to ExnShop and protected under Indian intellectual property laws. You may not copy, reproduce or misuse any such content without our prior written consent.
-
-12. Prohibited Conduct
-Using the Platform for any unlawful, fraudulent or abusive purpose.
-Listing counterfeit, restricted or prohibited goods.
-Attempting to bypass payment, commissions or platform controls.
-Interfering with the Platform’s security or infrastructure.
-Violations may result in account suspension, listing removal and legal action.
-
-13. Limitation of Liability
-ExnShop acts as an intermediary facilitating transactions between Buyers and Sellers. To the extent permitted by law, ExnShop shall not be liable for indirect, incidental or consequential damages, or for the quality, safety or legality of goods sold by Sellers. Our aggregate liability shall not exceed the commission earned on the relevant transaction.
-
-14. Dispute Resolution
-Any dispute arising out of or relating to these Terms or the Platform shall first be attempted to be resolved amicably within 30 days. Unresolved disputes shall be subject to the exclusive jurisdiction of the courts at Noida, Uttar Pradesh, India.
-
-15. Governing Law
-These Terms are governed by and construed in accordance with the laws of India.
-
-16. Changes to Terms
-We may revise these Terms at any time. Updated Terms will be posted on this page with the revised date. Continued use of the Platform after changes constitutes acceptance of the revised Terms.
-
-17. Contact Us
-EXNSHOP TECHNOLOGY PRIVATE LIMITED
-C 119 Sector 2, Noida, Gautam Buddha Nagar, Uttar Pradesh, India, 201301
+2. Company Information
+Company Name: EXNSHOP TECHNOLOGY PRIVATE LIMITED
 CIN: U63120UW2026PTC256257
-Contact No: 6399376602
+Address: 232, 2nd Floor, Paramount Golfforeste, BGH, A Site-C, Opposite Sector Zeta, Surajpur, Greater Noida, Uttar Pradesh – 201306, India
+Phone: 6399376602
 Email: support@exnshop.in
 
-See also our Privacy Policy and Refund Policy.
-https://www.exnshop.in/terms`;
+3. Marketplace Services
+EXNSHOP provides a platform for sellers to list products and for customers to discover and order those products.
+
+Depending on the transaction, EXNSHOP may facilitate order processing, payment integration, seller coordination, delivery and customer support. The seller's and EXNSHOP's respective responsibilities will depend on the transaction structure and applicable law.
+
+4. Customer Accounts
+Customers must provide accurate registration, contact and delivery information. Customers are responsible for safeguarding their login credentials and notifying us of suspected unauthorised account access.
+
+5. Products and Pricing
+Product descriptions, prices, availability, taxes, shipping charges and other applicable conditions will be displayed or disclosed before order confirmation, as applicable.
+
+Sellers must provide accurate product information and comply with applicable laws. Customers should review the product details and return eligibility before purchasing.
+
+6. Orders
+Orders are subject to product availability, payment confirmation and the applicable order acceptance process.
+
+Where an order cannot be fulfilled, the customer will be informed and any applicable refund will be processed under the Refund Policy and applicable law.
+
+7. Payments and Seller Settlements
+Payments may be processed through authorised payment service providers, including Razorpay where enabled.
+
+Seller settlements will be handled through the applicable approved marketplace payment arrangement. Customers must use authorised checkout facilities and must never disclose their UPI PIN, OTP, CVV or banking passwords to customer support.
+
+8. Returns and Refunds
+Returns, cancellations and refunds are governed by the Return & Refund Policy published on our website. Nothing in these Terms removes any mandatory rights provided to consumers by applicable law.
+
+9. Prohibited Use
+Customers must not engage in fraud, unlawful transactions, unauthorised access, payment manipulation or misuse of the platform.
+
+10. Limitation of Liability
+Nothing in these Terms excludes liability or restricts consumer rights where such exclusion or restriction is prohibited by law.
+
+11. Changes
+We may update these Terms when necessary. Revised Terms will be published on our website with an updated effective date.
+
+12. Governing Law
+These Terms are governed by the laws of India, subject to applicable consumer protection legislation and the jurisdiction of competent courts.
+
+13. Contact Us
+EXNSHOP TECHNOLOGY PRIVATE LIMITED
+Email: support@exnshop.in
+Phone: 6399376602`;
 
 /** @deprecated Use EXNSHOP_TERMS_AND_CONDITIONS */
 export const EXNSHOP_TERMS_AND_RETURN_POLICY = EXNSHOP_TERMS_AND_CONDITIONS;
@@ -133,7 +118,7 @@ Fintech services (DMT, AEPS, RECHARGE, BBPS) are transactional services provided
 11. Contact Us
 For any refund-related queries, please contact us at:
 EXNSHOP TECHNOLOGY PRIVATE LIMITED
-C 119 Sector 2, Noida, Gautam Buddha Nagar, Uttar Pradesh, India, 201301
+232, 2nd Floor, Paramount Golfforeste, BGH A Site-C, Opp. Sector Zeta, Surajpur, Greater Noida, Uttar Pradesh, India, 201306
 CIN: U63120UW2026PTC256257
 Contact No: 6399376602
 Email: support@exnshop.in
