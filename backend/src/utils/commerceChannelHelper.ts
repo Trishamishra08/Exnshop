@@ -41,9 +41,19 @@ export const filterSellerIdsByChannel = async (
  * whether being added to cart or checked out.
  */
 export const resolveSellerChannel = (
-  sellerChannels: string[] | undefined | null
+  sellerChannels: string[] | undefined | null,
+  preferredChannel?: CommerceChannel | null
 ): CommerceChannel => {
   const channels = Array.isArray(sellerChannels) ? sellerChannels : [];
   if (channels.length === 0) return "Quick";
+  // Seller supports only one channel — that's authoritative regardless of
+  // what the caller prefers.
+  if (channels.length === 1) return channels[0] as CommerceChannel;
+  // Seller supports both — honor the caller's preference (e.g. which page/
+  // cart the customer is actually acting from) when it's one of the
+  // seller's enabled channels, instead of always defaulting to Quick.
+  if (preferredChannel && channels.includes(preferredChannel)) {
+    return preferredChannel;
+  }
   return channels.includes("Quick") ? "Quick" : "ECommerce";
 };

@@ -358,7 +358,7 @@ export const getMergedCart = async (req: Request, res: Response) => {
 export const addToCart = async (req: Request, res: Response) => {
     try {
         const userId = req.user?.userId;
-        const { productId, quantity = 1, variation } = req.body;
+        const { productId, quantity = 1, variation, channel: requestedChannel } = req.body;
         const { latitude, longitude } = req.query;
 
         if (!productId) {
@@ -385,12 +385,17 @@ export const addToCart = async (req: Request, res: Response) => {
             });
         }
 
-        // The cart a product belongs to is derived from ITS seller's channel(s),
-        // not a client-supplied param — this is what lets a customer add both
-        // Quick and E-commerce products in the same shopping session without
-        // manually switching a "mode". A seller enabled for both channels
-        // defaults to the Quick cart.
-        const channel: 'Quick' | 'ECommerce' = resolveSellerChannel(seller?.channels);
+        // The cart a product belongs to is derived from ITS seller's channel(s)
+        // — a single-channel seller always lands in that channel regardless of
+        // what the client sends, which is what lets a customer add both Quick
+        // and E-commerce products in the same shopping session without a global
+        // "mode" switch. A seller enabled for BOTH channels is ambiguous on its
+        // own, so there we honor the client-supplied channel (which page/cart
+        // the customer is actually adding from) instead of silently defaulting
+        // to Quick — otherwise adding a dual-channel product while browsing the
+        // ECommerce "Shop All" section silently lands in the Quick cart instead,
+        // with no visible change on the page the customer is looking at.
+        const channel: 'Quick' | 'ECommerce' = resolveSellerChannel(seller?.channels, requestedChannel);
 
         // Quick items are rider-delivered and therefore require a serviceable
         // location; E-commerce items ship nationally via courier and don't.
