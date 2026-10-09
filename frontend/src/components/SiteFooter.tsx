@@ -66,6 +66,7 @@ export default function SiteFooter() {
               <Link to="/terms-and-conditions" className={linkClass}>Terms & Conditions</Link>
               <Link to="/privacy-policy" className={linkClass}>Privacy Policy</Link>
               <Link to="/refund-policy" className={linkClass}>Refund Policy</Link>
+              <Link to="/shipping-policy" className={linkClass}>Shipping & Delivery Policy</Link>
               <Link to="/customer-policy" className={linkClass}>Customer Policy</Link>
             </nav>
           </div>

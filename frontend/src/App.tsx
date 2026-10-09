@@ -1080,6 +1080,10 @@ function App() {
                                       path="/customer-policy"
                                       element={<CustomerPolicy />}
                                     />
+                                    <Route
+                                      path="/shipping-policy"
+                                      element={<CustomerPolicy />}
+                                    />
                                     <Route path="/faq" element={<FAQ />} />
                                     <Route
                                       path="/wishlist"

@@ -4,6 +4,7 @@ import api from '../../services/api/config';
 import {
   EXNSHOP_TERMS_AND_CONDITIONS,
   EXNSHOP_PRIVACY_POLICY,
+  EXNSHOP_SHIPPING_POLICY,
 } from '../../constants/exnshopTermsPolicy';
 
 const LEGAL_NAME = 'EXNSHOP TECHNOLOGY PRIVATE LIMITED';
@@ -24,10 +25,11 @@ interface PolicyData {
   updatedAt?: string;
 }
 
-type PolicyKind = 'privacy' | 'terms' | 'customer';
+type PolicyKind = 'privacy' | 'terms' | 'customer' | 'shipping';
 
 function resolveKind(pathname: string): PolicyKind {
   if (pathname.includes('privacy')) return 'privacy';
+  if (pathname.includes('shipping')) return 'shipping';
   if (pathname.includes('customer-policy')) return 'customer';
   return 'terms';
 }
@@ -36,12 +38,14 @@ const TITLES: Record<PolicyKind, string> = {
   privacy: 'Privacy Policy',
   terms: 'Terms & Conditions',
   customer: 'Customer Policy',
+  shipping: 'Shipping & Delivery Policy',
 };
 
 const FALLBACKS: Record<PolicyKind, string> = {
   privacy: EXNSHOP_PRIVACY_POLICY,
   terms: EXNSHOP_TERMS_AND_CONDITIONS,
   customer: EXNSHOP_TERMS_AND_CONDITIONS,
+  shipping: EXNSHOP_SHIPPING_POLICY,
 };
 
 export default function CustomerPolicy() {
@@ -64,6 +68,17 @@ export default function CustomerPolicy() {
             setPolicy({
               title: TITLES.privacy,
               content: EXNSHOP_PRIVACY_POLICY,
+            });
+          }
+          return;
+        }
+
+        // Shipping & Delivery Policy has no admin editor/DB record yet — always local
+        if (kind === 'shipping') {
+          if (!cancelled) {
+            setPolicy({
+              title: TITLES.shipping,
+              content: EXNSHOP_SHIPPING_POLICY,
             });
           }
           return;

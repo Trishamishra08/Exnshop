@@ -183,6 +183,55 @@ Email: support@exnshop.in
 See also our Terms & Conditions and Refund Policy.
 https://exnshop.in/privacy-policy`;
 
+/** ExnShop Shipping & Delivery Policy — https://exnshop.in/shipping-policy */
+export const EXNSHOP_SHIPPING_POLICY = `SHIPPING & DELIVERY POLICY
+
+Effective Date: 09 October 2026
+
+1. Overview
+EXNSHOP TECHNOLOGY PRIVATE LIMITED provides an online marketplace connecting customers with independent sellers.
+
+Orders may be fulfilled by participating sellers, delivery partners or logistics providers, depending on the transaction.
+
+2. Order Processing
+Orders are processed after order placement and, where applicable, payment confirmation and inventory verification.
+
+Processing time may vary according to the product, seller and delivery location.
+
+3. Delivery Time
+The estimated delivery date or delivery window will be shown at checkout or in the order details, where available.
+
+EXNSHOP aims to support timely delivery, including same-day delivery where available. Same-day delivery is not guaranteed unless expressly confirmed for the particular order.
+
+Delivery may be delayed by weather, logistics disruptions, public holidays, incorrect addresses or other circumstances beyond reasonable control.
+
+4. Shipping Charges
+Applicable delivery and handling charges will be disclosed before order confirmation.
+
+Any free-delivery offer will be subject to the conditions communicated at the time of purchase.
+
+5. Order Tracking
+Where tracking is available, customers may view the information through their account or the tracking details provided by EXNSHOP or its delivery partner.
+
+6. Incorrect Address or Failed Delivery
+Customers must provide a complete and accurate delivery address and reachable contact details.
+
+If delivery fails, a further delivery attempt may be arranged where available. Any additional charges must be disclosed and applied only where appropriate and legally permissible.
+
+7. Delayed, Lost or Missing Orders
+Customers should contact support@exnshop.in if an order is delayed, marked delivered but not received, or appears lost.
+
+EXNSHOP will coordinate with the relevant seller or logistics provider to investigate and determine an appropriate resolution under the applicable policy and law.
+
+8. Damaged Deliveries
+Customers should report damaged, tampered or incomplete deliveries promptly after receipt. Return, replacement or refund requests will be assessed under the Return & Refund Policy and applicable law.
+
+9. Contact Us
+EXNSHOP TECHNOLOGY PRIVATE LIMITED
+Email: support@exnshop.in
+Phone: 6399376602
+Address: 232, 2nd Floor, Paramount Golfforeste, BGH, A Site-C, Opposite Sector Zeta, Surajpur, Greater Noida, Uttar Pradesh – 201306, India`;
+
 export const EXNSHOP_RETURN_REFUND_SUMMARY = `Refund & Cancellation Policy (summary)
 
 • Cancel before dispatch for a full refund.
