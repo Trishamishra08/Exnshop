@@ -121,64 +121,58 @@ Phone: 6399376602
 Address: 232, 2nd Floor, Paramount Golfforeste, BGH, A Site-C, Opposite Sector Zeta, Surajpur, Greater Noida, Uttar Pradesh – 201306, India`;
 
 /** ExnShop Privacy Policy — https://exnshop.in/privacy-policy */
-export const EXNSHOP_PRIVACY_POLICY = `1. Introduction
-EXNSHOP TECHNOLOGY PRIVATE LIMITED (“ExnShop”, “we”, “us”) respects your privacy. This Privacy Policy explains how we collect, use, store and protect your personal information when you use the ExnShop website and related services (the “Platform”).
+export const EXNSHOP_PRIVACY_POLICY = `PRIVACY POLICY
+
+Effective Date: 09 October 2026
+
+1. Introduction
+EXNSHOP TECHNOLOGY PRIVATE LIMITED respects the privacy of customers and sellers who use https://exnshop.in and our mobile application.
+
+This policy explains how personal information is collected, used, shared and protected.
 
 2. Information We Collect
-We may collect:
-Account information — name, phone number, email, password and business details (including GSTIN where provided).
-Order & delivery information — delivery address, order history and payment status.
-Device & usage data — IP address, browser type, pages visited and approximate location (to show nearby availability and delivery options).
-Support communications — messages you send to our support team.
+Depending on the services used, we may collect:
 
-3. How We Use Your Information
-We use your information to:
-Create and manage your account.
-Process orders, payments (via Razorpay) and deliveries.
-Show products and services available near you.
-Send order updates, OTP verification and important service notices.
-Improve the Platform, prevent fraud and comply with law.
-Respond to support requests.
+Name, mobile number and email address.
+Billing and delivery address.
+Account and order details.
+Payment status, transaction references and refund information.
+Customer support requests and communications.
+Device, browser and usage information required for security and platform operation.
 
-4. Payments
-Payments are processed by Razorpay. Card, UPI and banking details are handled by Razorpay under their privacy and security standards. ExnShop does not store full card numbers on its servers.
+3. How We Use Information
+We use information to manage accounts, process orders, coordinate deliveries, facilitate refunds, provide customer support, prevent fraud, improve our services and comply with legal obligations.
 
-5. Sharing of Information
-We may share limited data with:
-Sellers and delivery partners — only what is needed to fulfil your order.
-Payment gateway (Razorpay) — to process payments and refunds.
-Service providers — hosting, SMS/OTP and analytics under confidentiality obligations.
-Authorities — when required by law or to protect rights and safety.
-We do not sell your personal information.
+4. Sharing of Information
+Information may be shared with the relevant seller, delivery partner, payment gateway, technology provider or other authorised service provider when necessary to complete a transaction or operate our platform.
 
-6. Location Data
-With your permission, we use location to check serviceability and show relevant products. You can change or revoke location access in your device or browser settings; some features may not work without it.
+Information may also be disclosed to competent authorities when legally required.
 
-7. Data Retention & Security
-We retain account and order data as needed for business, tax and legal purposes. We use reasonable technical and organisational measures to protect your data. No method of transmission over the internet is 100% secure.
+5. Payment Information
+Payments may be processed through authorised payment service providers, including Razorpay where enabled.
 
-8. Your Rights
-Subject to applicable Indian law, you may request access, correction or deletion of your personal data, or withdraw consent where processing is consent-based, by contacting us. Some data may be retained where legally required (e.g. invoices).
+Payment transactions are subject to the provider's applicable terms and security procedures. EXNSHOP does not ask customers to disclose their UPI PIN, card PIN, CVV, OTP or banking password to our support team.
 
-9. Cookies & Similar Technologies
-We may use cookies and similar technologies for login sessions, preferences and basic analytics. You can control cookies through your browser settings.
+6. Data Security
+We use reasonable technical and organisational safeguards to protect personal information against unauthorised access, loss or misuse. However, no electronic system can be guaranteed to be completely secure.
 
-10. Children’s Privacy
-The Platform is intended for users aged 18 and above. We do not knowingly collect personal information from children.
+7. Data Retention
+Information will be retained for as long as reasonably necessary for order fulfilment, customer support, dispute resolution, fraud prevention and legal or accounting requirements.
 
-11. Changes to This Policy
-We may update this Privacy Policy from time to time. The revised version will be posted on this page with an updated date. Continued use of the Platform after changes means you accept the updated Policy.
+8. Customer Requests
+Subject to applicable law, customers may request access to, correction of or deletion of their personal information by contacting support@exnshop.in. Verification may be required before processing a request.
 
-12. Contact Us
-For privacy-related questions or requests:
+9. Cookies
+Our website may use cookies or similar technologies for essential functionality, security, preferences and analytics. Appropriate controls will be provided where required.
+
+10. Policy Updates
+Updates will be published on our website with the revised effective date.
+
+11. Contact Us
 EXNSHOP TECHNOLOGY PRIVATE LIMITED
-232, 2nd Floor, Paramount Golfforeste, BGH A Site-C, Opp. Sector Zeta, Surajpur, Greater Noida, Uttar Pradesh, India, 201306
-CIN: U63120UW2026PTC256257
-Contact No: 6399376602
+Address: 232, 2nd Floor, Paramount Golfforeste, BGH, A Site-C, Opposite Sector Zeta, Surajpur, Greater Noida, Uttar Pradesh – 201306, India
 Email: support@exnshop.in
-
-See also our Terms & Conditions and Refund Policy.
-https://exnshop.in/privacy-policy`;
+Phone: 6399376602`;
 
 /** ExnShop Shipping & Delivery Policy — https://exnshop.in/shipping-policy */
 export const EXNSHOP_SHIPPING_POLICY = `SHIPPING & DELIVERY POLICY
