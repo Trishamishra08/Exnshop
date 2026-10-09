@@ -95,7 +95,10 @@ export const createShiprocketOrder = async (
       billing_pincode: order.deliveryAddress.pincode,
       billing_state: order.deliveryAddress.state || order.deliveryAddress.city,
       billing_country: "India",
-      billing_email: order.customerEmail,
+      // Customer email is optional on the account (mobile-first signup) but
+      // Shiprocket's API expects some value here — fall back to a generic
+      // address rather than sending undefined and risking a rejected order.
+      billing_email: order.customerEmail || "support@exnshop.in",
       billing_phone: order.customerPhone,
       shipping_is_billing: true,
       order_items: lineItems,
