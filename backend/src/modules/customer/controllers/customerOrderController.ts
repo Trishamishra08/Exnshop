@@ -1199,9 +1199,12 @@ export const getOrderById = async (req: Request, res: Response) => {
       });
     }
 
-    // Suppress OTP for delivered/cancelled orders
+    // Delivery-partner handover OTP only applies to rider-delivered Quick
+    // orders — ECommerce orders ship via courier (Shiprocket) and have no
+    // delivery partner to hand this OTP to, so suppress it there too (not
+    // just for delivered/cancelled orders).
     const customer = await Customer.findById(userId).select("deliveryOtp");
-    const deliveryOtp = (order.status === "Delivered" || order.status === "Cancelled")
+    const deliveryOtp = (order.status === "Delivered" || order.status === "Cancelled" || order.channel === "ECommerce")
       ? null
       : customer?.deliveryOtp;
 
