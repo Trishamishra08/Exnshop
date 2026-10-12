@@ -1,6 +1,8 @@
 import axios from "axios";
+import crypto from "crypto";
 import { IOrder } from "../models/Order";
 import OrderItem from "../models/OrderItem";
+import Seller, { ISeller } from "../models/Seller";
 
 const SHIPROCKET_BASE_URL = "https://apiv2.shiprocket.in/v1/external";
 
@@ -41,93 +43,301 @@ const getAuthToken = async (): Promise<string> => {
   return token;
 };
 
+const DEFAULT_PICKUP_LOCATION = () => process.env.SHIPROCKET_PICKUP_LOCATION || "Primary";
+
+const describeShiprocketError = (error: any): string => {
+  const data = error?.response?.data;
+  if (data?.errors && typeof data.errors === "object") {
+    return Object.values(data.errors).flat().join("; ");
+  }
+  return data?.message || error?.message || "Unknown Shiprocket error";
+};
+
+interface ResolvedAddress {
+  line1: string;
+  line2: string;
+  city: string;
+  state: string;
+  pincode: string;
+}
+
+/**
+ * Sellers store a free-text address plus a map pin, but Shiprocket needs a
+ * state and pincode — derive them by reverse-geocoding the pin.
+ */
+const resolveSellerAddress = async (seller: ISeller): Promise<ResolvedAddress> => {
+  const lat = seller.location?.coordinates?.[1] ?? parseFloat(seller.latitude || "");
+  const lng = seller.location?.coordinates?.[0] ?? parseFloat(seller.longitude || "");
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+
+  let formatted = "";
+  let city = "";
+  let state = "";
+  let pincode = "";
+
+  if (key && !isNaN(lat) && !isNaN(lng)) {
+    const { data } = await axios.get("https://maps.googleapis.com/maps/api/geocode/json", {
+      params: { latlng: `${lat},${lng}`, key },
+    });
+    const result = data?.results?.[0];
+    if (result) {
+      const part = (type: string) =>
+        result.address_components?.find((c: any) => c.types?.includes(type))?.long_name || "";
+      formatted = result.formatted_address || "";
+      city = part("locality") || part("administrative_area_level_3") || part("administrative_area_level_2");
+      state = part("administrative_area_level_1");
+      pincode = part("postal_code");
+    }
+  }
+
+  const typed = (seller.address || "").trim();
+  if (!pincode) {
+    pincode = `${typed} ${seller.searchLocation || ""}`.match(/\b\d{6}\b/)?.[0] || "";
+  }
+
+  // Shiprocket rejects line 1 unless it is 10+ chars and contains a house/flat/road number.
+  const typedIsUsable = typed.length >= 10 && /\d/.test(typed);
+  const fallback = formatted || seller.searchLocation || "";
+  const line1 = typedIsUsable ? typed : fallback || typed;
+  const line2 = typedIsUsable ? fallback : typed;
+
+  return {
+    line1: line1.slice(0, 190),
+    line2: line2 === line1 ? "" : line2.slice(0, 190),
+    city: city || seller.city || "",
+    state,
+    pincode,
+  };
+};
+
+const pickupSignature = (seller: ISeller) =>
+  crypto
+    .createHash("sha1")
+    .update(
+      JSON.stringify([
+        seller.address,
+        seller.searchLocation,
+        seller.city,
+        seller.latitude,
+        seller.longitude,
+        seller.location?.coordinates,
+        seller.mobile,
+        seller.email,
+        seller.sellerName,
+      ])
+    )
+    .digest("hex");
+
+const isPickupEligible = (seller: ISeller) =>
+  seller.status === "Approved" && (seller.channels || []).includes("ECommerce");
+
+/**
+ * Registers the seller's shop address as a Shiprocket pickup location, or
+ * registers a fresh one when the address has changed since the last sync.
+ * Shiprocket's API cannot edit an existing pickup address, so a change always
+ * creates a new location under a new name and the seller is switched to it.
+ * Safe to call after any seller update — it no-ops when nothing relevant changed.
+ */
+export const syncSellerPickupLocation = async (
+  sellerId: string
+): Promise<{ success: boolean; pickupLocation?: string; skipped?: string; message?: string }> => {
+  const seller = await Seller.findById(sellerId);
+  if (!seller) return { success: false, message: "Seller not found" };
+
+  if (isMockMode()) return { success: true, skipped: "Shiprocket credentials not configured" };
+  if (!isPickupEligible(seller)) {
+    return { success: true, skipped: "Seller is not an approved E-Commerce seller" };
+  }
+
+  const signature = pickupSignature(seller);
+  if (seller.shiprocketPickupLocation && seller.shiprocketPickupSignature === signature) {
+    return { success: true, pickupLocation: seller.shiprocketPickupLocation, skipped: "Address unchanged" };
+  }
+
+  const fail = async (message: string) => {
+    await Seller.updateOne({ _id: seller._id }, { $set: { shiprocketPickupSyncError: message } });
+    console.error(`[Shiprocket] Pickup sync failed for seller ${seller._id} (${seller.storeName}): ${message}`);
+    return { success: false, message };
+  };
+
+  try {
+    const address = await resolveSellerAddress(seller);
+    if (!address.pincode || !address.state) {
+      return await fail("Could not determine the shop's pincode/state from its map location");
+    }
+
+    // Unique and short (Shiprocket nicknames are limited in length).
+    const pickupLocation = `EXN-${seller._id.toString().slice(-6)}-${Date.now().toString(36)}`;
+    const token = await getAuthToken();
+    await axios.post(
+      `${SHIPROCKET_BASE_URL}/settings/company/addpickup`,
+      {
+        pickup_location: pickupLocation,
+        name: seller.sellerName || seller.storeName,
+        email: seller.email,
+        phone: (seller.mobile || "").replace(/\D/g, "").slice(-10),
+        address: address.line1,
+        address_2: address.line2,
+        city: address.city,
+        state: address.state,
+        country: "India",
+        pin_code: address.pincode,
+      },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    await Seller.updateOne(
+      { _id: seller._id },
+      {
+        $set: {
+          shiprocketPickupLocation: pickupLocation,
+          shiprocketPickupSignature: signature,
+          shiprocketPickupSyncedAt: new Date(),
+        },
+        $unset: { shiprocketPickupSyncError: 1 },
+      }
+    );
+    console.log(`[Shiprocket] Registered pickup location ${pickupLocation} for seller ${seller.storeName}`);
+    return { success: true, pickupLocation };
+  } catch (error: any) {
+    return await fail(describeShiprocketError(error));
+  }
+};
+
+/** Fire-and-forget wrapper for use right after a seller is created/updated. */
+export const queueSellerPickupSync = (sellerId: string) => {
+  syncSellerPickupLocation(sellerId).catch((err) =>
+    console.error(`[Shiprocket] Unexpected pickup sync error for seller ${sellerId}:`, err)
+  );
+};
+
+export interface ShiprocketShipmentResult {
+  seller?: string;
+  channelOrderId: string;
+  pickupLocation: string;
+  orderId?: string;
+  shipmentId?: string;
+}
+
 interface ShiprocketOrderResult {
   success: boolean;
   isMock: boolean;
-  orderId?: string;
-  shipmentId?: string;
+  shipments: ShiprocketShipmentResult[];
   message?: string;
 }
 
 /**
- * Pushes a confirmed E-Commerce order to Shiprocket to create a shipment.
+ * Pushes a confirmed E-Commerce order to Shiprocket, as one shipment per
+ * seller so each courier is sent to that seller's own pickup address.
  * In mock mode (no SHIPROCKET_EMAIL/PASSWORD configured) this simulates a
- * successful response without calling the real API, so the rest of the
- * order flow can be built/tested before real credentials are available.
+ * successful response without calling the real API.
  */
 export const createShiprocketOrder = async (
   order: IOrder & { _id: any }
 ): Promise<ShiprocketOrderResult> => {
-  try {
-    if (isMockMode()) {
-      console.warn(
-        "⚠️ [Shiprocket] SHIPROCKET_EMAIL/SHIPROCKET_PASSWORD not configured — using mock shipment response."
-      );
-      return {
-        success: true,
-        isMock: true,
-        orderId: `mock_sr_order_${order._id}`,
-        shipmentId: `mock_sr_shipment_${order._id}`,
-      };
-    }
-
-    const token = await getAuthToken();
-
-    const orderItems = await OrderItem.find({ _id: { $in: order.items } });
-
-    const lineItems = orderItems.map((item) => ({
-      name: item.productName || "Item",
-      sku: item.sku || item.product?.toString() || "SKU",
-      units: item.quantity,
-      selling_price: item.unitPrice,
-    }));
-
-    const pickupLocation = process.env.SHIPROCKET_PICKUP_LOCATION || "Primary";
-
-    const payload = {
-      order_id: order.orderNumber,
-      order_date: new Date(order.orderDate).toISOString().slice(0, 19).replace("T", " "),
-      pickup_location: pickupLocation,
-      billing_customer_name: order.customerName,
-      billing_last_name: "",
-      billing_address: order.deliveryAddress.address,
-      billing_city: order.deliveryAddress.city,
-      billing_pincode: order.deliveryAddress.pincode,
-      billing_state: order.deliveryAddress.state || order.deliveryAddress.city,
-      billing_country: "India",
-      // Customer email is optional on the account (mobile-first signup) but
-      // Shiprocket's API expects some value here — fall back to a generic
-      // address rather than sending undefined and risking a rejected order.
-      billing_email: order.customerEmail || "support@exnshop.in",
-      billing_phone: order.customerPhone,
-      shipping_is_billing: true,
-      order_items: lineItems,
-      payment_method: order.paymentMethod === "COD" ? "COD" : "Prepaid",
-      sub_total: order.subtotal,
-      length: 10,
-      breadth: 10,
-      height: 10,
-      weight: 0.5,
-    };
-
-    const response = await axios.post(`${SHIPROCKET_BASE_URL}/orders/create/adhoc`, payload, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
+  if (isMockMode()) {
+    console.warn(
+      "⚠️ [Shiprocket] SHIPROCKET_EMAIL/SHIPROCKET_PASSWORD not configured — using mock shipment response."
+    );
     return {
       success: true,
-      isMock: false,
-      orderId: response.data?.order_id?.toString(),
-      shipmentId: response.data?.shipment_id?.toString(),
-    };
-  } catch (error: any) {
-    console.error("Error creating Shiprocket order:", error?.response?.data || error.message);
-    return {
-      success: false,
-      isMock: false,
-      message: error?.response?.data?.message || error.message,
+      isMock: true,
+      shipments: [
+        {
+          channelOrderId: order.orderNumber,
+          pickupLocation: DEFAULT_PICKUP_LOCATION(),
+          orderId: `mock_sr_order_${order._id}`,
+          shipmentId: `mock_sr_shipment_${order._id}`,
+        },
+      ],
     };
   }
+
+  const orderItems = await OrderItem.find({ _id: { $in: order.items } });
+  const groups = new Map<string, typeof orderItems>();
+  for (const item of orderItems) {
+    const key = item.seller?.toString() || "unknown";
+    groups.set(key, [...(groups.get(key) || []), item]);
+  }
+
+  const shipments: ShiprocketShipmentResult[] = [];
+  const errors: string[] = [];
+  let index = 0;
+
+  for (const [sellerId, items] of groups) {
+    index += 1;
+    const channelOrderId = groups.size === 1 ? order.orderNumber : `${order.orderNumber}-${index}`;
+
+    let pickupLocation = DEFAULT_PICKUP_LOCATION();
+    if (sellerId !== "unknown") {
+      const sync = await syncSellerPickupLocation(sellerId);
+      if (sync.pickupLocation) {
+        pickupLocation = sync.pickupLocation;
+      } else {
+        console.warn(
+          `[Shiprocket] Seller ${sellerId} has no registered pickup location (${sync.message || sync.skipped}); using default "${pickupLocation}".`
+        );
+      }
+    }
+
+    try {
+      const token = await getAuthToken();
+      const payload = {
+        order_id: channelOrderId,
+        order_date: new Date(order.orderDate).toISOString().slice(0, 19).replace("T", " "),
+        pickup_location: pickupLocation,
+        billing_customer_name: order.customerName,
+        billing_last_name: "",
+        billing_address: order.deliveryAddress.address,
+        billing_city: order.deliveryAddress.city,
+        billing_pincode: order.deliveryAddress.pincode,
+        billing_state: order.deliveryAddress.state || order.deliveryAddress.city,
+        billing_country: "India",
+        // Customer email is optional (mobile-first signup) but Shiprocket requires one.
+        billing_email: order.customerEmail || "support@exnshop.in",
+        billing_phone: order.customerPhone,
+        shipping_is_billing: true,
+        order_items: items.map((item) => ({
+          name: item.productName || "Item",
+          sku: item.sku || item.product?.toString() || "SKU",
+          units: item.quantity,
+          selling_price: item.unitPrice,
+        })),
+        payment_method: order.paymentMethod === "COD" ? "COD" : "Prepaid",
+        sub_total:
+          groups.size === 1
+            ? order.subtotal
+            : items.reduce((sum, item) => sum + (item.unitPrice || 0) * (item.quantity || 0), 0),
+        length: 10,
+        breadth: 10,
+        height: 10,
+        weight: 0.5,
+      };
+
+      const response = await axios.post(`${SHIPROCKET_BASE_URL}/orders/create/adhoc`, payload, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      shipments.push({
+        seller: sellerId === "unknown" ? undefined : sellerId,
+        channelOrderId,
+        pickupLocation,
+        orderId: response.data?.order_id?.toString(),
+        shipmentId: response.data?.shipment_id?.toString(),
+      });
+    } catch (error: any) {
+      const message = describeShiprocketError(error);
+      console.error(`Error creating Shiprocket order ${channelOrderId}:`, error?.response?.data || error.message);
+      errors.push(`${channelOrderId}: ${message}`);
+    }
+  }
+
+  return {
+    success: shipments.length > 0,
+    isMock: false,
+    shipments,
+    message: errors.length ? errors.join(" | ") : undefined,
+  };
 };
 
 /**

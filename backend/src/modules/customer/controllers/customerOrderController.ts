@@ -1002,14 +1002,25 @@ export const createOrder = async (req: Request, res: Response) => {
         createShiprocketOrder(builtOrder)
           .then(async (result) => {
             if (result.success) {
+              const status = result.isMock ? "Mock: Order Created" : "Order Created";
+              const [primary] = result.shipments;
               builtOrder.shiprocket = {
-                orderId: result.orderId,
-                shipmentId: result.shipmentId,
-                status: result.isMock ? "Mock: Order Created" : "Order Created",
+                orderId: primary.orderId,
+                shipmentId: primary.shipmentId,
+                status,
               };
+              builtOrder.shiprocketShipments = result.shipments.map((s) => ({
+                seller: s.seller as any,
+                channelOrderId: s.channelOrderId,
+                pickupLocation: s.pickupLocation,
+                orderId: s.orderId,
+                shipmentId: s.shipmentId,
+                status,
+              }));
               await builtOrder.save();
-            } else {
-              console.error(`[Shiprocket] Failed to create shipment for order ${builtOrder.orderNumber}:`, result.message);
+            }
+            if (result.message) {
+              console.error(`[Shiprocket] Failed to create shipment(s) for order ${builtOrder.orderNumber}:`, result.message);
             }
           })
           .catch((err) => console.error("[Shiprocket] Unexpected error creating shipment:", err));

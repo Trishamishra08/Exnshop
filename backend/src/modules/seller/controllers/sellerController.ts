@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import Seller from "../../../models/Seller";
 import { asyncHandler } from "../../../utils/asyncHandler";
+import { queueSellerPickupSync } from "../../../services/shiprocketService";
 
 /**
  * Get all sellers (Admin only)
@@ -89,6 +90,8 @@ export const updateSellerStatus = asyncHandler(
         message: "Seller not found",
       });
     }
+
+    queueSellerPickupSync(id);
 
     // Trigger push notification and in-app alert to seller asynchronously
     import("../../../services/notificationService").then(({ sendSellerApprovalNotification }) => {
@@ -179,6 +182,8 @@ export const updateSeller = asyncHandler(
         message: "Seller not found",
       });
     }
+
+    queueSellerPickupSync(id);
 
     return res.status(200).json({
       success: true,

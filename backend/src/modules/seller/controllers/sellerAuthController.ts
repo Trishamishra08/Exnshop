@@ -10,6 +10,7 @@ import {
 import { generateToken } from "../../../services/jwtService";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import { sendVerificationCodeEmail } from "../../../services/emailService";
+import { queueSellerPickupSync } from "../../../services/shiprocketService";
 
 /**
  * Profile completion percentage — a simple count of how many of the key
@@ -605,6 +606,8 @@ export const updateProfile = asyncHandler(
         message: "Seller not found",
       });
     }
+
+    queueSellerPickupSync(sellerId);
 
     return res.status(200).json({
       success: true,

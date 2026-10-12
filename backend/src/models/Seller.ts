@@ -90,6 +90,11 @@ export interface ISeller extends Document {
    *  reference delivery apps. */
   supportsInstantDelivery: boolean;
 
+  shiprocketPickupLocation?: string;
+  shiprocketPickupSignature?: string;
+  shiprocketPickupSyncedAt?: Date;
+  shiprocketPickupSyncError?: string;
+
   createdAt: Date;
   updatedAt: Date;
   // FCM Push Notification Tokens
@@ -372,6 +377,12 @@ const SellerSchema = new Schema<ISeller>(
       type: Boolean,
       default: true,
     },
+    // Shiprocket pickup location registered for this seller's address
+    shiprocketPickupLocation: { type: String, trim: true },
+    // Fingerprint of the address last registered; a change triggers re-registration
+    shiprocketPickupSignature: { type: String },
+    shiprocketPickupSyncedAt: { type: Date },
+    shiprocketPickupSyncError: { type: String },
     // FCM Push Notification Tokens
     fcmTokens: {
       type: [String],

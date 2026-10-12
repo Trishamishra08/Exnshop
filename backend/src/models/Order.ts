@@ -156,6 +156,19 @@ export interface IOrder extends Document {
     status?: string;
     pickupScheduledAt?: Date;
   };
+  // One entry per seller: a Shiprocket shipment has a single pickup address,
+  // so multi-seller orders ship as several shipments. `shiprocket` mirrors the first.
+  shiprocketShipments?: Array<{
+    seller?: mongoose.Types.ObjectId;
+    channelOrderId?: string;
+    pickupLocation?: string;
+    orderId?: string;
+    shipmentId?: string;
+    awbCode?: string;
+    courierName?: string;
+    trackingUrl?: string;
+    status?: string;
+  }>;
 
   // RTO (Return To Origin — courier tried to deliver, customer refused or was
   // unreachable, parcel goes back to the seller without ever being accepted).
@@ -557,6 +570,20 @@ const OrderSchema = new Schema<IOrder>(
       status: { type: String, trim: true },
       pickupScheduledAt: { type: Date },
     },
+    shiprocketShipments: [
+      {
+        _id: false,
+        seller: { type: Schema.Types.ObjectId, ref: "Seller" },
+        channelOrderId: { type: String, trim: true },
+        pickupLocation: { type: String, trim: true },
+        orderId: { type: String, trim: true },
+        shipmentId: { type: String, trim: true },
+        awbCode: { type: String, trim: true },
+        courierName: { type: String, trim: true },
+        trackingUrl: { type: String, trim: true },
+        status: { type: String, trim: true },
+      },
+    ],
     rtoDetails: {
       markedAt: { type: Date },
       markedBy: { type: Schema.Types.ObjectId },

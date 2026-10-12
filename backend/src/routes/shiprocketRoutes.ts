@@ -37,6 +37,26 @@ function mapShiprocketStatus(rawStatus: string | undefined): IOrder["status"] | 
   return undefined;
 }
 
+const PROGRESS_RANK: Partial<Record<IOrder["status"], number>> = {
+  Shipped: 1,
+  "Picked up": 1,
+  "Out for Delivery": 2,
+  Delivered: 3,
+};
+
+/**
+ * For an order split into several shipments, the customer-facing status is the
+ * least-advanced shipment's — the order isn't "Delivered" until every parcel is.
+ */
+function overallStatus(rawStatuses: (string | undefined)[]): IOrder["status"] | undefined {
+  const mapped = rawStatuses.map(mapShiprocketStatus);
+  if (mapped.some((s) => !s)) return undefined;
+  if (mapped.every((s) => s === mapped[0])) return mapped[0];
+  const inProgress = mapped.filter((s) => s && PROGRESS_RANK[s] !== undefined) as IOrder["status"][];
+  if (inProgress.length === 0) return undefined;
+  return inProgress.reduce((least, s) => (PROGRESS_RANK[s]! < PROGRESS_RANK[least]! ? s : least));
+}
+
 /**
  * Shiprocket tracking webhook — receives shipment status updates and
  * reflects them onto the matching Order's `shiprocket` sub-document, and
@@ -50,29 +70,65 @@ const handleTrackingWebhook = async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, message: "Invalid webhook token" });
     }
 
-    const { awb, current_status, order_id, track_url } = req.body || {};
+    const { awb, current_status, order_id, sr_order_id, track_url, courier_name } = req.body || {};
 
     // Shiprocket's "Test Webhook" ping has no shipment identifiers and must get a 200.
-    if (!awb && !order_id) {
+    if (!awb && !order_id && !sr_order_id) {
       return res.status(200).json({ success: true, message: "Webhook reachable" });
     }
 
-    const query = awb ? { "shiprocket.awbCode": awb } : { "shiprocket.orderId": String(order_id) };
-    const order = await Order.findOne(query);
+    // `order_id` is the id we sent (our order number, "-N" suffixed per seller);
+    // `sr_order_id` is Shiprocket's own id. The AWB isn't known until a courier
+    // is assigned, so it can't be the only lookup key.
+    const channelOrderId = order_id != null ? String(order_id) : undefined;
+    const srOrderId = sr_order_id != null ? String(sr_order_id) : undefined;
+    const or: any[] = [];
+    if (awb) or.push({ "shiprocket.awbCode": awb }, { "shiprocketShipments.awbCode": awb });
+    if (channelOrderId) {
+      or.push(
+        { "shiprocketShipments.channelOrderId": channelOrderId },
+        { orderNumber: channelOrderId },
+        { "shiprocket.orderId": channelOrderId }
+      );
+    }
+    if (srOrderId) or.push({ "shiprocket.orderId": srOrderId }, { "shiprocketShipments.orderId": srOrderId });
+
+    const order = await Order.findOne({ $or: or });
 
     if (!order) {
       // Not an error from Shiprocket's perspective — just nothing to update yet
       return res.status(200).json({ success: true, message: "No matching order found" });
     }
 
-    order.shiprocket = {
-      ...order.shiprocket,
-      awbCode: awb || order.shiprocket?.awbCode,
-      status: current_status || order.shiprocket?.status,
-      trackingUrl: track_url || order.shiprocket?.trackingUrl,
-    };
+    const shipments = order.shiprocketShipments || [];
+    const shipment = shipments.find(
+      (s) =>
+        (awb && s.awbCode === awb) ||
+        (channelOrderId && s.channelOrderId === channelOrderId) ||
+        (srOrderId && s.orderId === srOrderId)
+    );
+    if (shipment) {
+      shipment.awbCode = awb || shipment.awbCode;
+      shipment.status = current_status || shipment.status;
+      shipment.trackingUrl = track_url || shipment.trackingUrl;
+      shipment.courierName = courier_name || shipment.courierName;
+      order.markModified("shiprocketShipments");
+    }
 
-    const mappedStatus = mapShiprocketStatus(current_status);
+    // `shiprocket` mirrors the first shipment (what the admin Shipments page shows).
+    const isPrimary = !shipment || shipment === shipments[0];
+    if (isPrimary) {
+      order.shiprocket = {
+        ...order.shiprocket,
+        awbCode: awb || order.shiprocket?.awbCode,
+        status: current_status || order.shiprocket?.status,
+        trackingUrl: track_url || order.shiprocket?.trackingUrl,
+        courierName: courier_name || order.shiprocket?.courierName,
+      };
+    }
+
+    const mappedStatus =
+      shipments.length > 1 ? overallStatus(shipments.map((s) => s.status)) : mapShiprocketStatus(current_status);
     if (mappedStatus && !TERMINAL_STATUSES.has(order.status)) {
       order.status = mappedStatus;
       if (mappedStatus === "Delivered" && !order.deliveredAt) {
