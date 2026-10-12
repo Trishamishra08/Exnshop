@@ -12,6 +12,13 @@ import {
 import { uploadImage } from '../../../services/api/uploadService';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
 import LanguageSelector from '../../../components/LanguageSelector';
+import GoogleMapsAutocomplete from '../../../components/GoogleMapsAutocomplete';
+import LocationPickerMap from '../../../components/LocationPickerMap';
+
+// LocationPickerMap opens on the centre of India when no pin exists and reports
+// that point as "selected"; never save it as a real shop location.
+const isMapDefaultCenter = (lat: number, lng: number) =>
+  Math.abs(lat - 20.5937) < 0.001 && Math.abs(lng - 78.9629) < 0.001;
 
 interface SellerProfileData {
   _id?: string;
@@ -52,11 +59,15 @@ export default function SellerProfile() {
     storeName: '',
     address: '',
     city: '',
+    searchLocation: '',
+    latitude: '',
+    longitude: '',
     serviceRadiusKm: '10',
     logo: '',
     channels: ['Quick'] as ('Quick' | 'ECommerce')[],
   });
   const [savingProfile, setSavingProfile] = useState(false);
+  const [locLoading, setLocLoading] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,6 +95,9 @@ export default function SellerProfile() {
           storeName: res.data.storeName || '',
           address: res.data.address || '',
           city: res.data.city || '',
+          searchLocation: res.data.searchLocation || '',
+          latitude: res.data.latitude || '',
+          longitude: res.data.longitude || '',
           serviceRadiusKm: (res.data.serviceRadiusKm || 10).toString(),
           logo: res.data.logo || '',
           channels: res.data.channels && res.data.channels.length > 0 ? res.data.channels : ['Quick'],
@@ -148,6 +162,45 @@ export default function SellerProfile() {
     }
   };
 
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      showToast('Location is not supported on this device', 'error');
+      return;
+    }
+    setLocLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setEditFormData((prev) => ({
+          ...prev,
+          latitude: lat.toString(),
+          longitude: lng.toString(),
+          searchLocation: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+        }));
+        const geocoder = (window as any).google?.maps?.Geocoder;
+        if (geocoder) {
+          new geocoder().geocode({ location: { lat, lng } }, (results: any[], status: string) => {
+            const result = status === 'OK' ? results?.[0] : null;
+            if (!result) return;
+            const city = result.address_components?.find((c: any) => c.types.includes('locality'))?.long_name;
+            setEditFormData((prev) => ({
+              ...prev,
+              searchLocation: result.formatted_address || prev.searchLocation,
+              city: city || prev.city,
+            }));
+          });
+        }
+        setLocLoading(false);
+      },
+      () => {
+        showToast('Unable to get your location. Please allow location access.', 'error');
+        setLocLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  };
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editFormData.sellerName.trim() || !editFormData.storeName.trim()) {
@@ -165,6 +218,14 @@ export default function SellerProfile() {
       return;
     }
 
+    const lat = parseFloat(editFormData.latitude);
+    const lng = parseFloat(editFormData.longitude);
+    const hasPin = Number.isFinite(lat) && Number.isFinite(lng) && !isMapDefaultCenter(lat, lng);
+    if (!hasPin) {
+      showToast('Please set your store location on the map', 'error');
+      return;
+    }
+
     try {
       setSavingProfile(true);
       const res = await updateSellerProfile({
@@ -172,6 +233,9 @@ export default function SellerProfile() {
         storeName: editFormData.storeName,
         address: editFormData.address,
         city: editFormData.city,
+        searchLocation: editFormData.searchLocation,
+        latitude: lat.toString(),
+        longitude: lng.toString(),
         serviceRadiusKm: radius,
         logo: editFormData.logo,
         channels: editFormData.channels,
@@ -717,10 +781,72 @@ export default function SellerProfile() {
                   />
                 </div>
 
+                {/* Store Location (map pin) */}
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Store Location *
+                  </label>
+                  <div className="flex gap-2 items-center">
+                    <div className="flex-1">
+                      <GoogleMapsAutocomplete
+                        value={editFormData.searchLocation}
+                        onChange={(address, lat, lng, _placeName, components) => {
+                          const hasCoords = Number.isFinite(lat) && Number.isFinite(lng);
+                          setEditFormData((prev) => ({
+                            ...prev,
+                            searchLocation: address,
+                            ...(hasCoords ? { latitude: lat.toString(), longitude: lng.toString() } : {}),
+                            city: components?.city || prev.city,
+                          }));
+                        }}
+                        placeholder="Search your store location…"
+                        disabled={savingProfile}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleUseCurrentLocation}
+                      disabled={locLoading || savingProfile}
+                      title="Use my current location"
+                      className="w-10 h-10 flex items-center justify-center rounded-xl bg-teal-50 text-teal-700 border border-teal-200 hover:bg-teal-100 transition-colors flex-shrink-0 disabled:opacity-40"
+                    >
+                      {locLoading ? (
+                        <div className="w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="3" />
+                          <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-neutral-500 mt-2 mb-1">
+                    Drag the map so the pin sits on your exact store entrance
+                  </p>
+                  <LocationPickerMap
+                    height="220px"
+                    initialLat={parseFloat(editFormData.latitude) || 0}
+                    initialLng={parseFloat(editFormData.longitude) || 0}
+                    onLocationSelect={(lat, lng) => {
+                      if (isMapDefaultCenter(lat, lng)) return;
+                      setEditFormData((prev) => ({
+                        ...prev,
+                        latitude: lat.toString(),
+                        longitude: lng.toString(),
+                      }));
+                    }}
+                  />
+                  {editFormData.latitude && editFormData.longitude && (
+                    <p className="text-[10px] text-neutral-400 text-center pt-1">
+                      📍 {parseFloat(editFormData.latitude).toFixed(5)}, {parseFloat(editFormData.longitude).toFixed(5)}
+                    </p>
+                  )}
+                </div>
+
                 {/* Address */}
                 <div>
                   <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                    Store Address
+                    Shop / Building Address
                   </label>
                   <textarea
                     value={editFormData.address}
@@ -729,7 +855,7 @@ export default function SellerProfile() {
                     }
                     rows={2}
                     className="w-full px-3.5 py-2 rounded-xl border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                    placeholder="Enter business address"
+                    placeholder="Shop no., building, street"
                   />
                 </div>
 
