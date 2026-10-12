@@ -3,6 +3,8 @@ import WithdrawRequest from '../../../models/WithdrawRequest';
 import { debitWallet } from '../../../services/walletManagementService';
 import mongoose from 'mongoose';
 import PlatformWallet from '../../../models/PlatformWallet';
+import Seller from '../../../models/Seller';
+import { payoutBlockReason } from '../../../services/sellerOnboardingService';
 
 /**
  * Get all withdrawal requests
@@ -68,6 +70,14 @@ export const approveWithdrawal = async (req: Request, res: Response) => {
                 success: false,
                 message: `Cannot approve ${request.status.toLowerCase()} request`,
             });
+        }
+
+        if (request.userType === 'SELLER') {
+            const seller = await Seller.findById(request.userId);
+            const blocked = seller ? payoutBlockReason(seller, (request as any).paymentMethod) : 'Seller not found';
+            if (blocked) {
+                return res.status(400).json({ success: false, message: `Cannot approve payout: ${blocked}` });
+            }
         }
 
         request.status = 'Approved';

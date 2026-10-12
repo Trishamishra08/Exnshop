@@ -2,6 +2,13 @@ import { Request, Response } from "express";
 import Seller from "../../../models/Seller";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import { queueSellerPickupSync } from "../../../services/shiprocketService";
+import {
+  auditSeller,
+  diffFields,
+  effectiveStatus,
+  refreshActiveStatus,
+  setOnboardingStatus,
+} from "../../../services/sellerOnboardingService";
 
 /**
  * Get all sellers (Admin only)
@@ -78,11 +85,7 @@ export const updateSellerStatus = asyncHandler(
       });
     }
 
-    const seller = await Seller.findByIdAndUpdate(
-      id,
-      { status },
-      { new: true, runValidators: true }
-    ).select("-password");
+    const seller = await Seller.findById(id).select("-password");
 
     if (!seller) {
       return res.status(404).json({
@@ -90,6 +93,24 @@ export const updateSellerStatus = asyncHandler(
         message: "Seller not found",
       });
     }
+
+    const previous = effectiveStatus(seller);
+    setOnboardingStatus(
+      seller,
+      status === "Approved" ? "Approved" : status === "Rejected" ? "Rejected" : "UnderReview",
+      req.body.remarks
+    );
+    await seller.save();
+    if (status === "Approved") await refreshActiveStatus(seller);
+
+    await auditSeller({
+      sellerId: seller._id,
+      actorType: "Admin",
+      actorId: (req as any).user?.userId,
+      action: "STATUS_OVERRIDE",
+      changes: [{ field: "onboardingStatus", from: previous, to: seller.onboardingStatus }],
+      remarks: "Quick status change from seller list (KYC sections not individually reviewed)",
+    });
 
     queueSellerPickupSync(id);
 
@@ -118,6 +139,37 @@ export const updateSeller = asyncHandler(
 
     // Remove password from update data if present
     delete updateData.password;
+    // Onboarding state only changes through the dedicated review endpoints.
+    [
+      "onboardingStatus",
+      "onboardingStatusReason",
+      "onboardingSubmittedAt",
+      "onboardingReview",
+      "documents",
+      "bankVerificationStatus",
+      "bankVerificationMethod",
+      "bankVerifiedAt",
+      "bankVerificationRemarks",
+    ].forEach((field) => delete updateData[field]);
+
+    const existing = await Seller.findById(id).select("-password");
+    if (!existing) {
+      return res.status(404).json({ success: false, message: "Seller not found" });
+    }
+    const auditChanges = diffFields(existing, updateData, [
+      "sellerName", "storeName", "address", "city", "status", "commission", "commissionRate",
+      "requireProductApproval", "serviceRadiusKm", "panCard", "gstin", "businessType",
+      "accountName", "accountNumber", "ifsc", "bankName", "upiId", "channels",
+    ]);
+    if (updateData.status && updateData.status !== existing.status) {
+      const mapped = updateData.status === "Approved" ? "Approved" : updateData.status === "Rejected" ? "Rejected" : "UnderReview";
+      updateData.onboardingStatus = mapped;
+    }
+    if (diffFields(existing, updateData, ["accountName", "accountNumber", "ifsc"]).length) {
+      updateData.bankVerificationStatus = "Unverified";
+      updateData.bankVerificationMethod = null;
+      updateData.bankVerifiedAt = null;
+    }
 
     // Handle location update (convert lat/lng to GeoJSON).
     // Note: use presence checks, not truthy checks — "0" is a non-empty string so
@@ -184,6 +236,16 @@ export const updateSeller = asyncHandler(
     }
 
     queueSellerPickupSync(id);
+
+    if (auditChanges.length) {
+      await auditSeller({
+        sellerId: id,
+        actorType: "Admin",
+        actorId: (req as any).user?.userId,
+        action: "ADMIN_EDIT",
+        changes: auditChanges,
+      });
+    }
 
     return res.status(200).json({
       success: true,

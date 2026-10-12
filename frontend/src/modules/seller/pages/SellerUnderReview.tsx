@@ -9,6 +9,9 @@ export default function SellerUnderReview() {
   const [checking, setChecking] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isRejected, setIsRejected] = useState(user?.status === 'Rejected');
+  const [onboardingStatus, setOnboardingStatus] = useState<string | undefined>(user?.onboardingStatus);
+  const [statusReason, setStatusReason] = useState('');
+  const isSuspended = onboardingStatus === 'Suspended';
   const isMountedRef = useRef(true);
 
   const checkStatus = useCallback(async (isManual = false) => {
@@ -22,6 +25,16 @@ export default function SellerUnderReview() {
       if (!isMountedRef.current) return;
 
       const updatedStatus = res?.data?.status;
+      const onboardingStatus = res?.data?.onboardingStatus;
+
+      // Unfinished or sent-back applications belong in the onboarding wizard.
+      if (['Draft', 'KYCPending', 'ActionRequired'].includes(onboardingStatus)) {
+        updateUser({ ...user, ...res.data, userType: 'Seller' });
+        navigate('/seller/onboarding', { replace: true });
+        return;
+      }
+      setOnboardingStatus(onboardingStatus);
+      setStatusReason(res?.data?.onboardingStatusReason || '');
 
       if (updatedStatus === 'Approved') {
         // Update user state in auth context
@@ -143,13 +156,18 @@ export default function SellerUnderReview() {
 
         {/* Title and Message */}
         <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight mb-2">
-          {isRejected ? 'Application Not Approved' : 'Your Account Is Under Review'}
+          {isSuspended ? 'Account Suspended' : isRejected ? 'Application Not Approved' : 'Your Account Is Under Review'}
         </h2>
         <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-6 font-normal">
-          {isRejected
+          {isSuspended
+            ? 'Selling is paused on your account. Please contact support to resolve this.'
+            : isRejected
             ? 'Thank you for your interest in Exnshop. Unfortunately, your seller application could not be approved at this time.'
-            : "Thank you for registering with Exnshop. Our team is reviewing your seller application. You'll be able to access your seller dashboard once your account is approved."}
+            : "Thank you for registering with Exnshop. Our team is reviewing your business details, documents and bank account. You'll be able to access your seller dashboard once your account is approved."}
         </p>
+        {statusReason && (isSuspended || isRejected) && (
+          <p className="-mt-3 mb-5 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">Reason: {statusReason}</p>
+        )}
 
         {/* Application Details Summary */}
         <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200/70 text-left mb-6 space-y-2.5 text-xs sm:text-sm">
@@ -171,13 +189,13 @@ export default function SellerUnderReview() {
             <span className="text-slate-500 font-medium">Application Status:</span>
             <span
               className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-                isRejected
+                isRejected || isSuspended
                   ? 'bg-red-100 text-red-800 border border-red-200'
                   : 'bg-amber-100 text-amber-900 border border-amber-200'
               }`}
             >
-              <span className={`w-2 h-2 rounded-full ${isRejected ? 'bg-red-500' : 'bg-amber-500 animate-ping'}`} />
-              {isRejected ? 'Rejected' : 'Pending Approval'}
+              <span className={`w-2 h-2 rounded-full ${isRejected || isSuspended ? 'bg-red-500' : 'bg-amber-500 animate-ping'}`} />
+              {isSuspended ? 'Suspended' : isRejected ? 'Rejected' : 'Under Review'}
             </span>
           </div>
         </div>
@@ -207,6 +225,13 @@ export default function SellerUnderReview() {
             ) : (
               'Check Approval Status'
             )}
+          </button>
+
+          <button
+            onClick={() => navigate('/seller/onboarding')}
+            className="w-full h-10 rounded-xl font-semibold text-xs text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 active:scale-95 transition-all cursor-pointer"
+          >
+            View My Application
           </button>
 
           <button

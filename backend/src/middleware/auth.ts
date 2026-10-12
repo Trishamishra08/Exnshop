@@ -122,12 +122,21 @@ export const requireApprovedUser = async (req: Request, res: Response, next: Nex
 
     if (userType === 'Seller') {
       const Seller = (await import('../models/Seller')).default;
-      const seller = await Seller.findById(userId).select('status');
+      const seller = await Seller.findById(userId).select('status onboardingStatus');
 
       if (!seller) {
         res.status(404).json({
           success: false,
           message: 'Seller account not found',
+        });
+        return;
+      }
+
+      if (seller.onboardingStatus === 'Suspended') {
+        res.status(403).json({
+          success: false,
+          code: 'ACCOUNT_SUSPENDED',
+          message: 'Your seller account is suspended. Please contact support.',
         });
         return;
       }

@@ -7,6 +7,13 @@ import {
   deleteSeller,
   updateSellerCategoryCommissions,
 } from "../modules/seller/controllers/sellerController";
+import {
+  getSellerOnboarding,
+  getSellerDocumentUrl,
+  reviewSellerDocument,
+  reviewSellerSection,
+  decideSellerOnboarding,
+} from "../modules/admin/controllers/adminSellerOnboardingController";
 import { authenticate, requireUserType } from "../middleware/auth";
 
 const router = Router();
@@ -14,6 +21,13 @@ const router = Router();
 // All routes require authentication and admin user type
 router.use(authenticate);
 router.use(requireUserType("Admin"));
+
+// Onboarding / KYC review
+router.get("/:id/onboarding", getSellerOnboarding);
+router.get("/:id/documents/:docId/url", getSellerDocumentUrl);
+router.patch("/:id/documents/:docId", reviewSellerDocument);
+router.post("/:id/onboarding/review", reviewSellerSection);
+router.post("/:id/onboarding/decision", decideSellerOnboarding);
 
 // Get all sellers
 router.get("/", getAllSellers);

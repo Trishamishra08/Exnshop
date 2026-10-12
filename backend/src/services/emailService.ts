@@ -112,6 +112,39 @@ This message was submitted through the Exnshop customer application.
 }
 
 /**
+ * Seller onboarding / account status update email.
+ */
+export async function sendSellerStatusEmail(
+  to: string,
+  title: string,
+  message: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await getTransporter().sendMail({
+      from: `"${process.env.MAIL_FROM_NAME || "Exnshop"}" <${process.env.MAIL_FROM || process.env.SMTP_USER}>`,
+      to,
+      subject: `[Exnshop Seller] ${title}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+          <div style="background-color: #0d9488; color: #ffffff; padding: 16px 24px;">
+            <h2 style="margin: 0; font-size: 20px;">Exnshop Seller</h2>
+          </div>
+          <div style="padding: 24px; background-color: #ffffff;">
+            <h3 style="margin: 0 0 12px 0; font-size: 16px;">${escapeHtml(title)}</h3>
+            <p style="margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(message)}</p>
+          </div>
+        </div>
+      `,
+      text: `${title}\n\n${message}`,
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error("[EMAIL SERVICE ERROR] Failed to send seller status email:", error?.message);
+    return { success: false, error: error?.message };
+  }
+}
+
+/**
  * Send a 6-digit email verification code — used for Seller (and reusable for
  * any user type later) email verification during Phase 1 profile setup.
  */

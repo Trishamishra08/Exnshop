@@ -44,6 +44,7 @@ import deliveryWalletRoutes from "./deliveryWalletRoutes";
 import adminWithdrawalRoutes from "./adminWithdrawalRoutes";
 import adminTranslationRoutes from "./adminTranslationRoutes";
 import sellerNotificationRoutes from "./sellerNotificationRoutes";
+import sellerOnboardingRoutes from "./sellerOnboardingRoutes";
 import customerNotificationRoutes from "./customerNotificationRoutes";
 import migrationRoutes from "./migrationRoutes";
 import languageRoutes from "./languageRoutes";
@@ -115,6 +116,7 @@ router.use(
 );
 
 // Seller notifications
+router.use("/seller/onboarding", sellerOnboardingRoutes);
 router.use("/seller", sellerNotificationRoutes);
 
 // Customer notifications

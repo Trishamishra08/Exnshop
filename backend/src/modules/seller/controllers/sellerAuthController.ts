@@ -11,6 +11,30 @@ import { generateToken } from "../../../services/jwtService";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import { sendVerificationCodeEmail } from "../../../services/emailService";
 import { queueSellerPickupSync } from "../../../services/shiprocketService";
+import { auditSeller, diffFields, effectiveStatus, notifyAdmins } from "../../../services/sellerOnboardingService";
+
+const AUDITED_PROFILE_FIELDS = [
+  "sellerName",
+  "storeName",
+  "address",
+  "returnAddress",
+  "city",
+  "searchLocation",
+  "latitude",
+  "longitude",
+  "serviceRadiusKm",
+  "channels",
+  "businessType",
+  "legalBusinessName",
+  "panCard",
+  "gstin",
+  "fssaiLicNo",
+  "accountName",
+  "accountNumber",
+  "ifsc",
+  "bankName",
+  "upiId",
+];
 
 /**
  * Profile completion percentage — a simple count of how many of the key
@@ -163,6 +187,7 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
         location: pending.location,
         serviceRadiusKm: pending.serviceRadiusKm,
         status: "Pending",
+        onboardingStatus: "Draft",
         requireProductApproval: false,
         viewCustomerDetails: false,
         commission: 0,
@@ -172,6 +197,7 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
       });
 
       await PendingSellerRegistration.deleteOne({ _id: pending._id });
+      await auditSeller({ sellerId: seller._id, actorType: "Seller", actorId: seller._id, actorName: seller.sellerName, action: "REGISTERED" });
     }
   } else {
     if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
@@ -217,6 +243,7 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
         location: pending.location,
         serviceRadiusKm: pending.serviceRadiusKm,
         status: "Pending",
+        onboardingStatus: "Draft",
         requireProductApproval: false,
         viewCustomerDetails: false,
         commission: 0,
@@ -226,6 +253,7 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
       });
 
       await PendingSellerRegistration.deleteOne({ _id: pending._id });
+      await auditSeller({ sellerId: seller._id, actorType: "Seller", actorId: seller._id, actorName: seller.sellerName, action: "REGISTERED" });
     }
   }
 
@@ -251,6 +279,7 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
         email: seller.email,
         storeName: seller.storeName,
         status: seller.status,
+        onboardingStatus: effectiveStatus(seller),
         logo: seller.logo,
         address: seller.address,
         city: seller.city,
@@ -450,6 +479,7 @@ export const getProfile = asyncHandler(async (req: Request, res: Response) => {
     success: true,
     data: {
       ...seller.toObject(),
+      onboardingStatus: effectiveStatus(seller),
       profileCompletionPercentage: computeProfileCompletion(seller),
     },
   });
@@ -529,18 +559,77 @@ export const updateProfile = asyncHandler(
     const sellerId = (req as any).user.userId;
     const updates = req.body;
 
-    // Prevent updating sensitive fields directly
+    // Prevent updating sensitive / admin-controlled fields directly
     const restrictedFields = [
       "password",
       "mobile",
       "email",
       "status",
       "balance",
+      "onHoldBalance",
       "isEmailVerified",
       "emailVerificationCode",
       "emailVerificationExpiry",
+      "commission",
+      "commissionRate",
+      "categoryCommissions",
+      "requireProductApproval",
+      "viewCustomerDetails",
+      "supportsInstantDelivery",
+      "onboardingStatus",
+      "onboardingStatusReason",
+      "onboardingSubmittedAt",
+      "onboardingReview",
+      "documents",
+      "bankVerificationStatus",
+      "bankVerificationMethod",
+      "bankVerifiedAt",
+      "bankVerificationRemarks",
+      "shiprocketPickupLocation",
+      "shiprocketPickupSignature",
+      "shiprocketPickupSyncedAt",
+      "shiprocketPickupSyncError",
+      "idProof",
+      "addressProof",
+      "fcmTokens",
+      "fcmTokenMobile",
+      "_id",
     ];
     restrictedFields.forEach((field) => delete updates[field]);
+
+    const current = await Seller.findById(sellerId).select("-password");
+    if (!current) {
+      return res.status(404).json({ success: false, message: "Seller not found" });
+    }
+
+    // Verified business identity can only change through support once reviewed.
+    const identityFields = ["businessType", "legalBusinessName", "panCard", "gstin", "gstRegistered"];
+    const identityChanges = diffFields(current, updates, identityFields);
+    const businessLocked =
+      current.onboardingReview?.business?.status === "Approved" ||
+      ["UnderReview", "Approved", "Active", "Suspended"].includes(effectiveStatus(current));
+    if (identityChanges.length && businessLocked) {
+      return res.status(409).json({
+        success: false,
+        message: "PAN, GST and business type can't be changed after verification. Please contact support.",
+      });
+    }
+    if (updates.panCard) updates.panCard = String(updates.panCard).trim().toUpperCase();
+    if (updates.gstin) updates.gstin = String(updates.gstin).trim().toUpperCase();
+    if (updates.ifsc) updates.ifsc = String(updates.ifsc).trim().toUpperCase();
+
+    const bankChanges = diffFields(current, updates, ["accountName", "accountNumber", "ifsc"]);
+    if (bankChanges.length) {
+      if (["UnderReview", "Suspended", "Rejected"].includes(effectiveStatus(current))) {
+        return res.status(409).json({ success: false, message: "Bank details can't be changed right now. Please contact support." });
+      }
+      updates.bankVerificationStatus = "Unverified";
+      updates.bankVerificationMethod = null;
+      updates.bankVerifiedAt = null;
+      if (current.onboardingReview?.bank?.status === "Approved") {
+        updates["onboardingReview.bank"] = { status: "Submitted", remarks: "" };
+      }
+    }
 
     // Handle location update (convert lat/lng to GeoJSON)
     // Note: use truthy-string-safe checks — "0" is a non-empty string so
@@ -608,6 +697,14 @@ export const updateProfile = asyncHandler(
     }
 
     queueSellerPickupSync(sellerId);
+
+    const changes = diffFields(current, req.body, AUDITED_PROFILE_FIELDS);
+    if (changes.length) {
+      await auditSeller({ sellerId, actorType: "Seller", actorId: sellerId, actorName: current.sellerName, action: "PROFILE_UPDATED", changes });
+    }
+    if (bankChanges.length && ["Approved", "Active"].includes(effectiveStatus(current))) {
+      await notifyAdmins("Seller bank details changed", `${current.storeName} changed their bank account. Verify it before releasing payouts.`);
+    }
 
     return res.status(200).json({
       success: true,

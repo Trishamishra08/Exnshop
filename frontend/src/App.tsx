@@ -196,6 +196,7 @@ const SellerReviews = lazyWithRetry(
 const SellerLogin = lazyWithRetry(() => import("./modules/seller/pages/SellerLogin"), "SellerLogin");
 const SellerSignUp = lazyWithRetry(() => import("./modules/seller/pages/SellerSignUp"), "SellerSignUp");
 const SellerUnderReview = lazyWithRetry(() => import("./modules/seller/pages/SellerUnderReview"), "SellerUnderReview");
+const SellerOnboarding = lazyWithRetry(() => import("./modules/seller/pages/SellerOnboarding"), "SellerOnboarding");
 
 // Lazy load admin routes
 const AdminLayout = lazyWithRetry(
@@ -246,6 +247,9 @@ const AdminSubcategoryOrder = lazyWithRetry(
 );
 const AdminManageSellerList = lazyWithRetry(
   () => import("./modules/admin/pages/AdminManageSellerList"), "AdminManageSellerList"
+);
+const AdminSellerReview = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminSellerReview"), "AdminSellerReview"
 );
 const AdminCoupon = lazyWithRetry(() => import("./modules/admin/pages/AdminCoupon"), "AdminCoupon");
 const AdminNotification = lazyWithRetry(
@@ -508,6 +512,16 @@ function App() {
                               <ProtectedRoute requiredUserType="Seller" allowUnapproved redirectTo="/seller/login">
                                 <Suspense fallback={<IconLoader forceShow />}>
                                   <SellerUnderReview />
+                                </Suspense>
+                              </ProtectedRoute>
+                            }
+                          />
+                          <Route
+                            path="/seller/onboarding"
+                            element={
+                              <ProtectedRoute requiredUserType="Seller" allowUnapproved redirectTo="/seller/login">
+                                <Suspense fallback={<IconLoader forceShow />}>
+                                  <SellerOnboarding />
                                 </Suspense>
                               </ProtectedRoute>
                             }
@@ -843,6 +857,10 @@ function App() {
                                       <Route
                                         path="manage-seller/list"
                                         element={<AdminManageSellerList />}
+                                      />
+                                      <Route
+                                        path="manage-seller/review/:id"
+                                        element={<AdminSellerReview />}
                                       />
                                       <Route
                                         path="manage-seller/transaction"

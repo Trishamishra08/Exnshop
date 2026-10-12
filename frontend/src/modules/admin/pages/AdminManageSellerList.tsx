@@ -4,6 +4,8 @@ import { getHeaderCategoriesAdmin, HeaderCategory } from '../../../services/api/
 import SellerServiceMap from '../components/SellerServiceMap';
 import ConfirmationModal from '../../../components/ConfirmationModal';
 import { useAdminMode } from '../context/AdminModeContext';
+import { Link } from 'react-router-dom';
+import { OnboardingStatus, STATUS_META } from '../../../services/api/sellerOnboardingService';
 
 interface Seller {
     _id: string;
@@ -23,6 +25,8 @@ interface Seller {
         commissionRate: number;
     }>;
     status: 'Approved' | 'Pending' | 'Rejected';
+    onboardingStatus?: OnboardingStatus;
+    bankVerificationStatus?: string;
     needApproval: boolean;
     // Additional fields from signup
     category?: string;
@@ -66,6 +70,8 @@ const mapSellerToFrontend = (seller: SellerType): Seller => {
         categories: seller.categories || [],
         categoryCommissions: seller.categoryCommissions || [],
         status: seller.status,
+        onboardingStatus: (seller as any).onboardingStatus,
+        bankVerificationStatus: (seller as any).bankVerificationStatus,
         needApproval: seller.status === 'Pending',
         category: seller.category,
         address: seller.address,
@@ -802,14 +808,23 @@ export default function AdminManageSellerList() {
                                                 </button>
                                             </td>
                                             <td className="p-4 align-middle">
-                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${seller.status === 'Approved'
-                                                    ? 'bg-green-100 text-green-800'
-                                                    : seller.status === 'Pending'
-                                                        ? 'bg-yellow-100 text-yellow-800'
-                                                        : 'bg-red-100 text-red-800'
-                                                    }`}>
-                                                    {seller.status}
-                                                </span>
+                                                {seller.onboardingStatus ? (
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${STATUS_META[seller.onboardingStatus]?.tone || ''}`}>
+                                                        {STATUS_META[seller.onboardingStatus]?.label || seller.onboardingStatus}
+                                                    </span>
+                                                ) : (
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${seller.status === 'Approved'
+                                                        ? 'bg-green-100 text-green-800'
+                                                        : seller.status === 'Pending'
+                                                            ? 'bg-yellow-100 text-yellow-800'
+                                                            : 'bg-red-100 text-red-800'
+                                                        }`}>
+                                                        {seller.status}
+                                                    </span>
+                                                )}
+                                                {seller.bankVerificationStatus && seller.bankVerificationStatus !== 'Verified' && ['Approved', 'Active'].includes(seller.onboardingStatus || '') && (
+                                                    <span className="block mt-1 text-[10px] font-semibold text-amber-700">Bank not verified</span>
+                                                )}
                                             </td>
                                             <td className="p-4 align-middle">
                                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${seller.needApproval
@@ -821,6 +836,16 @@ export default function AdminManageSellerList() {
                                             </td>
                                             <td className="p-4 align-middle">
                                                 <div className="flex items-center gap-2">
+                                                    <Link
+                                                        to={`/admin/manage-seller/review/${seller._id}`}
+                                                        className={`px-2.5 py-1 rounded text-xs font-semibold whitespace-nowrap ${seller.onboardingStatus === 'UnderReview'
+                                                            ? 'bg-blue-600 text-white hover:bg-blue-700'
+                                                            : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
+                                                            }`}
+                                                        title="Review KYC, bank and store details"
+                                                    >
+                                                        Review
+                                                    </Link>
                                                     <button
                                                         onClick={() => handleEdit(seller._id)}
                                                         className="p-1.5 text-teal-600 hover:bg-teal-50 rounded transition-colors"

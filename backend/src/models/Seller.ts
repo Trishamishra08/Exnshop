@@ -1,6 +1,61 @@
 import mongoose, { Document, Schema } from 'mongoose';
 import bcrypt from 'bcrypt';
 
+export const ONBOARDING_STATUSES = [
+  'Draft',
+  'KYCPending',
+  'UnderReview',
+  'ActionRequired',
+  'Approved',
+  'Active',
+  'Suspended',
+  'Rejected',
+] as const;
+export type OnboardingStatus = (typeof ONBOARDING_STATUSES)[number];
+
+export const SELLER_DOCUMENT_TYPES = [
+  'PAN_CARD',
+  'ADDRESS_PROOF',
+  'BUSINESS_REGISTRATION',
+  'GST_CERTIFICATE',
+  'CANCELLED_CHEQUE',
+  'FSSAI_LICENSE',
+  'ID_PROOF',
+] as const;
+export type SellerDocumentType = (typeof SELLER_DOCUMENT_TYPES)[number];
+
+export type ReviewSectionStatus = 'NotSubmitted' | 'Submitted' | 'Approved' | 'ChangesRequired';
+export interface IReviewSection {
+  status: ReviewSectionStatus;
+  remarks?: string;
+  reviewedAt?: Date;
+}
+
+export interface ISellerDocument {
+  docType: SellerDocumentType;
+  publicId: string;
+  resourceType: string;
+  format?: string;
+  originalName?: string;
+  bytes?: number;
+  uploadedAt: Date;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  remarks?: string;
+}
+
+const reviewSectionSchema = new Schema(
+  {
+    status: {
+      type: String,
+      enum: ['NotSubmitted', 'Submitted', 'Approved', 'ChangesRequired'],
+      default: 'NotSubmitted',
+    },
+    remarks: { type: String, trim: true },
+    reviewedAt: { type: Date },
+  },
+  { _id: false }
+);
+
 export interface ISeller extends Document {
   // Authentication
   sellerName: string;
@@ -89,6 +144,23 @@ export interface ISeller extends Document {
    *  only see the Standard delivery option, mirroring per-restaurant gating in
    *  reference delivery apps. */
   supportsInstantDelivery: boolean;
+
+  onboardingStatus?: OnboardingStatus;
+  onboardingSubmittedAt?: Date;
+  onboardingStatusReason?: string;
+  legalBusinessName?: string;
+  gstRegistered?: boolean;
+  documents: mongoose.Types.DocumentArray<ISellerDocument & mongoose.Types.Subdocument>;
+  onboardingReview?: {
+    business?: IReviewSection;
+    kyc?: IReviewSection;
+    bank?: IReviewSection;
+    store?: IReviewSection;
+  };
+  bankVerificationStatus?: "Unverified" | "Verified" | "Failed";
+  bankVerificationMethod?: "Manual" | "API" | "Legacy";
+  bankVerifiedAt?: Date;
+  bankVerificationRemarks?: string;
 
   shiprocketPickupLocation?: string;
   shiprocketPickupSignature?: string;
@@ -377,6 +449,44 @@ const SellerSchema = new Schema<ISeller>(
       type: Boolean,
       default: true,
     },
+    // ── Onboarding / KYC ──
+    // No schema default on purpose: Mongoose applies defaults to documents
+    // loaded without the field, which would turn legacy approved sellers into
+    // "Draft". New sellers set it explicitly; legacy ones are migrated.
+    onboardingStatus: {
+      type: String,
+      enum: ONBOARDING_STATUSES,
+    },
+    onboardingSubmittedAt: { type: Date },
+    onboardingStatusReason: { type: String, trim: true },
+    legalBusinessName: { type: String, trim: true },
+    gstRegistered: { type: Boolean },
+    documents: [
+      {
+        docType: { type: String, enum: SELLER_DOCUMENT_TYPES, required: true },
+        publicId: { type: String, required: true },
+        resourceType: { type: String, default: "image" },
+        format: { type: String },
+        originalName: { type: String },
+        bytes: { type: Number },
+        uploadedAt: { type: Date, default: Date.now },
+        status: { type: String, enum: ["Pending", "Approved", "Rejected"], default: "Pending" },
+        remarks: { type: String, trim: true },
+      },
+    ],
+    onboardingReview: {
+      business: reviewSectionSchema,
+      kyc: reviewSectionSchema,
+      bank: reviewSectionSchema,
+      store: reviewSectionSchema,
+    },
+    bankVerificationStatus: {
+      type: String,
+      enum: ["Unverified", "Verified", "Failed"],
+    },
+    bankVerificationMethod: { type: String, enum: ["Manual", "API", "Legacy"] },
+    bankVerifiedAt: { type: Date },
+    bankVerificationRemarks: { type: String, trim: true },
     // Shiprocket pickup location registered for this seller's address
     shiprocketPickupLocation: { type: String, trim: true },
     // Fingerprint of the address last registered; a change triggers re-registration

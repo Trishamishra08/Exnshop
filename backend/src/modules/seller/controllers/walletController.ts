@@ -5,6 +5,7 @@ import WithdrawRequest from '../../../models/WithdrawRequest';
 import OrderItem from '../../../models/OrderItem';
 import { asyncHandler } from '../../../utils/asyncHandler';
 import mongoose from 'mongoose';
+import { payoutBlockReason } from '../../../services/sellerOnboardingService';
 
 /**
  * Get seller's wallet statistics
@@ -147,6 +148,11 @@ export const createWithdrawalRequest = asyncHandler(async (req: Request, res: Re
     const seller = await Seller.findById(sellerId);
     if (!seller) {
         return res.status(404).json({ success: false, message: 'Seller not found' });
+    }
+
+    const blocked = payoutBlockReason(seller, paymentMethod);
+    if (blocked) {
+        return res.status(403).json({ success: false, message: blocked });
     }
 
     if (seller.balance < amount) {
