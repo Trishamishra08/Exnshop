@@ -71,6 +71,20 @@ export const getSellerById = asyncHandler(
 );
 
 /**
+ * The quick Approve/Reject shortcuts (seller list) may only act on an application
+ * the seller has actually submitted. Returns why a change is refused, or null.
+ */
+const quickStatusBlockReason = (current: string, requested: string): string | null => {
+  if (requested === "Approved" && ["Draft", "KYCPending", "ActionRequired"].includes(current)) {
+    return "This seller hasn't submitted their application yet, so it can't be approved. They need to finish onboarding and submit it for review first.";
+  }
+  if (requested === "Rejected" && ["Approved", "Active"].includes(current)) {
+    return "This seller is already live. Use Suspend on the seller's review page instead of Reject.";
+  }
+  return null;
+};
+
+/**
  * Update seller status (Approve/Reject)
  */
 export const updateSellerStatus = asyncHandler(
@@ -94,12 +108,14 @@ export const updateSellerStatus = asyncHandler(
       });
     }
 
+    const blocked = quickStatusBlockReason(effectiveStatus(seller), status);
+    if (blocked) return res.status(409).json({ success: false, message: blocked });
+
     const previous = effectiveStatus(seller);
-    setOnboardingStatus(
-      seller,
-      status === "Approved" ? "Approved" : status === "Rejected" ? "Rejected" : "UnderReview",
-      req.body.remarks
-    );
+    if (status === "Pending") {
+      return res.status(200).json({ success: true, message: "No change", data: seller });
+    }
+    setOnboardingStatus(seller, status === "Approved" ? "Approved" : "Rejected", req.body.remarks);
     await seller.save();
     if (status === "Approved") await refreshActiveStatus(seller);
 
@@ -157,6 +173,9 @@ export const updateSeller = asyncHandler(
     if (!existing) {
       return res.status(404).json({ success: false, message: "Seller not found" });
     }
+    // `status` is the selling gate. Editing details must never flip it; the legacy
+    // status is only ever changed through the guarded status endpoint above.
+    delete updateData.status;
     const auditChanges = diffFields(existing, updateData, [
       "sellerName", "storeName", "address", "city", "status", "commission", "commissionRate",
       "requireProductApproval", "serviceRadiusKm", "panCard", "gstin", "businessType",

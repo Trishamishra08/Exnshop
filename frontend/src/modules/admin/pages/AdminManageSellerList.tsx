@@ -72,7 +72,10 @@ const mapSellerToFrontend = (seller: SellerType): Seller => {
         status: seller.status,
         onboardingStatus: (seller as any).onboardingStatus,
         bankVerificationStatus: (seller as any).bankVerificationStatus,
-        needApproval: seller.status === 'Pending',
+        // Only a submitted application needs the admin; drafts are still the seller's to finish.
+        needApproval: (seller as any).onboardingStatus
+            ? (seller as any).onboardingStatus === 'UnderReview'
+            : seller.status === 'Pending',
         category: seller.category,
         address: seller.address,
         city: seller.city,
@@ -350,8 +353,18 @@ export default function AdminManageSellerList() {
             };
 
             const response = await updateSeller(editingSeller._id, payload);
+            if (response.success && response.data && editForm.status && editForm.status !== editingSeller.status) {
+                try {
+                    await updateSellerStatus(editingSeller._id, editForm.status as 'Approved' | 'Pending' | 'Rejected');
+                } catch (statusErr: any) {
+                    setEditError(`Details saved, but the status was not changed: ${statusErr.response?.data?.message || 'please try again'}`);
+                    return;
+                }
+            }
             if (response.success && response.data) {
-                const updatedSeller = mapSellerToFrontend(response.data);
+                const refreshed = await getAllSellers({ channel: mode });
+                const fresh = refreshed.data?.find((s: SellerType) => s._id === editingSeller._id) || response.data;
+                const updatedSeller = mapSellerToFrontend(fresh);
                 setSellers(prev => prev.map(s => s._id === editingSeller._id ? updatedSeller : s));
                 setEditingSeller(updatedSeller);
                 setSuccessMessage('Seller details updated successfully');
@@ -1101,7 +1114,7 @@ export default function AdminManageSellerList() {
                                         <option value="Rejected">Rejected</option>
                                     </select>
                                 </div>
-                                {editingSeller.status === 'Pending' && (
+                                {editingSeller.needApproval && (
                                     <div className="flex gap-2">
                                         <button
                                             type="button"
