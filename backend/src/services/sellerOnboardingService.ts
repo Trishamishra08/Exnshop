@@ -9,6 +9,7 @@ import Seller, {
 } from "../models/Seller";
 import Product from "../models/Product";
 import SellerAuditLog from "../models/SellerAuditLog";
+import { apiclubConfigured, apiclubIsTestEnvironment } from "./apiclubService";
 
 export const BUSINESS_TYPES = [
   "Individual",
@@ -30,6 +31,7 @@ export const DOCUMENT_LABELS: Record<SellerDocumentType, string> = {
   CANCELLED_CHEQUE: "Cancelled Cheque / Bank Passbook",
   FSSAI_LICENSE: "FSSAI License",
   ID_PROOF: "Owner ID Proof",
+  SELFIE: "Selfie (used to match your PAN card photo)",
 };
 
 export const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
@@ -362,6 +364,22 @@ export const buildOnboardingView = (seller: ISeller, opts: { forAdmin?: boolean 
       businessTypes: BUSINESS_TYPES,
       documentLabels: DOCUMENT_LABELS,
     },
+    ...(opts.forAdmin
+      ? {
+          verification: {
+            configured: apiclubConfigured(),
+            testMode: apiclubIsTestEnvironment(),
+            checks: (seller.verificationChecks || []).map((c: any) => ({
+              type: c.type,
+              status: c.status,
+              summary: c.summary,
+              details: c.details instanceof Map ? Object.fromEntries(c.details) : c.details || {},
+              ranAt: c.ranAt,
+              ranBy: c.ranBy,
+            })),
+          },
+        }
+      : {}),
   };
 };
 

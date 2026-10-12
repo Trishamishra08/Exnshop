@@ -13,6 +13,7 @@ import {
   reviewSellerDocument,
   reviewSellerSection,
   decideSellerOnboarding,
+  runSellerVerifications,
 } from "../modules/admin/controllers/adminSellerOnboardingController";
 import { authenticate, requireUserType } from "../middleware/auth";
 
@@ -26,6 +27,7 @@ router.use(requireUserType("Admin"));
 router.get("/:id/onboarding", getSellerOnboarding);
 router.get("/:id/documents/:docId/url", getSellerDocumentUrl);
 router.patch("/:id/documents/:docId", reviewSellerDocument);
+router.post("/:id/verifications/run", runSellerVerifications);
 router.post("/:id/onboarding/review", reviewSellerSection);
 router.post("/:id/onboarding/decision", decideSellerOnboarding);
 

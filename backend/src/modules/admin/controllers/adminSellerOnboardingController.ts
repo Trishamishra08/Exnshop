@@ -15,6 +15,7 @@ import {
   signedDocumentUrl,
 } from "../../../services/sellerOnboardingService";
 import { queueSellerPickupSync } from "../../../services/shiprocketService";
+import { runVerificationChecks } from "../../../services/sellerVerificationService";
 
 const SECTION_LABELS: Record<Section, string> = {
   business: "Business details",
@@ -97,6 +98,18 @@ export const reviewSellerDocument = asyncHandler(async (req: Request, res: Respo
 
   await auditSeller({ sellerId: seller._id, ...(await adminActor(req)), action: `DOCUMENT_${status.toUpperCase()}`, section: "kyc", changes: [{ field: doc.docType }], remarks: doc.remarks });
   return res.json({ success: true, data: buildOnboardingView(seller, { forAdmin: true }) });
+});
+
+/** POST /sellers/:id/verifications/run  { checks?: ["PAN"|"CHEQUE"|"BANK"|"FACE"] } */
+export const runSellerVerifications = asyncHandler(async (req: Request, res: Response) => {
+  const seller = await findSellerOrThrow(req.params.id);
+  const actor = await adminActor(req);
+  try {
+    await runVerificationChecks(seller, req.body?.checks, actor);
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, message: err.message });
+  }
+  return res.json({ success: true, message: "Checks completed", data: buildOnboardingView(seller, { forAdmin: true }) });
 });
 
 /** POST /sellers/:id/onboarding/review  { section, decision: Approved|ChangesRequired, remarks } */

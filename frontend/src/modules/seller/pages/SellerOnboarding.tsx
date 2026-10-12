@@ -29,7 +29,7 @@ const STEPS: { key: Step; title: string; hint: string }[] = [
   { key: 'store', title: 'Store', hint: 'Pickup & return' },
   { key: 'review', title: 'Submit', hint: 'Send for review' },
 ];
-const OPTIONAL_DOCS = ['ID_PROOF', 'FSSAI_LICENSE'];
+const OPTIONAL_DOCS = ['ID_PROOF', 'FSSAI_LICENSE', 'SELFIE'];
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const isMapDefaultCenter = (lat: number, lng: number) =>
   Math.abs(lat - 20.5937) < 0.001 && Math.abs(lng - 78.9629) < 0.001;
@@ -515,7 +515,8 @@ export default function SellerOnboarding() {
                             {uploadingDoc === type ? 'Uploading…' : doc ? 'Replace' : 'Upload'}
                             <input
                               type="file"
-                              accept="image/jpeg,image/png,image/webp,application/pdf"
+                              accept={type === 'SELFIE' ? 'image/jpeg,image/png,image/webp' : 'image/jpeg,image/png,image/webp,application/pdf'}
+                              capture={type === 'SELFIE' ? 'user' : undefined}
                               className="hidden"
                               disabled={!!uploadingDoc}
                               onChange={(e) => {

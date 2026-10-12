@@ -581,6 +581,7 @@ export const updateProfile = asyncHandler(
       "onboardingSubmittedAt",
       "onboardingReview",
       "documents",
+      "verificationChecks",
       "bankVerificationStatus",
       "bankVerificationMethod",
       "bankVerifiedAt",

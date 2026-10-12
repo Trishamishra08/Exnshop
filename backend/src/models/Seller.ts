@@ -21,7 +21,20 @@ export const SELLER_DOCUMENT_TYPES = [
   'CANCELLED_CHEQUE',
   'FSSAI_LICENSE',
   'ID_PROOF',
+  'SELFIE',
 ] as const;
+
+export const VERIFICATION_CHECK_TYPES = ['PAN', 'CHEQUE', 'BANK', 'FACE'] as const;
+export type VerificationCheckType = (typeof VERIFICATION_CHECK_TYPES)[number];
+export interface IVerificationCheck {
+  type: VerificationCheckType;
+  /** TestMode = ran against APIclub UAT, which only returns dummy data. */
+  status: 'Passed' | 'Failed' | 'Inconclusive' | 'TestMode' | 'Error';
+  summary: string;
+  details?: Record<string, string>;
+  ranAt: Date;
+  ranBy?: string;
+}
 export type SellerDocumentType = (typeof SELLER_DOCUMENT_TYPES)[number];
 
 export type ReviewSectionStatus = 'NotSubmitted' | 'Submitted' | 'Approved' | 'ChangesRequired';
@@ -151,6 +164,7 @@ export interface ISeller extends Document {
   legalBusinessName?: string;
   gstRegistered?: boolean;
   documents: mongoose.Types.DocumentArray<ISellerDocument & mongoose.Types.Subdocument>;
+  verificationChecks?: IVerificationCheck[];
   onboardingReview?: {
     business?: IReviewSection;
     kyc?: IReviewSection;
@@ -472,6 +486,17 @@ const SellerSchema = new Schema<ISeller>(
         uploadedAt: { type: Date, default: Date.now },
         status: { type: String, enum: ["Pending", "Approved", "Rejected"], default: "Pending" },
         remarks: { type: String, trim: true },
+      },
+    ],
+    verificationChecks: [
+      {
+        _id: false,
+        type: { type: String, enum: VERIFICATION_CHECK_TYPES, required: true },
+        status: { type: String, enum: ['Passed', 'Failed', 'Inconclusive', 'TestMode', 'Error'], required: true },
+        summary: { type: String },
+        details: { type: Map, of: String },
+        ranAt: { type: Date, default: Date.now },
+        ranBy: { type: String },
       },
     ],
     onboardingReview: {

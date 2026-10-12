@@ -10,6 +10,8 @@ import {
   decideSellerAdmin,
   getSellerDocumentUrlAdmin,
   getSellerOnboardingAdmin,
+  CheckType,
+  runVerificationsAdmin,
   reviewSellerDocumentAdmin,
   reviewSellerSectionAdmin,
 } from '../../../services/api/sellerOnboardingService';
@@ -46,6 +48,7 @@ const ACTION_LABELS: Record<string, string> = {
   DOCUMENT_REPLACED: 'Replaced document',
   DOCUMENT_DELETED: 'Removed document',
   DOCUMENT_VIEWED: 'Viewed document',
+  VERIFICATION_RUN: 'Ran automatic checks',
   DOCUMENT_APPROVED: 'Approved document',
   DOCUMENT_REJECTED: 'Rejected document',
   SECTION_APPROVED: 'Approved section',
@@ -59,6 +62,27 @@ const ACTION_LABELS: Record<string, string> = {
   STATUS_OVERRIDE: 'Changed status from seller list',
   ADMIN_EDIT: 'Edited seller',
   MIGRATED_TO_ONBOARDING: 'Migrated to onboarding',
+};
+
+const CHECKS: { type: CheckType; title: string; hint: string }[] = [
+  { type: 'PAN', title: 'PAN card', hint: 'Reads the PAN card photo and compares PAN and name' },
+  { type: 'CHEQUE', title: 'Cancelled cheque', hint: 'Reads the cheque and compares account, IFSC and name' },
+  { type: 'BANK', title: 'Bank account', hint: 'Asks the bank if the account exists and who holds it' },
+  { type: 'FACE', title: 'Selfie match', hint: 'Compares the selfie with the photo on the PAN card' },
+];
+const CHECK_TONE: Record<string, string> = {
+  Passed: 'bg-green-50 text-green-800 border-green-200',
+  Failed: 'bg-red-50 text-red-700 border-red-200',
+  Inconclusive: 'bg-amber-50 text-amber-800 border-amber-200',
+  TestMode: 'bg-purple-50 text-purple-800 border-purple-200',
+  Error: 'bg-neutral-100 text-neutral-700 border-neutral-200',
+};
+const CHECK_LABEL: Record<string, string> = {
+  Passed: 'Passed',
+  Failed: 'Failed',
+  Inconclusive: 'Check by eye',
+  TestMode: 'Test mode',
+  Error: 'Could not run',
 };
 
 function Row({ label, value }: { label: string; value?: React.ReactNode }) {
@@ -106,6 +130,20 @@ export default function AdminSellerReview() {
       return false;
     } finally {
       setBusy(false);
+    }
+  };
+
+  const [runningCheck, setRunningCheck] = useState<string | null>(null);
+  const runChecks = async (checks?: CheckType[]) => {
+    setRunningCheck(checks?.length === 1 ? checks[0] : 'ALL');
+    try {
+      const res = await runVerificationsAdmin(id, checks);
+      setData(res.data);
+      showToast('Checks completed', 'success');
+    } catch (err) {
+      showToast(apiErrorMessage(err, 'Could not run the checks'), 'error');
+    } finally {
+      setRunningCheck(null);
     }
   };
 
@@ -209,6 +247,75 @@ export default function AdminSellerReview() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
+          <section className="bg-white rounded-xl border border-neutral-200 p-4">
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <h3 className="font-semibold text-neutral-900">Automatic checks</h3>
+              <button
+                disabled={!!runningCheck || !data.verification.configured}
+                onClick={() => runChecks()}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50"
+              >
+                {runningCheck === 'ALL' ? 'Running…' : 'Run all checks'}
+              </button>
+            </div>
+            <p className="text-xs text-neutral-500 mb-3">
+              These help you review faster. They never approve anything by themselves, so you still make the final decision. Each check may cost a few rupees.
+            </p>
+            {!data.verification.configured && (
+              <p className="mb-3 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                Not set up yet. Add APICLUB_API_KEY to the backend environment to enable these checks.
+              </p>
+            )}
+            {data.verification.configured && data.verification.testMode && (
+              <p className="mb-3 text-xs text-purple-800 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
+                Test mode: the verification provider returns dummy data, so results can't confirm anything real. Switch to the production URL to go live.
+              </p>
+            )}
+            <ul className="divide-y divide-neutral-100">
+              {CHECKS.map((c) => {
+                const result = data.verification.checks.find((r) => r.type === c.type);
+                return (
+                  <li key={c.type} className="py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-neutral-800">{c.title}</p>
+                        <p className="text-[11px] text-neutral-500">{c.hint}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {result && (
+                          <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${CHECK_TONE[result.status]}`}>{CHECK_LABEL[result.status]}</span>
+                        )}
+                        <button
+                          disabled={!!runningCheck || !data.verification.configured}
+                          onClick={() => runChecks([c.type])}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-neutral-100 hover:bg-neutral-200 disabled:opacity-50"
+                        >
+                          {runningCheck === c.type ? 'Running…' : result ? 'Re-run' : 'Run'}
+                        </button>
+                      </div>
+                    </div>
+                    {result && (
+                      <div className="mt-1.5 text-xs text-neutral-700">
+                        <p>{result.summary}</p>
+                        {Object.keys(result.details).length > 0 && (
+                          <p className="mt-1 text-[11px] text-neutral-500 break-all">
+                            {Object.entries(result.details)
+                              .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v || '—'}`)
+                              .join(' · ')}
+                          </p>
+                        )}
+                        <p className="text-[10px] text-neutral-400 mt-0.5">
+                          {new Date(result.ranAt).toLocaleString('en-IN')}
+                          {result.ranBy ? ` · ${result.ranBy}` : ''}
+                        </p>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
           {card(
             'business',
             <div>

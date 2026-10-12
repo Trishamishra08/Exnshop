@@ -89,7 +89,18 @@ export interface AuditEntry {
   createdAt: string;
 }
 
+export type CheckType = 'PAN' | 'CHEQUE' | 'BANK' | 'FACE';
+export interface VerificationCheck {
+  type: CheckType;
+  status: 'Passed' | 'Failed' | 'Inconclusive' | 'TestMode' | 'Error';
+  summary: string;
+  details: Record<string, string>;
+  ranAt: string;
+  ranBy?: string;
+}
+
 export interface AdminOnboardingView extends OnboardingView {
+  verification: { configured: boolean; testMode: boolean; checks: VerificationCheck[] };
   seller: {
     sellerName: string;
     storeName: string;
@@ -166,6 +177,8 @@ export const reviewSellerSectionAdmin = async (
   decision: 'Approved' | 'ChangesRequired',
   remarks?: string
 ) => (await api.post<Res<OnboardingView>>(`/sellers/${sellerId}/onboarding/review`, { section, decision, remarks })).data;
+export const runVerificationsAdmin = async (sellerId: string, checks?: CheckType[]) =>
+  (await api.post<Res<AdminOnboardingView>>(`/sellers/${sellerId}/verifications/run`, { checks }, { timeout: 180000 })).data;
 export const decideSellerAdmin = async (
   sellerId: string,
   action: 'approve' | 'request_changes' | 'reject' | 'suspend' | 'reactivate',

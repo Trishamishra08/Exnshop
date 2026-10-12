@@ -146,6 +146,7 @@ export const updateSeller = asyncHandler(
       "onboardingSubmittedAt",
       "onboardingReview",
       "documents",
+      "verificationChecks",
       "bankVerificationStatus",
       "bankVerificationMethod",
       "bankVerifiedAt",
