@@ -13,6 +13,16 @@ interface GoogleMapsAutocompleteProps {
 type Libraries = ("places" | "drawing" | "geometry" | "visualization")[];
 const libraries: Libraries = ['places'];
 
+interface Suggestion {
+  id: string;
+  main: string;
+  secondary: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  prediction: any;
+}
+
+const DEBOUNCE_MS = 250;
+
 // Clean address by removing Plus Codes and unwanted identifiers
 const cleanAddress = (address: string): string => {
   if (!address) return address;
@@ -33,6 +43,12 @@ const cleanAddress = (address: string): string => {
   return cleaned;
 };
 
+/**
+ * Location search box built on the Places API (New). The legacy
+ * `google.maps.places.Autocomplete` widget is not available to Google Cloud
+ * projects created after March 2025, so suggestions are fetched with
+ * AutocompleteSuggestion and rendered here.
+ */
 export default function GoogleMapsAutocomplete({
   value,
   onChange,
@@ -41,170 +57,222 @@ export default function GoogleMapsAutocomplete({
   disabled = false,
   required = false,
 }: GoogleMapsAutocompleteProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const autocompleteRef = useRef<any>(null);
   const [error, setError] = useState<string>('');
   const [inputValue, setInputValue] = useState(value);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState(-1);
+  const [searching, setSearching] = useState(false);
 
-  // Use the same loader configuration as LocationPickerMap
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const placesLibRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sessionTokenRef = useRef<any>(null);
+  const requestIdRef = useRef(0);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const { isLoaded, loadError } = useJsApiLoader({
     id: 'google-map-script',
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
     libraries: libraries,
   });
 
-  // use refs to access latest props in event listeners without re-initializing
   const onChangeRef = useRef(onChange);
-  const valueRef = useRef(value);
-
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
 
   useEffect(() => {
-    valueRef.current = value;
-  }, [value]);
-
-  // Update local input value when prop changes
-  useEffect(() => {
     setInputValue(value);
   }, [value]);
 
   useEffect(() => {
-    if (loadError) {
-      setError(`Failed to load Google Maps API: ${loadError.message}`);
-    }
+    if (loadError) setError(`Failed to load Google Maps API: ${loadError.message}`);
   }, [loadError]);
 
-  const initializeAutocomplete = useCallback(() => {
-    if (!inputRef.current || !window.google?.maps?.places) return;
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
-    // Clean up any existing autocomplete
-    if (autocompleteRef.current) {
+  // Close the list when clicking outside the component.
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const loadPlaces = useCallback(async () => {
+    if (placesLibRef.current) return placesLibRef.current;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const g = (window as any).google;
+    if (!g?.maps?.importLibrary) throw new Error('Google Maps is not ready');
+    placesLibRef.current = await g.maps.importLibrary('places');
+    return placesLibRef.current;
+  }, []);
+
+  const search = useCallback(
+    async (text: string) => {
+      const requestId = ++requestIdRef.current;
       try {
-        window.google?.maps?.event?.clearInstanceListeners?.(autocompleteRef.current);
-      } catch {
-        // Ignore cleanup errors
+        setSearching(true);
+        const lib = await loadPlaces();
+        if (!sessionTokenRef.current) sessionTokenRef.current = new lib.AutocompleteSessionToken();
+        const { suggestions: found } = await lib.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+          input: text,
+          includedRegionCodes: ['in'],
+          sessionToken: sessionTokenRef.current,
+        });
+        if (requestId !== requestIdRef.current) return; // a newer search replaced this one
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mapped: Suggestion[] = (found || []).filter((s: any) => s.placePrediction).map((s: any) => ({
+          id: s.placePrediction.placeId,
+          main: s.placePrediction.mainText?.text || s.placePrediction.text?.text || '',
+          secondary: s.placePrediction.secondaryText?.text || '',
+          prediction: s.placePrediction,
+        }));
+        setSuggestions(mapped);
+        setHighlight(-1);
+        setOpen(mapped.length > 0);
+        setError('');
+      } catch (err: unknown) {
+        if (requestId !== requestIdRef.current) return;
+        console.error('Places autocomplete error:', err);
+        setSuggestions([]);
+        setOpen(false);
+        setError('Location search is unavailable right now. Please try again.');
+      } finally {
+        if (requestId === requestIdRef.current) setSearching(false);
       }
-      autocompleteRef.current = null;
+    },
+    [loadPlaces]
+  );
+
+  const handleInput = (text: string) => {
+    setInputValue(text);
+    // Manual typing hasn't resolved real coordinates yet — pass NaN rather
+    // than fabricating 0,0 (which downstream code could mistake for a real,
+    // validly-selected location and silently save a corrupted address).
+    // Callers should leave latitude/longitude untouched when they see NaN.
+    onChange(text, NaN, NaN, text);
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (text.trim().length < 2 || !isLoaded) {
+      requestIdRef.current++;
+      setSuggestions([]);
+      setOpen(false);
+      setSearching(false);
+      return;
     }
+    debounceRef.current = setTimeout(() => search(text.trim()), DEBOUNCE_MS);
+  };
 
+  const select = async (s: Suggestion) => {
+    setOpen(false);
+    setSuggestions([]);
+    requestIdRef.current++;
     try {
-      const places = window.google.maps.places as any;
+      const place = s.prediction.toPlace();
+      await place.fetchFields({ fields: ['displayName', 'formattedAddress', 'location', 'addressComponents'] });
+      // The session ends once a place is chosen; the next search starts a new one.
+      sessionTokenRef.current = null;
 
-      if (!places.Autocomplete) {
-        setError('Google Maps Places Autocomplete not available');
+      if (!place.location) {
+        setError('No location details found for this place');
         return;
       }
 
-      const autocomplete = new places.Autocomplete(inputRef.current, {
-        types: ['establishment', 'geocode'],
-        componentRestrictions: { country: 'in' },
-        fields: ['address_components', 'formatted_address', 'geometry', 'name', 'place_id'],
-      });
+      const lat = place.location.lat();
+      const lng = place.location.lng();
+      const rawAddress = place.formattedAddress || place.displayName || s.main;
+      const address = cleanAddress(rawAddress);
+      const placeName = place.displayName || address;
 
-      autocompleteRef.current = autocomplete;
-
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
-
-        if (!place.geometry || !place.geometry.location) {
-          // If no geometry (e.g. user hit enter on text without selecting), 
-          // we might want to just keep the text or show error.
-          // Ideally we shouldn't error if they just typed something valid but google didn't autocomplete it yet.
-          // But here we are inside place_changed.
-          setError('No location details found for this place');
-          return;
-        }
-
-        const lat = place.geometry.location.lat();
-        const lng = place.geometry.location.lng();
-        const rawAddress = place.formatted_address || place.name || valueRef.current;
-        const address = cleanAddress(rawAddress);
-        const placeName = place.name || address;
-
-        let city = '';
-        let state = '';
-
-        if (place.address_components) {
-          for (const component of place.address_components) {
-            if (component.types.includes('locality')) {
-              city = component.long_name;
-            } else if (component.types.includes('administrative_area_level_3') && !city) {
-              city = component.long_name;
-            } else if (component.types.includes('administrative_area_level_1')) {
-              state = component.long_name;
-            }
-          }
-        }
-
-        setInputValue(address);
-        if (onChangeRef.current) {
-          onChangeRef.current(address, lat, lng, placeName, { city, state });
-        }
-        setError('');
-      });
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      console.error('Autocomplete initialization error:', err);
-      setError(`Failed to initialize autocomplete: ${errorMessage}`);
-    }
-  }, []); // No dependencies to prevent re-initialization
-
-  useEffect(() => {
-    if (isLoaded && inputRef.current && !autocompleteRef.current) {
-      initializeAutocomplete();
-    }
-
-    return () => {
-      if (autocompleteRef.current) {
-        try {
-          window.google?.maps?.event?.clearInstanceListeners?.(autocompleteRef.current);
-        } catch {
-          // Ignore
-        }
-        // Do NOT set autocompleteRef.current to null here if we want to persist it across renders 
-        // unless the component is actually unmounting.
-        // But the cleanup runs on unmount.
+      let city = '';
+      let state = '';
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const component of (place.addressComponents || []) as any[]) {
+        const types: string[] = component.types || [];
+        if (types.includes('locality')) city = component.longText;
+        else if (types.includes('administrative_area_level_3') && !city) city = component.longText;
+        else if (types.includes('administrative_area_level_1')) state = component.longText;
       }
+
+      setInputValue(address);
+      onChangeRef.current(address, lat, lng, placeName, { city, state });
+      setError('');
+    } catch (err: unknown) {
+      console.error('Places fetchFields error:', err);
+      setError('Could not load that place. Please pick another or try again.');
     }
-  }, [isLoaded, initializeAutocomplete]);
+  };
 
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
   return (
-    <div className="w-full">
+    <div className="w-full relative" ref={containerRef}>
       <input
-        ref={inputRef}
         type="text"
         value={inputValue}
-        onChange={(e) => {
-          setInputValue(e.target.value);
-          // Manual typing hasn't resolved real coordinates yet — pass NaN rather
-          // than fabricating 0,0 (which downstream code could mistake for a real,
-          // validly-selected location and silently save a corrupted address).
-          // Callers should leave latitude/longitude untouched when they see NaN.
-          onChange(e.target.value, NaN, NaN, e.target.value);
-        }}
+        onChange={(e) => handleInput(e.target.value)}
+        onFocus={() => suggestions.length > 0 && setOpen(true)}
         placeholder={placeholder}
         className={`w-full px-3 py-2 border border-neutral-300 rounded-lg placeholder:text-neutral-400 focus:outline-none focus:border-blue-600 bg-white ${className}`}
         disabled={disabled}
         required={required}
         autoComplete="off"
+        role="combobox"
+        aria-expanded={open}
+        aria-autocomplete="list"
         onKeyDown={(e) => {
-          // Enter here means "pick the highlighted Places suggestion," not
-          // "submit the form" — inside a <form>, the browser's default Enter
-          // behavior submits it the instant a suggestion is chosen, so block
-          // that and let the Places widget's own selection handling run.
-          if (e.key === "Enter") {
+          // Enter means "pick the highlighted suggestion," not "submit the form".
+          if (e.key === 'Enter') {
             e.preventDefault();
+            if (open && suggestions.length > 0) select(suggestions[highlight >= 0 ? highlight : 0]);
+          } else if (e.key === 'ArrowDown' && suggestions.length > 0) {
+            e.preventDefault();
+            setOpen(true);
+            setHighlight((h) => (h + 1) % suggestions.length);
+          } else if (e.key === 'ArrowUp' && suggestions.length > 0) {
+            e.preventDefault();
+            setHighlight((h) => (h <= 0 ? suggestions.length - 1 : h - 1));
+          } else if (e.key === 'Escape') {
+            setOpen(false);
           }
         }}
       />
-      {error && apiKey && (
-        <p className="mt-1 text-xs text-red-600">{error}</p>
+      {searching && (
+        <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-neutral-300 border-t-neutral-600 rounded-full animate-spin pointer-events-none" />
       )}
+      {open && suggestions.length > 0 && (
+        <ul
+          role="listbox"
+          className="absolute z-50 left-0 right-0 mt-1 max-h-64 overflow-y-auto bg-white border border-neutral-200 rounded-lg shadow-lg"
+        >
+          {suggestions.map((s, i) => (
+            <li
+              key={s.id}
+              role="option"
+              aria-selected={i === highlight}
+              // mousedown (not click) so it runs before the input loses focus
+              onMouseDown={(e) => {
+                e.preventDefault();
+                select(s);
+              }}
+              onMouseEnter={() => setHighlight(i)}
+              className={`px-3 py-2 cursor-pointer text-left ${i === highlight ? 'bg-neutral-100' : ''}`}
+            >
+              <p className="text-sm font-medium text-neutral-900 truncate">{s.main}</p>
+              {s.secondary && <p className="text-xs text-neutral-500 truncate">{s.secondary}</p>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {error && apiKey && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );
 }
