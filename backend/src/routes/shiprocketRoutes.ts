@@ -41,14 +41,20 @@ function mapShiprocketStatus(rawStatus: string | undefined): IOrder["status"] | 
  * Shiprocket tracking webhook — receives shipment status updates and
  * reflects them onto the matching Order's `shiprocket` sub-document, and
  * (when recognized) onto the customer/admin-facing `order.status` field too.
- * Configure this URL (`/api/v1/webhooks/shiprocket`) in the Shiprocket dashboard.
+ * Configure `/api/v1/webhooks/courier-tracking` in the Shiprocket dashboard.
  */
-router.post("/shiprocket", async (req: Request, res: Response) => {
+const handleTrackingWebhook = async (req: Request, res: Response) => {
   try {
+    const expectedToken = process.env.SHIPROCKET_WEBHOOK_TOKEN;
+    if (expectedToken && req.get("x-api-key") !== expectedToken) {
+      return res.status(401).json({ success: false, message: "Invalid webhook token" });
+    }
+
     const { awb, current_status, order_id, track_url } = req.body || {};
 
+    // Shiprocket's "Test Webhook" ping has no shipment identifiers and must get a 200.
     if (!awb && !order_id) {
-      return res.status(400).json({ success: false, message: "Missing awb/order_id in webhook payload" });
+      return res.status(200).json({ success: true, message: "Webhook reachable" });
     }
 
     const query = awb ? { "shiprocket.awbCode": awb } : { "shiprocket.orderId": String(order_id) };
@@ -81,6 +87,11 @@ router.post("/shiprocket", async (req: Request, res: Response) => {
     console.error("Error handling Shiprocket webhook:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
-});
+};
+
+// Shiprocket rejects webhook URLs containing "shiprocket", "sr", "kr" etc., so
+// the dashboard must use the neutral path; the old one is kept for compatibility.
+router.post("/courier-tracking", handleTrackingWebhook);
+router.post("/shiprocket", handleTrackingWebhook);
 
 export default router;
