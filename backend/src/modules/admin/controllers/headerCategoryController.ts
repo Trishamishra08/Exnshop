@@ -1,6 +1,13 @@
 import { Request, Response } from "express";
 import HeaderCategory from "../../../models/HeaderCategory";
 
+// "all" is the customer app's built-in default tab; a header category saved
+// with this slug is filtered out of the customer UI and its products vanish.
+const isReservedSlug = (slug: unknown) =>
+  typeof slug === "string" && slug.trim().toLowerCase() === "all";
+const RESERVED_SLUG_MESSAGE =
+  'The "all" theme is reserved for the default tab. Please choose a different theme.';
+
 // @desc    Get all header categories (Admin)
 // @route   GET /api/v1/header-categories/admin
 // @access  Private/Admin
@@ -49,6 +56,10 @@ export const createHeaderCategory = async (req: Request, res: Response) => {
       order,
     } = req.body;
 
+    if (isReservedSlug(slug)) {
+      return res.status(400).json({ message: RESERVED_SLUG_MESSAGE });
+    }
+
     const categoryExists = await HeaderCategory.findOne({ slug });
     if (categoryExists) {
       return res
@@ -92,6 +103,10 @@ export const updateHeaderCategory = async (req: Request, res: Response) => {
     const category = await HeaderCategory.findById(req.params.id);
 
     if (category) {
+      if (isReservedSlug(slug)) {
+        return res.status(400).json({ message: RESERVED_SLUG_MESSAGE });
+      }
+
       // Check if slug is being updated and if it's already taken
       if (slug && slug !== category.slug) {
         const slugExists = await HeaderCategory.findOne({ slug });

@@ -22,7 +22,7 @@ export default function AdminHeaderCategory() {
   const [selectedIconLibrary, setSelectedIconLibrary] = useState('Custom'); // Default to Custom for SVG
   const [headerCategoryIcon, setHeaderCategoryIcon] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(''); // This maps to relatedCategory
-  const [selectedTheme, setSelectedTheme] = useState('all'); // This maps to slug
+  const [selectedTheme, setSelectedTheme] = useState(''); // This maps to slug
   const [selectedStatus, setSelectedStatus] = useState<'Published' | 'Unpublished'>('Published');
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -36,7 +36,8 @@ export default function AdminHeaderCategory() {
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-  const themeOptions = Object.keys(themes);
+  // "all" is the customer app's default tab; a header category with that slug is hidden from customers.
+  const themeOptions = Object.keys(themes).filter((key) => key !== 'all');
 
   useEffect(() => {
     fetchCategories();
@@ -111,7 +112,7 @@ export default function AdminHeaderCategory() {
     setSelectedIconLibrary('Custom');
     setHeaderCategoryIcon('');
     setSelectedCategory('');
-    setSelectedTheme('all');
+    setSelectedTheme('');
     setSelectedStatus('Published');
     setEditingId(null);
     setIconSearchTerm('');
