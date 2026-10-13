@@ -11,9 +11,14 @@ import OrderItem from "../../../models/OrderItem";
 import {
   MATERIAL_FIELDS,
   auditProduct,
+  computeQualityFlags,
+  configForProduct,
   describeProblems,
   ensureSkus,
   findSkuProblem,
+  listingProblems,
+  newListingContext,
+  normalizeListingFields,
   notifyAdminsProductsSubmitted,
   ownerView,
   sameValue,
@@ -21,6 +26,8 @@ import {
   submissionProblems,
   trackedDiff,
 } from "../../../services/productListingService";
+import { cleanAttributes, resolveListingConfig } from "../../../services/listingConfigService";
+import { uploadPrivateDocument, deletePrivateDocument, signedDocumentUrl } from "../../../services/sellerOnboardingService";
 
 const sellerActor = (req: Request) => ({ actorType: "Seller" as const, actorId: (req as any).user?.userId });
 const AUDITED_FIELDS = ["productName", "category", "subcategory", "brand", "mainImage", "price", "discPrice", "stock", "sku", "publish", "isReturnable", "maxReturnDays"];
@@ -70,6 +77,9 @@ export const createProduct = asyncHandler(
     }
     // Sellers can't set review status, commission, ratings, etc. themselves.
     const productData = stripProtectedFields(req.body);
+    // The guided listing flow opts in to the stricter (category-aware) requirements.
+    const guided = req.body.guidedListing === true;
+    delete (productData as any).guidedListing;
 
     // Validate seller is allowed to add products in the selected header category
     const categoryError = await validateSellerHeaderCategory(
@@ -115,10 +125,12 @@ export const createProduct = asyncHandler(
       headerCategoryId: productData.headerCategoryId, // Map headerCategoryId
       category: productData.categoryId, // Map categoryId to category
       subcategory: productData.subcategoryId,
+      subSubCategory: productData.subSubCategoryId,
       brand: productData.brandId,
       mainImage: productData.mainImageUrl, // Map mainImageUrl to mainImage
       galleryImages: productData.galleryImageUrls,
     };
+    if (!newProductData.subSubCategory) delete newProductData.subSubCategory;
 
     // Map variations: Ensure 'title' from frontend is mapped to 'value' (or name) expected by Schema
     if (newProductData.variations) {
@@ -185,6 +197,20 @@ export const createProduct = asyncHandler(
     const skuProblem = await findSkuProblem(sellerId, newProductData);
     if (skuProblem) return res.status(400).json({ success: false, message: skuProblem });
 
+    // Guided-flow fields (condition, HSN, shipping, category attributes).
+    const fieldError = normalizeListingFields(newProductData);
+    if (fieldError) return res.status(400).json({ success: false, message: fieldError });
+    if (newProductData.attributes !== undefined) {
+      const config = await configForProduct(newProductData);
+      const { values, errors } = cleanAttributes(config.attributes, newProductData.attributes);
+      if (errors.length) return res.status(400).json({ success: false, message: errors[0], errors });
+      newProductData.attributes = values;
+    }
+    if (guided) {
+      newProductData.listingVersion = 2;
+      newProductData.listingMethod = "single";
+    }
+
     // 6. Catalog workflow: a seller can save a product as a Draft (still editing,
     // never sent to admin) or Submit it for review. Customer-facing queries only
     // ever show status:"Active", so both Draft and Pending stay hidden until an
@@ -195,10 +221,11 @@ export const createProduct = asyncHandler(
 
     // A draft may be incomplete; anything sent for review must be complete.
     if (newProductData.status === "Pending") {
-      const problems = submissionProblems(newProductData);
+      const problems = await listingProblems(newProductData);
       if (problems.length) {
         return res.status(400).json({ success: false, message: describeProblems(problems), data: { missing: problems } });
       }
+      if (guided) newProductData.qualityFlags = await computeQualityFlags(newProductData);
     }
 
     // Set default values for other required fields if not provided
@@ -341,10 +368,19 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
 
   const total = await Product.countDocuments(query);
 
+  // Drafts show what is still missing, so the seller can see why they can't submit yet.
+  const ctx = newListingContext();
+  const rows = [];
+  for (const p of products) {
+    const json: any = p.toJSON();
+    if (p.status === "Draft") json.missingFields = await listingProblems(p.toObject(), ctx);
+    rows.push(json);
+  }
+
   return res.status(200).json({
     success: true,
     message: "Products fetched successfully",
-    data: products,
+    data: rows,
     pagination: {
       page: pageNum,
       limit: limitNum,
@@ -402,6 +438,8 @@ export const updateProduct = asyncHandler(
     const { id } = req.params;
     // Owner, review status, commission, ratings etc. can never be changed from here.
     const updateData = stripProtectedFields(req.body);
+    const guided = req.body.guidedListing === true;
+    delete (updateData as any).guidedListing;
 
     if (process.env.NODE_ENV !== "production") {
       console.log("DEBUG updateProduct: sellerId from token:", sellerId, "productId:", id);
@@ -434,6 +472,10 @@ export const updateProduct = asyncHandler(
     if (updateData.subcategoryId) {
       updateData.subcategory = updateData.subcategoryId;
       delete updateData.subcategoryId;
+    }
+    if (updateData.subSubCategoryId !== undefined) {
+      updateData.subSubCategory = updateData.subSubCategoryId || null;
+      delete updateData.subSubCategoryId;
     }
     if (updateData.brandId) {
       updateData.brand = updateData.brandId;
@@ -523,6 +565,22 @@ export const updateProduct = asyncHandler(
     delete updateData.submitForReview;
     delete updateData.saveAsDraft;
 
+    // Guided-flow fields (condition, HSN, shipping, category attributes).
+    const fieldError = normalizeListingFields(updateData);
+    if (fieldError) return res.status(400).json({ success: false, message: fieldError });
+    if (updateData.attributes !== undefined) {
+      const pick = (a: string, b: string) => (updateData[a] !== undefined ? updateData[a] : (product as any)[b]);
+      const config = await configForProduct({
+        headerCategoryId: pick("headerCategoryId", "headerCategoryId"),
+        category: pick("category", "category"),
+        subcategory: pick("subcategory", "subcategory"),
+        subSubCategory: pick("subSubCategory", "subSubCategory"),
+      });
+      const { values, errors } = cleanAttributes(config.attributes, updateData.attributes);
+      if (errors.length) return res.status(400).json({ success: false, message: errors[0], errors });
+      updateData.attributes = values;
+    }
+
     // SKUs: keep the existing ones, fill any gaps, and keep them unique per seller.
     if (updateData.sku !== undefined || updateData.variations) {
       const skuInput: any = {
@@ -557,7 +615,7 @@ export const updateProduct = asyncHandler(
       if (JSON.stringify(revisionData) !== before) {
         revisionChanged = true;
         if (Object.keys(revisionData).length) {
-          const problems = submissionProblems({ ...product.toObject(), ...updateData, ...revisionData });
+          const problems = await listingProblems({ ...product.toObject(), ...updateData, ...revisionData });
           if (problems.length) {
             return res.status(400).json({ success: false, message: describeProblems(problems), data: { missing: problems } });
           }
@@ -577,13 +635,20 @@ export const updateProduct = asyncHandler(
     // to admin review. A plain edit never silently resubmits or re-publishes it.
     let submitted = false;
     if (submitForReview && (product.status === "Draft" || product.status === "Rejected")) {
-      const problems = submissionProblems(product);
+      if (guided) product.listingVersion = 2;
+      const problems = await listingProblems(product.toObject());
       if (problems.length) {
         return res.status(400).json({ success: false, message: describeProblems(problems), data: { missing: problems } });
       }
       submitted = true;
       product.status = "Pending";
       product.rejectionReason = undefined;
+      product.reviewStartedAt = undefined;
+      product.reviewStartedBy = undefined;
+      product.reviewStartedByName = undefined;
+      if (product.listingVersion && product.listingVersion >= 2) {
+        product.qualityFlags = await computeQualityFlags(product.toObject());
+      }
     }
 
     // If variations were updated, mark as modified
@@ -1093,6 +1158,7 @@ export const bulkUploadProducts = asyncHandler(
           tags: [],
           totalAllowedQuantity: 10,
           requiresApproval: true,
+          listingMethod: "bulk",
         };
 
         ensureSkus(sellerId, doc);

@@ -13,9 +13,10 @@ import Admin from "../../../models/Admin";
 import ProductAuditLog from "../../../models/ProductAuditLog";
 import {
   auditProduct,
+  configForProduct,
   generateSkuBase,
+  listingProblems,
   notifySellerProductDecision,
-  submissionProblems,
 } from "../../../services/productListingService";
 
 // ==================== Category Controllers ====================
@@ -1022,10 +1023,18 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
     Product.countDocuments(query),
   ]);
 
+  // Reviewer-only fields are stripped from the default JSON; the admin list wants them.
+  const rows = products.map((p) => {
+    const json: any = p.toJSON();
+    json.qualityFlags = p.qualityFlags || [];
+    json.reviewStartedByName = p.reviewStartedByName;
+    return json;
+  });
+
   return res.status(200).json({
     success: true,
     message: "Products fetched successfully",
-    data: products,
+    data: rows,
     pagination: {
       page: parseInt(page as string),
       limit: parseInt(limit as string),
@@ -1284,7 +1293,20 @@ export const approveProductRequest = asyncHandler(
     // Products created before SKUs existed get one now instead of being blocked.
     const generatedSku = !current.sku ? generateSkuBase(String(current.seller)) : undefined;
     if (status === "Active") {
-      const problems = submissionProblems({ ...current.toObject(), sku: current.sku || generatedSku });
+      const problems = await listingProblems({ ...current.toObject(), sku: current.sku || generatedSku });
+      if (current.listingVersion && current.listingVersion >= 2) {
+        // Regulated categories: every required document must be approved, not just uploaded.
+        const config = await configForProduct(current);
+        const unapproved = config.rule.requiredDocs.filter(
+          (r) => (current.complianceDocs || []).find((d) => d.docType === r.key)?.status !== "Approved"
+        );
+        if (unapproved.length) {
+          return res.status(400).json({
+            success: false,
+            message: `Approve the compliance documents first: ${unapproved.map((d) => d.label).join(", ")}.`,
+          });
+        }
+      }
       if (problems.length) {
         return res.status(400).json({
           success: false,
@@ -1299,6 +1321,8 @@ export const approveProductRequest = asyncHandler(
       approvedAt: new Date(),
     };
     if (generatedSku) updateData.sku = generatedSku;
+    // The decision ends the "under review" claim.
+    updateData.$unset = { reviewStartedAt: 1, reviewStartedBy: 1, reviewStartedByName: 1 };
 
     // Approving means "this is now live" — the seller's Add Product form
     // defaults Publish to No, so without this an approved product still
@@ -1407,7 +1431,7 @@ export const decideProductRevision = asyncHandler(async (req: Request, res: Resp
   const applied = Object.entries(revision).map(([field, to]) => ({ field, from: (product as any)[field], to }));
   if (decision === "Approved") {
     Object.assign(product, revision);
-    const problems = submissionProblems(product);
+    const problems = await listingProblems(product.toObject());
     if (problems.length) {
       return res.status(400).json({
         success: false,

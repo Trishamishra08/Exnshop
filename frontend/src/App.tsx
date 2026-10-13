@@ -152,6 +152,12 @@ const SellerSubCategory = lazyWithRetry(
 const SellerAddProduct = lazyWithRetry(
   () => import("./modules/seller/pages/SellerAddProduct"), "SellerAddProduct"
 );
+const SellerProductWizard = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerProductWizard"), "SellerProductWizard"
+);
+const AdminListingSetup = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminListingSetup"), "AdminListingSetup"
+);
 const SellerBulkUpload = lazyWithRetry(
   () => import("./modules/seller/pages/SellerBulkUpload"), "SellerBulkUpload"
 );
@@ -711,10 +717,18 @@ function App() {
                                       />
                                       <Route
                                         path="product/add"
-                                        element={<SellerAddProduct />}
+                                        element={<SellerProductWizard />}
                                       />
                                       <Route
                                         path="product/edit/:id"
+                                        element={<SellerProductWizard />}
+                                      />
+                                      <Route
+                                        path="product/add-classic"
+                                        element={<SellerAddProduct />}
+                                      />
+                                      <Route
+                                        path="product/edit-classic/:id"
                                         element={<SellerAddProduct />}
                                       />
                                       <Route
@@ -829,6 +843,10 @@ function App() {
                                       <Route
                                         path="product/approvals"
                                         element={<AdminProductApprovals />}
+                                      />
+                                      <Route
+                                        path="product/listing-setup"
+                                        element={<AdminListingSetup />}
                                       />
                                       <Route
                                         path="couriers"

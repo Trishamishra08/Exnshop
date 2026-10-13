@@ -1007,6 +1007,30 @@ export default function ProductDetail() {
                         Email: {appSettings?.supportEmail || appSettings?.contactEmail || 'support@exnshop.com'} | Phone: +91 {appSettings?.supportPhone || appSettings?.contactPhone || '9601715367'}
                       </span>
                     </div>
+                    {((product as any).specifications || []).map((spec: { label: string; value: string }) => (
+                      <div key={spec.label} className="flex items-start">
+                        <span className="text-xs font-semibold text-neutral-800 w-[180px] flex-shrink-0">
+                          {spec.label}:
+                        </span>
+                        <span className="text-xs text-neutral-600 leading-relaxed flex-1">{spec.value}</span>
+                      </div>
+                    ))}
+                    {(product as any).condition && (product as any).condition !== "New" && (
+                      <div className="flex items-start">
+                        <span className="text-xs font-semibold text-neutral-800 w-[180px] flex-shrink-0">
+                          Condition:
+                        </span>
+                        <span className="text-xs text-neutral-600 flex-1">{(product as any).condition}</span>
+                      </div>
+                    )}
+                    {(product as any).modelNumber && (
+                      <div className="flex items-start">
+                        <span className="text-xs font-semibold text-neutral-800 w-[180px] flex-shrink-0">
+                          Model:
+                        </span>
+                        <span className="text-xs text-neutral-600 flex-1">{(product as any).modelNumber}</span>
+                      </div>
+                    )}
                     <div className="flex items-start">
                       <span className="text-xs font-semibold text-neutral-800 w-[180px] flex-shrink-0">
                         Country of Origin:
