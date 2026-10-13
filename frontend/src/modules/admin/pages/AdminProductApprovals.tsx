@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import {
     getProducts,
     approveProductRequest,
@@ -10,6 +9,13 @@ import {
     ProductRevisionRow,
     ProductAuditEntry,
 } from '../../../services/api/admin/adminProductService';
+import {
+    ProductReviewDetails,
+    getComplianceDocUrlAdmin,
+    getProductReviewDetails,
+    reviewComplianceDoc,
+    startProductReview,
+} from '../../../services/api/admin/adminListingService';
 import { useToast } from '../../../context/ToastContext';
 
 type Tab = 'new' | 'edits';
@@ -64,7 +70,6 @@ const formatValue = (field: string, value: any): string => {
 };
 
 export default function AdminProductApprovals() {
-    const navigate = useNavigate();
     const { showToast } = useToast();
     const [tab, setTab] = useState<Tab>('new');
     const [products, setProducts] = useState<Product[]>([]);
@@ -77,6 +82,75 @@ export default function AdminProductApprovals() {
     const [historyTarget, setHistoryTarget] = useState<{ id: string; name: string } | null>(null);
     const [history, setHistory] = useState<ProductAuditEntry[]>([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+    const [detailsTarget, setDetailsTarget] = useState<Product | null>(null);
+    const [details, setDetails] = useState<ProductReviewDetails | null>(null);
+    const [detailsLoading, setDetailsLoading] = useState(false);
+    const [docRejectId, setDocRejectId] = useState<string | null>(null);
+    const [docRejectReason, setDocRejectReason] = useState('');
+
+    const loadDetails = async (id: string) => {
+        setDetailsLoading(true);
+        try {
+            const res = await getProductReviewDetails(id);
+            if (res.success) setDetails(res.data);
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Failed to load the product details', 'error');
+        } finally {
+            setDetailsLoading(false);
+        }
+    };
+
+    const openDetails = (product: Product) => {
+        setDetailsTarget(product);
+        setDetails(null);
+        setDocRejectId(null);
+        loadDetails(product._id);
+    };
+
+    const handleStartReview = async () => {
+        if (!detailsTarget) return;
+        try {
+            const res = await startProductReview(detailsTarget._id);
+            if (res.success) {
+                showToast('Marked as under your review.', 'success');
+                fetchAll();
+                loadDetails(detailsTarget._id);
+            }
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Could not start the review', 'error');
+        }
+    };
+
+    const viewDoc = async (docId: string) => {
+        if (!detailsTarget) return;
+        const tab = window.open('', '_blank');
+        try {
+            const res = await getComplianceDocUrlAdmin(detailsTarget._id, docId);
+            if (tab) tab.location.href = res.data.url;
+        } catch (err: any) {
+            tab?.close();
+            showToast(err.response?.data?.message || 'Could not open the document', 'error');
+        }
+    };
+
+    const decideDoc = async (docId: string, status: 'Approved' | 'Rejected') => {
+        if (!detailsTarget) return;
+        if (status === 'Rejected' && !docRejectReason.trim()) {
+            showToast('Please give a reason so the seller knows what to fix.', 'error');
+            return;
+        }
+        try {
+            const res = await reviewComplianceDoc(detailsTarget._id, docId, status, docRejectReason.trim());
+            if (res.success) {
+                setDetails((d) => (d ? { ...d, complianceDocs: res.data } : d));
+                setDocRejectId(null);
+                setDocRejectReason('');
+                loadDetails(detailsTarget._id);
+            }
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Could not save the decision', 'error');
+        }
+    };
 
     const fetchAll = useCallback(async () => {
         try {
@@ -258,7 +332,7 @@ export default function AdminProductApprovals() {
                                             <tr key={product._id} className="hover:bg-neutral-50 transition-colors text-sm text-neutral-700 border-b border-neutral-200">
                                                 <td className="p-4 align-middle">
                                                     <button
-                                                        onClick={() => navigate(`/admin/product/edit/${product._id}`)}
+                                                        onClick={() => openDetails(product)}
                                                         className="flex items-center gap-3 text-left hover:text-teal-700"
                                                     >
                                                         <img
@@ -266,7 +340,21 @@ export default function AdminProductApprovals() {
                                                             alt={product.productName}
                                                             className="w-10 h-10 object-cover rounded border border-neutral-200"
                                                         />
-                                                        <span className="font-medium">{product.productName}</span>
+                                                        <span>
+                                                            <span className="font-medium block">{product.productName}</span>
+                                                            <span className="flex flex-wrap gap-1 mt-0.5">
+                                                                {(product as any).reviewStartedByName && (
+                                                                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
+                                                                        Under review · {(product as any).reviewStartedByName}
+                                                                    </span>
+                                                                )}
+                                                                {((product as any).qualityFlags || []).length > 0 && (
+                                                                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                                                                        {(product as any).qualityFlags.length} check{(product as any).qualityFlags.length === 1 ? '' : 's'} flagged
+                                                                    </span>
+                                                                )}
+                                                            </span>
+                                                        </span>
                                                     </button>
                                                 </td>
                                                 <td className="p-4 align-middle">{sellerLabel(product.seller)}</td>
@@ -292,6 +380,12 @@ export default function AdminProductApprovals() {
                                                             title="Send back to the seller with what to fix"
                                                         >
                                                             Send back
+                                                        </button>
+                                                        <button
+                                                            onClick={() => openDetails(product)}
+                                                            className="px-3 py-1.5 border border-teal-600 text-teal-700 hover:bg-teal-50 text-xs font-medium rounded"
+                                                        >
+                                                            Review
                                                         </button>
                                                         <button
                                                             onClick={() => openHistory(product._id, product.productName)}
@@ -416,6 +510,195 @@ export default function AdminProductApprovals() {
                             >
                                 {processingId === rejectTarget.id ? 'Saving...' : rejectTarget.kind === 'new' ? 'Send back' : 'Reject edits'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {detailsTarget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" onClick={() => setDetailsTarget(null)}>
+                    <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+                        <div className="bg-teal-600 text-white px-6 py-4 rounded-t-lg flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <h3 className="text-lg font-semibold truncate">{detailsTarget.productName}</h3>
+                                <p className="text-sm text-teal-100 mt-0.5">{sellerLabel(detailsTarget.seller)}</p>
+                            </div>
+                            <button onClick={() => setDetailsTarget(null)} className="text-white text-xl leading-none" type="button">×</button>
+                        </div>
+
+                        <div className="p-5 overflow-y-auto space-y-5 text-sm">
+                            {detailsLoading || !details ? (
+                                <p className="text-center text-neutral-500 py-8">Loading...</p>
+                            ) : (
+                                <>
+                                    {details.problems.length > 0 && (
+                                        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-red-800">
+                                            <p className="font-semibold text-xs mb-1">Not ready to go live — still missing</p>
+                                            <p className="text-xs">{details.problems.join(', ')}</p>
+                                        </div>
+                                    )}
+                                    {details.qualityFlags.length > 0 && (
+                                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                            <p className="font-semibold text-xs text-amber-900 mb-1">Automated checks flagged</p>
+                                            <ul className="text-xs text-amber-900 list-disc pl-4 space-y-0.5">
+                                                {details.qualityFlags.map((f) => <li key={f}>{f}</li>)}
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    <div className="flex gap-4">
+                                        <img src={details.product.mainImage || '/api/placeholder/80/80'} alt="" className="w-24 h-24 object-cover rounded border border-neutral-200 shrink-0" />
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-xs flex-1">
+                                            {[
+                                                ['Department', details.product.headerCategoryId?.name],
+                                                ['Category', details.product.category?.name],
+                                                ['Subcategory', details.product.subcategory?.name],
+                                                ['Product type', details.product.subSubCategory?.name],
+                                                ['Brand', details.product.brand?.name],
+                                                ['Condition', details.product.condition],
+                                                ['Model', details.product.modelNumber],
+                                                ['Barcode / GTIN', details.product.barcode],
+                                                ['SKU', details.product.sku],
+                                                ['HSN code', details.product.hsnCode],
+                                                ['Handling time', details.product.handlingTimeDays !== undefined && details.product.handlingTimeDays !== null ? `${details.product.handlingTimeDays} day(s)` : undefined],
+                                                ['Weight', details.product.weightGrams ? `${details.product.weightGrams} g` : undefined],
+                                                [
+                                                    'Package size',
+                                                    details.product.dimensionsCm
+                                                        ? `${details.product.dimensionsCm.length} × ${details.product.dimensionsCm.width} × ${details.product.dimensionsCm.height} cm`
+                                                        : undefined,
+                                                ],
+                                                ['Returns', details.product.isReturnable ? `Yes${details.product.maxReturnDays ? ` (${details.product.maxReturnDays} days)` : ''}` : 'No'],
+                                                ['Listed via', details.product.listingMethod],
+                                            ].map(([k, v]) => (
+                                                <div key={k as string}>
+                                                    <p className="text-neutral-400">{k}</p>
+                                                    <p className="font-medium text-neutral-800 break-words">{(v as string) || '—'}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {details.product.smallDescription && (
+                                        <div>
+                                            <p className="text-xs text-neutral-400 mb-0.5">Description</p>
+                                            <p className="text-xs text-neutral-800 whitespace-pre-wrap">{details.product.smallDescription}</p>
+                                        </div>
+                                    )}
+
+                                    {details.attributeRows.length > 0 && (
+                                        <div>
+                                            <p className="text-xs font-semibold text-neutral-700 mb-1">Attributes</p>
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1.5 text-xs">
+                                                {details.attributeRows.map((a) => (
+                                                    <div key={a.label}>
+                                                        <p className="text-neutral-400">{a.label}</p>
+                                                        <p className="font-medium text-neutral-800">
+                                                            {Array.isArray(a.value) ? a.value.join(', ') : typeof a.value === 'boolean' ? (a.value ? 'Yes' : 'No') : String(a.value)}
+                                                            {a.unit ? ` ${a.unit}` : ''}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div>
+                                        <p className="text-xs font-semibold text-neutral-700 mb-1">Variants, price & stock</p>
+                                        <table className="w-full text-xs border border-neutral-200">
+                                            <thead>
+                                                <tr className="bg-neutral-50 text-neutral-600">
+                                                    <th className="p-2 text-left">Variant</th>
+                                                    <th className="p-2 text-left">SKU</th>
+                                                    <th className="p-2 text-left">MRP</th>
+                                                    <th className="p-2 text-left">Selling price</th>
+                                                    <th className="p-2 text-left">Stock</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {(details.product.variations || []).map((v: any, i: number) => (
+                                                    <tr key={i} className="border-t border-neutral-100">
+                                                        <td className="p-2">{v.value || v.title || v.name}</td>
+                                                        <td className="p-2 font-mono text-neutral-500">{v.sku || '—'}</td>
+                                                        <td className="p-2">₹{v.price}</td>
+                                                        <td className="p-2">{v.discPrice > 0 ? `₹${v.discPrice}` : '—'}</td>
+                                                        <td className="p-2">{v.stock === 0 ? 'Unlimited' : v.stock}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {(details.isRegulated || details.complianceDocs.length > 0) && (
+                                        <div>
+                                            <p className="text-xs font-semibold text-neutral-700 mb-1">Compliance documents{details.isRegulated ? ' (regulated category)' : ''}</p>
+                                            {details.complianceDocs.length === 0 ? (
+                                                <p className="text-xs text-red-700">No documents uploaded yet.</p>
+                                            ) : (
+                                                <ul className="space-y-2">
+                                                    {details.complianceDocs.map((d) => (
+                                                        <li key={d._id} className="rounded-lg border border-neutral-200 p-3">
+                                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                                                <div className="min-w-0">
+                                                                    <p className="text-xs font-semibold text-neutral-800">{d.label}</p>
+                                                                    <p className="text-[11px] text-neutral-500 truncate">
+                                                                        {d.originalName} ·{' '}
+                                                                        <span className={d.status === 'Approved' ? 'text-green-700 font-semibold' : d.status === 'Rejected' ? 'text-red-600 font-semibold' : 'text-amber-700 font-semibold'}>{d.status}</span>
+                                                                    </p>
+                                                                    {d.remarks && <p className="text-[11px] text-red-600">Reason: {d.remarks}</p>}
+                                                                </div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <button onClick={() => viewDoc(d._id)} className="px-2.5 py-1 text-xs rounded bg-neutral-100 hover:bg-neutral-200">View</button>
+                                                                    <button onClick={() => decideDoc(d._id, 'Approved')} className="px-2.5 py-1 text-xs rounded bg-green-600 hover:bg-green-700 text-white">Approve</button>
+                                                                    <button onClick={() => { setDocRejectId(docRejectId === d._id ? null : d._id); setDocRejectReason(''); }} className="px-2.5 py-1 text-xs rounded bg-orange-600 hover:bg-orange-700 text-white">Reject</button>
+                                                                </div>
+                                                            </div>
+                                                            {docRejectId === d._id && (
+                                                                <div className="mt-2 flex gap-2">
+                                                                    <input
+                                                                        value={docRejectReason}
+                                                                        onChange={(e) => setDocRejectReason(e.target.value)}
+                                                                        placeholder="What's wrong with this document?"
+                                                                        className="flex-1 px-3 py-1.5 border border-neutral-300 rounded text-xs"
+                                                                        autoFocus
+                                                                    />
+                                                                    <button onClick={() => decideDoc(d._id, 'Rejected')} className="px-3 py-1.5 text-xs rounded bg-orange-600 text-white">Send</button>
+                                                                </div>
+                                                            )}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+
+                        <div className="px-5 py-4 border-t border-neutral-200 flex flex-wrap items-center justify-between gap-2">
+                            <div className="text-xs text-neutral-500">
+                                {(detailsTarget as any).reviewStartedByName ? `Under review · ${(detailsTarget as any).reviewStartedByName}` : 'Not picked up yet'}
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {!(detailsTarget as any).reviewStartedByName && (
+                                    <button onClick={handleStartReview} className="px-3 py-2 border border-blue-600 text-blue-700 hover:bg-blue-50 text-xs font-medium rounded">
+                                        Start review
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => { setRejectTarget({ id: detailsTarget._id, name: detailsTarget.productName, kind: 'new' }); setRejectReason(''); setDetailsTarget(null); }}
+                                    className="px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-medium rounded"
+                                >
+                                    Send back
+                                </button>
+                                <button
+                                    onClick={async () => { const p = detailsTarget; await handleApprove(p); setDetailsTarget(null); }}
+                                    disabled={processingId === detailsTarget._id}
+                                    className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded disabled:opacity-50"
+                                >
+                                    Approve
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

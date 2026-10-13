@@ -6,6 +6,7 @@ import * as dashboardController from "../modules/admin/controllers/adminDashboar
 
 // Product Controllers
 import * as productController from "../modules/admin/controllers/adminProductController";
+import * as listingController from "../modules/admin/controllers/adminListingController";
 
 // Order Controllers
 import * as orderController from "../modules/admin/controllers/adminOrderController";
@@ -153,6 +154,16 @@ router.get("/products", productController.getProducts);
 // router.put("/products/order", productController.updateProductOrder);
 router.get("/products/revisions", productController.getProductRevisions);
 router.get("/products/:id/audit", productController.getProductAuditLog);
+router.get("/products/:id/review", listingController.getProductReviewDetails);
+router.post("/products/:id/start-review", listingController.startProductReview);
+router.get("/products/:id/compliance/:docId/url", listingController.getProductComplianceDocUrl);
+router.patch("/products/:id/compliance/:docId", listingController.reviewProductComplianceDoc);
+// Listing setup: per-category attributes and rules
+router.get("/listing-setup", listingController.getListingSetup);
+router.post("/listing-setup/attributes", listingController.createAttribute);
+router.put("/listing-setup/attributes/:id", listingController.updateAttribute);
+router.delete("/listing-setup/attributes/:id", listingController.deleteAttribute);
+router.put("/listing-setup/rule", listingController.saveListingRule);
 router.patch("/products/:id/revision", productController.decideProductRevision);
 router.get("/products/:id", productController.getProductById);
 router.put("/products/:id", productController.updateProduct);

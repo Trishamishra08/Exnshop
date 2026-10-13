@@ -13,9 +13,17 @@ import {
   getShops,
   getAllowedHeaderCategories,
 } from "../modules/seller/controllers/productController";
+import {
+  getListingConfig,
+  createDraft,
+  duplicateProduct,
+  uploadComplianceDoc,
+  deleteComplianceDoc,
+  getComplianceDocUrl,
+} from "../modules/seller/controllers/productListingController";
 import { getBrands } from "../modules/admin/controllers/adminProductController";
 import { authenticate, requireUserType, requireApprovedUser } from "../middleware/auth";
-import { uploadCsv, handleUploadError } from "../middleware/upload";
+import { uploadCsv, uploadDocument, handleUploadError } from "../middleware/upload";
 
 const router = Router();
 
@@ -42,8 +50,20 @@ router.post(
   bulkUploadProducts
 );
 
+// Guided listing flow (must come before "/:id")
+router.get("/listing-config", getListingConfig);
+router.post("/draft", createDraft);
+
 // Create product
 router.post("/", createProduct);
+
+// Copy one of the seller's own products into a new draft
+router.post("/:id/duplicate", duplicateProduct);
+
+// Compliance documents for regulated categories
+router.post("/:id/compliance", uploadDocument.single("file"), handleUploadError, uploadComplianceDoc);
+router.delete("/:id/compliance/:docId", deleteComplianceDoc);
+router.get("/:id/compliance/:docId/url", getComplianceDocUrl);
 
 // Get seller's products with filters
 router.get("/", getProducts);

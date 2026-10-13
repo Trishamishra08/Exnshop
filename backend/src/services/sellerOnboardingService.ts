@@ -256,10 +256,10 @@ export const lookupIfsc = async (
 const DOC_FOLDER = "exnshop/seller-kyc";
 
 /** Uploads a KYC document as a Cloudinary *private* asset (no public URL exists). */
-export const uploadPrivateDocument = (sellerId: string, buffer: Buffer) =>
+export const uploadPrivateDocument = (sellerId: string, buffer: Buffer, folder: string = DOC_FOLDER) =>
   new Promise<{ publicId: string; resourceType: string; format?: string; bytes?: number }>((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder: `${DOC_FOLDER}/${sellerId}`, type: "private", resource_type: "auto" },
+      { folder: `${folder}/${sellerId}`, type: "private", resource_type: "auto" },
       (error: any, result: any) => {
         if (error || !result) return reject(new Error(error?.message || "Document upload failed"));
         resolve({

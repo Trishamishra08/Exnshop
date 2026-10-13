@@ -10,15 +10,25 @@ import {
   getCategories,
   Category as apiCategory,
 } from "../../../services/api/categoryService";
+import { duplicateProduct } from "../../../services/api/sellerListingService";
 import { useAuth } from "../../../context/AuthContext";
 import StarRating from "../../../components/ui/StarRating";
 
 const REVIEW_BADGE: Record<string, { label: string; tone: string }> = {
   Draft: { label: "Draft", tone: "bg-neutral-100 text-neutral-700 border-neutral-300" },
-  Pending: { label: "Awaiting review", tone: "bg-blue-50 text-blue-800 border-blue-200" },
-  Active: { label: "Live", tone: "bg-green-50 text-green-800 border-green-200" },
+  Incomplete: { label: "Incomplete", tone: "bg-amber-50 text-amber-800 border-amber-200" },
+  Pending: { label: "Submitted", tone: "bg-blue-50 text-blue-800 border-blue-200" },
+  UnderReview: { label: "Under review", tone: "bg-indigo-50 text-indigo-800 border-indigo-200" },
+  Active: { label: "Published", tone: "bg-green-50 text-green-800 border-green-200" },
   Rejected: { label: "Changes needed", tone: "bg-orange-50 text-orange-800 border-orange-200" },
   Inactive: { label: "Hidden", tone: "bg-neutral-100 text-neutral-600 border-neutral-300" },
+};
+
+/** Draft → Incomplete (what's missing) → Submitted → Under review → Changes needed / Published. */
+const reviewStage = (product: any): string => {
+  if (product.status === "Draft" && Array.isArray(product.missingFields) && product.missingFields.length > 0) return "Incomplete";
+  if (product.status === "Pending" && product.reviewStartedAt) return "UnderReview";
+  return product.status;
 };
 
 const REVIEW_FILTERS = [
@@ -173,6 +183,15 @@ export default function SellerProductList() {
 
   const handleEdit = (productId: string) => {
     navigate(`/seller/product/edit/${productId}`);
+  };
+
+  const handleCopy = async (productId: string) => {
+    try {
+      const res = await duplicateProduct(productId);
+      if (res.success && res.data?._id) navigate(`/seller/product/edit/${res.data._id}`);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Could not copy this product");
+    }
   };
 
   // ... (rest of logic: flatten, filter, sort)
@@ -651,7 +670,8 @@ export default function SellerProductList() {
                       </td>
                       <td className="p-4 align-middle border border-neutral-200">
                         {isFirstVariation && product && (() => {
-                          const badge = REVIEW_BADGE[(product as any).status] || REVIEW_BADGE.Active;
+                          const badge = REVIEW_BADGE[reviewStage(product)] || REVIEW_BADGE.Active;
+                          const missing: string[] = (product as any).missingFields || [];
                           const revisionPending = Boolean((product as any).pendingRevision?.submittedAt);
                           return (
                             <div className="flex flex-col gap-1 items-start">
@@ -676,11 +696,19 @@ export default function SellerProductList() {
                                 </>
                               )}
                               {(product as any).status === "Draft" && (
-                                <button
-                                  onClick={() => handleEdit(variation.productId)}
-                                  className="text-[11px] font-semibold text-teal-700 hover:underline">
-                                  Finish &amp; submit
-                                </button>
+                                <>
+                                  {missing.length > 0 && (
+                                    <span className="text-[11px] text-amber-800 max-w-[180px]">
+                                      Missing: {missing.slice(0, 3).join(", ")}
+                                      {missing.length > 3 ? ` +${missing.length - 3} more` : ""}
+                                    </span>
+                                  )}
+                                  <button
+                                    onClick={() => handleEdit(variation.productId)}
+                                    className="text-[11px] font-semibold text-teal-700 hover:underline">
+                                    Finish &amp; submit
+                                  </button>
+                                </>
                               )}
                             </div>
                           );
@@ -749,6 +777,23 @@ export default function SellerProductList() {
                               strokeLinecap="round"
                               strokeLinejoin="round">
                               <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleCopy(variation.productId)}
+                            className="p-1.5 text-neutral-600 hover:bg-neutral-100 rounded transition-colors"
+                            title="Copy into a new draft">
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                             </svg>
                           </button>
                           <button
