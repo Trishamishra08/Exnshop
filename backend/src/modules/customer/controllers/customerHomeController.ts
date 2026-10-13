@@ -296,7 +296,7 @@ export const getHomeContent = async (req: Request, res: Response) => {
         channel
       );
     } else if (channel) {
-      nearbySellerIds = await Seller.find({ channels: channel }).distinct("_id");
+      nearbySellerIds = await Seller.find({ channels: channel, status: "Approved" }).distinct("_id");
     }
     // Whether a location or channel restriction was actually requested. When true,
     // sections below must filter to `nearbySellerIds` even if it's empty (i.e. show

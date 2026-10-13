@@ -151,6 +151,9 @@ router.delete("/brands/:id", productController.deleteBrand);
 router.get("/products", productController.getProducts);
 // Product order functionality removed
 // router.put("/products/order", productController.updateProductOrder);
+router.get("/products/revisions", productController.getProductRevisions);
+router.get("/products/:id/audit", productController.getProductAuditLog);
+router.patch("/products/:id/revision", productController.decideProductRevision);
 router.get("/products/:id", productController.getProductById);
 router.put("/products/:id", productController.updateProduct);
 router.delete("/products/:id", productController.deleteProduct);

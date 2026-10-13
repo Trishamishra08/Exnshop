@@ -28,7 +28,7 @@ export const filterSellerIdsByChannel = async (
   channel: CommerceChannel | undefined
 ): Promise<mongoose.Types.ObjectId[]> => {
   if (!channel || sellerIds.length === 0) return sellerIds;
-  return Seller.find({ _id: { $in: sellerIds }, channels: channel }).distinct(
+  return Seller.find({ _id: { $in: sellerIds }, channels: channel, status: "Approved" }).distinct(
     "_id"
   );
 };

@@ -54,7 +54,7 @@ export const getProducts = async (req: Request, res: Response) => {
       query.seller = { $in: await filterSellerIdsByChannel(nearbySellerIds, channel) };
     } else if (channel) {
       // No location, but still restrict to the requested channel.
-      query.seller = { $in: await Seller.find({ channels: channel }).distinct("_id") };
+      query.seller = { $in: await Seller.find({ channels: channel, status: "Approved" }).distinct("_id") };
     }
     // No location and no channel: don't filter by seller at all (matches
     // original no-location, no-channel-preference behavior).
@@ -386,7 +386,7 @@ export const getProductById = async (req: Request, res: Response) => {
       const nearby = await findSellersWithinRange(userLat, userLng);
       similarProductsQuery.seller = { $in: await filterSellerIdsByChannel(nearby, similarProductsChannel) };
     } else {
-      similarProductsQuery.seller = { $in: await Seller.find({ channels: similarProductsChannel }).distinct("_id") };
+      similarProductsQuery.seller = { $in: await Seller.find({ channels: similarProductsChannel, status: "Approved" }).distinct("_id") };
     }
 
     const similarProducts = await Product.find(similarProductsQuery)

@@ -262,6 +262,7 @@ export const downloadBulkUploadTemplate = async (): Promise<Blob> => {
 export interface BulkUploadResult {
   totalRows: number;
   successCount: number;
+  draftCount?: number;
   errorCount: number;
   errors: { row: number; reason: string }[];
 }

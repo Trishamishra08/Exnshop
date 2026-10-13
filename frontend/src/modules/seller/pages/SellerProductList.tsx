@@ -13,7 +13,23 @@ import {
 import { useAuth } from "../../../context/AuthContext";
 import StarRating from "../../../components/ui/StarRating";
 
-// ... (interfaces remain same)
+const REVIEW_BADGE: Record<string, { label: string; tone: string }> = {
+  Draft: { label: "Draft", tone: "bg-neutral-100 text-neutral-700 border-neutral-300" },
+  Pending: { label: "Awaiting review", tone: "bg-blue-50 text-blue-800 border-blue-200" },
+  Active: { label: "Live", tone: "bg-green-50 text-green-800 border-green-200" },
+  Rejected: { label: "Changes needed", tone: "bg-orange-50 text-orange-800 border-orange-200" },
+  Inactive: { label: "Hidden", tone: "bg-neutral-100 text-neutral-600 border-neutral-300" },
+};
+
+const REVIEW_FILTERS = [
+  { value: "All", label: "All Products" },
+  { value: "Draft", label: "Drafts" },
+  { value: "Pending", label: "Awaiting review" },
+  { value: "Active", label: "Live" },
+  { value: "Rejected", label: "Changes needed" },
+  { value: "Inactive", label: "Hidden" },
+  { value: "RevisionPending", label: "Edits awaiting review" },
+];
 
 export default function SellerProductList() {
   const navigate = useNavigate();
@@ -24,6 +40,7 @@ export default function SellerProductList() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Products");
   const [stockFilter, setStockFilter] = useState("All Products");
+  const [reviewFilter, setReviewFilter] = useState("All");
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(
@@ -84,6 +101,9 @@ export default function SellerProductList() {
       } else if (stockFilter === "Out of Stock") {
         params.stock = "outOfStock";
       }
+      if (reviewFilter !== "All") {
+        params.reviewStatus = reviewFilter;
+      }
 
       const response = await getProducts(params);
       if (response.success && response.data) {
@@ -118,6 +138,7 @@ export default function SellerProductList() {
     categoryFilter,
     statusFilter,
     stockFilter,
+    reviewFilter,
     sortColumn,
     sortDirection,
   ]);
@@ -333,6 +354,24 @@ export default function SellerProductList() {
             </div>
             <div>
               <label className="block text-xs text-neutral-600 mb-1">
+                Review Status
+              </label>
+              <select
+                value={reviewFilter}
+                onChange={(e) => {
+                  setReviewFilter(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-neutral-300 rounded py-1.5 px-3 text-sm focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer">
+                {REVIEW_FILTERS.map((f) => (
+                  <option key={f.value} value={f.value}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-neutral-600 mb-1">
                 Filter by Stock
               </label>
               <select
@@ -492,6 +531,11 @@ export default function SellerProductList() {
                   </th>
                   <th className="p-4 border border-neutral-200">
                     <div className="flex items-center justify-between">
+                      Review
+                    </div>
+                  </th>
+                  <th className="p-4 border border-neutral-200">
+                    <div className="flex items-center justify-between">
                       Rating
                     </div>
                   </th>
@@ -606,6 +650,43 @@ export default function SellerProductList() {
                         </div>
                       </td>
                       <td className="p-4 align-middle border border-neutral-200">
+                        {isFirstVariation && product && (() => {
+                          const badge = REVIEW_BADGE[(product as any).status] || REVIEW_BADGE.Active;
+                          const revisionPending = Boolean((product as any).pendingRevision?.submittedAt);
+                          return (
+                            <div className="flex flex-col gap-1 items-start">
+                              <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${badge.tone}`}>
+                                {badge.label}
+                              </span>
+                              {revisionPending && (
+                                <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-purple-50 text-purple-800 border-purple-200">
+                                  Edits under review
+                                </span>
+                              )}
+                              {(product as any).status === "Rejected" && (
+                                <>
+                                  <span className="text-[11px] text-orange-800 max-w-[180px]">
+                                    {(product as any).rejectionReason || "No reason was given."}
+                                  </span>
+                                  <button
+                                    onClick={() => handleEdit(variation.productId)}
+                                    className="text-[11px] font-semibold text-teal-700 hover:underline">
+                                    Fix &amp; resubmit
+                                  </button>
+                                </>
+                              )}
+                              {(product as any).status === "Draft" && (
+                                <button
+                                  onClick={() => handleEdit(variation.productId)}
+                                  className="text-[11px] font-semibold text-teal-700 hover:underline">
+                                  Finish &amp; submit
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
+                      <td className="p-4 align-middle border border-neutral-200">
                         {(variation.rating > 0 || variation.reviewsCount > 0) ? (
                           <StarRating
                             rating={variation.rating}
@@ -697,7 +778,7 @@ export default function SellerProductList() {
                 {displayedVariations.length === 0 && (
                   <tr>
                     <td
-                      colSpan={12}
+                      colSpan={13}
                       className="p-8 text-center text-neutral-400 border border-neutral-200">
                       No products found.
                     </td>

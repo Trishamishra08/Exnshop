@@ -83,6 +83,12 @@ export interface IProduct extends Document {
   approvedBy?: mongoose.Types.ObjectId;
   approvedAt?: Date;
   rejectionReason?: string;
+  // Edits to a live listing's customer-facing details (name, images, category…)
+  // wait here for admin review while the approved version stays live.
+  pendingRevision?: {
+    data: Record<string, any>;
+    submittedAt: Date;
+  };
 
   // Commission
   commission?: number;
@@ -181,11 +187,10 @@ const ProductSchema = new Schema<IProduct>(
       default: 0,
       min: [0, "Stock cannot be negative"],
     },
+    // Unique per seller (see the compound index below), not across the marketplace.
     sku: {
       type: String,
       trim: true,
-      unique: true,
-      sparse: true,
     },
     barcode: {
       type: String,
@@ -325,6 +330,16 @@ const ProductSchema = new Schema<IProduct>(
       type: String,
       trim: true,
     },
+    pendingRevision: {
+      type: new Schema(
+        {
+          data: { type: Schema.Types.Mixed },
+          submittedAt: { type: Date },
+        },
+        { _id: false }
+      ),
+      default: undefined,
+    },
 
     // Commission
     commission: {
@@ -387,6 +402,10 @@ ProductSchema.pre("save", function (next) {
 });
 
 // Indexes for faster queries
+ProductSchema.index(
+  { seller: 1, sku: 1 },
+  { unique: true, partialFilterExpression: { sku: { $type: "string" } } }
+);
 ProductSchema.index({ seller: 1, status: 1 });
 ProductSchema.index({ category: 1 });
 ProductSchema.index({ subcategory: 1 });

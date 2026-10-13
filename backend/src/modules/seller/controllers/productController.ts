@@ -7,6 +7,25 @@ import SubCategory from "../../../models/SubCategory";
 import Shop from "../../../models/Shop";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import { resolveSellerAllowedHeaderCategories } from "../../../services/sellerCategoryService";
+import OrderItem from "../../../models/OrderItem";
+import {
+  MATERIAL_FIELDS,
+  auditProduct,
+  describeProblems,
+  ensureSkus,
+  findSkuProblem,
+  notifyAdminsProductsSubmitted,
+  ownerView,
+  sameValue,
+  stripProtectedFields,
+  submissionProblems,
+  trackedDiff,
+} from "../../../services/productListingService";
+
+const sellerActor = (req: Request) => ({ actorType: "Seller" as const, actorId: (req as any).user?.userId });
+const AUDITED_FIELDS = ["productName", "category", "subcategory", "brand", "mainImage", "price", "discPrice", "stock", "sku", "publish", "isReturnable", "maxReturnDays"];
+const APPROVED_STATES = ["Active", "Inactive"];
+const isDuplicateKey = (err: any) => err?.code === 11000;
 
 /**
  * Validate that the seller is allowed to add products in the given header category.
@@ -41,15 +60,16 @@ async function validateSellerHeaderCategory(
 export const createProduct = asyncHandler(
   async (req: Request, res: Response) => {
     const sellerId = (req as any).user.userId;
-    const productData = req.body;
 
     // Ensure sellerId matches authenticated seller
-    if (productData.sellerId && productData.sellerId !== sellerId) {
+    if (req.body.sellerId && req.body.sellerId !== sellerId) {
       return res.status(403).json({
         success: false,
         message: "You can only create products for your own account",
       });
     }
+    // Sellers can't set review status, commission, ratings, etc. themselves.
+    const productData = stripProtectedFields(req.body);
 
     // Validate seller is allowed to add products in the selected header category
     const categoryError = await validateSellerHeaderCategory(
@@ -150,7 +170,7 @@ export const createProduct = asyncHandler(
     }
 
     // Validate variation prices
-    for (const variation of productData.variations) {
+    for (const variation of productData.variations || []) {
       if (Number(variation.discPrice) > Number(variation.price)) {
         return res.status(400).json({
           success: false,
@@ -159,6 +179,12 @@ export const createProduct = asyncHandler(
       }
     }
 
+    // Every product and variation gets a SKU (generated if the seller left it blank),
+    // unique within this seller's catalog.
+    ensureSkus(sellerId, newProductData);
+    const skuProblem = await findSkuProblem(sellerId, newProductData);
+    if (skuProblem) return res.status(400).json({ success: false, message: skuProblem });
+
     // 6. Catalog workflow: a seller can save a product as a Draft (still editing,
     // never sent to admin) or Submit it for review. Customer-facing queries only
     // ever show status:"Active", so both Draft and Pending stay hidden until an
@@ -166,6 +192,14 @@ export const createProduct = asyncHandler(
     newProductData.status = productData.saveAsDraft === true ? "Draft" : "Pending";
     newProductData.requiresApproval = true;
     newProductData.rejectionReason = undefined;
+
+    // A draft may be incomplete; anything sent for review must be complete.
+    if (newProductData.status === "Pending") {
+      const problems = submissionProblems(newProductData);
+      if (problems.length) {
+        return res.status(400).json({ success: false, message: describeProblems(problems), data: { missing: problems } });
+      }
+    }
 
     // Set default values for other required fields if not provided
     // Handle Returnability
@@ -196,7 +230,25 @@ export const createProduct = asyncHandler(
       newProductData.shopId = null;
     }
 
-    const product = await Product.create(newProductData);
+    let product;
+    try {
+      product = await Product.create(newProductData);
+    } catch (err: any) {
+      if (isDuplicateKey(err)) {
+        return res.status(400).json({ success: false, message: "One of the SKUs is already used by another of your products." });
+      }
+      throw err;
+    }
+
+    await auditProduct({
+      product,
+      ...sellerActor(req),
+      action: product.status === "Draft" ? "CREATED_DRAFT" : "SUBMITTED",
+    });
+    if (product.status === "Pending") {
+      const seller = await Seller.findById(sellerId).select("storeName");
+      await notifyAdminsProductsSubmitted(seller?.storeName || "A seller", 1);
+    }
 
     return res.status(201).json({
       success: true,
@@ -215,6 +267,7 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
     search,
     category,
     status,
+    reviewStatus,
     stock,
     page = "1",
     limit = "10",
@@ -250,6 +303,13 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
     } else if (status === "dealOfDay") {
       query.dealOfDay = true;
     }
+  }
+
+  // Review-workflow filter: Draft / Pending / Active / Rejected / Inactive, or edits awaiting review
+  if (reviewStatus === "RevisionPending") {
+    query["pendingRevision.submittedAt"] = { $exists: true };
+  } else if (["Draft", "Pending", "Active", "Rejected", "Inactive"].includes(reviewStatus as string)) {
+    query.status = reviewStatus;
   }
 
   // Stock filter
@@ -328,7 +388,7 @@ export const getProductById = asyncHandler(
     return res.status(200).json({
       success: true,
       message: "Product fetched successfully",
-      data: product,
+      data: ownerView(product),
     });
   }
 );
@@ -340,14 +400,12 @@ export const updateProduct = asyncHandler(
   async (req: Request, res: Response) => {
     const sellerId = (req as any).user.userId;
     const { id } = req.params;
-    const updateData = req.body;
+    // Owner, review status, commission, ratings etc. can never be changed from here.
+    const updateData = stripProtectedFields(req.body);
 
     if (process.env.NODE_ENV !== "production") {
       console.log("DEBUG updateProduct: sellerId from token:", sellerId, "productId:", id);
     }
-
-    // Remove sellerId from update data if present (cannot change owner)
-    delete updateData.sellerId;
 
     // Validate seller is allowed to update products to the selected header category
     const headerCategoryIdToValidate = updateData.headerCategoryId;
@@ -461,26 +519,106 @@ export const updateProduct = asyncHandler(
       });
     }
 
-    // Catalog workflow: explicitly submitting a Draft or a corrected Rejected
-    // product sends it back into the admin review queue. A plain edit (no
-    // submitForReview flag) never silently resubmits or re-publishes it.
-    if (updateData.submitForReview === true) {
-      if (product.status === "Draft" || product.status === "Rejected") {
-        updateData.status = "Pending";
-        updateData.rejectionReason = undefined;
+    const submitForReview = updateData.submitForReview === true;
+    delete updateData.submitForReview;
+    delete updateData.saveAsDraft;
+
+    // SKUs: keep the existing ones, fill any gaps, and keep them unique per seller.
+    if (updateData.sku !== undefined || updateData.variations) {
+      const skuInput: any = {
+        sku: updateData.sku !== undefined ? updateData.sku : product.sku,
+        variations: updateData.variations,
+      };
+      ensureSkus(sellerId, skuInput, product.sku);
+      updateData.sku = skuInput.sku;
+      if (updateData.variations) updateData.variations = skuInput.variations;
+      const skuProblem = await findSkuProblem(
+        sellerId,
+        { sku: updateData.sku, variations: updateData.variations || (product.variations as any) },
+        id
+      );
+      if (skuProblem) return res.status(400).json({ success: false, message: skuProblem });
+    }
+
+    // An already-approved listing keeps its approved customer-facing details live.
+    // Edits to those details wait for admin review; everything else applies now.
+    const wasApproved = APPROVED_STATES.includes(product.status);
+    let revisionChanged = false;
+    if (wasApproved) {
+      const revisionData: Record<string, any> = { ...((product.pendingRevision as any)?.data || {}) };
+      const before = JSON.stringify(revisionData);
+      for (const field of MATERIAL_FIELDS) {
+        if (updateData[field] === undefined) continue;
+        const incoming = updateData[field] === "" ? null : updateData[field];
+        if (sameValue((product as any)[field], incoming)) delete revisionData[field];
+        else revisionData[field] = incoming;
+        delete updateData[field];
+      }
+      if (JSON.stringify(revisionData) !== before) {
+        revisionChanged = true;
+        if (Object.keys(revisionData).length) {
+          const problems = submissionProblems({ ...product.toObject(), ...updateData, ...revisionData });
+          if (problems.length) {
+            return res.status(400).json({ success: false, message: describeProblems(problems), data: { missing: problems } });
+          }
+          (product as any).pendingRevision = { data: revisionData, submittedAt: new Date() };
+        } else {
+          (product as any).pendingRevision = undefined;
+        }
       }
     }
-    delete updateData.submitForReview;
+
+    const auditedBefore = trackedDiff(product, updateData, AUDITED_FIELDS);
 
     // Apply updates
     Object.assign(product, updateData);
+
+    // Explicitly submitting a Draft or a corrected Rejected product (re)sends it
+    // to admin review. A plain edit never silently resubmits or re-publishes it.
+    let submitted = false;
+    if (submitForReview && (product.status === "Draft" || product.status === "Rejected")) {
+      const problems = submissionProblems(product);
+      if (problems.length) {
+        return res.status(400).json({ success: false, message: describeProblems(problems), data: { missing: problems } });
+      }
+      submitted = true;
+      product.status = "Pending";
+      product.rejectionReason = undefined;
+    }
 
     // If variations were updated, mark as modified
     if (updateData.variations) {
       product.markModified("variations");
     }
 
-    await product.save();
+    try {
+      await product.save();
+    } catch (err: any) {
+      if (isDuplicateKey(err)) {
+        return res.status(400).json({ success: false, message: "That SKU is already used by another of your products." });
+      }
+      throw err;
+    }
+
+    if (auditedBefore.length) {
+      await auditProduct({ product, ...sellerActor(req), action: "UPDATED", changes: auditedBefore });
+    }
+    if (revisionChanged) {
+      const data = (product.pendingRevision as any)?.data;
+      await auditProduct({
+        product,
+        ...sellerActor(req),
+        action: data ? "REVISION_SUBMITTED" : "REVISION_WITHDRAWN",
+        changes: Object.keys(data || {}).map((field) => ({ field, to: data[field] })),
+      });
+    }
+    if (submitted) {
+      await auditProduct({ product, ...sellerActor(req), action: "RESUBMITTED" });
+    }
+    if (submitted || (revisionChanged && (product.pendingRevision as any)?.data)) {
+      const seller = await Seller.findById(sellerId).select("storeName");
+      await notifyAdminsProductsSubmitted(seller?.storeName || "A seller", 1);
+    }
 
     // Re-populate for response
     const populatedProduct = await Product.findById(product._id)
@@ -490,12 +628,13 @@ export const updateProduct = asyncHandler(
       .populate("brand", "name")
       .populate("tax", "name rate");
 
-    console.log("DEBUG updateProduct: product updated successfully");
-
+    const revisionPending = Boolean((product.pendingRevision as any)?.data);
     return res.status(200).json({
       success: true,
-      message: "Product updated successfully",
-      data: populatedProduct,
+      message: revisionPending && revisionChanged
+        ? "Saved. Your changes to the listing details are awaiting review; the approved version stays live until then."
+        : "Product updated successfully",
+      data: ownerView(populatedProduct),
     });
   }
 );
@@ -512,10 +651,25 @@ export const deleteProduct = asyncHandler(
       console.log("DEBUG deleteProduct: sellerId from token:", sellerId, "productId:", id);
     }
 
+    const existing = await Product.findOne({ _id: id, seller: sellerId });
+    if (!existing) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+    if (await OrderItem.exists({ product: existing._id })) {
+      return res.status(409).json({
+        success: false,
+        message: "This product has customer orders, so it can't be deleted. Unpublish it instead.",
+      });
+    }
+
     const product = await Product.findOneAndDelete({
       _id: id,
       seller: sellerId,
     });
+    if (product) await auditProduct({ product, ...sellerActor(req), action: "DELETED", changes: [{ field: "status", from: product.status }] });
 
     if (!product) {
       return res.status(404).json({
@@ -596,6 +750,7 @@ export const updateProductStatus = asyncHandler(
     if (popular !== undefined) updateData.popular = popular;
     if (dealOfDay !== undefined) updateData.dealOfDay = dealOfDay;
 
+    const previous = await Product.findOne({ _id: id, seller: sellerId }).select("publish popular dealOfDay productName seller");
     const product = await Product.findOneAndUpdate(
       { _id: id, seller: sellerId },
       updateData,
@@ -608,6 +763,9 @@ export const updateProductStatus = asyncHandler(
         message: "Product not found",
       });
     }
+
+    const changes = trackedDiff(previous || {}, updateData, ["publish", "popular", "dealOfDay"]);
+    if (changes.length) await auditProduct({ product, ...sellerActor(req), action: "VISIBILITY_CHANGED", changes });
 
     return res.status(200).json({
       success: true,
@@ -697,6 +855,7 @@ export const getBulkUploadTemplate = asyncHandler(
       "isReturnable",
       "maxReturnDays",
       "mainImageUrl",
+      "sku",
     ];
     const example = [
       "Aashirvaad Atta 5kg",
@@ -712,6 +871,7 @@ export const getBulkUploadTemplate = asyncHandler(
       "false",
       "",
       "https://example.com/atta.jpg",
+      "ATTA-5KG",
     ];
     const csvContent = `${headers.join(",")}\n${example
       .map((v) => `"${v.replace(/"/g, '""')}"`)
@@ -742,13 +902,14 @@ export const bulkUploadProducts = asyncHandler(
       });
     }
 
-    const seller = await Seller.findById(sellerId).select("categories");
+    const seller = await Seller.findById(sellerId).select("categories storeName");
     if (!seller) {
       return res.status(404).json({
         success: false,
         message: "Seller not found",
       });
     }
+    const sellerRecord = seller;
 
     const csvParser = require("csv-parser");
     const { Readable } = require("stream");
@@ -777,6 +938,7 @@ export const bulkUploadProducts = asyncHandler(
 
     const errors: { row: number; reason: string }[] = [];
     let successCount = 0;
+    let draftCount = 0;
 
     // Cache category/brand lookups across rows to avoid redundant queries on large files.
     const headerCategoryCache = new Map<string, any>();
@@ -899,7 +1061,7 @@ export const bulkUploadProducts = asyncHandler(
         const maxReturnDays = row.maxReturnDays ? Number(row.maxReturnDays) || 0 : 0;
         const variationTitle = (row.variationTitle || "Default").trim();
 
-        await Product.create({
+        const doc: any = {
           seller: sellerId,
           productName,
           headerCategoryId: headerCategoryDoc?._id,
@@ -912,6 +1074,7 @@ export const bulkUploadProducts = asyncHandler(
           price,
           discPrice,
           stock,
+          sku: (row.sku || "").trim() || undefined,
           isReturnable,
           maxReturnDays,
           variations: [
@@ -929,24 +1092,47 @@ export const bulkUploadProducts = asyncHandler(
           dealOfDay: false,
           tags: [],
           totalAllowedQuantity: 10,
-          // Same admin-approval gate as a single product add.
-          status: "Pending",
           requiresApproval: true,
-        });
+        };
 
-        successCount++;
+        ensureSkus(sellerId, doc);
+        const skuProblem = await findSkuProblem(sellerId, doc);
+        if (skuProblem) {
+          errors.push({ row: rowNum, reason: skuProblem });
+          continue;
+        }
+
+        // Same admin-approval gate as a single product add — but only complete
+        // rows are sent for review; the rest are saved as drafts to finish later.
+        const missing = submissionProblems(doc);
+        doc.status = missing.length ? "Draft" : "Pending";
+
+        const created = await Product.create(doc);
+        await auditProduct({ product: created, ...sellerActor(req), action: "CREATED_BULK" });
+        if (missing.length) {
+          draftCount++;
+          errors.push({ row: rowNum, reason: `Saved as a draft (not sent for review): missing ${missing.join(", ")}` });
+        } else {
+          successCount++;
+        }
       } catch (err: any) {
         errors.push({ row: rowNum, reason: err.message || "Unknown error" });
       }
     }
 
+    if (successCount > 0) {
+      await notifyAdminsProductsSubmitted(sellerRecord?.storeName || "A seller", successCount);
+    }
+
+    const failedCount = errors.length - draftCount;
     return res.status(200).json({
       success: true,
-      message: `Processed ${rows.length} rows: ${successCount} submitted for review, ${errors.length} failed.`,
+      message: `Processed ${rows.length} rows: ${successCount} submitted for review${draftCount ? `, ${draftCount} saved as drafts (incomplete)` : ""}, ${failedCount} failed.`,
       data: {
         totalRows: rows.length,
         successCount,
-        errorCount: errors.length,
+        draftCount,
+        errorCount: failedCount,
         errors,
       },
     });

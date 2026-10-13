@@ -55,8 +55,9 @@ export default function SellerBulkUpload() {
             const response = await bulkUploadProducts(selectedFile);
             if (response.success && response.data) {
                 setResult(response.data);
+                const drafts = response.data.draftCount || 0;
                 showToast(
-                    `${response.data.successCount} products submitted for review, ${response.data.errorCount} failed.`,
+                    `${response.data.successCount} products submitted for review${drafts ? `, ${drafts} saved as drafts` : ''}, ${response.data.errorCount} failed.`,
                     response.data.errorCount > 0 ? 'error' : 'success'
                 );
             } else {
@@ -99,8 +100,9 @@ export default function SellerBulkUpload() {
                     <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
                         <h3 className="text-sm font-semibold text-neutral-800 mb-1">2. Upload your filled CSV</h3>
                         <p className="text-xs text-neutral-500 mb-3">
-                            Every row you submit goes through the same admin review as a single product — nothing
-                            goes live until approved. Max 1000 rows per file.
+                            Complete rows go through the same admin review as a single product — nothing goes live
+                            until approved. Rows missing a main image are saved as drafts so you can finish and submit
+                            them later. Leave the sku column blank to have one generated. Max 1000 rows per file.
                         </p>
                         {error && (
                             <div className="mb-3 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
@@ -137,6 +139,12 @@ export default function SellerBulkUpload() {
                                     <span className="text-xs text-neutral-500 block">Submitted for review</span>
                                     <span className="text-lg font-bold text-green-600">{result.successCount}</span>
                                 </div>
+                                {(result.draftCount || 0) > 0 && (
+                                    <div>
+                                        <span className="text-xs text-neutral-500 block">Saved as drafts</span>
+                                        <span className="text-lg font-bold text-amber-600">{result.draftCount}</span>
+                                    </div>
+                                )}
                                 <div>
                                     <span className="text-xs text-neutral-500 block">Failed</span>
                                     <span className="text-lg font-bold text-red-600">{result.errorCount}</span>
@@ -155,7 +163,7 @@ export default function SellerBulkUpload() {
                                             {result.errors.map((e, idx) => (
                                                 <tr key={idx} className="border-t border-neutral-100">
                                                     <td className="p-3 text-neutral-500">{e.row}</td>
-                                                    <td className="p-3 text-red-700">{e.reason}</td>
+                                                    <td className={`p-3 ${e.reason.startsWith('Saved as a draft') ? 'text-amber-700' : 'text-red-700'}`}>{e.reason}</td>
                                                 </tr>
                                             ))}
                                         </tbody>

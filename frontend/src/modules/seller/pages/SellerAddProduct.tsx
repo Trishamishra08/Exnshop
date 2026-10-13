@@ -66,11 +66,13 @@ export default function SellerAddProduct() {
     price: "",
     discPrice: "0",
     stock: "0",
+    sku: "",
     status: "Available" as "Available" | "Sold out",
   });
 
   const [productStatus, setProductStatus] = useState<string>("");
   const [rejectionReason, setRejectionReason] = useState<string>("");
+  const [revisionPending, setRevisionPending] = useState(false);
 
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
   const [mainImagePreview, setMainImagePreview] = useState<string>("");
@@ -190,6 +192,7 @@ export default function SellerAddProduct() {
             setVariations(product.variations);
             setProductStatus(product.status || "");
             setRejectionReason(product.rejectionReason || "");
+            setRevisionPending(Boolean((product as any).revisionPending));
             if (product.mainImageUrl || product.mainImage) {
               setMainImagePreview(
                 product.mainImageUrl || product.mainImage || ""
@@ -368,12 +371,19 @@ export default function SellerAddProduct() {
       return;
     }
 
+    const sku = variationForm.sku.trim();
+    if (sku && variations.some((v) => (v.sku || "").toLowerCase() === sku.toLowerCase())) {
+      setUploadError(`SKU "${sku}" is already used by another variation of this product`);
+      return;
+    }
+
     const newVariation: ProductVariation = {
       title: variationForm.title,
       price,
       discPrice,
       stock,
       status: variationForm.status,
+      ...(sku ? { sku } : {}),
     };
 
     setVariations([...variations, newVariation]);
@@ -382,6 +392,7 @@ export default function SellerAddProduct() {
       price: "",
       discPrice: "0",
       stock: "0",
+      sku: "",
       status: "Available",
     });
     setUploadError("");
@@ -524,7 +535,9 @@ export default function SellerAddProduct() {
               : "Product submitted! It will go live once an admin approves it."
             : action === "submit"
               ? "Resubmitted for admin review."
-              : "Product updated successfully!"
+              : /awaiting review/i.test(response.message || "")
+                ? (response.message as string)
+                : "Product updated successfully!"
         );
         setTimeout(() => {
           // Reset form or navigate
@@ -619,6 +632,18 @@ export default function SellerAddProduct() {
           {id && productStatus === "Pending" && (
             <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg">
               This product is <strong>pending admin review</strong>. It will go live once approved.
+            </div>
+          )}
+          {id && revisionPending && (
+            <div className="bg-purple-50 border border-purple-200 text-purple-900 px-4 py-3 rounded-lg">
+              Your edits to the <strong>listing details</strong> (name, images, category…) are <strong>awaiting admin review</strong>.
+              The approved version stays live until then. Price and stock changes always apply right away.
+            </div>
+          )}
+          {id && (productStatus === "Active" || productStatus === "Inactive") && !revisionPending && (
+            <div className="bg-neutral-50 border border-neutral-200 text-neutral-700 px-4 py-2.5 rounded-lg text-sm">
+              This product is approved. Changing its name, images, description, category or brand sends those changes for admin review;
+              price, stock and visibility update immediately.
             </div>
           )}
           {/* Product Section */}
@@ -933,7 +958,7 @@ export default function SellerAddProduct() {
               </div>
 
               {/* Variation Form */}
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 bg-neutral-50 rounded-lg">
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-4 p-4 bg-neutral-50 rounded-lg">
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-2">
                     Title (e.g., 100g)
@@ -1002,6 +1027,23 @@ export default function SellerAddProduct() {
                     className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">
+                    SKU (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={variationForm.sku}
+                    onChange={(e) =>
+                      setVariationForm({
+                        ...variationForm,
+                        sku: e.target.value,
+                      })
+                    }
+                    placeholder="Auto-generated"
+                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  />
+                </div>
                 <div className="flex items-end">
                   <button
                     type="button"
@@ -1037,6 +1079,7 @@ export default function SellerAddProduct() {
                               ? "Unlimited"
                               : variation.stock}{" "}
                             | Status: {variation.status}
+                            {variation.sku ? ` | SKU: ${variation.sku}` : ""}
                           </span>
                         </div>
                         <button

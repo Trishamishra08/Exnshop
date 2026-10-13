@@ -535,6 +535,39 @@ export const approveProductRequest = async (
   return response.data;
 };
 
+export interface ProductRevisionRow {
+  _id: string;
+  productName: string;
+  mainImage?: string;
+  seller?: { sellerName?: string; storeName?: string } | string;
+  submittedAt?: string;
+  changes: Array<{ field: string; from: any; to: any }>;
+}
+
+export interface ProductAuditEntry {
+  _id: string;
+  actorType: "Seller" | "Admin" | "System";
+  actorName?: string;
+  action: string;
+  changes?: Array<{ field: string; from?: string; to?: string }>;
+  remarks?: string;
+  createdAt: string;
+}
+
+/** Live listings whose seller edited customer-facing details and is waiting for review. */
+export const getProductRevisions = async (): Promise<ApiResponse<ProductRevisionRow[]>> =>
+  (await api.get<ApiResponse<ProductRevisionRow[]>>("/admin/products/revisions")).data;
+
+export const decideProductRevision = async (
+  id: string,
+  decision: "Approved" | "Rejected",
+  remarks?: string
+): Promise<ApiResponse<unknown>> =>
+  (await api.patch<ApiResponse<unknown>>(`/admin/products/${id}/revision`, { decision, remarks })).data;
+
+export const getProductAuditLog = async (id: string): Promise<ApiResponse<ProductAuditEntry[]>> =>
+  (await api.get<ApiResponse<ProductAuditEntry[]>>(`/admin/products/${id}/audit`)).data;
+
 /**
  * Bulk import products
  */

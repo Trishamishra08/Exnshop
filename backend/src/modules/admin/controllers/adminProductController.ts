@@ -9,7 +9,14 @@ import Seller from "../../../models/Seller";
 import HeaderCategory from "../../../models/HeaderCategory";
 import Tax from "../../../models/Tax";
 import { cache } from "../../../utils/cache";
-import { sendProductApprovalNotification } from "../../../services/notificationService";
+import Admin from "../../../models/Admin";
+import ProductAuditLog from "../../../models/ProductAuditLog";
+import {
+  auditProduct,
+  generateSkuBase,
+  notifySellerProductDecision,
+  submissionProblems,
+} from "../../../services/productListingService";
 
 // ==================== Category Controllers ====================
 
@@ -1243,7 +1250,8 @@ export const deleteProduct = asyncHandler(
 export const approveProductRequest = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { status, rejectionReason } = req.body;
+    const { status } = req.body;
+    const rejectionReason = String(req.body.rejectionReason || "").trim();
 
     if (!["Active", "Rejected"].includes(status)) {
       return res.status(400).json({
@@ -1251,12 +1259,46 @@ export const approveProductRequest = asyncHandler(
         message: "Status must be Active or Rejected",
       });
     }
+    if (status === "Rejected" && !rejectionReason) {
+      return res.status(400).json({
+        success: false,
+        message: "Please give a reason so the seller knows what to fix",
+      });
+    }
+
+    // Only a product the seller has submitted can be decided on. Drafts are
+    // still the seller's to finish, and decided products need a fresh submission.
+    const current = await Product.findById(id);
+    if (!current) {
+      return res.status(404).json({ success: false, message: "Product not found" });
+    }
+    if (current.status !== "Pending") {
+      return res.status(409).json({
+        success: false,
+        message:
+          current.status === "Draft"
+            ? "The seller hasn't submitted this product for review yet."
+            : `This product is already ${current.status.toLowerCase()}; there is nothing to approve or reject.`,
+      });
+    }
+    // Products created before SKUs existed get one now instead of being blocked.
+    const generatedSku = !current.sku ? generateSkuBase(String(current.seller)) : undefined;
+    if (status === "Active") {
+      const problems = submissionProblems({ ...current.toObject(), sku: current.sku || generatedSku });
+      if (problems.length) {
+        return res.status(400).json({
+          success: false,
+          message: `This product is incomplete, so it can't go live. Missing or invalid: ${problems.join(", ")}. Reject it with a note so the seller can fix it.`,
+        });
+      }
+    }
 
     const updateData: any = {
       status,
       approvedBy: (req as any).user?.userId,
       approvedAt: new Date(),
     };
+    if (generatedSku) updateData.sku = generatedSku;
 
     // Approving means "this is now live" — the seller's Add Product form
     // defaults Publish to No, so without this an approved product still
@@ -1287,17 +1329,16 @@ export const approveProductRequest = asyncHandler(
       });
     }
 
-    const sellerId = (product.seller as any)?._id?.toString() || product.seller?.toString();
-    if (sellerId) {
-      sendProductApprovalNotification(
-        sellerId,
-        product._id.toString(),
-        status === "Active" ? "Approved" : "Rejected",
-        rejectionReason
-      ).catch((err) =>
-        console.error("Failed to send product approval notification:", err)
-      );
-    }
+    await auditProduct({
+      product,
+      ...(await adminActor(req)),
+      action: status === "Active" ? "APPROVED" : "REJECTED",
+      changes: [{ field: "status", from: "Pending", to: status }],
+      remarks: rejectionReason || undefined,
+    });
+    notifySellerProductDecision(product, status === "Active" ? "Approved" : "Rejected", rejectionReason).catch((err) =>
+      console.error("Failed to send product decision notification:", err)
+    );
 
     return res.status(200).json({
       success: true,
@@ -1307,6 +1348,96 @@ export const approveProductRequest = asyncHandler(
     });
   }
 );
+
+const adminActor = async (req: Request) => {
+  const adminId = (req as any).user?.userId;
+  const admin = adminId ? await Admin.findById(adminId).select("firstName lastName email") : null;
+  return {
+    actorType: "Admin" as const,
+    actorId: adminId,
+    actorName: admin ? `${admin.firstName || ""} ${admin.lastName || ""}`.trim() || admin.email : "Admin",
+  };
+};
+
+/**
+ * Live listings whose seller edited customer-facing details (name, images,
+ * category…). The approved version stays live until an admin decides.
+ */
+export const getProductRevisions = asyncHandler(async (_req: Request, res: Response) => {
+  const products = await Product.find({ "pendingRevision.submittedAt": { $exists: true } })
+    .populate("category", "name")
+    .populate("seller", "sellerName storeName")
+    .sort({ "pendingRevision.submittedAt": 1 })
+    .limit(200)
+    .lean();
+
+  const rows = products.map((p: any) => {
+    const data = p.pendingRevision?.data || {};
+    return {
+      _id: p._id,
+      productName: p.productName,
+      mainImage: p.mainImage,
+      seller: p.seller,
+      submittedAt: p.pendingRevision?.submittedAt,
+      changes: Object.keys(data).map((field) => ({ field, from: p[field] ?? null, to: data[field] })),
+    };
+  });
+  return res.status(200).json({ success: true, data: rows });
+});
+
+/** Approve (apply) or reject (discard) a seller's pending edits to a live listing. */
+export const decideProductRevision = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const decision = req.body.decision as "Approved" | "Rejected";
+  const remarks = String(req.body.remarks || "").trim();
+
+  if (!["Approved", "Rejected"].includes(decision)) {
+    return res.status(400).json({ success: false, message: "Decision must be Approved or Rejected" });
+  }
+  if (decision === "Rejected" && !remarks) {
+    return res.status(400).json({ success: false, message: "Please give a reason so the seller knows what to fix" });
+  }
+
+  const product = await Product.findById(id);
+  const revision = (product?.pendingRevision as any)?.data;
+  if (!product || !revision) {
+    return res.status(404).json({ success: false, message: "There are no pending edits for this product" });
+  }
+
+  const applied = Object.entries(revision).map(([field, to]) => ({ field, from: (product as any)[field], to }));
+  if (decision === "Approved") {
+    Object.assign(product, revision);
+    const problems = submissionProblems(product);
+    if (problems.length) {
+      return res.status(400).json({
+        success: false,
+        message: `These edits would leave the product incomplete (${problems.join(", ")}). Reject them with a note instead.`,
+      });
+    }
+    product.approvedBy = (req as any).user?.userId;
+    product.approvedAt = new Date();
+  }
+  (product as any).pendingRevision = undefined;
+  await product.save();
+
+  await auditProduct({
+    product,
+    ...(await adminActor(req)),
+    action: decision === "Approved" ? "REVISION_APPROVED" : "REVISION_REJECTED",
+    changes: applied,
+    remarks: remarks || undefined,
+  });
+  notifySellerProductDecision(product, decision, remarks, "edit").catch((err) =>
+    console.error("Failed to send revision decision notification:", err)
+  );
+
+  return res.status(200).json({ success: true, message: `Edits ${decision === "Approved" ? "approved and applied" : "rejected"}` });
+});
+
+export const getProductAuditLog = asyncHandler(async (req: Request, res: Response) => {
+  const log = await ProductAuditLog.find({ product: req.params.id }).sort({ createdAt: -1 }).limit(200).lean();
+  return res.status(200).json({ success: true, data: log });
+});
 
 /**
  * Bulk import products
