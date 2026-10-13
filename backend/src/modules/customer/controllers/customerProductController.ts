@@ -8,6 +8,7 @@ import { findSellersWithinRange } from "../../../utils/locationHelper";
 import AppSettings from "../../../models/AppSettings";
 import { parseChannelQueryParam, filterSellerIdsByChannel, resolveSellerChannel } from "../../../utils/commerceChannelHelper";
 import { getActiveCampaignsForProducts, recordImpressions, recordClick } from "../../../services/campaignService";
+import { configForProduct } from "../../../services/productListingService";
 
 // Get products with filtering options (public)
 export const getProducts = async (req: Request, res: Response) => {
@@ -398,7 +399,22 @@ export const getProductById = async (req: Request, res: Response) => {
     const settings = await AppSettings.getSettings();
     let showSellerDetails = settings?.features?.showSellerDetails !== false;
 
-    const prodObj = product.toObject();
+    const prodObj: any = product.toObject();
+    // Internal listing/review data never goes to customers; show labelled specs instead.
+    for (const internal of ["complianceDocs", "qualityFlags", "reviewStartedAt", "reviewStartedBy", "reviewStartedByName", "pendingRevision", "approvedBy"]) {
+      delete prodObj[internal];
+    }
+    const listingConfig = await configForProduct(product);
+    prodObj.specifications = listingConfig.attributes
+      .filter((a) => {
+        const v = prodObj.attributes?.[a.key];
+        return v !== undefined && v !== null && v !== "" && !(Array.isArray(v) && v.length === 0);
+      })
+      .map((a) => {
+        const v = prodObj.attributes[a.key];
+        const text = Array.isArray(v) ? v.join(", ") : typeof v === "boolean" ? (v ? "Yes" : "No") : String(v);
+        return { label: a.label, value: a.unit ? `${text} ${a.unit}` : text };
+      });
     if (prodObj.seller && typeof prodObj.seller === "object" && (prodObj.seller as any).viewCustomerDetails === false) {
       showSellerDetails = false;
       delete (prodObj.seller as any).storeName;

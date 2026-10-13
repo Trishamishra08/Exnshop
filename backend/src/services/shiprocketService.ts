@@ -2,7 +2,42 @@ import axios from "axios";
 import crypto from "crypto";
 import { IOrder } from "../models/Order";
 import OrderItem from "../models/OrderItem";
+import Product from "../models/Product";
 import Seller, { ISeller } from "../models/Seller";
+
+const FALLBACK_ITEM = { grams: 500, length: 10, width: 10, height: 10 };
+
+/**
+ * Parcel for one seller's items, from the weight and dimensions listed on each
+ * product (falling back to 500 g / 10 cm for products listed before those fields
+ * existed). Items are treated as stacked: footprint of the largest, heights add up.
+ */
+export const parcelForItems = async (items: Array<{ product?: any; quantity?: number }>) => {
+  const ids = items.map((i) => i.product).filter(Boolean);
+  const products: any[] = await Product.find({ _id: { $in: ids } }).select("weightGrams dimensionsCm").lean();
+  const byId = new Map(products.map((p) => [String(p._id), p]));
+
+  let grams = 0;
+  let length = 0;
+  let width = 0;
+  let height = 0;
+  for (const item of items) {
+    const p = byId.get(String(item.product));
+    const qty = Math.max(1, Number(item.quantity) || 1);
+    const d = p?.dimensionsCm || {};
+    grams += (p?.weightGrams || FALLBACK_ITEM.grams) * qty;
+    length = Math.max(length, d.length || FALLBACK_ITEM.length);
+    width = Math.max(width, d.width || FALLBACK_ITEM.width);
+    height += (d.height || FALLBACK_ITEM.height) * qty;
+  }
+  const round = (n: number) => Math.round(n * 10) / 10;
+  return {
+    weight: Math.max(0.05, Math.round(grams) / 1000),
+    length: round(Math.max(0.5, length)),
+    breadth: round(Math.max(0.5, width)),
+    height: round(Math.max(0.5, Math.min(height, 200))),
+  };
+};
 
 const SHIPROCKET_BASE_URL = "https://apiv2.shiprocket.in/v1/external";
 
@@ -282,6 +317,7 @@ export const createShiprocketOrder = async (
 
     try {
       const token = await getAuthToken();
+      const parcel = await parcelForItems(items);
       const payload = {
         order_id: channelOrderId,
         order_date: new Date(order.orderDate).toISOString().slice(0, 19).replace("T", " "),
@@ -308,10 +344,7 @@ export const createShiprocketOrder = async (
           groups.size === 1
             ? order.subtotal
             : items.reduce((sum, item) => sum + (item.unitPrice || 0) * (item.quantity || 0), 0),
-        length: 10,
-        breadth: 10,
-        height: 10,
-        weight: 0.5,
+        ...parcel,
       };
 
       const response = await axios.post(`${SHIPROCKET_BASE_URL}/orders/create/adhoc`, payload, {

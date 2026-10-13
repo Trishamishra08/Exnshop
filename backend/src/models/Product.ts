@@ -93,6 +93,34 @@ export interface IProduct extends Document {
   // Commission
   commission?: number;
 
+  // Listing workflow
+  /** 2 = created through the guided listing flow (strict requirements); absent = legacy product. */
+  listingVersion?: number;
+  listingMethod?: "single" | "bulk" | "copy";
+  condition?: "New" | "Used" | "Refurbished";
+  modelNumber?: string;
+  hsnCode?: string;
+  /** Category-specific attribute values, keyed by the attribute's key (e.g. { size: "M" }). */
+  attributes?: Record<string, any>;
+  handlingTimeDays?: number;
+  weightGrams?: number;
+  dimensionsCm?: { length?: number; width?: number; height?: number };
+  complianceDocs?: Array<{
+    docType: string;
+    publicId: string;
+    resourceType: string;
+    format?: string;
+    originalName?: string;
+    uploadedAt: Date;
+    status: "Pending" | "Approved" | "Rejected";
+    remarks?: string;
+  }>;
+  /** Non-blocking warnings found by the automated checks at submission, shown to the reviewer. */
+  qualityFlags?: string[];
+  reviewStartedAt?: Date;
+  reviewStartedBy?: mongoose.Types.ObjectId;
+  reviewStartedByName?: string;
+
   // Shop by Store
   isShopByStoreOnly?: boolean;
   shopId?: mongoose.Types.ObjectId;
@@ -347,6 +375,49 @@ const ProductSchema = new Schema<IProduct>(
       min: [0, "Commission cannot be negative"],
     },
 
+    // Listing workflow
+    listingVersion: { type: Number },
+    listingMethod: { type: String, enum: ["single", "bulk", "copy"] },
+    condition: { type: String, enum: ["New", "Used", "Refurbished"], default: "New" },
+    modelNumber: { type: String, trim: true, maxlength: 80 },
+    hsnCode: { type: String, trim: true },
+    attributes: { type: Schema.Types.Mixed, default: undefined },
+    handlingTimeDays: { type: Number, min: 0, max: 30 },
+    weightGrams: { type: Number, min: 1, max: 100000 },
+    dimensionsCm: {
+      type: new Schema(
+        {
+          length: { type: Number, min: 0.1, max: 500 },
+          width: { type: Number, min: 0.1, max: 500 },
+          height: { type: Number, min: 0.1, max: 500 },
+        },
+        { _id: false }
+      ),
+      default: undefined,
+    },
+    complianceDocs: {
+      type: [
+        new Schema(
+          {
+            docType: { type: String, required: true, trim: true },
+            publicId: { type: String, required: true },
+            resourceType: { type: String, default: "image" },
+            format: { type: String },
+            originalName: { type: String, trim: true },
+            uploadedAt: { type: Date, default: Date.now },
+            status: { type: String, enum: ["Pending", "Approved", "Rejected"], default: "Pending" },
+            remarks: { type: String, trim: true },
+          },
+          { _id: true }
+        ),
+      ],
+      default: [],
+    },
+    qualityFlags: { type: [String], default: undefined },
+    reviewStartedAt: { type: Date },
+    reviewStartedBy: { type: Schema.Types.ObjectId, ref: "Admin" },
+    reviewStartedByName: { type: String, trim: true },
+
     // Shop by Store
     isShopByStoreOnly: {
       type: Boolean,
@@ -364,7 +435,20 @@ const ProductSchema = new Schema<IProduct>(
   },
   {
     timestamps: true,
-    toJSON: { virtuals: true },
+    toJSON: {
+      virtuals: true,
+      // Storage ids of private documents and internal reviewer notes never leave the
+      // server through a plain product response; admin endpoints add back what they need.
+      transform: (_doc: any, ret: any) => {
+        if (Array.isArray(ret.complianceDocs)) {
+          ret.complianceDocs = ret.complianceDocs.map(({ publicId, resourceType, ...rest }: any) => rest);
+        }
+        delete ret.qualityFlags;
+        delete ret.reviewStartedBy;
+        delete ret.reviewStartedByName;
+        return ret;
+      },
+    },
     toObject: { virtuals: true },
   }
 );
