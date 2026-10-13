@@ -1,7 +1,9 @@
 import mongoose from "mongoose";
 import Product, { IProduct } from "../models/Product";
 import Seller from "../models/Seller";
+import Admin from "../models/Admin";
 import ProductAuditLog from "../models/ProductAuditLog";
+import { attributeProblems, idOf, resolveListingConfig } from "./listingConfigService";
 
 // ── Field rules ─────────────────────────────────────────────
 
@@ -25,6 +27,14 @@ export const PROTECTED_FIELDS = [
   "createdAt",
   "updatedAt",
   "__v",
+  // Set by the listing workflow itself
+  "listingVersion",
+  "listingMethod",
+  "qualityFlags",
+  "complianceDocs",
+  "reviewStartedAt",
+  "reviewStartedBy",
+  "reviewStartedByName",
 ];
 
 /**
@@ -53,6 +63,11 @@ export const MATERIAL_FIELDS = [
   "returnPolicyText",
   "isShopByStoreOnly",
   "shopId",
+  "modelNumber",
+  "barcode",
+  "condition",
+  "attributes",
+  "hsnCode",
 ];
 
 const ID_FIELDS = new Set(["category", "subcategory", "subSubCategory", "headerCategoryId", "brand", "tax", "shopId"]);
@@ -63,10 +78,17 @@ export const stripProtectedFields = <T extends Record<string, any>>(body: T): T 
   return clean as T;
 };
 
+const sortKeys = (v: any): any =>
+  Array.isArray(v)
+    ? v.map(sortKeys)
+    : v && typeof v === "object"
+      ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])]))
+      : v;
+
 const norm = (v: any): string => {
   if (v === undefined || v === null || v === "") return "";
   if (Array.isArray(v)) return v.map(norm).join("|");
-  if (typeof v === "object") return v._id ? String(v._id) : JSON.stringify(v);
+  if (typeof v === "object") return v._id ? String(v._id) : JSON.stringify(sortKeys(v.toObject ? v.toObject() : v));
   return String(v);
 };
 
@@ -141,6 +163,136 @@ export const submissionProblems = (p: any): string[] => {
   return problems;
 };
 
+const HSN_REGEX = /^\d{4}(\d{2}(\d{2})?)?$/;
+const CONDITIONS = ["New", "Used", "Refurbished"];
+
+/**
+ * Coerces and validates the listing fields added by the guided flow, in place.
+ * Returns an error message for a value that is present but invalid, else null.
+ * (Missing values are the business of listingProblems, so drafts can be partial.)
+ */
+export const normalizeListingFields = (data: Record<string, any>): string | null => {
+  if (data.condition !== undefined && data.condition !== "" && !CONDITIONS.includes(data.condition)) {
+    return "Condition must be New, Used or Refurbished";
+  }
+  if (data.condition === "") delete data.condition;
+
+  if (data.hsnCode !== undefined) {
+    data.hsnCode = String(data.hsnCode || "").replace(/\s/g, "");
+    if (data.hsnCode && !HSN_REGEX.test(data.hsnCode)) return "HSN code must be 4, 6 or 8 digits";
+    if (!data.hsnCode) data.hsnCode = undefined;
+  }
+  if (data.modelNumber !== undefined) data.modelNumber = String(data.modelNumber || "").trim().slice(0, 80) || undefined;
+  if (data.barcode !== undefined) {
+    data.barcode = String(data.barcode || "").trim();
+    if (data.barcode && !/^[0-9A-Za-z-]{4,20}$/.test(data.barcode)) return "Barcode / GTIN must be 4–20 letters or digits";
+    if (!data.barcode) data.barcode = undefined;
+  }
+
+  const num = (v: any) => (v === "" || v === null || v === undefined ? undefined : Number(v));
+  if (data.weightGrams !== undefined) {
+    const w = num(data.weightGrams);
+    if (w !== undefined && (!Number.isFinite(w) || w <= 0 || w > 100000)) return "Weight must be between 1 g and 100 kg";
+    data.weightGrams = w;
+  }
+  if (data.dimensionsCm !== undefined) {
+    const d = data.dimensionsCm || {};
+    const dims = { length: num(d.length), width: num(d.width), height: num(d.height) };
+    for (const [k, v] of Object.entries(dims)) {
+      if (v !== undefined && (!Number.isFinite(v) || v <= 0 || v > 500)) return `Package ${k} must be between 0.1 and 500 cm`;
+    }
+    data.dimensionsCm = dims.length || dims.width || dims.height ? dims : undefined;
+  }
+  if (data.handlingTimeDays !== undefined) {
+    const h = num(data.handlingTimeDays);
+    if (h !== undefined && (!Number.isInteger(h) || h < 0 || h > 30)) return "Handling time must be a whole number of days (0–30)";
+    data.handlingTimeDays = h;
+  }
+  return null;
+};
+
+export interface ListingContext {
+  seller?: any;
+  configs: Map<string, Awaited<ReturnType<typeof resolveListingConfig>>>;
+}
+export const newListingContext = (): ListingContext => ({ configs: new Map() });
+
+export const configForProduct = async (p: any, ctx?: ListingContext) => {
+  const scope = {
+    headerCategoryId: idOf(p.headerCategoryId),
+    category: idOf(p.category),
+    subcategory: idOf(p.subcategory),
+    subSubCategory: idOf(p.subSubCategory),
+  };
+  const key = JSON.stringify(scope);
+  const cached = ctx?.configs.get(key);
+  if (cached) return cached;
+  const config = await resolveListingConfig(scope);
+  ctx?.configs.set(key, config);
+  return config;
+};
+
+/**
+ * Everything blocking a submission. Legacy products (no listingVersion) only
+ * face the core checks; products from the guided flow also need attributes,
+ * HSN (GST-registered sellers), shipping details (E-Commerce) and, for
+ * regulated categories, their compliance documents.
+ */
+export const listingProblems = async (p: any, ctx?: ListingContext): Promise<string[]> => {
+  const problems = submissionProblems(p);
+  if (!(p.listingVersion >= 2)) return problems;
+
+  const sellerId = idOf(p.seller);
+  let seller = ctx?.seller;
+  if (!seller || String(seller._id) !== sellerId) {
+    seller = await Seller.findById(sellerId).select("gstRegistered channels");
+    if (ctx) ctx.seller = seller;
+  }
+  const config = await configForProduct(p, ctx);
+
+  const missingAttrs = attributeProblems(config.attributes, p.attributes);
+  missingAttrs.forEach((label) => problems.push(`Attribute: ${label}`));
+
+  if (seller?.gstRegistered === true && !p.hsnCode) problems.push("HSN code");
+
+  if ((seller?.channels || []).includes("ECommerce")) {
+    if (!(Number(p.weightGrams) > 0)) problems.push("Package weight");
+    const d = p.dimensionsCm || {};
+    if (!(Number(d.length) > 0 && Number(d.width) > 0 && Number(d.height) > 0)) problems.push("Package dimensions (L × W × H)");
+  }
+
+  for (const req of config.rule.requiredDocs) {
+    const doc = (p.complianceDocs || []).find((d: any) => d.docType === req.key);
+    if (!doc) problems.push(`Document: ${req.label}`);
+    else if (doc.status === "Rejected") problems.push(`Document: ${req.label} (the uploaded one was rejected)`);
+  }
+  return problems;
+};
+
+/** Non-blocking warnings from automated checks, for the reviewer to weigh. */
+export const computeQualityFlags = async (p: any): Promise<string[]> => {
+  const flags: string[] = [];
+  const name = String(p.productName || "").trim();
+  const letters = name.replace(/[^A-Za-z]/g, "");
+  if (name.length < 10) flags.push("Very short product title");
+  if (letters.length >= 8 && letters === letters.toUpperCase()) flags.push("Title is in ALL CAPS");
+  if (!String(p.description || "").trim() && !String(p.smallDescription || "").trim()) flags.push("No description");
+  if (!(p.galleryImages || []).length) flags.push("Only one image");
+
+  const variations: any[] = p.variations || [];
+  const deepDiscount = variations.some((v) => Number(v.price) > 0 && Number(v.discPrice) > 0 && Number(v.discPrice) < Number(v.price) * 0.3);
+  if (deepDiscount) flags.push("Discount above 70%");
+
+  const dupe: any = await Product.findOne({
+    seller: idOf(p.seller),
+    ...(p._id ? { _id: { $ne: p._id } } : {}),
+    status: { $ne: "Draft" },
+    productName: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i"),
+  }).select("productName");
+  if (dupe) flags.push(`Possible duplicate of another of this seller's products ("${dupe.productName}")`);
+  return flags;
+};
+
 export const describeProblems = (problems: string[]) => `This product isn't ready to submit. Missing or invalid: ${problems.join(", ")}.`;
 
 // ── Seller's own view of a product (with its pending revision merged in) ──
@@ -154,7 +306,25 @@ export const ownerView = (product: any) => {
     }
   }
   obj.revisionPending = Boolean(revision && Object.keys(revision).length);
+  // Seller-facing: no storage ids, no internal reviewer notes.
+  if (Array.isArray(obj.complianceDocs)) {
+    obj.complianceDocs = obj.complianceDocs.map(({ publicId, resourceType, ...rest }: any) => rest);
+  }
+  delete obj.qualityFlags;
+  delete obj.reviewStartedBy;
+  delete obj.reviewStartedByName;
   return obj;
+};
+
+/** Who an admin request is from, for the audit trail and "under review by". */
+export const adminActorOf = async (req: any) => {
+  const adminId = req.user?.userId;
+  const admin = adminId ? await Admin.findById(adminId).select("firstName lastName email") : null;
+  return {
+    actorType: "Admin" as const,
+    actorId: adminId,
+    actorName: admin ? `${admin.firstName || ""} ${admin.lastName || ""}`.trim() || admin.email : "Admin",
+  };
 };
 
 // ── Audit trail ─────────────────────────────────────────────
