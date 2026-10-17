@@ -406,6 +406,8 @@ export const getProductById = async (req: Request, res: Response) => {
     }
     const listingConfig = await configForProduct(product);
     prodObj.specifications = listingConfig.attributes
+      // Variant options (colour, size…) belong to the selected variant, never to the product-wide specs.
+      .filter((a) => !a.isVariantAttribute)
       .filter((a) => {
         const v = prodObj.attributes?.[a.key];
         return v !== undefined && v !== null && v !== "" && !(Array.isArray(v) && v.length === 0);

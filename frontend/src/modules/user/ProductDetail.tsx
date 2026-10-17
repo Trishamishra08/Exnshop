@@ -766,88 +766,6 @@ export default function ProductDetail() {
         {/* Expanded Product Details Section */}
         {isProductDetailsExpanded && (
           <div className="mt-1.5">
-            {/* Service Guarantees Card */}
-            <div className="bg-white rounded-lg p-3 mb-2">
-              <div className="grid grid-cols-3 gap-2">
-                {/* Replacement */}
-                <div className="flex flex-col items-center">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="mb-1">
-                    <path
-                      d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3M20.49 15a9 9 0 0 1-14.85 3"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  <span className="text-sm font-bold text-neutral-900">
-                    48 hours
-                  </span>
-                  <span className="text-xs text-neutral-600">
-                    Replacement
-                  </span>
-                </div>
-
-                {/* Support */}
-                <div className="flex flex-col items-center">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="mb-1">
-                    <path
-                      d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path
-                      d="M13 8H7M17 12H7"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <span className="text-sm font-bold text-neutral-900">
-                    24/7
-                  </span>
-                  <span className="text-xs text-neutral-600">Support</span>
-                </div>
-
-                {/* Delivery */}
-                <div className="flex flex-col items-center">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="mb-1">
-                    <path
-                      d="M5 17H2l1-7h18l1 7h-3M5 17l-1-5h20l-1 5M5 17v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5M9 22h6"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                  <span className="text-sm font-bold text-neutral-900">
-                    Fast
-                  </span>
-                  <span className="text-xs text-neutral-600">Delivery</span>
-                </div>
-              </div>
-            </div>
-
             {/* Highlights Section */}
             <div className="bg-neutral-100 rounded-lg mb-2 overflow-hidden">
               <button
@@ -963,10 +881,10 @@ export default function ProductDetail() {
                     )}
                     <div className="flex items-start">
                       <span className="text-xs font-semibold text-neutral-800 w-[180px] flex-shrink-0">
-                        Unit:
+                        {product.variationType || "Unit"}:
                       </span>
                       <span className="text-xs text-neutral-600">
-                        {product.pack}
+                        {variantTitle}
                       </span>
                     </div>
                     {product.fssaiLicNo && (
@@ -1007,7 +925,10 @@ export default function ProductDetail() {
                         Email: {appSettings?.supportEmail || appSettings?.contactEmail || 'support@exnshop.com'} | Phone: +91 {appSettings?.supportPhone || appSettings?.contactPhone || '9601715367'}
                       </span>
                     </div>
-                    {((product as any).specifications || []).map((spec: { label: string; value: string }) => (
+                    {((product as any).specifications || [])
+                      // The selected option (e.g. the chosen colour) is shown above; never repeat it with a different value.
+                      .filter((spec: { label: string }) => spec.label.trim().toLowerCase() !== String(product.variationType || "").trim().toLowerCase())
+                      .map((spec: { label: string; value: string }) => (
                       <div key={spec.label} className="flex items-start">
                         <span className="text-xs font-semibold text-neutral-800 w-[180px] flex-shrink-0">
                           {spec.label}:
@@ -1181,7 +1102,7 @@ export default function ProductDetail() {
 
         {/* Top products in this category */}
         {similarProducts.length > 0 && (
-          <div className="mt-6 mb-24">
+          <div className="mt-6">
             <div className="bg-neutral-100/50 border-t border-b border-neutral-200/50 py-4 px-3">
               <h3 className="text-lg font-semibold text-neutral-900 mb-4 px-1">
                 Top products in this category
@@ -1366,6 +1287,53 @@ export default function ProductDetail() {
             </div>
           </div>
         )}
+
+        {/* Service promises, driven by this product's own return policy, the browsing mode and the store settings */}
+        <div className="mt-6 mb-24 px-4">
+          <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3">
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="flex flex-col items-center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="mb-1 text-neutral-700">
+                  <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3M20.49 15a9 9 0 0 1-14.85 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span className="text-sm font-bold text-neutral-900">
+                  {product.isReturnable ? `${product.maxReturnDays || 2} day${(product.maxReturnDays || 2) === 1 ? "" : "s"}` : "No returns"}
+                </span>
+                <span className="text-xs text-neutral-600">{product.isReturnable ? "Return & replacement" : "Non-returnable"}</span>
+              </div>
+              <div className="flex flex-col items-center min-w-0">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="mb-1 text-neutral-700">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M13 8H7M17 12H7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+                <span className="text-sm font-bold text-neutral-900 break-all">
+                  {appSettings?.supportPhone || appSettings?.contactPhone ? `+91 ${appSettings?.supportPhone || appSettings?.contactPhone}` : "Help"}
+                </span>
+                <span className="text-xs text-neutral-600">Customer support</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="mb-1 text-neutral-700">
+                  <path d="M5 17H2l1-7h18l1 7h-3M5 17l-1-5h20l-1 5M5 17v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5M9 22h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {mode === "ECommerce" ? (
+                  <>
+                    <span className="text-sm font-bold text-neutral-900">
+                      {product.handlingTimeDays !== undefined && product.handlingTimeDays !== null
+                        ? `${product.handlingTimeDays} day${product.handlingTimeDays === 1 ? "" : "s"}`
+                        : "Courier"}
+                    </span>
+                    <span className="text-xs text-neutral-600">{product.handlingTimeDays !== undefined && product.handlingTimeDays !== null ? "To dispatch, then courier" : "Delivery"}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-sm font-bold text-neutral-900">{appSettings?.estimatedDeliveryTime || "Fast"}</span>
+                    <span className="text-xs text-neutral-600">Delivery</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Sticky Footer */}
