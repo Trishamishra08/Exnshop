@@ -52,6 +52,9 @@ const attributeFromBody = (body: any) => {
     allowedValues,
     unit: String(body.unit || "").trim() || undefined,
     helpText: String(body.helpText || "").trim() || undefined,
+    group: String(body.group || "").trim().slice(0, 40) || undefined,
+    keySpec: body.keySpec === true,
+    keySpecFormat: String(body.keySpecFormat || "").trim().slice(0, 60) || undefined,
     displayOrder: Number(body.displayOrder) || 0,
     isActive: body.isActive !== false,
     validation:
@@ -67,6 +70,8 @@ const attributeProblem = (a: ReturnType<typeof attributeFromBody>): string | nul
   if (!ATTRIBUTE_TYPES.includes(a.type)) return "Choose a valid type";
   if ((a.type === "select" || a.type === "multiselect") && a.allowedValues.length === 0) return "Add at least one allowed value for a list attribute";
   if (a.isVariantAttribute && a.type !== "select") return "A variant attribute must be a single-choice list";
+  if (a.keySpecFormat && !a.keySpecFormat.includes("{value}")) return 'The key-spec wording must contain {value}, for example "{value} RAM"';
+  if (a.keySpec && a.isVariantAttribute) return "A variant option can't be a key spec; it is shown with the selected variant";
   if (a.validation?.pattern) {
     try {
       new RegExp(a.validation.pattern);

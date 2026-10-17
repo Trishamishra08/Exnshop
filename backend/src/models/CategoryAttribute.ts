@@ -23,6 +23,12 @@ export interface ICategoryAttribute extends Document {
   unit?: string;
   validation?: { min?: number; max?: number; pattern?: string };
   helpText?: string;
+  /** Section heading on the product page, e.g. "Display" or "Rear Camera". */
+  group?: string;
+  /** Also listed as a short bullet in the product page's "Key specs" summary. */
+  keySpec: boolean;
+  /** Wording of that bullet, e.g. "{value} RAM". Defaults to "{label}: {value}". */
+  keySpecFormat?: string;
   displayOrder: number;
   isActive: boolean;
 }
@@ -45,6 +51,9 @@ const CategoryAttributeSchema = new Schema<ICategoryAttribute>(
       default: undefined,
     },
     helpText: { type: String, trim: true, maxlength: 140 },
+    group: { type: String, trim: true, maxlength: 40 },
+    keySpec: { type: Boolean, default: false },
+    keySpecFormat: { type: String, trim: true, maxlength: 60 },
     displayOrder: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
   },

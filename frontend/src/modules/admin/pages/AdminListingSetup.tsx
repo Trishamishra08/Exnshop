@@ -35,6 +35,9 @@ interface FormState {
   allowedValues: string;
   unit: string;
   helpText: string;
+  group: string;
+  keySpec: boolean;
+  keySpecFormat: string;
   displayOrder: string;
   min: string;
   max: string;
@@ -52,6 +55,9 @@ const emptyForm = (): FormState => ({
   allowedValues: '',
   unit: '',
   helpText: '',
+  group: '',
+  keySpec: false,
+  keySpecFormat: '',
   displayOrder: '0',
   min: '',
   max: '',
@@ -146,6 +152,9 @@ export default function AdminListingSetup() {
       allowedValues: (a.allowedValues || []).join(', '),
       unit: a.unit || '',
       helpText: a.helpText || '',
+      group: a.group || '',
+      keySpec: a.keySpec === true,
+      keySpecFormat: a.keySpecFormat || '',
       displayOrder: String(a.displayOrder ?? 0),
       min: a.validation?.min !== undefined ? String(a.validation.min) : '',
       max: a.validation?.max !== undefined ? String(a.validation.max) : '',
@@ -168,6 +177,9 @@ export default function AdminListingSetup() {
       allowedValues: form.allowedValues.split(',').map((v) => v.trim()).filter(Boolean),
       unit: form.unit,
       helpText: form.helpText,
+      group: form.group,
+      keySpec: form.keySpec,
+      keySpecFormat: form.keySpecFormat,
       displayOrder: Number(form.displayOrder) || 0,
       validation: { min: form.min, max: form.max, pattern: form.pattern },
     };
@@ -310,6 +322,7 @@ export default function AdminListingSetup() {
                   <thead>
                     <tr className="bg-neutral-50 text-xs font-bold text-neutral-700 border-b border-neutral-200">
                       <th className="p-3">Label</th>
+                      <th className="p-3">Section</th>
                       <th className="p-3">Key</th>
                       <th className="p-3">Type</th>
                       <th className="p-3">Rules</th>
@@ -324,6 +337,7 @@ export default function AdminListingSetup() {
                           {a.label}
                           {a.unit ? <span className="text-neutral-400"> ({a.unit})</span> : null}
                         </td>
+                        <td className="p-3 text-xs text-neutral-600">{a.group || '—'}</td>
                         <td className="p-3 font-mono text-xs text-neutral-500">{a.key}</td>
                         <td className="p-3 text-neutral-600">{TYPES.find((t) => t.value === a.type)?.label}</td>
                         <td className="p-3 text-xs">
@@ -331,6 +345,7 @@ export default function AdminListingSetup() {
                             {a.isRequired && <span className="px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200">Required</span>}
                             {a.isVariantAttribute && <span className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">Variant</span>}
                             {a.isFilterable && <span className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">Filter</span>}
+                            {a.keySpec && <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">Key spec</span>}
                           </div>
                         </td>
                         <td className="p-3 text-xs text-neutral-500 max-w-[220px] truncate">{(a.allowedValues || []).join(', ') || '—'}</td>
@@ -485,6 +500,39 @@ export default function AdminListingSetup() {
                   <input className={inputCls} value={form.pattern} onChange={(e) => setForm({ ...form, pattern: e.target.value })} placeholder="^[0-9]{10}$" />
                 </div>
               )}
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">Section on the product page</label>
+                <input
+                  className={inputCls}
+                  list="spec-groups"
+                  value={form.group}
+                  onChange={(e) => setForm({ ...form, group: e.target.value })}
+                  placeholder="e.g. Display, Rear Camera, Battery"
+                />
+                <datalist id="spec-groups">
+                  {Array.from(new Set(attributes.map((a) => a.group).filter(Boolean) as string[])).map((g) => (
+                    <option key={g} value={g} />
+                  ))}
+                </datalist>
+                <p className="text-[11px] text-neutral-500 mt-1">Attributes with the same section name are listed together. Sections appear in the order of their first attribute.</p>
+              </div>
+              <div>
+                <label className="flex items-center gap-2 text-sm text-neutral-800">
+                  <input type="checkbox" checked={form.keySpec} disabled={form.isVariantAttribute} onChange={(e) => setForm({ ...form, keySpec: e.target.checked })} />
+                  Show in the "Key specs" summary
+                </label>
+                {form.keySpec && (
+                  <div className="mt-2">
+                    <input
+                      className={inputCls}
+                      value={form.keySpecFormat}
+                      onChange={(e) => setForm({ ...form, keySpecFormat: e.target.value })}
+                      placeholder='Wording, e.g. "{value} RAM" (default: "Label: value")'
+                    />
+                    <p className="text-[11px] text-neutral-500 mt-1">Use {'{value}'} where the seller's value goes. The unit is added to the value automatically.</p>
+                  </div>
+                )}
+              </div>
               <div>
                 <label className="block text-xs font-semibold text-neutral-700 mb-1">Help text (shown to the seller)</label>
                 <input className={inputCls} value={form.helpText} onChange={(e) => setForm({ ...form, helpText: e.target.value })} />

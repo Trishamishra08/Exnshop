@@ -25,6 +25,7 @@ import {
 } from '../../services/api/customerReviewService';
 import { useTranslation } from '../../hooks/useTranslation';
 import PageLoader from '../../components/PageLoader';
+import ProductSpecifications from './components/ProductSpecifications';
 
 import { calculateProductPrice } from '../../utils/priceUtils';
 
@@ -925,17 +926,6 @@ export default function ProductDetail() {
                         Email: {appSettings?.supportEmail || appSettings?.contactEmail || 'support@exnshop.com'} | Phone: +91 {appSettings?.supportPhone || appSettings?.contactPhone || '9601715367'}
                       </span>
                     </div>
-                    {((product as any).specifications || [])
-                      // The selected option (e.g. the chosen colour) is shown above; never repeat it with a different value.
-                      .filter((spec: { label: string }) => spec.label.trim().toLowerCase() !== String(product.variationType || "").trim().toLowerCase())
-                      .map((spec: { label: string; value: string }) => (
-                      <div key={spec.label} className="flex items-start">
-                        <span className="text-xs font-semibold text-neutral-800 w-[180px] flex-shrink-0">
-                          {spec.label}:
-                        </span>
-                        <span className="text-xs text-neutral-600 leading-relaxed flex-1">{spec.value}</span>
-                      </div>
-                    ))}
                     {(product as any).condition && (product as any).condition !== "New" && (
                       <div className="flex items-start">
                         <span className="text-xs font-semibold text-neutral-800 w-[180px] flex-shrink-0">
@@ -1016,7 +1006,8 @@ export default function ProductDetail() {
           </div>
         )}
 
-
+        {/* Key specs summary and the full specification sheet, from the product's grouped attributes */}
+        <ProductSpecifications groups={(product as any).specGroups || []} productName={product.productName} />
 
         {/* Customer Reviews */}
         <div className="mt-4 mb-4 px-4 md:px-6 lg:px-8">

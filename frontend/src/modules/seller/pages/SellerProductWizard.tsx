@@ -127,6 +127,18 @@ export default function SellerProductWizard() {
   const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
 
   const variantAttributes = useMemo(() => (config?.attributes || []).filter((a) => a.isVariantAttribute), [config]);
+  const hasValue = (v: any) => !(v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0));
+  // Sections follow the order of their first attribute, matching the product page.
+  const attributeSections = useMemo(() => {
+    const sections = new Map<string, ListingConfig['attributes']>();
+    (config?.attributes || [])
+      .filter((a) => !a.isVariantAttribute)
+      .forEach((a) => {
+        const title = (a.group || '').trim() || 'Details';
+        sections.set(title, [...(sections.get(title) || []), a]);
+      });
+    return [...sections.entries()].map(([title, attrs]) => ({ title, attrs }));
+  }, [config]);
   const requiresShipping = config?.seller.requiresShipping === true;
   const needsHsn = config?.seller.gstRegistered === true;
 
@@ -879,14 +891,24 @@ export default function SellerProductWizard() {
             {(config?.attributes || []).filter((a) => !a.isVariantAttribute).length === 0 ? (
               <p className="text-sm text-neutral-500">This category doesn't ask for any extra details. Continue to the next step.</p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {(config?.attributes || [])
-                  .filter((a) => !a.isVariantAttribute)
-                  .map((a) => (
-                    <Field key={a.key} label={a.unit ? `${a.label} (${a.unit})` : a.label} required={a.isRequired} hint={a.helpText}>
-                      {attributeInput(a)}
-                    </Field>
-                  ))}
+              <div className="space-y-5">
+                {attributeSections.map((section) => (
+                  <div key={section.title} className="rounded-xl border border-neutral-200 overflow-hidden">
+                    <div className="px-4 py-2.5 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-neutral-800">{section.title}</h3>
+                      <span className="text-[11px] text-neutral-500">
+                        {section.attrs.filter((a) => hasValue(attributes[a.key])).length} of {section.attrs.length} filled
+                      </span>
+                    </div>
+                    <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {section.attrs.map((a) => (
+                        <Field key={a.key} label={a.unit ? `${a.label} (${a.unit})` : a.label} required={a.isRequired} hint={a.helpText}>
+                          {attributeInput(a)}
+                        </Field>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
             {variantAttributes.length > 0 && <p className="text-xs text-neutral-500">{variantAttributes.map((a) => a.label).join(', ')} are chosen in the Variants step.</p>}

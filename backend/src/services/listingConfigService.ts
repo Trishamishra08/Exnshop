@@ -21,6 +21,9 @@ export interface ResolvedAttribute {
   unit?: string;
   validation?: { min?: number; max?: number; pattern?: string };
   helpText?: string;
+  group?: string;
+  keySpec: boolean;
+  keySpecFormat?: string;
   displayOrder: number;
 }
 
@@ -76,6 +79,9 @@ export const resolveListingConfig = async (
       unit: a.unit,
       validation: a.validation,
       helpText: a.helpText,
+      group: a.group,
+      keySpec: a.keySpec === true,
+      keySpecFormat: a.keySpecFormat,
       displayOrder: a.displayOrder,
     }));
 
@@ -160,6 +166,46 @@ export const cleanAttributes = (defs: ResolvedAttribute[], input: any): { values
     }
   }
   return { values, errors };
+};
+
+const DEFAULT_GROUP = "Details";
+
+const formatValue = (a: ResolvedAttribute, v: any): string => {
+  let text: string;
+  if (Array.isArray(v)) text = v.join(", ");
+  else if (typeof v === "boolean") text = v ? "Yes" : "No";
+  else if (a.type === "date" && /^\d{4}-\d{2}-\d{2}$/.test(String(v))) {
+    text = new Date(`${v}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+  } else text = String(v);
+  return a.unit ? `${text} ${a.unit}` : text;
+};
+
+export interface SpecGroup {
+  title: string;
+  items: Array<{ label: string; value: string; keySpec: boolean; keyText?: string }>;
+}
+
+/**
+ * Turns a product's attribute values into the sections shown on the product page
+ * (full specifications, and the "Key specs" bullets). Sections follow the order of
+ * their first attribute; variant options are excluded because they belong to the
+ * selected variant.
+ */
+export const buildSpecGroups = (defs: ResolvedAttribute[], values: any): SpecGroup[] => {
+  const groups = new Map<string, SpecGroup>();
+  for (const a of defs) {
+    if (a.isVariantAttribute) continue;
+    const v = values?.[a.key];
+    if (isEmpty(v)) continue;
+    const title = (a.group || "").trim() || DEFAULT_GROUP;
+    const value = formatValue(a, v);
+    const keyText = a.keySpec
+      ? (a.keySpecFormat && a.keySpecFormat.includes("{value}") ? a.keySpecFormat : "{label}: {value}").replace("{label}", a.label).replace("{value}", value)
+      : undefined;
+    if (!groups.has(title)) groups.set(title, { title, items: [] });
+    groups.get(title)!.items.push({ label: a.label, value, keySpec: a.keySpec, keyText });
+  }
+  return [...groups.values()];
 };
 
 export const attributeProblems = (defs: ResolvedAttribute[], values: any): string[] =>

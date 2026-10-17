@@ -15,6 +15,9 @@ export interface AdminAttribute {
   allowedValues: string[];
   unit?: string;
   helpText?: string;
+  group?: string;
+  keySpec?: boolean;
+  keySpecFormat?: string;
   displayOrder: number;
   isActive: boolean;
   validation?: { min?: number; max?: number; pattern?: string };

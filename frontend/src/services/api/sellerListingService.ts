@@ -13,6 +13,8 @@ export interface ListingAttribute {
   unit?: string;
   validation?: { min?: number; max?: number; pattern?: string };
   helpText?: string;
+  group?: string;
+  keySpec?: boolean;
 }
 
 export interface ListingConfig {

@@ -9,6 +9,7 @@ import AppSettings from "../../../models/AppSettings";
 import { parseChannelQueryParam, filterSellerIdsByChannel, resolveSellerChannel } from "../../../utils/commerceChannelHelper";
 import { getActiveCampaignsForProducts, recordImpressions, recordClick } from "../../../services/campaignService";
 import { configForProduct } from "../../../services/productListingService";
+import { buildSpecGroups } from "../../../services/listingConfigService";
 
 // Get products with filtering options (public)
 export const getProducts = async (req: Request, res: Response) => {
@@ -405,6 +406,7 @@ export const getProductById = async (req: Request, res: Response) => {
       delete prodObj[internal];
     }
     const listingConfig = await configForProduct(product);
+    prodObj.specGroups = buildSpecGroups(listingConfig.attributes, prodObj.attributes);
     prodObj.specifications = listingConfig.attributes
       // Variant options (colour, size…) belong to the selected variant, never to the product-wide specs.
       .filter((a) => !a.isVariantAttribute)
