@@ -38,6 +38,7 @@ export interface IProduct extends Document {
     stock?: number;
     sku?: string;
     status?: string;
+    images?: string[];
   }>;
 
   // Status Flags
@@ -244,6 +245,16 @@ const ProductSchema = new Schema<IProduct>(
             default: "Available",
           },
           sku: String,
+          // Photos for this option (e.g. the Red colour). The product page shows them
+          // when the option is selected; without them the product's own photos are used.
+          images: {
+            type: [String],
+            default: undefined,
+            validate: {
+              validator: (v: string[]) => !v || (v.length <= 8 && v.every((u) => /^https?:\/\//.test(u))),
+              message: "Each option can have up to 8 photos, given as web addresses",
+            },
+          },
         },
       ],
       default: [],

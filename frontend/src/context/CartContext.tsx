@@ -101,7 +101,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
           mrp: item.product.mrp,
           discPrice: item.product.discPrice,
           variations: item.product.variations,
-          imageUrl: item.product.mainImage || item.product.imageUrl,
+          // Show the chosen option's own photo (e.g. the Red one) when it has one.
+          imageUrl:
+            (item.product.variations || []).find(
+              (v: any) => item.variation && (String(v._id) === String(item.variation) || v.value === item.variation || v.title === item.variation)
+            )?.images?.[0] ||
+            item.product.mainImage ||
+            item.product.imageUrl,
           pack: item.product.pack || '1 unit',
           categoryId: item.product.category || '',
           description: item.product.description,

@@ -33,6 +33,9 @@ const sellerActor = (req: Request) => ({ actorType: "Seller" as const, actorId: 
 const AUDITED_FIELDS = ["productName", "category", "subcategory", "brand", "mainImage", "price", "discPrice", "stock", "sku", "publish", "isReturnable", "maxReturnDays"];
 const APPROVED_STATES = ["Active", "Inactive"];
 const isDuplicateKey = (err: any) => err?.code === 11000;
+// Photos for one option (e.g. a colour): web addresses only, at most 8.
+const cleanOptionImages = (images: unknown): string[] | undefined =>
+  Array.isArray(images) ? images.filter((u) => typeof u === "string" && /^https?:\/\//.test(u)).slice(0, 8) : undefined;
 
 /**
  * Validate that the seller is allowed to add products in the given header category.
@@ -140,6 +143,7 @@ export const createProduct = asyncHandler(
         name: v.name || "Variation", // Default name
         discPrice: v.discPrice || 0,
         status: v.status || "Available",
+        images: cleanOptionImages(v.images),
       }));
     }
 
@@ -510,6 +514,7 @@ export const updateProduct = asyncHandler(
         name: v.name || "Variation",
         discPrice: v.discPrice || 0,
         status: v.status || "Available",
+        images: cleanOptionImages(v.images),
       }));
 
       for (const variation of updateData.variations) {

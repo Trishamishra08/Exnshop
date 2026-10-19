@@ -37,9 +37,11 @@ interface VariationRow {
   discPrice: string;
   stock: string;
   sku: string;
+  images: string[];
 }
 
-const emptyRow = (title = ''): VariationRow => ({ title, price: '', discPrice: '', stock: '0', sku: '' });
+const MAX_OPTION_PHOTOS = 8;
+const emptyRow = (title = ''): VariationRow => ({ title, price: '', discPrice: '', stock: '0', sku: '', images: [] });
 
 const inputCls =
   'w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent disabled:bg-neutral-50';
@@ -195,7 +197,7 @@ export default function SellerProductWizard() {
       setVariationMode('none');
       setRows([
         vs.length
-          ? { title: 'Default', price: String(vs[0].price ?? ''), discPrice: vs[0].discPrice ? String(vs[0].discPrice) : '', stock: String(vs[0].stock ?? 0), sku: vs[0].sku || '' }
+          ? { title: 'Default', price: String(vs[0].price ?? ''), discPrice: vs[0].discPrice ? String(vs[0].discPrice) : '', stock: String(vs[0].stock ?? 0), sku: vs[0].sku || '', images: vs[0].images || [] }
           : emptyRow('Default'),
       ]);
     } else {
@@ -207,6 +209,7 @@ export default function SellerProductWizard() {
           discPrice: v.discPrice ? String(v.discPrice) : '',
           stock: String(v.stock ?? 0),
           sku: v.sku || '',
+          images: v.images || [],
         }))
       );
     }
@@ -467,6 +470,8 @@ export default function SellerProductWizard() {
           discPrice: r.discPrice ? Number(r.discPrice) : 0,
           stock: Number(r.stock || 0),
           ...(r.sku.trim() ? { sku: r.sku.trim() } : {}),
+          // Only options (not the single default) carry their own photos.
+          images: variationMode === 'none' ? [] : r.images,
           status: 'Available',
         })),
         taxId: taxId || undefined,
@@ -483,7 +488,7 @@ export default function SellerProductWizard() {
   const setRowsFromServer = (p: any) => {
     const vs: any[] = p.variations || [];
     if (!vs.length) return;
-    setRows(vs.map((v) => ({ title: v.value || v.title || '', price: String(v.price ?? ''), discPrice: v.discPrice ? String(v.discPrice) : '', stock: String(v.stock ?? 0), sku: v.sku || '' })));
+    setRows(vs.map((v) => ({ title: v.value || v.title || '', price: String(v.price ?? ''), discPrice: v.discPrice ? String(v.discPrice) : '', stock: String(v.stock ?? 0), sku: v.sku || '', images: v.images || [] })));
   };
 
   const onNextShipping = async () => {
@@ -594,6 +599,27 @@ export default function SellerProductWizard() {
     setError('');
   };
   const updateRow = (index: number, patch: Partial<VariationRow>) => setRows((c) => c.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+
+  const [uploadingRow, setUploadingRow] = useState<number | null>(null);
+  const onOptionPhotos = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length) return;
+    if (files.some((f) => !validateImageFile(f).valid)) return setError('Some photos are invalid. Check the file types and sizes.');
+    const room = MAX_OPTION_PHOTOS - (rows[index]?.images.length || 0);
+    if (room <= 0) return setError(`Each option can have up to ${MAX_OPTION_PHOTOS} photos.`);
+    setUploadingRow(index);
+    setError('');
+    try {
+      const compressed = await Promise.all(files.slice(0, room).map((f) => compressImage(f)));
+      const results = await uploadImages(compressed, 'exnshop/products/options');
+      setRows((c) => c.map((r, i) => (i === index ? { ...r, images: [...r.images, ...results.map((x) => x.secureUrl)] } : r)));
+    } catch (err) {
+      setError(listingErrorMessage(err, 'Photo upload failed'));
+    } finally {
+      setUploadingRow(null);
+    }
+  };
 
   const isApproved = status === 'Active' || status === 'Inactive';
   const canSubmit = !productId ? false : status === 'Draft' || status === 'Rejected' || status === '';
@@ -1011,6 +1037,36 @@ export default function SellerProductWizard() {
                       <input className={inputCls} value={r.sku} onChange={(e) => updateRow(i, { sku: e.target.value })} />
                     </Field>
                   </div>
+                  {variationMode !== 'none' && (
+                    <div className="col-span-2 sm:col-span-5">
+                      <Field
+                        label={`Photos for ${r.title || 'this option'}`}
+                        hint="Shown when a buyer selects this option. Leave empty to use the main product photos."
+                      >
+                        <div className="flex flex-wrap gap-2">
+                          {r.images.map((src, pi) => (
+                            <div key={src + pi} className="relative w-16 h-16 rounded-lg border border-neutral-200 overflow-hidden">
+                              <img src={src} alt="" className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => updateRow(i, { images: r.images.filter((_, x) => x !== pi) })}
+                                className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/60 text-white text-xs leading-none"
+                                aria-label="Remove photo"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                          {r.images.length < MAX_OPTION_PHOTOS && (
+                            <label className="w-16 h-16 rounded-lg border-2 border-dashed border-neutral-300 flex items-center justify-center text-neutral-400 text-xl cursor-pointer hover:bg-neutral-50">
+                              {uploadingRow === i ? <span className="w-4 h-4 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" /> : '+'}
+                              <input type="file" accept="image/*" multiple className="hidden" disabled={uploadingRow !== null} onChange={(e) => onOptionPhotos(i, e)} />
+                            </label>
+                          )}
+                        </div>
+                      </Field>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -875,6 +875,7 @@ export default function AdminProductApprovals() {
                                                     <th className="p-2 text-left">Discount</th>
                                                     <th className="p-2 text-left">Stock</th>
                                                     <th className="p-2 text-left">Status</th>
+                                                    <th className="p-2 text-left">Option photos</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -889,6 +890,19 @@ export default function AdminProductApprovals() {
                                                         </td>
                                                         <td className="p-2">{v.stock === 0 ? 'Unlimited' : v.stock}</td>
                                                         <td className="p-2">{v.status || '—'}</td>
+                                                        <td className="p-2">
+                                                            {(v.images || []).length ? (
+                                                                <div className="flex gap-1">
+                                                                    {v.images.map((src: string, pi: number) => (
+                                                                        <a key={src + pi} href={src} target="_blank" rel="noreferrer">
+                                                                            <img src={src} alt="" className="w-8 h-8 rounded object-cover border border-neutral-200" />
+                                                                        </a>
+                                                                    ))}
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-neutral-400">Uses main photos</span>
+                                                            )}
+                                                        </td>
                                                     </tr>
                                                 ))}
                                             </tbody>

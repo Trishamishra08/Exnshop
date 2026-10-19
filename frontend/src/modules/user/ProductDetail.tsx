@@ -192,7 +192,10 @@ export default function ProductDetail() {
     : product?.status !== "Sold out" && (product?.stock === 0 || product?.stock === undefined || product?.stock === null || product?.stock > 0);
 
   // Get all images for gallery
-  const allImages = product?.allImages || [product?.imageUrl || ""].filter(Boolean);
+  // The selected option's own photos (e.g. the Red phone) replace the product photos while it is selected.
+  const productImages: string[] = product?.allImages || [product?.imageUrl || ""].filter(Boolean);
+  const variantImages: string[] = ((selectedVariant as any)?.images || []).filter(Boolean);
+  const allImages = variantImages.length ? variantImages : productImages;
   const currentImage = allImages[selectedImageIndex] || product?.imageUrl || "";
 
   // Minimum swipe distance (in pixels)
@@ -328,6 +331,7 @@ export default function ProductDetail() {
     // Create product with selected variant info
     const productWithVariant = {
       ...product,
+      imageUrl: variantImages[0] || product.imageUrl,
       price: variantPrice,
       mrp: variantMrp,
       pack: variantTitle,
@@ -349,6 +353,7 @@ export default function ProductDetail() {
     }
     const productWithVariant = {
       ...product,
+      imageUrl: variantImages[0] || product.imageUrl,
       price: variantPrice,
       mrp: variantMrp,
       pack: variantTitle,
@@ -684,7 +689,11 @@ export default function ProductDetail() {
                   return (
                     <button
                       key={index}
-                      onClick={() => setSelectedVariantIndex(index)}
+                      onClick={() => {
+                        setSelectedVariantIndex(index);
+                        // A different option may have different photos; start from its first one.
+                        setSelectedImageIndex(0);
+                      }}
                       disabled={isOutOfStock}
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border-2 ${isSelected
                         ? "border-green-600 bg-green-50 text-green-700"
