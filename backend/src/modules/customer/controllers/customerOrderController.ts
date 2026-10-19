@@ -130,6 +130,12 @@ async function buildAndSaveChannelOrder(params: {
       throw new Error("Invalid item quantity");
     }
 
+    // Drafts, products awaiting review and rejected products can't be bought.
+    const listed: any = await Product.findById(item.product.id).select("productName status publish").lean();
+    if (!listed || listed.status !== "Active" || listed.publish === false) {
+      throw new Error(`Product "${listed?.productName || item.product.name || item.product.id}" is unavailable`);
+    }
+
     // Atomically check stock and decrement to prevent race conditions (stock === 0 is treated as Unlimited)
     let product;
     const variationValue = item.variant || item.variation;
@@ -676,6 +682,7 @@ Gift Packaging Fee: ₹${giftPackagingFee}`);
   newOrder.grandTotal = Number(finalTotal.toFixed(2)); // Sync grandTotal alias
   newOrder.items = orderItemIds;
   newOrder.shipping = deliveryFee; // Update with calculated fee
+  newOrder.platformFee = platformFee; // Only the shared-fee-owner order of a mixed checkout carries it
   newOrder.deliveryDistanceKm = deliveryDistanceKm; // Store distance for commission calc
 
   if (session) {

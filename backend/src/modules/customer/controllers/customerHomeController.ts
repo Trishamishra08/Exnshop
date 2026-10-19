@@ -9,7 +9,7 @@ import BestsellerCard from "../../../models/BestsellerCard";
 import LowestPricesProduct from "../../../models/LowestPricesProduct";
 import PromoStrip from "../../../models/PromoStrip";
 import Seller from "../../../models/Seller";
-import { parseChannelQueryParam, filterSellerIdsByChannel } from "../../../utils/commerceChannelHelper";
+import { parseChannelQueryParam, sellerIdsForLocation } from "../../../utils/commerceChannelHelper";
 import mongoose from "mongoose";
 import { cache } from "../../../utils/cache";
 import { findSellersWithinRange } from "../../../utils/locationHelper";
@@ -291,10 +291,7 @@ export const getHomeContent = async (req: Request, res: Response) => {
     const channel = parseChannelQueryParam(mode);
     let nearbySellerIds: mongoose.Types.ObjectId[] = [];
     if (hasUserLocation) {
-      nearbySellerIds = await filterSellerIdsByChannel(
-        await findSellersWithinRange(userLat, userLng),
-        channel
-      );
+      nearbySellerIds = await sellerIdsForLocation(userLat, userLng, channel);
     } else if (channel) {
       nearbySellerIds = await Seller.find({ channels: channel, status: "Approved" }).distinct("_id");
     }

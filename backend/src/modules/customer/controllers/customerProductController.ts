@@ -6,7 +6,7 @@ import Seller from "../../../models/Seller";
 import mongoose from "mongoose";
 import { findSellersWithinRange } from "../../../utils/locationHelper";
 import AppSettings from "../../../models/AppSettings";
-import { parseChannelQueryParam, filterSellerIdsByChannel, resolveSellerChannel } from "../../../utils/commerceChannelHelper";
+import { parseChannelQueryParam, resolveSellerChannel, sellerIdsForLocation } from "../../../utils/commerceChannelHelper";
 import { getActiveCampaignsForProducts, recordImpressions, recordClick } from "../../../services/campaignService";
 import { configForProduct } from "../../../services/productListingService";
 import { buildSpecGroups } from "../../../services/listingConfigService";
@@ -52,8 +52,8 @@ export const getProducts = async (req: Request, res: Response) => {
     // the requested channel so it doesn't leak into that distance check.
     let nearbySellerIds: mongoose.Types.ObjectId[] = [];
     if (userLat && userLng && !isNaN(userLat) && !isNaN(userLng)) {
-      nearbySellerIds = await findSellersWithinRange(userLat, userLng);
-      query.seller = { $in: await filterSellerIdsByChannel(nearbySellerIds, channel) };
+      nearbySellerIds = await sellerIdsForLocation(userLat, userLng, channel);
+      query.seller = { $in: nearbySellerIds };
     } else if (channel) {
       // No location, but still restrict to the requested channel.
       query.seller = { $in: await Seller.find({ channels: channel, status: "Approved" }).distinct("_id") };
@@ -328,8 +328,11 @@ export const getProductById = async (req: Request, res: Response) => {
       }
     }
 
-    // Check location availability if coordinates are provided
-    if (
+    // E-commerce products ship anywhere by courier; only Quick products depend
+    // on the customer being inside the seller's delivery radius.
+    if (resolveSellerChannel(seller?.channels, channel) === "ECommerce") {
+      isAvailableAtLocation = true;
+    } else if (
       userLat &&
       userLng &&
       !isNaN(userLat) &&
@@ -385,8 +388,7 @@ export const getProductById = async (req: Request, res: Response) => {
     // don't surface ECommerce-only sellers).
     const similarProductsChannel = channel ?? resolveSellerChannel((seller as any)?.channels);
     if (userLat && userLng && !isNaN(userLat) && !isNaN(userLng)) {
-      const nearby = await findSellersWithinRange(userLat, userLng);
-      similarProductsQuery.seller = { $in: await filterSellerIdsByChannel(nearby, similarProductsChannel) };
+      similarProductsQuery.seller = { $in: await sellerIdsForLocation(userLat, userLng, similarProductsChannel) };
     } else {
       similarProductsQuery.seller = { $in: await Seller.find({ channels: similarProductsChannel, status: "Approved" }).distinct("_id") };
     }

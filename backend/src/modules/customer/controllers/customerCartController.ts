@@ -609,9 +609,10 @@ export const removeFromCart = async (req: Request, res: Response) => {
         // Remove from cart array
         cart.items = cart.items.filter(id => id.toString() !== itemId);
 
-        // Calculate total with location if provided
+        // Calculate total with location if provided (Quick only — E-commerce
+        // items ship by courier and aren't limited by distance)
         let nearbySellerIds: mongoose.Types.ObjectId[] = [];
-        if (userLat !== null && userLng !== null && !isNaN(userLat) && !isNaN(userLng)) {
+        if (channel === 'Quick' && userLat !== null && userLng !== null && !isNaN(userLat) && !isNaN(userLng)) {
             nearbySellerIds = await findSellersWithinRange(userLat, userLng);
         }
 

@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Seller from "../models/Seller";
+import { findSellersWithinRange } from "./locationHelper";
 
 export type CommerceChannel = "Quick" | "ECommerce";
 
@@ -31,6 +32,22 @@ export const filterSellerIdsByChannel = async (
   return Seller.find({ _id: { $in: sellerIds }, channels: channel, status: "Approved" }).distinct(
     "_id"
   );
+};
+
+/**
+ * Sellers a customer at this location can buy from while browsing `channel`.
+ * Quick sellers deliver only within their service radius; E-commerce sellers
+ * ship anywhere by courier, so distance doesn't limit them.
+ */
+export const sellerIdsForLocation = async (
+  lat: number,
+  lng: number,
+  channel: CommerceChannel | undefined
+): Promise<mongoose.Types.ObjectId[]> => {
+  if (channel === "ECommerce") {
+    return Seller.find({ channels: "ECommerce", status: "Approved" }).distinct("_id");
+  }
+  return filterSellerIdsByChannel(await findSellersWithinRange(lat, lng), channel);
 };
 
 /**
