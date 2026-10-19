@@ -435,11 +435,13 @@ export default function ProductDetail() {
           </div>
         )}
 
+        {/* Large screens: photos on the left (sticky while scrolling), details on the right */}
+        <div className="lg:grid lg:grid-cols-2 lg:gap-10 lg:max-w-6xl lg:mx-auto lg:px-8 lg:pt-6 lg:items-start">
         {/* Product Image Gallery */}
-        <div className="relative w-full bg-gradient-to-br from-neutral-100 to-neutral-200 overflow-hidden">
+        <div className="relative w-full bg-gradient-to-br from-neutral-100 to-neutral-200 overflow-hidden lg:sticky lg:top-20 lg:rounded-2xl lg:border lg:border-neutral-200">
           {/* Main Product Image - Swipeable on mobile */}
           <div
-            className="w-full aspect-square relative overflow-hidden"
+            className="w-full aspect-square md:aspect-auto md:h-[min(65vh,520px)] lg:aspect-square lg:h-auto relative overflow-hidden"
             onTouchStart={onTouchStart}
             onTouchMove={onTouchMove}
             onTouchEnd={onTouchEnd}
@@ -465,7 +467,7 @@ export default function ProductDetail() {
                     <img
                       src={image}
                       alt={`${product.name} - Image ${index + 1}`}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                       referrerPolicy="no-referrer"
                       draggable={false}
                     />
@@ -486,7 +488,7 @@ export default function ProductDetail() {
                 <img
                   src={currentImage}
                   alt={product.name}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-contain p-4"
                   referrerPolicy="no-referrer"
                 />
               ) : (
@@ -613,8 +615,10 @@ export default function ProductDetail() {
           )}
         </div>
 
+        {/* Right column on large screens: details, options and the expandable info */}
+        <div className="lg:min-w-0">
         {/* Product Details Card - White section */}
-        <div className="bg-white rounded-t-3xl -mt-6 relative z-10 px-4 md:px-6 lg:px-8 pt-2.5 md:pt-4 pb-2 md:pb-4">
+        <div className="bg-white rounded-t-3xl -mt-6 lg:mt-0 lg:rounded-none relative z-10 px-4 md:px-6 lg:px-0 pt-2.5 md:pt-4 pb-2 md:pb-4">
           {/* Delivery time */}
           <div className="flex items-center gap-0.5 mb-1">
             <svg
@@ -1005,7 +1009,11 @@ export default function ProductDetail() {
             </div>
           </div>
         )}
+          </div>
+        </div>
 
+        {/* Below the fold: kept to a readable width on large screens */}
+        <div className="lg:max-w-6xl lg:mx-auto">
         {/* Key specs summary and the full specification sheet, from the product's grouped attributes */}
         <ProductSpecifications groups={(product as any).specGroups || []} productName={product.productName} />
 
@@ -1324,6 +1332,7 @@ export default function ProductDetail() {
               </div>
             </div>
           </div>
+        </div>
         </div>
       </div>
 
