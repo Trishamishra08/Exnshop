@@ -5,6 +5,9 @@ import Category from "../../../models/Category";
 import HeaderCategory from "../../../models/HeaderCategory";
 import CategoryAttribute, { ATTRIBUTE_TYPES } from "../../../models/CategoryAttribute";
 import CategoryListingRule from "../../../models/CategoryListingRule";
+import Tax from "../../../models/Tax";
+import mongoose from "mongoose";
+import { buildSpecGroups } from "../../../services/listingConfigService";
 import {
   adminActorOf,
   auditProduct,
@@ -156,19 +159,52 @@ export const getProductReviewDetails = asyncHandler(async (req: Request, res: Re
     .populate("subSubCategory", "name")
     .populate("headerCategoryId", "name")
     .populate("brand", "name")
-    .populate("seller", "sellerName storeName mobile gstRegistered channels");
+    .populate("shopId", "name")
+    .populate(
+      "seller",
+      "sellerName storeName mobile email isEmailVerified city address returnAddress searchLocation businessType legalBusinessName gstRegistered gstin panCard fssaiLicNo onboardingStatus status channels serviceRadiusKm bankVerificationStatus logo createdAt"
+    );
   if (!product) return res.status(404).json({ success: false, message: "Product not found" });
 
   const config = await configForProduct(product);
   const problems = await listingProblems(product.toObject());
+  const attributeValues: any = product.attributes || {};
   const attributeRows = config.attributes
-    .filter((a) => (product.attributes as any)?.[a.key] !== undefined)
-    .map((a) => ({ label: a.label, value: (product.attributes as any)[a.key], unit: a.unit }));
+    .filter((a) => attributeValues[a.key] !== undefined)
+    .map((a) => ({ label: a.label, value: attributeValues[a.key], unit: a.unit }));
+  const isBlank = (v: any) => v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0);
+  const unfilledAttributes = config.attributes
+    .filter((a) => !a.isVariantAttribute && isBlank(attributeValues[a.key]))
+    .map((a) => ({ label: a.label, group: a.group || "Details", required: a.isRequired }));
+
+  const sellerDoc: any = product.seller;
+  const sellerId = sellerDoc?._id;
+  const [tax, sellerProductCounts] = await Promise.all([
+    product.tax && mongoose.isValidObjectId(product.tax) ? Tax.findById(product.tax).select("name percentage").lean() : null,
+    sellerId
+      ? Product.aggregate([{ $match: { seller: sellerId } }, { $group: { _id: "$status", n: { $sum: 1 } } }])
+      : [],
+  ]);
+  const seller = sellerDoc
+    ? {
+        ...(sellerDoc.toObject ? sellerDoc.toObject() : sellerDoc),
+        // The product review only needs to recognise the PAN, not read it in full.
+        panCard: sellerDoc.panCard ? `${sellerDoc.panCard.slice(0, 2)}••••••${sellerDoc.panCard.slice(-2)}` : undefined,
+        productCounts: Object.fromEntries((sellerProductCounts as any[]).map((c) => [c._id, c.n])),
+      }
+    : null;
+
+  const productJson: any = product.toJSON();
+  productJson.seller = sellerId; // seller details are sent once, below, with the PAN masked
 
   return res.status(200).json({
     success: true,
     data: {
-      product,
+      product: productJson,
+      seller,
+      tax,
+      specGroups: buildSpecGroups(config.attributes, attributeValues),
+      unfilledAttributes,
       attributeRows,
       problems,
       isRegulated: config.rule.isRegulated,

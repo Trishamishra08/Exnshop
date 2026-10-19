@@ -61,6 +61,29 @@ const ACTION_LABELS: Record<string, string> = {
 
 const isImageField = (field: string) => field === 'mainImage';
 
+function ReviewSection({ title, children }: { title: string; children: React.ReactNode }) {
+    return (
+        <div className="space-y-2">
+            <p className="text-xs font-semibold text-neutral-700 uppercase tracking-wide">{title}</p>
+            {children}
+        </div>
+    );
+}
+
+function FactGrid({ facts, cols = 'sm:grid-cols-3' }: { facts: Array<[string, any]>; cols?: string }) {
+    if (!facts.length) return null;
+    return (
+        <div className={`grid grid-cols-2 ${cols} gap-x-6 gap-y-2 text-xs`}>
+            {facts.map(([k, v]) => (
+                <div key={k} className="min-w-0">
+                    <p className="text-neutral-400">{k}</p>
+                    <p className="font-medium text-neutral-800 break-words">{v === undefined || v === null || v === '' ? '—' : String(v)}</p>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 const formatValue = (field: string, value: any): string => {
     if (value === null || value === undefined || value === '') return '—';
     if (Array.isArray(value)) return `${value.length} image${value.length === 1 ? '' : 's'}`;
@@ -517,7 +540,7 @@ export default function AdminProductApprovals() {
 
             {detailsTarget && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" onClick={() => setDetailsTarget(null)}>
-                    <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+                    <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
                         <div className="bg-teal-600 text-white px-6 py-4 rounded-t-lg flex items-start justify-between gap-3">
                             <div className="min-w-0">
                                 <h3 className="text-lg font-semibold truncate">{detailsTarget.productName}</h3>
@@ -546,10 +569,86 @@ export default function AdminProductApprovals() {
                                         </div>
                                     )}
 
+                                    {details.seller && (
+                                        <ReviewSection title="Seller">
+                                            <div className="flex items-start gap-3">
+                                                {details.seller.logo ? (
+                                                    <img src={details.seller.logo} alt="" className="w-12 h-12 rounded-lg object-cover border border-neutral-200 shrink-0" />
+                                                ) : (
+                                                    <div className="w-12 h-12 rounded-lg bg-teal-50 text-teal-700 font-bold flex items-center justify-center shrink-0">
+                                                        {(details.seller.storeName || '?').charAt(0).toUpperCase()}
+                                                    </div>
+                                                )}
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <p className="font-semibold text-neutral-900">{details.seller.storeName}</p>
+                                                        {details.seller.onboardingStatus && (
+                                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-teal-50 text-teal-800 border border-teal-200">{details.seller.onboardingStatus}</span>
+                                                        )}
+                                                        {details.seller.bankVerificationStatus && details.seller.bankVerificationStatus !== 'Verified' && (
+                                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">Bank not verified</span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-xs text-neutral-500">{details.seller.sellerName}</p>
+                                                </div>
+                                                <a
+                                                    href={`/admin/manage-seller/review/${details.seller._id}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="text-xs font-semibold text-teal-700 hover:underline shrink-0"
+                                                >
+                                                    Open seller profile
+                                                </a>
+                                            </div>
+                                            <FactGrid
+                                                facts={[
+                                                    ['Mobile', details.seller.mobile ? `+91 ${details.seller.mobile}` : undefined],
+                                                    ['Email', details.seller.email ? `${details.seller.email}${details.seller.isEmailVerified ? ' (verified)' : ''}` : undefined],
+                                                    ['City', details.seller.city],
+                                                    ['Business type', details.seller.businessType],
+                                                    ['Registered name', details.seller.legalBusinessName],
+                                                    ['GST', details.seller.gstRegistered ? details.seller.gstin || 'Registered' : 'Not registered'],
+                                                    ['PAN', details.seller.panCard],
+                                                    ['FSSAI licence', details.seller.fssaiLicNo],
+                                                    ['Sells via', (details.seller.channels || []).map((c) => (c === 'ECommerce' ? 'E-Commerce' : c)).join(', ')],
+                                                    ['Delivery radius', details.seller.serviceRadiusKm ? `${details.seller.serviceRadiusKm} km` : undefined],
+                                                    ['Seller since', details.seller.createdAt ? new Date(details.seller.createdAt).toLocaleDateString('en-GB') : undefined],
+                                                    [
+                                                        'Products',
+                                                        Object.keys(details.seller.productCounts || {}).length
+                                                            ? Object.entries(details.seller.productCounts || {})
+                                                                  .map(([s, n]) => `${n} ${s === 'Active' ? 'live' : s.toLowerCase()}`)
+                                                                  .join(' · ')
+                                                            : undefined,
+                                                    ],
+                                                ]}
+                                            />
+                                            <FactGrid
+                                                cols="sm:grid-cols-1"
+                                                facts={[
+                                                    ['Pickup address', [details.seller.address, details.seller.searchLocation].filter(Boolean).join(' — ')],
+                                                    ['Return address', details.seller.returnAddress && details.seller.returnAddress !== details.seller.address ? details.seller.returnAddress : 'Same as pickup'],
+                                                ]}
+                                            />
+                                        </ReviewSection>
+                                    )}
+
+                                    <ReviewSection title={`Images (${1 + (details.product.galleryImages || []).length})`}>
+                                        <div className="flex flex-wrap gap-2">
+                                            {[details.product.mainImage, ...(details.product.galleryImages || [])].filter(Boolean).map((src: string, i: number) => (
+                                                <a key={src + i} href={src} target="_blank" rel="noreferrer" className="relative block">
+                                                    <img src={src} alt="" className="w-20 h-20 object-cover rounded border border-neutral-200 hover:opacity-90" />
+                                                    {i === 0 && <span className="absolute bottom-0.5 left-0.5 px-1 rounded bg-black/60 text-white text-[9px]">Main</span>}
+                                                </a>
+                                            ))}
+                                        </div>
+                                    </ReviewSection>
+
                                     <div className="flex gap-4">
-                                        <img src={details.product.mainImage || '/api/placeholder/80/80'} alt="" className="w-24 h-24 object-cover rounded border border-neutral-200 shrink-0" />
                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-xs flex-1">
                                             {[
+                                                ['Status', details.product.status],
+                                                ['Visible to customers', details.product.publish ? 'Yes, once approved' : 'No (seller hid it)'],
                                                 ['Department', details.product.headerCategoryId?.name],
                                                 ['Category', details.product.category?.name],
                                                 ['Subcategory', details.product.subcategory?.name],
@@ -569,38 +668,88 @@ export default function AdminProductApprovals() {
                                                         : undefined,
                                                 ],
                                                 ['Returns', details.product.isReturnable ? `Yes${details.product.maxReturnDays ? ` (${details.product.maxReturnDays} days)` : ''}` : 'No'],
+                                                ['GST slab', details.tax ? `${details.tax.name} (${details.tax.percentage}%)` : undefined],
+                                                ['Max per order', details.product.totalAllowedQuantity],
+                                                ['Manufacturer', details.product.manufacturer],
+                                                ['Made in', details.product.madeIn],
+                                                ['Marketer', details.product.marketer],
+                                                ['Pack', details.product.pack],
+                                                ['Shelf life', details.product.shelfLife],
+                                                ['FSSAI licence', details.product.fssaiLicNo],
+                                                ['Shop-by-store only', details.product.isShopByStoreOnly ? `Yes${details.product.shopId?.name ? ` (${details.product.shopId.name})` : ''}` : undefined],
+                                                ['Popular / Deal of day', [details.product.popular && 'Popular', details.product.dealOfDay && 'Deal of the day'].filter(Boolean).join(', ') || undefined],
                                                 ['Listed via', details.product.listingMethod],
+                                                ['Created', details.product.createdAt ? new Date(details.product.createdAt).toLocaleString('en-GB') : undefined],
+                                                ['Last updated', details.product.updatedAt ? new Date(details.product.updatedAt).toLocaleString('en-GB') : undefined],
                                             ].map(([k, v]) => (
                                                 <div key={k as string}>
                                                     <p className="text-neutral-400">{k}</p>
-                                                    <p className="font-medium text-neutral-800 break-words">{(v as string) || '—'}</p>
+                                                    <p className="font-medium text-neutral-800 break-words">{v === undefined || v === null || v === '' ? '—' : String(v)}</p>
                                                 </div>
                                             ))}
                                         </div>
                                     </div>
 
-                                    {details.product.smallDescription && (
-                                        <div>
-                                            <p className="text-xs text-neutral-400 mb-0.5">Description</p>
-                                            <p className="text-xs text-neutral-800 whitespace-pre-wrap">{details.product.smallDescription}</p>
-                                        </div>
+                                    {(details.product.smallDescription || details.product.description) && (
+                                        <ReviewSection title="Description">
+                                            {details.product.smallDescription && <p className="text-xs text-neutral-800 whitespace-pre-wrap">{details.product.smallDescription}</p>}
+                                            {details.product.description && details.product.description !== details.product.smallDescription && (
+                                                <p className="text-xs text-neutral-800 whitespace-pre-wrap">{details.product.description}</p>
+                                            )}
+                                        </ReviewSection>
                                     )}
 
-                                    {details.attributeRows.length > 0 && (
-                                        <div>
-                                            <p className="text-xs font-semibold text-neutral-700 mb-1">Attributes</p>
-                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-1.5 text-xs">
-                                                {details.attributeRows.map((a) => (
-                                                    <div key={a.label}>
-                                                        <p className="text-neutral-400">{a.label}</p>
-                                                        <p className="font-medium text-neutral-800">
-                                                            {Array.isArray(a.value) ? a.value.join(', ') : typeof a.value === 'boolean' ? (a.value ? 'Yes' : 'No') : String(a.value)}
-                                                            {a.unit ? ` ${a.unit}` : ''}
-                                                        </p>
+                                    <ReviewSection title="Specifications">
+                                        {details.specGroups.length === 0 ? (
+                                            <p className="text-xs text-neutral-500">The seller hasn't filled in any category attributes.</p>
+                                        ) : (
+                                            <div className="border border-neutral-200 rounded-lg divide-y divide-neutral-200">
+                                                {details.specGroups.map((g) => (
+                                                    <div key={g.title} className="p-3">
+                                                        <p className="text-xs font-bold text-neutral-800 mb-1.5">{g.title}</p>
+                                                        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-xs">
+                                                            {g.items.map((it) => (
+                                                                <div key={it.label} className="flex gap-2 min-w-0">
+                                                                    <dt className="text-neutral-400 w-32 shrink-0">{it.label}</dt>
+                                                                    <dd className="font-medium text-neutral-800 break-words min-w-0">
+                                                                        {it.value}
+                                                                        {it.keySpec && <span className="ml-1 text-[9px] font-semibold text-amber-700">KEY</span>}
+                                                                    </dd>
+                                                                </div>
+                                                            ))}
+                                                        </dl>
                                                     </div>
                                                 ))}
                                             </div>
-                                        </div>
+                                        )}
+                                        {details.unfilledAttributes.length > 0 && (
+                                            <p className="text-[11px] text-neutral-500">
+                                                Not filled ({details.unfilledAttributes.length}):{' '}
+                                                {details.unfilledAttributes.map((a) => (a.required ? `${a.label} (required)` : a.label)).join(', ')}
+                                            </p>
+                                        )}
+                                    </ReviewSection>
+
+                                    {((details.product.tags || []).length > 0 || details.product.seoTitle || details.product.seoDescription || details.product.seoKeywords || details.product.returnPolicyText) && (
+                                        <ReviewSection title="Tags, search & policy">
+                                            {(details.product.tags || []).length > 0 && (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {details.product.tags.map((t: string) => (
+                                                        <span key={t} className="px-2 py-0.5 rounded-full bg-neutral-100 text-[11px] text-neutral-700">{t}</span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            <FactGrid
+                                                cols="sm:grid-cols-1"
+                                                facts={([
+                                                    ['SEO title', details.product.seoTitle],
+                                                    ['SEO keywords', details.product.seoKeywords],
+                                                    ['SEO description', details.product.seoDescription],
+                                                    ['Image alt text', details.product.seoImageAlt],
+                                                    ['Return policy', details.product.returnPolicyText],
+                                                ] as Array<[string, any]>).filter(([, v]) => Boolean(v))}
+                                            />
+                                        </ReviewSection>
                                     )}
 
                                     <div>
@@ -612,7 +761,9 @@ export default function AdminProductApprovals() {
                                                     <th className="p-2 text-left">SKU</th>
                                                     <th className="p-2 text-left">MRP</th>
                                                     <th className="p-2 text-left">Selling price</th>
+                                                    <th className="p-2 text-left">Discount</th>
                                                     <th className="p-2 text-left">Stock</th>
+                                                    <th className="p-2 text-left">Status</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -622,7 +773,11 @@ export default function AdminProductApprovals() {
                                                         <td className="p-2 font-mono text-neutral-500">{v.sku || '—'}</td>
                                                         <td className="p-2">₹{v.price}</td>
                                                         <td className="p-2">{v.discPrice > 0 ? `₹${v.discPrice}` : '—'}</td>
+                                                        <td className={`p-2 ${v.discPrice > 0 && v.price > 0 && v.discPrice < v.price * 0.3 ? 'text-red-600 font-semibold' : ''}`}>
+                                                            {v.discPrice > 0 && v.price > 0 ? `${Math.round((1 - v.discPrice / v.price) * 100)}%` : '—'}
+                                                        </td>
                                                         <td className="p-2">{v.stock === 0 ? 'Unlimited' : v.stock}</td>
+                                                        <td className="p-2">{v.status || '—'}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>

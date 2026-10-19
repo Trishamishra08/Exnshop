@@ -46,8 +46,39 @@ export const deleteAttribute = async (id: string) => (await api.delete<Res<unkno
 export const saveListingRule = async (scopeType: ScopeType, scopeId: string, rule: AdminListingRule) =>
   (await api.put<Res<AdminListingRule>>('/admin/listing-setup/rule', { ...rule, scopeType, scopeId })).data;
 
+export interface ReviewSeller {
+  _id: string;
+  sellerName?: string;
+  storeName?: string;
+  mobile?: string;
+  email?: string;
+  isEmailVerified?: boolean;
+  city?: string;
+  address?: string;
+  returnAddress?: string;
+  searchLocation?: string;
+  businessType?: string;
+  legalBusinessName?: string;
+  gstRegistered?: boolean;
+  gstin?: string;
+  panCard?: string;
+  fssaiLicNo?: string;
+  onboardingStatus?: string;
+  status?: string;
+  channels?: string[];
+  serviceRadiusKm?: number;
+  bankVerificationStatus?: string;
+  logo?: string;
+  createdAt?: string;
+  productCounts?: Record<string, number>;
+}
+
 export interface ProductReviewDetails {
   product: any;
+  seller: ReviewSeller | null;
+  tax: { name: string; percentage: number } | null;
+  specGroups: Array<{ title: string; items: Array<{ label: string; value: string; keySpec: boolean; keyText?: string }> }>;
+  unfilledAttributes: Array<{ label: string; group: string; required: boolean }>;
   attributeRows: Array<{ label: string; value: any; unit?: string }>;
   problems: string[];
   isRegulated: boolean;
