@@ -157,12 +157,13 @@ async function buildAndSaveChannelOrder(params: {
           }
           // If limited stock (> 0), atomically check and decrement
           if (matchedVariant.stock !== undefined && matchedVariant.stock !== null && matchedVariant.stock > 0) {
+            // $elemMatch keeps both conditions on the same variant, so "$"
+            // points at the chosen one rather than the first with enough stock.
             product = session
               ? await Product.findOneAndUpdate(
                 {
                   _id: item.product.id,
-                  "variations._id": matchedVariant._id,
-                  "variations.stock": { $gte: qty },
+                  variations: { $elemMatch: { _id: matchedVariant._id, stock: { $gte: qty } } },
                 },
                 { $inc: { "variations.$.stock": -qty, stock: -qty } },
                 { session, new: true },
@@ -170,8 +171,7 @@ async function buildAndSaveChannelOrder(params: {
               : await Product.findOneAndUpdate(
                 {
                   _id: item.product.id,
-                  "variations._id": matchedVariant._id,
-                  "variations.stock": { $gte: qty },
+                  variations: { $elemMatch: { _id: matchedVariant._id, stock: { $gte: qty } } },
                 },
                 { $inc: { "variations.$.stock": -qty, stock: -qty } },
                 { new: true },
@@ -289,12 +289,16 @@ async function buildAndSaveChannelOrder(params: {
       selectedVariation = product.variations[0];
     }
 
+    // A variant with its own price sells at that price; the product-level
+    // discount mirrors the first variant only, so it must not leak to others.
     const itemPrice =
       selectedVariation?.discPrice && selectedVariation.discPrice > 0
         ? selectedVariation.discPrice
-        : product.discPrice && product.discPrice > 0
-          ? product.discPrice
-          : selectedVariation?.price || product.price || 0;
+        : selectedVariation?.price && selectedVariation.price > 0
+          ? selectedVariation.price
+          : product.discPrice && product.discPrice > 0
+            ? product.discPrice
+            : product.price || 0;
     const itemTotal = itemPrice * qty;
     calculatedSubtotal += itemTotal;
 

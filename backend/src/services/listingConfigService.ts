@@ -199,9 +199,11 @@ export const buildSpecGroups = (defs: ResolvedAttribute[], values: any): SpecGro
     if (isEmpty(v)) continue;
     const title = (a.group || "").trim() || DEFAULT_GROUP;
     const value = formatValue(a, v);
-    const keyText = a.keySpec
-      ? (a.keySpecFormat && a.keySpecFormat.includes("{value}") ? a.keySpecFormat : "{label}: {value}").replace("{label}", a.label).replace("{value}", value)
-      : undefined;
+    let format = a.keySpecFormat && a.keySpecFormat.includes("{value}") ? a.keySpecFormat : "{label}: {value}";
+    // The value already carries its unit; don't repeat it when the admin's
+    // wording also spells it out ("{value} ml pack").
+    if (a.unit) format = format.replace(`{value} ${a.unit}`, "{value}");
+    const keyText = a.keySpec ? format.replace("{label}", a.label).replace("{value}", value) : undefined;
     if (!groups.has(title)) groups.set(title, { title, items: [] });
     groups.get(title)!.items.push({ label: a.label, value, keySpec: a.keySpec, keyText });
   }

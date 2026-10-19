@@ -36,9 +36,13 @@ const calculateItemPrice = (product: any, variationSelector: any) => {
 
     let finalPrice = variation?.price || product.price || 0;
 
-    // Priority: Variation Discount -> Product Discount -> Variation Price -> Product Price
+    // Priority: Variation Discount -> Variation Price -> Product Discount -> Product Price.
+    // The product-level discount mirrors the first variant only, so it must not
+    // override another variant's own price.
     if (variation?.discPrice && variation.discPrice > 0) {
         finalPrice = variation.discPrice;
+    } else if (variation?.price && variation.price > 0) {
+        finalPrice = variation.price;
     } else if (product.discPrice && product.discPrice > 0) {
         finalPrice = product.discPrice;
     }

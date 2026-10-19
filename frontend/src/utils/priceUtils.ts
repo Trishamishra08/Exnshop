@@ -31,8 +31,12 @@ export const calculateProductPrice = (product: any, variationSelector?: number |
     variation = product.variations[0];
   }
 
+  // A variant's own price wins over the product-level discount, which mirrors
+  // the first variant only.
   const displayPrice = (variation?.discPrice && variation.discPrice > 0)
     ? variation.discPrice
+    : (variation?.price && variation.price > 0)
+    ? variation.price
     : (product.discPrice && product.discPrice > 0)
     ? product.discPrice
     : (variation?.price || product.price || 0);
