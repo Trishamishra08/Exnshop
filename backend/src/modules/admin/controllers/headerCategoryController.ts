@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import HeaderCategory from "../../../models/HeaderCategory";
+import Seller from "../../../models/Seller";
 
 // "all" is the customer app's built-in default tab; a header category saved
 // with this slug is filtered out of the customer UI and its products vanish.
@@ -117,6 +118,7 @@ export const updateHeaderCategory = async (req: Request, res: Response) => {
         }
       }
 
+      const previousName = category.name;
       category.name = name || category.name;
       category.iconLibrary = iconLibrary || category.iconLibrary;
       category.iconName = iconName || category.iconName;
@@ -126,6 +128,16 @@ export const updateHeaderCategory = async (req: Request, res: Response) => {
       category.order = order !== undefined ? order : category.order;
 
       const updatedCategory = await category.save();
+
+      // Sellers keep their departments by name; carry a rename over so they don't
+      // lose access to the department they registered for.
+      if (previousName && category.name !== previousName) {
+        await Seller.updateMany(
+          { categories: previousName },
+          { $set: { "categories.$[old]": category.name } },
+          { arrayFilters: [{ old: previousName }] }
+        );
+      }
       return res.json(updatedCategory);
     } else {
       return res.status(404).json({ message: "Header category not found" });

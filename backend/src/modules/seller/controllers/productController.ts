@@ -6,7 +6,7 @@ import Category from "../../../models/Category";
 import SubCategory from "../../../models/SubCategory";
 import Shop from "../../../models/Shop";
 import { asyncHandler } from "../../../utils/asyncHandler";
-import { resolveSellerAllowedHeaderCategories } from "../../../services/sellerCategoryService";
+import { resolveSellerAllowedHeaderCategories, sellerDepartmentError } from "../../../services/sellerCategoryService";
 import OrderItem from "../../../models/OrderItem";
 import {
   MATERIAL_FIELDS,
@@ -50,18 +50,8 @@ async function validateSellerHeaderCategory(
   const seller = await Seller.findById(sellerId).select("categories");
   if (!seller) return "Seller not found";
 
-  // If seller has no categories set (empty array), allow all (backward compatibility)
-  if (!seller.categories || seller.categories.length === 0) return null;
-
-  const headerCategory = await HeaderCategory.findById(headerCategoryId);
-  if (!headerCategory) return "Header category not found";
-
-  // Check if the header category name is in the seller's allowed categories list
-  if (!seller.categories.includes(headerCategory.name)) {
-    return `You are not authorized to add products in the "${headerCategory.name}" category. Your allowed categories are: ${seller.categories.join(", ")}`;
-  }
-
-  return null; // Valid
+  // Same rules as the department list the seller is shown (renames, admin "all" setting, etc.).
+  return sellerDepartmentError(seller.categories, headerCategoryId);
 }
 
 /**
@@ -980,6 +970,10 @@ export const bulkUploadProducts = asyncHandler(
       });
     }
     const sellerRecord = seller;
+    // Same department rules as the seller's department list (resolved once for the whole file).
+    const allowedDepartmentIds = new Set(
+      (await resolveSellerAllowedHeaderCategories(seller.categories)).map((d: any) => String(d._id))
+    );
 
     const csvParser = require("csv-parser");
     const { Readable } = require("stream");
@@ -1059,14 +1053,10 @@ export const bulkUploadProducts = asyncHandler(
             headerCategoryCache.set(cacheKey, headerCategoryDoc);
           }
           if (!headerCategoryDoc) {
-            errors.push({ row: rowNum, reason: `Header category "${headerCategoryName}" not found` });
+            errors.push({ row: rowNum, reason: `Department "${headerCategoryName}" not found` });
             continue;
           }
-          if (
-            seller.categories &&
-            seller.categories.length > 0 &&
-            !seller.categories.includes(headerCategoryDoc.name)
-          ) {
+          if (!allowedDepartmentIds.has(String(headerCategoryDoc._id))) {
             errors.push({
               row: rowNum,
               reason: `You are not authorized to add products in "${headerCategoryDoc.name}"`,

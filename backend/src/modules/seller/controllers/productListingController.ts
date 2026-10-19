@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
 import Product from "../../../models/Product";
 import Seller from "../../../models/Seller";
-import HeaderCategory from "../../../models/HeaderCategory";
 import Category from "../../../models/Category";
+import { sellerDepartmentError } from "../../../services/sellerCategoryService";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import {
   auditProduct,
@@ -17,18 +17,12 @@ import { deletePrivateDocument, signedDocumentUrl, uploadPrivateDocument } from 
 const sellerActor = (req: Request) => ({ actorType: "Seller" as const, actorId: (req as any).user?.userId });
 const MAX_COMPLIANCE_BYTES = 10 * 1024 * 1024;
 
-/** Same rule as the product form: sellers may only list in the departments they registered for. */
+/** Same rule as the product form and the department list: sellers list only in their departments. */
 async function validateSellerHeaderCategory(sellerId: string, headerCategoryId?: string): Promise<string | null> {
   if (!headerCategoryId) return null;
   const seller = await Seller.findById(sellerId).select("categories");
   if (!seller) return "Seller not found";
-  if (!seller.categories || seller.categories.length === 0) return null;
-  const headerCategory = await HeaderCategory.findById(headerCategoryId);
-  if (!headerCategory) return "Header category not found";
-  if (!seller.categories.includes(headerCategory.name)) {
-    return `You are not authorized to add products in the "${headerCategory.name}" category. Your allowed categories are: ${seller.categories.join(", ")}`;
-  }
-  return null;
+  return sellerDepartmentError(seller.categories, headerCategoryId);
 }
 
 /** Safe view of a product's compliance documents (never exposes storage ids). */

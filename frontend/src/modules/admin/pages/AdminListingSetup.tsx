@@ -263,6 +263,7 @@ export default function AdminListingSetup() {
               {headers.map((h) => (
                 <option key={h._id} value={h._id}>
                   {h.name}
+                  {h.status !== 'Published' ? ' (unpublished)' : ''}
                 </option>
               ))}
             </select>

@@ -54,3 +54,22 @@ export const resolveSellerAllowedHeaderCategories = async (
   // don't leave the seller stuck with an empty category picker.
   return allPublished();
 };
+
+/**
+ * Whether a seller may list products in a department (header category). Uses the
+ * exact same rules as the department list the seller is shown, so what a seller
+ * can pick and what the server accepts never disagree. Returns an error message,
+ * or null when allowed.
+ */
+export const sellerDepartmentError = async (
+  sellerCategoryNames: string[] | undefined | null,
+  headerCategoryId: string | undefined | null
+): Promise<string | null> => {
+  if (!headerCategoryId) return null;
+  const department = await HeaderCategory.findById(headerCategoryId).select("name status").lean();
+  if (!department) return "Department not found";
+  if (department.status !== "Published") return `The "${department.name}" department isn't open for listings right now`;
+  const allowed = await resolveSellerAllowedHeaderCategories(sellerCategoryNames);
+  if (allowed.some((d: any) => String(d._id) === String(headerCategoryId))) return null;
+  return `You are not authorized to add products in the "${department.name}" department. Your departments are: ${allowed.map((d: any) => d.name).join(", ")}`;
+};
