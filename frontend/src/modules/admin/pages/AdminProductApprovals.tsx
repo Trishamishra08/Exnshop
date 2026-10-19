@@ -61,6 +61,31 @@ const ACTION_LABELS: Record<string, string> = {
 
 const isImageField = (field: string) => field === 'mainImage';
 
+// Every product field the review window already presents somewhere, plus internal bookkeeping.
+// Anything not in this list is shown under "Other submitted fields", so a field added to
+// products later can never be silently missing from the review.
+const SHOWN_PRODUCT_FIELDS = new Set([
+    '_id', 'id', '__v', 'seller', 'productName', 'status', 'publish', 'headerCategoryId', 'category', 'subcategory',
+    'subSubCategory', 'brand', 'condition', 'modelNumber', 'barcode', 'sku', 'hsnCode', 'handlingTimeDays', 'weightGrams',
+    'dimensionsCm', 'isReturnable', 'maxReturnDays', 'tax', 'totalAllowedQuantity', 'manufacturer', 'madeIn', 'marketer',
+    'pack', 'shelfLife', 'fssaiLicNo', 'isShopByStoreOnly', 'shopId', 'popular', 'dealOfDay', 'listingMethod', 'createdAt',
+    'updatedAt', 'smallDescription', 'description', 'attributes', 'tags', 'seoTitle', 'seoKeywords', 'seoDescription',
+    'seoImageAlt', 'returnPolicyText', 'mainImage', 'galleryImages', 'variations', 'complianceDocs', 'variationType',
+    'price', 'discPrice', 'compareAtPrice', 'discount', 'stock', 'rating', 'reviewsCount', 'commission', 'listingVersion',
+    'approvedAt', 'approvedBy', 'rejectionReason', 'pendingRevision', 'translations', 'requiresApproval', 'mrp',
+    'qualityFlags', 'reviewStartedAt', 'reviewStartedBy', 'reviewStartedByName', 'mainImageUrl', 'galleryImageUrls',
+]);
+
+const humanize = (key: string) => key.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+
+const otherProductFields = (product: any): Array<[string, any]> =>
+    Object.entries(product || {})
+        .filter(([k, v]) => !SHOWN_PRODUCT_FIELDS.has(k) && v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0))
+        .map(([k, v]) => [
+            humanize(k),
+            typeof v === 'boolean' ? (v ? 'Yes' : 'No') : Array.isArray(v) ? v.map((x) => (typeof x === 'object' ? JSON.stringify(x) : String(x))).join(', ') : typeof v === 'object' ? (v as any).name || JSON.stringify(v) : String(v),
+        ]);
+
 function ReviewSection({ title, children }: { title: string; children: React.ReactNode }) {
     return (
         <div className="space-y-2">
@@ -569,6 +594,24 @@ export default function AdminProductApprovals() {
                                         </div>
                                     )}
 
+                                    {details.product.rejectionReason && (
+                                        <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-orange-900">
+                                            <p className="font-semibold text-xs mb-0.5">Previously sent back with this reason</p>
+                                            <p className="text-xs whitespace-pre-wrap">{details.product.rejectionReason}</p>
+                                        </div>
+                                    )}
+                                    {details.product.pendingRevision?.data && Object.keys(details.product.pendingRevision.data).length > 0 && (
+                                        <div className="rounded-lg border border-purple-200 bg-purple-50 p-3 text-purple-900 text-xs">
+                                            This live product also has edits waiting in <strong>Edited listings</strong>:{' '}
+                                            {Object.keys(details.product.pendingRevision.data).map((f) => FIELD_LABELS[f] || f).join(', ')}.
+                                        </div>
+                                    )}
+
+                                    {!details.seller && (
+                                        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+                                            The seller account for this product no longer exists. Don't approve it; delete it or have it relisted by an active seller.
+                                        </div>
+                                    )}
                                     {details.seller && (
                                         <ReviewSection title="Seller">
                                             <div className="flex items-start gap-3">
@@ -624,12 +667,45 @@ export default function AdminProductApprovals() {
                                                 ]}
                                             />
                                             <FactGrid
+                                                facts={[
+                                                    ['Shop status', details.seller.isShopOpen === false ? 'Closed' : 'Open'],
+                                                    ['Instant delivery', details.seller.supportsInstantDelivery === false ? 'No' : 'Yes'],
+                                                    ['Needs product approval', details.seller.requireProductApproval ? 'Yes' : 'No'],
+                                                    ['Shows seller details to buyers', details.seller.viewCustomerDetails === false ? 'No' : 'Yes'],
+                                                    ['Commission', details.seller.commissionRate ?? details.seller.commission ? `${details.seller.commissionRate ?? details.seller.commission}%` : undefined],
+                                                    ['Departments', (details.seller.categories || []).join(', ')],
+                                                    ['Tax name / number', [details.seller.taxName, details.seller.taxNumber].filter(Boolean).join(' · ')],
+                                                    ['Serviceable area', details.seller.serviceableArea],
+                                                    ['Map pin', details.seller.latitude && details.seller.longitude ? `${details.seller.latitude}, ${details.seller.longitude}` : undefined],
+                                                    ['Bank', [details.seller.bankName, details.seller.accountNumber, details.seller.ifsc].filter(Boolean).join(' · ')],
+                                                    ['Account holder', details.seller.accountName],
+                                                    ['UPI', details.seller.upiId],
+                                                    ['Courier pickup (Shiprocket)', details.seller.shiprocketPickupLocation || (details.seller.shiprocketPickupSyncError ? `Not registered: ${details.seller.shiprocketPickupSyncError}` : undefined)],
+                                                    ['Application submitted', details.seller.onboardingSubmittedAt ? new Date(details.seller.onboardingSubmittedAt).toLocaleString('en-GB') : undefined],
+                                                ]}
+                                            />
+                                            <FactGrid
                                                 cols="sm:grid-cols-1"
                                                 facts={[
                                                     ['Pickup address', [details.seller.address, details.seller.searchLocation].filter(Boolean).join(' — ')],
                                                     ['Return address', details.seller.returnAddress && details.seller.returnAddress !== details.seller.address ? details.seller.returnAddress : 'Same as pickup'],
+                                                    ['Store description', details.seller.storeDescription],
+                                                    [
+                                                        'Working hours',
+                                                        details.seller.workingHours?.open || details.seller.workingHours?.close
+                                                            ? `${details.seller.workingHours.open || '?'} – ${details.seller.workingHours.close || '?'}${(details.seller.workingHours.offDays || []).length ? ` (closed ${details.seller.workingHours.offDays.join(', ')})` : ''}`
+                                                            : undefined,
+                                                    ],
+                                                    [
+                                                        'Social links',
+                                                        Object.entries(details.seller.socialLinks || {})
+                                                            .filter(([, v]) => Boolean(v))
+                                                            .map(([k, v]) => `${k}: ${v}`)
+                                                            .join(' · ') || undefined,
+                                                    ],
                                                 ]}
                                             />
+                                            {details.seller.storeBanner && <img src={details.seller.storeBanner} alt="Store banner" className="w-full max-h-28 object-cover rounded border border-neutral-200" />}
                                         </ReviewSection>
                                     )}
 
@@ -649,6 +725,16 @@ export default function AdminProductApprovals() {
                                             {[
                                                 ['Status', details.product.status],
                                                 ['Visible to customers', details.product.publish ? 'Yes, once approved' : 'No (seller hid it)'],
+                                                ['Variation type', details.product.variationType],
+                                                ['Base MRP', details.product.price !== undefined ? `₹${details.product.price}` : undefined],
+                                                ['Base selling price', details.product.discPrice > 0 ? `₹${details.product.discPrice}` : undefined],
+                                                ['Compare-at price', details.product.compareAtPrice ? `₹${details.product.compareAtPrice}` : undefined],
+                                                ['Discount', details.product.discount ? `${details.product.discount}%` : undefined],
+                                                ['Total stock', details.product.stock === 0 ? 'Unlimited' : details.product.stock],
+                                                ['Rating', details.product.reviewsCount ? `${details.product.rating} (${details.product.reviewsCount} reviews)` : undefined],
+                                                ['Product commission', details.product.commission !== undefined && details.product.commission !== null ? `${details.product.commission}%` : undefined],
+                                                ['Listing form', details.product.listingVersion >= 2 ? 'Guided (7 steps)' : 'Classic form / older listing'],
+                                                ['Approved at', details.product.approvedAt ? new Date(details.product.approvedAt).toLocaleString('en-GB') : undefined],
                                                 ['Department', details.product.headerCategoryId?.name],
                                                 ['Category', details.product.category?.name],
                                                 ['Subcategory', details.product.subcategory?.name],
@@ -722,6 +808,12 @@ export default function AdminProductApprovals() {
                                                 ))}
                                             </div>
                                         )}
+                                        {(details.otherAttributes || []).length > 0 && (
+                                            <div className="rounded-lg border border-neutral-200 p-3">
+                                                <p className="text-xs font-bold text-neutral-800 mb-1.5">Other values the seller saved</p>
+                                                <FactGrid facts={details.otherAttributes.map((a) => [a.label, a.value] as [string, any])} />
+                                            </div>
+                                        )}
                                         {details.unfilledAttributes.length > 0 && (
                                             <p className="text-[11px] text-neutral-500">
                                                 Not filled ({details.unfilledAttributes.length}):{' '}
@@ -729,6 +821,25 @@ export default function AdminProductApprovals() {
                                             </p>
                                         )}
                                     </ReviewSection>
+
+                                    {details.product.translations && Object.keys(details.product.translations).length > 0 && (
+                                        <ReviewSection title="Translations">
+                                            <div className="space-y-2">
+                                                {Object.entries(details.product.translations as Record<string, Record<string, string>>).map(([lang, fields]) => (
+                                                    <div key={lang} className="rounded-lg border border-neutral-200 p-3">
+                                                        <p className="text-xs font-bold text-neutral-800 mb-1 uppercase">{lang}</p>
+                                                        <FactGrid cols="sm:grid-cols-1" facts={Object.entries(fields || {}).filter(([, v]) => Boolean(v)).map(([k, v]) => [k, v] as [string, any])} />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </ReviewSection>
+                                    )}
+
+                                    {otherProductFields(details.product).length > 0 && (
+                                        <ReviewSection title="Other submitted fields">
+                                            <FactGrid facts={otherProductFields(details.product)} />
+                                        </ReviewSection>
+                                    )}
 
                                     {((details.product.tags || []).length > 0 || details.product.seoTitle || details.product.seoDescription || details.product.seoKeywords || details.product.returnPolicyText) && (
                                         <ReviewSection title="Tags, search & policy">

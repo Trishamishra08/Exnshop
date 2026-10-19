@@ -71,6 +71,8 @@ export interface ReviewSeller {
   logo?: string;
   createdAt?: string;
   productCounts?: Record<string, number>;
+  // Store profile, settings and bank (account number arrives masked)
+  [key: string]: any;
 }
 
 export interface ProductReviewDetails {
@@ -79,6 +81,7 @@ export interface ProductReviewDetails {
   tax: { name: string; percentage: number } | null;
   specGroups: Array<{ title: string; items: Array<{ label: string; value: string; keySpec: boolean; keyText?: string }> }>;
   unfilledAttributes: Array<{ label: string; group: string; required: boolean }>;
+  otherAttributes: Array<{ label: string; value: string }>;
   attributeRows: Array<{ label: string; value: any; unit?: string }>;
   problems: string[];
   isRegulated: boolean;

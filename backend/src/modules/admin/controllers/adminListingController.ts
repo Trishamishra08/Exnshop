@@ -162,7 +162,7 @@ export const getProductReviewDetails = asyncHandler(async (req: Request, res: Re
     .populate("shopId", "name")
     .populate(
       "seller",
-      "sellerName storeName mobile email isEmailVerified city address returnAddress searchLocation businessType legalBusinessName gstRegistered gstin panCard fssaiLicNo onboardingStatus status channels serviceRadiusKm bankVerificationStatus logo createdAt"
+      "sellerName storeName mobile email isEmailVerified city address returnAddress searchLocation latitude longitude serviceableArea businessType legalBusinessName gstRegistered gstin panCard fssaiLicNo taxName taxNumber onboardingStatus onboardingSubmittedAt status channels categories serviceRadiusKm isShopOpen supportsInstantDelivery requireProductApproval viewCustomerDetails commission commissionRate storeDescription storeBanner workingHours socialLinks bankName accountName accountNumber ifsc upiId bankVerificationStatus shiprocketPickupLocation shiprocketPickupSyncError logo createdAt"
     );
   if (!product) return res.status(404).json({ success: false, message: "Product not found" });
 
@@ -176,6 +176,15 @@ export const getProductReviewDetails = asyncHandler(async (req: Request, res: Re
   const unfilledAttributes = config.attributes
     .filter((a) => !a.isVariantAttribute && isBlank(attributeValues[a.key]))
     .map((a) => ({ label: a.label, group: a.group || "Details", required: a.isRequired }));
+  // Values the seller saved that the specification sections don't show: variant options stored
+  // as attributes, or attributes the admin has since deleted. Nothing the seller entered is hidden.
+  const shownKeys = new Set(config.attributes.filter((a) => !a.isVariantAttribute).map((a) => a.key));
+  const otherAttributes = Object.entries(attributeValues)
+    .filter(([key, value]) => !shownKeys.has(key) && !isBlank(value))
+    .map(([key, value]) => ({
+      label: config.attributes.find((a) => a.key === key)?.label || key.replace(/_/g, " "),
+      value: Array.isArray(value) ? value.join(", ") : typeof value === "boolean" ? (value ? "Yes" : "No") : String(value),
+    }));
 
   const sellerDoc: any = product.seller;
   const sellerId = sellerDoc?._id;
@@ -188,8 +197,9 @@ export const getProductReviewDetails = asyncHandler(async (req: Request, res: Re
   const seller = sellerDoc
     ? {
         ...(sellerDoc.toObject ? sellerDoc.toObject() : sellerDoc),
-        // The product review only needs to recognise the PAN, not read it in full.
+        // The product review only needs to recognise the PAN and account, not read them in full.
         panCard: sellerDoc.panCard ? `${sellerDoc.panCard.slice(0, 2)}••••••${sellerDoc.panCard.slice(-2)}` : undefined,
+        accountNumber: sellerDoc.accountNumber ? `••••${String(sellerDoc.accountNumber).slice(-4)}` : undefined,
         productCounts: Object.fromEntries((sellerProductCounts as any[]).map((c) => [c._id, c.n])),
       }
     : null;
@@ -205,6 +215,7 @@ export const getProductReviewDetails = asyncHandler(async (req: Request, res: Re
       tax,
       specGroups: buildSpecGroups(config.attributes, attributeValues),
       unfilledAttributes,
+      otherAttributes,
       attributeRows,
       problems,
       isRegulated: config.rule.isRegulated,
