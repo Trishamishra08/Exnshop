@@ -353,6 +353,17 @@ export const updateOrderStatus = asyncHandler(
       });
     }
 
+    // A delivered order can no longer be cancelled or rejected (returns use their own flow).
+    if (matchedStatus === "Cancelled" || matchedStatus === "Rejected") {
+      const current = await Order.findById(id).select("status");
+      if (current?.status === "Delivered") {
+        return res.status(400).json({
+          success: false,
+          message: `A delivered order cannot be ${matchedStatus.toLowerCase()}`,
+        });
+      }
+    }
+
     const updateData: any = { status: matchedStatus };
     if (adminNotes) updateData.adminNotes = adminNotes;
 
@@ -496,6 +507,14 @@ export const assignDeliveryBoy = asyncHandler(
       return res.status(400).json({
         success: false,
         message: "This order is self-delivery (seller delivers). Cannot assign a delivery boy.",
+      });
+    }
+
+    // Quick: a rider is involved only after the seller has accepted the order.
+    if (order.channel === "Quick" && ["Received", "Pending"].includes(order.status)) {
+      return res.status(400).json({
+        success: false,
+        message: "The seller has not accepted this order yet. Assign a delivery partner after the seller accepts.",
       });
     }
 

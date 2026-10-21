@@ -55,6 +55,7 @@ export async function notifySellersOfOrderUpdate(
                     address: order.deliveryAddress
                 },
                 deliveryOption: order.deliveryOption || 'Standard',
+                channel: order.channel || 'Quick',
                 items: sellerSpecificItems.map((item: any) => ({
                     productName: item.productName,
                     quantity: item.quantity,

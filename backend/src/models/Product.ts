@@ -30,6 +30,9 @@ export interface IProduct extends Document {
 
   // Variations
   variationType?: string; // e.g., 'Size', 'Color', 'Weight'
+  /** The option types a product varies by, in display order (e.g. RAM/Storage, Color).
+   *  Absent for single-type and legacy products. */
+  variantAxes?: Array<{ name: string; values: string[] }>;
   variations?: Array<{
     name: string;
     value: string;
@@ -39,6 +42,8 @@ export interface IProduct extends Document {
     sku?: string;
     status?: string;
     images?: string[];
+    /** This combination's value for each axis, e.g. [{ name: "Color", value: "Black" }]. */
+    options?: Array<{ name: string; value: string }>;
   }>;
 
   // Status Flags
@@ -231,6 +236,10 @@ const ProductSchema = new Schema<IProduct>(
       type: String,
       trim: true,
     },
+    variantAxes: {
+      type: [{ _id: false, name: { type: String, trim: true }, values: [String] }],
+      default: undefined,
+    },
     variations: {
       type: [
         {
@@ -254,6 +263,10 @@ const ProductSchema = new Schema<IProduct>(
               validator: (v: string[]) => !v || (v.length <= 8 && v.every((u) => /^https?:\/\//.test(u))),
               message: "Each option can have up to 8 photos, given as web addresses",
             },
+          },
+          options: {
+            type: [{ _id: false, name: String, value: String }],
+            default: undefined,
           },
         },
       ],

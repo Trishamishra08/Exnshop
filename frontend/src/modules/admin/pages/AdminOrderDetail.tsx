@@ -194,11 +194,16 @@ export default function AdminOrderDetail() {
                 disabled={updating}
                 className="w-full px-3 py-2 border border-neutral-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500"
               >
-                {statusOptions.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
+                {statusOptions.map((status) => {
+                  // A delivered order can no longer be cancelled or rejected.
+                  const locked = order.status === 'Delivered' && (status === 'Cancelled' || status === 'Rejected');
+                  return (
+                    <option key={status} value={status} disabled={locked}>
+                      {status}
+                      {locked ? ' (not allowed after delivery)' : ''}
+                    </option>
+                  );
+                })}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-4 text-sm">

@@ -1,5 +1,6 @@
 import { useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
+import { useUnavailableSellers } from '../../hooks/useUnavailableSellers';
 import { useLocation } from '../../hooks/useLocation';
 import { useCommerceMode } from '../../context/CommerceModeContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,6 +14,7 @@ import { calculateProductPrice } from '../../utils/priceUtils';
 export default function SportsStore() {
   const navigate = useNavigate();
   const { cart, addToCart, updateQuantity } = useCart();
+  const isSellerOffline = useUnavailableSellers();
   const { location: userLocation } = useLocation();
   const { mode } = useCommerceMode();
   const [products, setProducts] = useState<Product[]>([]);
@@ -191,7 +193,9 @@ export default function SportsStore() {
                     </div>
 
                     <AnimatePresence mode="wait">
-                      {inCartQty === 0 ? (
+                      {isSellerOffline(product) ? (
+                        <div className="w-full text-center rounded-full border-2 border-neutral-200 bg-neutral-50 text-neutral-500 font-semibold text-[10px] h-7 leading-6">Seller not available</div>
+                      ) : inCartQty === 0 ? (
                         <motion.div
                           key="add-button"
                           initial={{ opacity: 0, scale: 0.8 }}

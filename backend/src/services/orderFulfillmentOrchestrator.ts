@@ -196,9 +196,7 @@ export async function recomputeOrderFulfillment(
   // and never broadcast. Otherwise (the default, and always true for Instant
   // orders — sellerOrderController.ts clears an "Admin" preference set on an
   // Instant order for exactly this reason), the order is broadcast to every
-  // nearby available delivery partner immediately so someone can accept it,
-  // matching standard quick-commerce dispatch (customer places the order,
-  // riders get a request notification right away).
+  // nearby available delivery partner as soon as the seller accepts.
   const shouldTriggerAssignment = !order.deliveryPreference;
 
   if (io && state.rejectedSellerIds.length > 0) {
@@ -247,11 +245,8 @@ export async function recomputeOrderFulfillment(
     };
   }
 
-  // This is a fallback dispatch — the order was already broadcast to nearby
-  // delivery partners at placement/payment time (see
-  // customerOrderController.ts / paymentService.ts), so this is a no-op
-  // unless that earlier attempt failed to find anyone (deliveryAssignmentStatus
-  // "Failed") or never ran (e.g. an order created before this flow existed).
+  // The seller has accepted: this is where nearby delivery partners first get
+  // the request (nothing is sent to riders when the order is placed).
   if (io) {
     await dispatchOrderToDeliveryBoys(deliveryOrder, io);
   }

@@ -36,6 +36,29 @@ const isDuplicateKey = (err: any) => err?.code === 11000;
 // Photos for one option (e.g. a colour): web addresses only, at most 8.
 const cleanOptionImages = (images: unknown): string[] | undefined =>
   Array.isArray(images) ? images.filter((u) => typeof u === "string" && /^https?:\/\//.test(u)).slice(0, 8) : undefined;
+const MAX_VARIANT_AXES = 3;
+// Option types a product varies by (e.g. RAM/Storage, Color): at most 3, each named with at least one value.
+const cleanVariantAxes = (axes: unknown): { axes?: Array<{ name: string; values: string[] }>; error?: string } => {
+  if (!Array.isArray(axes) || axes.length === 0) return { axes: undefined };
+  if (axes.length > MAX_VARIANT_AXES) return { error: `A product can vary by at most ${MAX_VARIANT_AXES} option types` };
+  const clean = axes.map((a: any) => ({
+    name: String(a?.name || "").trim(),
+    values: [...new Set<string>((Array.isArray(a?.values) ? a.values : []).map((v: any) => String(v).trim()).filter(Boolean))],
+  }));
+  if (clean.some((a) => !a.name || a.values.length === 0)) return { error: "Every option type needs a name and at least one value" };
+  if (new Set(clean.map((a) => a.name.toLowerCase())).size !== clean.length) return { error: "Each option type can be used only once" };
+  return { axes: clean };
+};
+// A combination's own value for every axis, in axis order; null when one is missing or not offered.
+const cleanVariationOptions = (options: unknown, axes: Array<{ name: string; values: string[] }>) => {
+  const given = Array.isArray(options) ? options : [];
+  const picked = axes.map((axis) => {
+    const match = given.find((o: any) => String(o?.name || "").trim() === axis.name);
+    const value = String(match?.value || "").trim();
+    return axis.values.includes(value) ? { name: axis.name, value } : null;
+  });
+  return picked.every(Boolean) ? (picked as Array<{ name: string; value: string }>) : null;
+};
 
 /**
  * Validate that the seller is allowed to add products in the given header category.
@@ -497,6 +520,24 @@ export const updateProduct = asyncHandler(
         });
       }
 
+      // Forms that don't know about option types (the classic form) send variations
+      // without `variantAxes`: keep the product's saved types and each variant's options.
+      if (!("variantAxes" in req.body)) {
+        const saved: any = await Product.findOne({ _id: id, seller: sellerId }).select("variantAxes variations").lean();
+        if (saved?.variantAxes?.length) {
+          updateData.variantAxes = saved.variantAxes;
+          updateData.variations = updateData.variations.map((v: any) => {
+            const match = (saved.variations || []).find(
+              (s: any) => (v._id && String(s._id) === String(v._id)) || s.value === (v.value || v.title)
+            );
+            return v.options || !match?.options ? v : { ...v, options: match.options };
+          });
+        }
+      }
+
+      const { axes, error: axesError } = cleanVariantAxes(updateData.variantAxes);
+      if (axesError) return res.status(400).json({ success: false, message: axesError });
+
       // Map variations and validate prices
       updateData.variations = updateData.variations.map((v: any) => ({
         ...v,
@@ -505,7 +546,21 @@ export const updateProduct = asyncHandler(
         discPrice: v.discPrice || 0,
         status: v.status || "Available",
         images: cleanOptionImages(v.images),
+        options: axes ? cleanVariationOptions(v.options, axes) : undefined,
       }));
+
+      // Multi-option products: every combination names a value for each option
+      // type, and no two combinations are the same.
+      if (axes) {
+        if (updateData.variations.some((v: any) => !v.options)) {
+          return res.status(400).json({ success: false, message: "Every variant must have a value for each option type" });
+        }
+        const keys = updateData.variations.map((v: any) => v.options.map((o: any) => o.value).join("\u0000"));
+        if (new Set(keys).size !== keys.length) {
+          return res.status(400).json({ success: false, message: "The same option combination is listed twice" });
+        }
+      }
+      updateData.variantAxes = axes;
 
       for (const variation of updateData.variations) {
         if (Number(variation.discPrice) > Number(variation.price)) {
@@ -524,6 +579,9 @@ export const updateProduct = asyncHandler(
         (acc: number, curr: any) => acc + (parseInt(curr.stock) || 0),
         0
       );
+    } else {
+      // Option types only change together with the variants they describe.
+      delete updateData.variantAxes;
     }
 
     // Handle Shop by Store fields

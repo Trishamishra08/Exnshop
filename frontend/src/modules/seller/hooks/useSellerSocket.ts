@@ -30,6 +30,7 @@ export interface SellerNotification {
     }>;
     totalAmount: number;
     deliveryOption?: string;
+    channel?: 'Quick' | 'ECommerce';
     timestamp: Date;
 }
 

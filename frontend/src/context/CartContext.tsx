@@ -2,6 +2,7 @@ import { createContext, useContext, useState, ReactNode, useMemo, useEffect, use
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 import { useLocation } from '../hooks/useLocation';
+import { useUnavailableSellers } from '../hooks/useUnavailableSellers';
 import { useCommerceMode } from './CommerceModeContext';
 import { Cart, CartItem } from '../types/cart';
 import { Product } from '../types/domain';
@@ -87,6 +88,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated, user } = useAuth();
   const { location } = useLocation();
   const { showToast } = useToast();
+  const isSellerOffline = useUnavailableSellers();
 
   // Helper to map API cart items to internal CartItem structure
   const mapApiItemsToState = useCallback((apiItems: any[]): ExtendedCartItem[] => {
@@ -356,6 +358,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (!isAuthenticated) {
       showToast("Please login first to add items to cart", "info");
       window.location.href = "/login";
+      return;
+    }
+    // Every add-to-cart button goes through here, so an offline Quick seller is
+    // refused on every page (the server refuses it as well).
+    if (isSellerOffline(product)) {
+      showToast("This seller is not available right now.", "info");
       return;
     }
 

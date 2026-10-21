@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
 import { useLocation } from '../../hooks/useLocation';
+import { useUnavailableSellers } from '../../hooks/useUnavailableSellers';
 import { useLoading } from '../../context/LoadingContext';
 import { useAppSettings } from '../../context/AppSettingsContext';
 import Button from '../../components/ui/button';
@@ -54,6 +55,7 @@ export default function ProductDetail() {
     useState<boolean>(true);
 
   const [selectedVariantIndex, setSelectedVariantIndex] = useState<number>(0);
+  const isSellerOffline = useUnavailableSellers();
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
@@ -191,6 +193,31 @@ export default function ProductDetail() {
     ? selectedVariant.status !== "Sold out" && (selectedVariant.stock === 0 || selectedVariant.stock === undefined || selectedVariant.stock === null || selectedVariant.stock > 0)
     : product?.status !== "Sold out" && (product?.stock === 0 || product?.stock === undefined || product?.stock === null || product?.stock > 0);
 
+  // Products that vary by several option types (e.g. RAM/Storage + Color) get
+  // one picker per type; each combination is still one entry in `variations`.
+  const variantAxes: { name: string; values: string[] }[] =
+    Array.isArray(product?.variantAxes) && product.variantAxes.length > 0 ? product.variantAxes : [];
+  const optionOf = (variant: any, axisName: string): string | undefined =>
+    (variant?.options || []).find((o: any) => o.name === axisName)?.value;
+  const isVariantSoldOut = (variant: any) =>
+    variant.status === "Sold out" || (variant.stock !== undefined && variant.stock !== null && variant.stock < 0);
+  // The combination matching the current picks with one option changed; if that exact
+  // combination isn't sold, the first one that has the newly picked value.
+  const variantIndexFor = (axisName: string, value: string): number => {
+    const variations: any[] = product?.variations || [];
+    const wanted = variantAxes.map((a) => (a.name === axisName ? value : optionOf(selectedVariant, a.name)));
+    const exact = variations.findIndex((v) => variantAxes.every((a, i) => optionOf(v, a.name) === wanted[i]));
+    return exact >= 0 ? exact : variations.findIndex((v) => optionOf(v, axisName) === value);
+  };
+  const pickOption = (axisName: string, value: string) => {
+    const index = variantIndexFor(axisName, value);
+    if (index >= 0) {
+      setSelectedVariantIndex(index);
+      // A different option may have different photos; start from its first one.
+      setSelectedImageIndex(0);
+    }
+  };
+
   // Get all images for gallery
   // The selected option's own photos (e.g. the Red phone) replace the product photos while it is selected.
   const productImages: string[] = product?.allImages || [product?.imageUrl || ""].filter(Boolean);
@@ -319,9 +346,15 @@ export default function ProductDetail() {
       ? { name: product.category.name, id: product.category._id }
       : null;
 
+  const isSellerUnavailable = isSellerOffline(product);
+
   const handleAddToCart = () => {
     if (!isAvailableAtLocation) {
       showToast("This service is not available in your location yet.", "info");
+      return;
+    }
+    if (isSellerUnavailable) {
+      showToast("This seller is not available right now.", "info");
       return;
     }
     if (!isVariantAvailable) {
@@ -345,6 +378,10 @@ export default function ProductDetail() {
   const handleBuyNow = async () => {
     if (!isAvailableAtLocation) {
       showToast("This service is not available in your location yet.", "info");
+      return;
+    }
+    if (isSellerUnavailable) {
+      showToast("This seller is not available right now.", "info");
       return;
     }
     if (!isVariantAvailable) {
@@ -409,6 +446,14 @@ export default function ProductDetail() {
 
       {/* Scrollable content */}
       <div className="pt-16">
+        {/* Seller offline banner (Quick seller has switched their shop off) */}
+        {isSellerUnavailable && (
+          <div className="bg-neutral-100 border-l-4 border-neutral-500 px-4 py-3 mx-4 mt-4 rounded-r-lg">
+            <p className="text-sm font-semibold text-neutral-900">Seller not available</p>
+            <p className="text-xs text-neutral-600 mt-0.5">This seller is offline right now. You can order once they are back.</p>
+          </div>
+        )}
+
         {/* Location Availability Banner */}
         {!isAvailableAtLocation && (
           <div className="bg-amber-50 border-l-4 border-amber-500 px-4 py-3 mx-4 mt-4 rounded-r-lg">
@@ -674,8 +719,47 @@ export default function ProductDetail() {
             />
           </div>
 
-          {/* Variant Selection - Only show if multiple variants */}
-          {product.variations && product.variations.length > 1 && (
+          {/* Variant Selection - one picker per option type (RAM/Storage, Color, …) */}
+          {variantAxes.length > 0 && product.variations && product.variations.length > 1 && (
+            <div className="mb-2 space-y-2.5">
+              {variantAxes.map((axis) => (
+                <div key={axis.name}>
+                  <label className="block text-xs md:text-sm font-medium text-neutral-700 mb-1.5">
+                    {axis.name}: <span className="font-semibold text-neutral-900">{optionOf(selectedVariant, axis.name) || "—"}</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {axis.values.map((value) => {
+                      const isSelected = optionOf(selectedVariant, axis.name) === value;
+                      const target = product.variations[variantIndexFor(axis.name, value)];
+                      // Exists with the other current picks? Otherwise picking it switches them too.
+                      const matchesOthers =
+                        target && variantAxes.every((a) => a.name === axis.name || optionOf(target, a.name) === optionOf(selectedVariant, a.name));
+                      const unavailable = !target || isVariantSoldOut(target);
+                      return (
+                        <button
+                          key={value}
+                          onClick={() => pickOption(axis.name, value)}
+                          disabled={!target}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border-2 ${isSelected
+                            ? "border-green-600 bg-green-50 text-green-700"
+                            : unavailable
+                              ? "border-neutral-200 bg-neutral-100 text-neutral-400 line-through"
+                              : matchesOthers
+                                ? "border-neutral-300 bg-white text-neutral-700 hover:border-green-500 hover:bg-green-50"
+                                : "border-dashed border-neutral-300 bg-white text-neutral-500 hover:border-green-500"
+                            }`}>
+                          {value}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Single option type (legacy products) */}
+          {variantAxes.length === 0 && product.variations && product.variations.length > 1 && (
             <div className="mb-2">
               <label className="block text-xs md:text-sm font-medium text-neutral-700 mb-1.5">
                 Select {product.variationType || "Variant"}:
@@ -1382,7 +1466,13 @@ export default function ProductDetail() {
 
           {/* Right side - Action Buttons (Add to Cart / Stepper AND Buy Now) */}
           <div className="ml-3 flex items-center gap-2">
-            {!isVariantAvailable ? (
+            {isSellerUnavailable ? (
+              <Button
+                disabled
+                className="px-5 py-2 text-sm font-semibold h-[38px] bg-neutral-100 text-neutral-500 border border-neutral-300 rounded-lg cursor-not-allowed">
+                Seller not available
+              </Button>
+            ) : !isVariantAvailable ? (
               <Button
                 disabled
                 className="px-5 py-2 text-sm font-semibold h-[38px] bg-neutral-100 text-neutral-400 border border-neutral-300 rounded-lg cursor-not-allowed">

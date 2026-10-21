@@ -503,7 +503,14 @@ export default function SellerOrders() {
                     paginatedOrders.map((order) => (
                       <tr key={order.id} className="hover:bg-neutral-50 transition-colors">
                         <td className="px-3 sm:px-4 md:px-6 py-3 text-xs sm:text-sm text-neutral-900">
-                          {order.orderId}
+                          <div>{order.orderId}</div>
+                          <span
+                            className={`inline-flex mt-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
+                              order.channel === 'ECommerce' ? 'bg-indigo-50 text-indigo-700' : 'bg-amber-50 text-amber-700'
+                            }`}
+                          >
+                            {order.channel === 'ECommerce' ? 'E-commerce' : 'Quick'}
+                          </span>
                         </td>
                         <td className="px-3 sm:px-4 md:px-6 py-3 text-xs sm:text-sm text-neutral-900">
                           <div className="font-medium">{order.customerName}</div>

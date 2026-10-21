@@ -101,6 +101,15 @@ router.post("/save", async (req: Request, res: Response): Promise<void> => {
 
     await user.save();
 
+    // A device belongs to whoever signed in on it last. Without this, logging
+    // into a second seller account on the same phone/browser keeps the token on
+    // the first account too, and that device gets both sellers' order alerts.
+    const tokenField = platform === "web" ? "fcmTokens" : "fcmTokenMobile";
+    await (UserModel as any).updateMany(
+      { _id: { $ne: user._id }, [tokenField]: token },
+      { $pull: { [tokenField]: token } },
+    );
+
     console.log(
       `✅ FCM token saved for ${userType} user ${userId} (${platform})`,
     );

@@ -32,6 +32,7 @@ export interface SellerOrderAlert {
   }>;
   totalAmount: number;
   deliveryOption?: string;
+  channel?: "Quick" | "ECommerce";
   timestamp: Date;
 }
 
@@ -118,6 +119,7 @@ export async function getSellerPendingOrderAlerts(
         address: order.deliveryAddress,
       },
       deliveryOption: order.deliveryOption || "Standard",
+      channel: order.channel || "Quick",
       items: sellerItems.map((item) => ({
         productName: item.productName,
         quantity: item.quantity,

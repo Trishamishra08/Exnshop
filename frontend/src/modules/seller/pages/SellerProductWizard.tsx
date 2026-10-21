@@ -31,8 +31,18 @@ const STEPS: { key: StepKey; title: string }[] = [
   { key: 'review', title: 'Review' },
 ];
 
+type VariantOption = { name: string; value: string };
+
+/** One option type the product varies by, e.g. { label: 'Color', values: ['Black', 'Blue'] }. */
+interface VariantAxis {
+  label: string;
+  values: string[];
+}
+
 interface VariationRow {
   title: string;
+  /** This combination's value for each option type (empty for a product without variants). */
+  options: VariantOption[];
   price: string;
   discPrice: string;
   stock: string;
@@ -41,7 +51,53 @@ interface VariationRow {
 }
 
 const MAX_OPTION_PHOTOS = 8;
-const emptyRow = (title = ''): VariationRow => ({ title, price: '', discPrice: '', stock: '0', sku: '', images: [] });
+const MAX_VARIANT_AXES = 3;
+const emptyRow = (title = '', options: VariantOption[] = []): VariationRow => ({ title, options, price: '', discPrice: '', stock: '0', sku: '', images: [] });
+const comboTitle = (options: VariantOption[]) => options.map((o) => o.value).join(' / ');
+
+/** Every combination of the axes' values, keeping what was already entered for a combination. */
+const buildRows = (axes: VariantAxis[], current: VariationRow[]): VariationRow[] => {
+  if (axes.length === 0) {
+    const base = current.find((r) => r.title === 'Default') || current[0];
+    return [{ ...(base || emptyRow()), title: 'Default', options: [] }];
+  }
+  let combos: VariantOption[][] = [[]];
+  for (const axis of axes) {
+    combos = combos.flatMap((combo) => axis.values.map((value) => [...combo, { name: axis.label, value }]));
+  }
+  return combos.map((options) => {
+    const title = comboTitle(options);
+    const existing = current.find((r) => r.title === title);
+    return existing ? { ...existing, options } : emptyRow(title, options);
+  });
+};
+
+const rowFromVariation = (v: any, options: VariantOption[]): VariationRow => ({
+  title: v.value || v.title || '',
+  options,
+  price: String(v.price ?? ''),
+  discPrice: v.discPrice ? String(v.discPrice) : '',
+  stock: String(v.stock ?? 0),
+  sku: v.sku || '',
+  images: v.images || [],
+});
+
+/** Reads a saved product's option types and combinations (legacy products have a single type). */
+const variantsFromProduct = (p: any): { axes: VariantAxis[]; rows: VariationRow[] } => {
+  const vs: any[] = p.variations || [];
+  if (vs.length === 0 || (vs.length === 1 && /^default$/i.test(vs[0].value || vs[0].title || 'Default'))) {
+    return { axes: [], rows: [vs.length ? { ...rowFromVariation(vs[0], []), title: 'Default' } : emptyRow('Default')] };
+  }
+  if (Array.isArray(p.variantAxes) && p.variantAxes.length > 0) {
+    return {
+      axes: p.variantAxes.map((a: any) => ({ label: a.name, values: a.values || [] })),
+      rows: vs.map((v) => rowFromVariation(v, v.options || [])),
+    };
+  }
+  const label = p.variationType || 'Option';
+  const values = [...new Set(vs.map((v) => String(v.value || v.title || '')).filter(Boolean))];
+  return { axes: [{ label, values }], rows: vs.map((v) => rowFromVariation(v, [{ name: label, value: v.value || v.title || '' }])) };
+};
 
 const inputCls =
   'w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent disabled:bg-neutral-50';
@@ -109,9 +165,10 @@ export default function SellerProductWizard() {
   const [attributes, setAttributes] = useState<Record<string, any>>({});
 
   // Variants / price
-  const [variationMode, setVariationMode] = useState<string>('none'); // 'none' | attribute key | 'custom'
+  const [axes, setAxes] = useState<VariantAxis[]>([]); // empty = no variants
   const [rows, setRows] = useState<VariationRow[]>([emptyRow('Default')]);
-  const [customTitle, setCustomTitle] = useState('');
+  const [axisDrafts, setAxisDrafts] = useState<Record<number, string>>({}); // typed values for own option types
+  const [newAxisName, setNewAxisName] = useState('');
   const [taxId, setTaxId] = useState('');
   const [hsnCode, setHsnCode] = useState('');
   const [handlingTimeDays, setHandlingTimeDays] = useState('1');
@@ -192,27 +249,9 @@ export default function SellerProductWizard() {
     setIsReturnable(p.isReturnable !== false);
     setMaxReturnDays(p.maxReturnDays ? String(p.maxReturnDays) : '');
     setDocs(p.complianceDocs || []);
-    const vs: any[] = p.variations || [];
-    if (vs.length === 0 || (vs.length === 1 && /^default$/i.test(vs[0].value || vs[0].title || 'Default'))) {
-      setVariationMode('none');
-      setRows([
-        vs.length
-          ? { title: 'Default', price: String(vs[0].price ?? ''), discPrice: vs[0].discPrice ? String(vs[0].discPrice) : '', stock: String(vs[0].stock ?? 0), sku: vs[0].sku || '', images: vs[0].images || [] }
-          : emptyRow('Default'),
-      ]);
-    } else {
-      setVariationMode(p.variationType ? `type:${p.variationType}` : 'custom');
-      setRows(
-        vs.map((v) => ({
-          title: v.value || v.title || '',
-          price: String(v.price ?? ''),
-          discPrice: v.discPrice ? String(v.discPrice) : '',
-          stock: String(v.stock ?? 0),
-          sku: v.sku || '',
-          images: v.images || [],
-        }))
-      );
-    }
+    const variants = variantsFromProduct(p);
+    setAxes(variants.axes);
+    setRows(variants.rows);
   }, []);
 
   useEffect(() => {
@@ -265,15 +304,6 @@ export default function SellerProductWizard() {
       })
       .catch(() => setConfig(null));
   }, [headerCategory, category, subcategory, subSubCategory]);
-
-  // Resolve 'type:<label>' once the attributes have loaded
-  useEffect(() => {
-    if (variationMode.startsWith('type:') && config) {
-      const label = variationMode.slice(5);
-      const match = variantAttributes.find((a) => a.label === label);
-      setVariationMode(match ? match.key : 'custom');
-    }
-  }, [variationMode, variantAttributes, config]);
 
   const categoriesForHeader = useMemo(
     () => allCategories.filter((c) => !headerCategory || idOf(c.headerCategoryId) === headerCategory),
@@ -329,7 +359,7 @@ export default function SellerProductWizard() {
       case 'attributes':
         return !readiness.some((m) => m.step === 'attributes');
       case 'variants':
-        return rows.length > 0 && rows.every((r) => r.title.trim());
+        return rows.length > 0 && axes.every((a) => a.values.length > 0);
       case 'price':
         return !readiness.some((m) => m.step === 'price');
       case 'shipping':
@@ -450,8 +480,9 @@ export default function SellerProductWizard() {
   };
 
   const onNextVariants = async () => {
-    if (rows.some((r) => !r.title.trim())) return setError('Every variation needs a name.');
-    if (variationMode !== 'none' && rows.length === 0) return setError('Choose or add at least one variation.');
+    const empty = axes.find((a) => a.values.length === 0);
+    if (empty) return setError(`Choose at least one ${empty.label} option, or remove ${empty.label}.`);
+    if (rows.length === 0) return setError('Choose or add at least one variation.');
     next();
   };
 
@@ -461,17 +492,19 @@ export default function SellerProductWizard() {
     if (problems.length) return setError(`Fix: ${problems.join(', ')}.`);
     if (needsHsn && !hsnCode.trim()) return setError('Enter the HSN code for this product.');
     const ok = await run(async () => {
-      const typeLabel = variantAttributes.find((a) => a.key === variationMode)?.label;
+      const hasVariants = axes.length > 0;
       const res = await saveListing(productId, {
-        variationType: variationMode === 'none' ? '' : typeLabel || 'Other',
+        variationType: axes.map((a) => a.label).join(' / '),
+        variantAxes: axes.map((a) => ({ name: a.label, values: a.values })),
         variations: rows.map((r) => ({
-          title: variationMode === 'none' ? 'Default' : r.title.trim(),
+          title: hasVariants ? r.title : 'Default',
+          ...(hasVariants ? { name: axes.map((a) => a.label).join(' / '), options: r.options } : {}),
           price: Number(r.price),
           discPrice: r.discPrice ? Number(r.discPrice) : 0,
           stock: Number(r.stock || 0),
           ...(r.sku.trim() ? { sku: r.sku.trim() } : {}),
           // Only options (not the single default) carry their own photos.
-          images: variationMode === 'none' ? [] : r.images,
+          images: hasVariants ? r.images : [],
           status: 'Available',
         })),
         taxId: taxId || undefined,
@@ -486,9 +519,10 @@ export default function SellerProductWizard() {
   };
 
   const setRowsFromServer = (p: any) => {
-    const vs: any[] = p.variations || [];
-    if (!vs.length) return;
-    setRows(vs.map((v) => ({ title: v.value || v.title || '', price: String(v.price ?? ''), discPrice: v.discPrice ? String(v.discPrice) : '', stock: String(v.stock ?? 0), sku: v.sku || '', images: v.images || [] })));
+    if (!(p.variations || []).length) return;
+    const variants = variantsFromProduct(p);
+    setAxes(variants.axes);
+    setRows(variants.rows);
   };
 
   const onNextShipping = async () => {
@@ -582,23 +616,58 @@ export default function SellerProductWizard() {
   };
 
   // ── Variants helpers ──
-  const chooseMode = (mode: string) => {
-    setVariationMode(mode);
+  // Rows always follow the option types: one row per combination of their values.
+  const updateAxes = (next: VariantAxis[]) => {
+    setAxes(next);
+    setRows((current) => buildRows(next, current));
     setError('');
-    if (mode === 'none') setRows([{ ...(rows[0] || emptyRow('Default')), title: 'Default' }]);
-    else setRows([]);
   };
-  const toggleValue = (value: string) =>
-    setRows((current) => (current.some((r) => r.title === value) ? current.filter((r) => r.title !== value) : [...current, emptyRow(value)]));
-  const addCustom = () => {
-    const t = customTitle.trim();
-    if (!t) return;
-    if (rows.some((r) => r.title.toLowerCase() === t.toLowerCase())) return setError(`"${t}" is already added.`);
-    setRows((c) => [...c, emptyRow(t)]);
-    setCustomTitle('');
-    setError('');
+  const addAxis = (label: string) => {
+    const name = label.trim();
+    if (!name) return;
+    if (axes.length >= MAX_VARIANT_AXES) return setError(`A product can vary by at most ${MAX_VARIANT_AXES} option types.`);
+    if (axes.some((a) => a.label.toLowerCase() === name.toLowerCase())) return setError(`${name} is already added.`);
+    updateAxes([...axes, { label: name, values: [] }]);
+    setNewAxisName('');
+  };
+  const removeAxis = (index: number) => {
+    updateAxes(axes.filter((_, i) => i !== index));
+    setAxisDrafts({});
+  };
+  const toggleAxisValue = (index: number, value: string) =>
+    updateAxes(
+      axes.map((a, i) =>
+        i !== index ? a : { ...a, values: a.values.includes(value) ? a.values.filter((v) => v !== value) : [...a.values, value] }
+      )
+    );
+  const addAxisValue = (index: number) => {
+    const value = (axisDrafts[index] || '').trim();
+    if (!value) return;
+    const axis = axes[index];
+    if (axis.values.some((v) => v.toLowerCase() === value.toLowerCase())) return setError(`"${value}" is already added.`);
+    toggleAxisValue(index, value);
+    setAxisDrafts((d) => ({ ...d, [index]: '' }));
   };
   const updateRow = (index: number, patch: Partial<VariationRow>) => setRows((c) => c.map((r, i) => (i === index ? { ...r, ...patch } : r)));
+  // Fills every combination with the first one's price and stock (common when only colour differs).
+  const copyFirstRowToAll = () =>
+    setRows((c) => c.map((r, i) => (i === 0 ? r : { ...r, price: c[0].price, discPrice: c[0].discPrice, stock: c[0].stock })));
+  // Phones and clothes look the same across storage/size: share one colour's photos with all its combinations.
+  const colourAxis = axes.find((a) => /colou?r/i.test(a.label));
+  const sharePhotosByColour = (index: number) => {
+    if (!colourAxis) return;
+    const colour = rows[index].options.find((o) => o.name === colourAxis.label)?.value;
+    const images = rows[index].images;
+    setRows((c) => c.map((r) => (r.options.some((o) => o.name === colourAxis.label && o.value === colour) ? { ...r, images } : r)));
+  };
+  // What the customer pays for one unit, before the delivery fee (that depends on their location).
+  const pricing = config?.pricing;
+  const customerPrice = (r: VariationRow) => {
+    const selling = Number(r.discPrice) > 0 ? Number(r.discPrice) : Number(r.price) || 0;
+    const gst = Math.round(selling * (pricing?.gstRate || 0)) / 100;
+    const platformFee = pricing?.platformFee || 0;
+    return { selling, gst, platformFee, total: selling + gst + platformFee };
+  };
 
   const [uploadingRow, setUploadingRow] = useState<number | null>(null);
   const onOptionPhotos = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -944,72 +1013,127 @@ export default function SellerProductWizard() {
         {step === 'variants' && (
           <>
             <h2 className="text-base font-bold text-neutral-900">Variants</h2>
-            <Field label="Does this product come in different options?">
-              <div className="space-y-2">
-                {[
-                  { value: 'none', label: 'No variants' },
-                  ...variantAttributes.map((a) => ({ value: a.key, label: a.label })),
-                  { value: 'custom', label: 'Other (type your own, e.g. pack size)' },
-                ].map((o) => (
-                  <label key={o.value} className="flex items-center gap-2 text-sm text-neutral-800">
-                    <input type="radio" name="variantMode" checked={variationMode === o.value} onChange={() => chooseMode(o.value)} />
-                    {o.label}
-                  </label>
-                ))}
-              </div>
-            </Field>
+            <p className="text-xs text-neutral-500">
+              Add up to {MAX_VARIANT_AXES} option types. Every combination gets its own price, stock and photos — e.g. a mobile with RAM/Storage
+              (8/128 GB, 12/256 GB) and Color (Black, Blue) becomes 4 variants.
+            </p>
 
-            {variantAttributes.some((a) => a.key === variationMode) && (
-              <Field label={`Choose the ${variantAttributes.find((a) => a.key === variationMode)?.label.toLowerCase()} options you sell`}>
+            {axes.length === 0 && (
+              <p className="text-sm rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-neutral-700">
+                No variants — this product is sold in one form only.
+              </p>
+            )}
+
+            <div className="space-y-3">
+              {axes.map((axis, ai) => {
+                const attr = variantAttributes.find((a) => a.label === axis.label);
+                // Values saved earlier that aren't in the category's list stay selectable.
+                const listed = attr ? [...attr.allowedValues, ...axis.values.filter((v) => !attr.allowedValues.includes(v))] : [];
+                return (
+                  <div key={axis.label} className="rounded-xl border border-neutral-200 overflow-hidden">
+                    <div className="px-4 py-2.5 bg-neutral-50 border-b border-neutral-200 flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-neutral-800">
+                        {ai + 1}. {axis.label}
+                        <span className="ml-2 text-[11px] font-normal text-neutral-500">{axis.values.length} selected</span>
+                      </h3>
+                      <button type="button" onClick={() => removeAxis(ai)} className="text-xs font-semibold text-red-600 hover:underline">
+                        Remove
+                      </button>
+                    </div>
+                    <div className="p-4 space-y-2">
+                      {attr ? (
+                        <div className="flex flex-wrap gap-2">
+                          {listed.map((v) => {
+                            const on = axis.values.includes(v);
+                            return (
+                              <button
+                                key={v}
+                                type="button"
+                                onClick={() => toggleAxisValue(ai, v)}
+                                className={`px-3 py-1.5 rounded-full border text-xs font-semibold ${on ? 'bg-teal-50 border-teal-500 text-teal-800' : 'bg-white border-neutral-300 text-neutral-600'}`}
+                              >
+                                {v}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex gap-2">
+                            <input
+                              className={inputCls}
+                              placeholder={`Add a ${axis.label.toLowerCase()} value`}
+                              value={axisDrafts[ai] || ''}
+                              onChange={(e) => setAxisDrafts((d) => ({ ...d, [ai]: e.target.value }))}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  addAxisValue(ai);
+                                }
+                              }}
+                            />
+                            <button type="button" onClick={() => addAxisValue(ai)} className="px-4 rounded-xl bg-teal-600 text-white text-sm font-semibold">
+                              Add
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {axis.values.map((v) => (
+                              <span key={v} className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-neutral-100 text-xs font-semibold">
+                                {v}
+                                <button type="button" onClick={() => toggleAxisValue(ai, v)} className="text-neutral-500" aria-label={`Remove ${v}`}>
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {axes.length < MAX_VARIANT_AXES && (
+              <Field label={axes.length === 0 ? 'Does this product come in different options? Add an option type' : 'Add another option type'}>
                 <div className="flex flex-wrap gap-2">
                   {variantAttributes
-                    .find((a) => a.key === variationMode)!
-                    .allowedValues.map((v) => {
-                      const on = rows.some((r) => r.title === v);
-                      return (
-                        <button
-                          key={v}
-                          type="button"
-                          onClick={() => toggleValue(v)}
-                          className={`px-3 py-1.5 rounded-full border text-xs font-semibold ${on ? 'bg-teal-50 border-teal-500 text-teal-800' : 'bg-white border-neutral-300 text-neutral-600'}`}
-                        >
-                          {v}
-                        </button>
-                      );
-                    })}
+                    .filter((a) => !axes.some((x) => x.label === a.label))
+                    .map((a) => (
+                      <button
+                        key={a.key}
+                        type="button"
+                        onClick={() => addAxis(a.label)}
+                        className="px-3 py-1.5 rounded-full border border-dashed border-teal-500 text-teal-700 text-xs font-semibold hover:bg-teal-50"
+                      >
+                        + {a.label}
+                      </button>
+                    ))}
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <input
+                    className={inputCls}
+                    placeholder="Or type your own, e.g. Pack size, RAM/Storage"
+                    value={newAxisName}
+                    onChange={(e) => setNewAxisName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addAxis(newAxisName);
+                      }
+                    }}
+                  />
+                  <button type="button" onClick={() => addAxis(newAxisName)} className="px-4 rounded-xl bg-teal-600 text-white text-sm font-semibold">
+                    Add
+                  </button>
                 </div>
               </Field>
             )}
 
-            {variationMode === 'custom' && (
-              <Field label="Add options" hint="e.g. 250 g, 500 g, 1 kg">
-                <div className="flex gap-2">
-                  <input
-                    className={inputCls}
-                    value={customTitle}
-                    onChange={(e) => setCustomTitle(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addCustom();
-                      }
-                    }}
-                  />
-                  <button type="button" onClick={addCustom} className="px-4 rounded-xl bg-teal-600 text-white text-sm font-semibold">
-                    Add
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {rows.map((r) => (
-                    <span key={r.title} className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-neutral-100 text-xs font-semibold">
-                      {r.title}
-                      <button type="button" onClick={() => toggleValue(r.title)} className="text-neutral-500">
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </Field>
+            {axes.length > 0 && (
+              <p className="text-xs text-neutral-600">
+                {rows.length} combination{rows.length === 1 ? '' : 's'} will be listed. You'll set the price and stock of each in the next step.
+              </p>
             )}
           </>
         )}
@@ -1018,11 +1142,29 @@ export default function SellerProductWizard() {
           <>
             <h2 className="text-base font-bold text-neutral-900">Price & stock</h2>
             <p className="text-xs text-neutral-500">MRP is the printed price. Add a selling price only if you sell for less. Stock 0 means unlimited.</p>
+            {rows.length > 1 && (
+              <div className="flex justify-end">
+                <button type="button" onClick={copyFirstRowToAll} className="text-xs font-semibold text-teal-700 hover:underline">
+                  Copy first variant's price & stock to all
+                </button>
+              </div>
+            )}
             <div className="space-y-3">
               {rows.length === 0 && <p className="text-sm text-amber-700">Go back to Variants and pick the options you sell.</p>}
               {rows.map((r, i) => (
                 <div key={r.title + i} className="rounded-xl border border-neutral-200 p-3 grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  <div className="col-span-2 sm:col-span-5 text-sm font-semibold text-neutral-800">{variationMode === 'none' ? 'Your product' : r.title}</div>
+                  <div className="col-span-2 sm:col-span-5 flex flex-wrap items-center gap-1.5">
+                    {axes.length === 0 ? (
+                      <span className="text-sm font-semibold text-neutral-800">Your product</span>
+                    ) : (
+                      r.options.map((o) => (
+                        <span key={o.name} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-100 text-xs">
+                          <span className="text-neutral-500">{o.name}:</span>
+                          <span className="font-semibold text-neutral-900">{o.value}</span>
+                        </span>
+                      ))
+                    )}
+                  </div>
                   <Field label="MRP (₹)" required>
                     <input type="number" min="0" className={inputCls} value={r.price} onChange={(e) => updateRow(i, { price: e.target.value })} />
                   </Field>
@@ -1037,7 +1179,27 @@ export default function SellerProductWizard() {
                       <input className={inputCls} value={r.sku} onChange={(e) => updateRow(i, { sku: e.target.value })} />
                     </Field>
                   </div>
-                  {variationMode !== 'none' && (
+                  {Number(r.price) > 0 && (
+                    <div className="col-span-2 sm:col-span-5 rounded-lg bg-teal-50/60 border border-teal-100 px-3 py-2 text-xs text-neutral-700">
+                      {(() => {
+                        const p = customerPrice(r);
+                        return (
+                          <>
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                              <span>Selling price ₹{p.selling.toFixed(2)}</span>
+                              <span>+ GST {pricing?.gstRate || 0}% ₹{p.gst.toFixed(2)}</span>
+                              <span>+ Platform fee ₹{p.platformFee.toFixed(2)}</span>
+                              <span className="font-bold text-neutral-900">= Customer pays ₹{p.total.toFixed(2)}</span>
+                            </div>
+                            <p className="mt-1 text-[11px] text-neutral-500">
+                              + Delivery fee, worked out at checkout from the customer's location. The platform fee is charged once per order.
+                            </p>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  {axes.length > 0 && (
                     <div className="col-span-2 sm:col-span-5">
                       <Field
                         label={`Photos for ${r.title || 'this option'}`}
@@ -1064,6 +1226,11 @@ export default function SellerProductWizard() {
                             </label>
                           )}
                         </div>
+                        {colourAxis && axes.length > 1 && r.images.length > 0 && (
+                          <button type="button" onClick={() => sharePhotosByColour(i)} className="mt-1.5 text-xs font-semibold text-teal-700 hover:underline">
+                            Use these photos for every {r.options.find((o) => o.name === colourAxis.label)?.value} variant
+                          </button>
+                        )}
                       </Field>
                     </div>
                   )}

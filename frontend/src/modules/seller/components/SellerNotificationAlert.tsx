@@ -89,6 +89,8 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
 
   if (!notification) return null;
 
+  const isECommerce = notification.channel === 'ECommerce';
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black bg-opacity-60 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in duration-300">
@@ -168,7 +170,11 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
           <section className="mb-6">
             <div className="flex justify-between items-center mb-3">
               <h3 className="text-sm font-semibold text-neutral-500 uppercase tracking-wider">Delivery Details</h3>
-              {notification.deliveryOption && (
+              {isECommerce ? (
+                <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-sm bg-indigo-100 text-indigo-700 border border-indigo-200">
+                  E-commerce · Ships by courier
+                </span>
+              ) : notification.deliveryOption && (
                 <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide shadow-sm ${notification.deliveryOption === 'Instant'
                   ? 'bg-amber-100 text-amber-700 border border-amber-200'
                   : 'bg-blue-100 text-blue-700 border border-blue-200'
@@ -218,7 +224,8 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
           {notification.type === 'NEW_ORDER' ? (
             <div className="flex gap-4">
               <button
-                onClick={() => setShowAssignPopup(true)}
+                // E-commerce orders ship by courier — nothing to choose about riders.
+                onClick={() => (isECommerce ? handleStatusUpdate('Accepted') : setShowAssignPopup(true))}
                 disabled={loading}
                 className="flex-1 py-4 rounded-xl font-bold text-white shadow-lg bg-teal-600 hover:bg-teal-700 transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >

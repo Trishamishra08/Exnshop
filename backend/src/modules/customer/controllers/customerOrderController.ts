@@ -7,7 +7,6 @@ import Seller from "../../../models/Seller";
 import mongoose from "mongoose";
 import { calculateDistance } from "../../../utils/locationHelper";
 import { notifySellersOfOrderUpdate } from "../../../services/sellerNotificationService";
-import { dispatchOrderToDeliveryBoys } from "../../../services/orderNotificationService";
 import { sendOrderStatusNotification } from "../../../services/notificationService";
 import { generateDeliveryOtp } from "../../../services/deliveryOtpService";
 import AppSettings from "../../../models/AppSettings";
@@ -391,6 +390,15 @@ async function buildAndSaveChannelOrder(params: {
 
     // Check each seller can deliver to user's location
     for (const seller of sellers) {
+      // A Quick seller who has gone offline can't take orders, even for items
+      // that were added to the cart while they were still live.
+      if (seller.isShopOpen === false) {
+        return {
+          success: false,
+          status: 403,
+          message: `${seller.storeName} is not available right now. Please remove their items from your cart to continue.`,
+        };
+      }
       if (!seller.location || !seller.location.coordinates) {
         return {
           success: false,
@@ -975,12 +983,8 @@ export const createOrder = async (req: Request, res: Response) => {
             console.log(
               `📢 [COD] Async seller notification triggered for order ${builtOrder.orderNumber}`,
             );
-            // Quick-commerce orders dispatch to nearby delivery partners
-            // immediately — customers shouldn't wait on seller acceptance for
-            // a rider to get a request.
-            dispatchOrderToDeliveryBoys(builtOrder, io).catch((e) =>
-              console.error("Error dispatching order to delivery boys:", e)
-            );
+            // Riders are requested only once the seller accepts the order
+            // (orderFulfillmentOrchestrator.recomputeOrderFulfillment).
           } else {
             console.log(
               `⏳ [Online] Seller notification deferred for order ${builtOrder.orderNumber} until payment success`,

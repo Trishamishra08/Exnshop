@@ -247,6 +247,20 @@ export const getProducts = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Quick sellers who are offline (shop switched off) right now. The customer app
+ * keeps showing their products but greys them out as "Seller not available";
+ * the cart and checkout refuse them on the server as well.
+ */
+export const getUnavailableSellers = async (_req: Request, res: Response) => {
+  try {
+    const ids = await Seller.find({ isShopOpen: false, channels: "Quick", status: "Approved" }).distinct("_id");
+    return res.status(200).json({ success: true, data: ids.map(String) });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: "Error fetching seller availability", error: error.message });
+  }
+};
+
 // Log a click on a sponsored product card (public, fire-and-forget from the frontend)
 export const logAdClick = async (req: Request, res: Response) => {
   try {

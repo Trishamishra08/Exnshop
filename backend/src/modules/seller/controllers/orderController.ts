@@ -136,6 +136,7 @@ export const getOrders = asyncHandler(async (req: Request, res: Response) => {
     }),
     status: order.status === "On the way" ? "On the way" : order.status,
     amount: order.total,
+    channel: order.channel || "Quick",
     customerName: (order.customer as any)?.name || order.customerName || "",
     customerPhone: (order.customer as any)?.phone || order.customerPhone || "",
     deliveryBoyName: (order.deliveryBoy as any)?.name || (order.deliveryPreference === 'Self' ? 'Self Assign' : ""),
@@ -381,19 +382,39 @@ export const getOrderById = asyncHandler(
       return {
         srNo: item._id.toString().slice(-4), // Use last 4 chars of ID as srNo
         product: item.productName || "Unknown Product",
+        image: item.productImage || product?.mainImage || "",
+        sku: item.sku || "",
         soldBy: (item.seller as any)?.storeName || "N/A",
         unit: unit,
         price: item.unitPrice || 0,
         tax: 0,
         taxPercent: 0,
+        // GST snapshot for the E-commerce order screen
+        gst: item.gstAmount || 0,
+        gstPercent: item.gstRate || 0,
         qty: item.quantity || 0,
         subtotal: item.total || 0,
       };
     });
 
+    const sellerIdStr = sellerId.toString();
+    const myShipment =
+      (order.shiprocketShipments || []).find((s: any) => s.seller?.toString() === sellerIdStr) ||
+      (order.shiprocketShipments?.length ? undefined : order.shiprocket);
+
     // Format order data for frontend
     const orderDetail = {
       id: order._id,
+      orderNumber: order.orderNumber,
+      channel: order.channel || "Quick",
+      shipment: myShipment
+        ? {
+            awbCode: myShipment.awbCode || "",
+            courierName: myShipment.courierName || "",
+            trackingUrl: myShipment.trackingUrl || "",
+            status: myShipment.status || "",
+          }
+        : null,
       invoiceNumber: order.invoiceNumber || order.orderNumber || "N/A",
       orderDate: order.orderDate
         ? order.orderDate.toISOString()
@@ -406,6 +427,8 @@ export const getOrderById = asyncHandler(
       customerName: (order.customer as any)?.name || order.customerName || "",
       customerEmail:
         (order.customer as any)?.email || order.customerEmail || "",
+      customerPhone:
+        (order.customer as any)?.phone || order.customerPhone || "",
       deliveryBoyName: (order.deliveryBoy as any)?.name || "",
       deliveryBoyPhone: (order.deliveryBoy as any)?.mobile || "",
       deliveryPreference: order.deliveryPreference,
@@ -435,22 +458,8 @@ export const updateOrderStatus = asyncHandler(
   async (req: Request, res: Response) => {
     const sellerId = (req as any).user.userId;
     const { id } = req.params;
-    const { status, deliveryPreference } = req.body;
-
-    // Validate allowed status updates for seller
-    const allowedStatuses = [
-      "Accepted",
-      "On the way",
-      "Delivered",
-      "Cancelled",
-      "Rejected",
-    ];
-    if (!allowedStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid status. Seller can only update to: ${allowedStatuses.join(", ")}`,
-      });
-    }
+    const { status } = req.body;
+    let { deliveryPreference } = req.body;
 
     // Check if this seller has items in this order
     const sellerItems = await OrderItem.findOne({
@@ -470,6 +479,33 @@ export const updateOrderStatus = asyncHandler(
       return res.status(404).json({
         success: false,
         message: "Order not found",
+      });
+    }
+
+    // Quick orders are delivered by a rider (or the seller), so the seller moves
+    // them along to delivery. E-commerce orders go by courier: the seller only
+    // accepts and packs them, and the courier's tracking updates mark them
+    // shipped and delivered.
+    const isECommerce = order.channel === "ECommerce";
+    const allowedStatuses = isECommerce
+      ? ["Accepted", "Processed", "Cancelled", "Rejected"]
+      : ["Accepted", "On the way", "Delivered", "Cancelled", "Rejected"];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: isECommerce
+          ? "E-commerce orders are shipped by courier. You can accept, reject, mark as packed or cancel them; the courier updates shipping and delivery."
+          : `Invalid status. Seller can only update to: ${allowedStatuses.join(", ")}`,
+      });
+    }
+    // No rider is assigned to a courier shipment.
+    if (isECommerce) deliveryPreference = undefined;
+
+    // A delivered order can no longer be cancelled or rejected.
+    if (order.status === "Delivered" && (status === "Cancelled" || status === "Rejected")) {
+      return res.status(400).json({
+        success: false,
+        message: `A delivered order cannot be ${status.toLowerCase()}`,
       });
     }
 
@@ -672,6 +708,13 @@ export const getAvailableDeliveryPartners = asyncHandler(
       });
     }
 
+    if (order.channel === "ECommerce") {
+      return res.status(400).json({
+        success: false,
+        message: "E-commerce orders are shipped by courier; no delivery partner is assigned.",
+      });
+    }
+
     // Get seller location for proximity calculation
     const Seller = (await import("../../../models/Seller")).default;
     const seller = await Seller.findById(sellerId).select("latitude longitude serviceRadiusKm");
@@ -782,6 +825,20 @@ export const assignDeliveryBoySeller = asyncHandler(
       return res.status(403).json({
         success: false,
         message: "You are not authorized to assign delivery for this order",
+      });
+    }
+
+    if (order.channel === "ECommerce") {
+      return res.status(400).json({
+        success: false,
+        message: "E-commerce orders are shipped by courier; no delivery partner is assigned.",
+      });
+    }
+
+    if (["Received", "Pending"].includes(order.status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Accept the order first, then assign a delivery partner.",
       });
     }
 

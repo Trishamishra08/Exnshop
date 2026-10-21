@@ -380,14 +380,7 @@ export const addToCart = async (req: Request, res: Response) => {
             return res.status(404).json({ success: false, message: 'Product not found or unavailable' });
         }
 
-        // Check if seller's shop is open
         const seller = product.seller as any;
-        if (seller && seller.isShopOpen === false) {
-            return res.status(400).json({
-                success: false,
-                message: 'Seller is not available at this moment'
-            });
-        }
 
         // The cart a product belongs to is derived from ITS seller's channel(s)
         // — a single-channel seller always lands in that channel regardless of
@@ -400,6 +393,16 @@ export const addToCart = async (req: Request, res: Response) => {
         // ECommerce "Shop All" section silently lands in the Quick cart instead,
         // with no visible change on the page the customer is looking at.
         const channel: 'Quick' | 'ECommerce' = resolveSellerChannel(seller?.channels, requestedChannel);
+
+        // Quick orders need the seller live right now. E-commerce orders ship
+        // later by courier (and can be scheduled), so an offline seller can
+        // still receive them.
+        if (channel === 'Quick' && seller && seller.isShopOpen === false) {
+            return res.status(400).json({
+                success: false,
+                message: 'Seller is not available at this moment'
+            });
+        }
 
         // Quick items are rider-delivered and therefore require a serviceable
         // location; E-commerce items ship nationally via courier and don't.

@@ -918,18 +918,22 @@ export default function OrderDetail() {
       color: "bg-amber-600",
     },
     Processed: {
-      title: "Order processed",
-      subtitle: "Preparing for delivery",
+      title: isECommerce ? "Packed" : "Order processed",
+      subtitle: isECommerce ? "Waiting for the courier to pick it up" : "Preparing for delivery",
       color: "bg-emerald-700",
     },
     Shipped: {
       title: "Order shipped",
-      subtitle: "On the way to you",
+      subtitle: isECommerce ? "In transit with the courier" : "On the way to you",
       color: "bg-blue-600",
     },
+    // Courier pickup — E-commerce only; Quick orders keep their original fallback.
+    ...(isECommerce
+      ? { "Picked up": { title: "Shipped", subtitle: "The courier has picked up your order", color: "bg-blue-600" } }
+      : {}),
     "Out for Delivery": {
       title: "Out for delivery",
-      subtitle: `Arriving in ${estimatedTime} mins`,
+      subtitle: isECommerce ? "The courier will deliver it today" : `Arriving in ${estimatedTime} mins`,
       color: "bg-emerald-700",
     },
     Cancelled: {
@@ -1031,7 +1035,7 @@ export default function OrderDetail() {
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.2 }}>
             <span className="text-sm">{currentStatus.subtitle}</span>
-            {(orderStatus === "Accepted" || orderStatus === "On the way") && (
+            {!isECommerce && (orderStatus === "Accepted" || orderStatus === "On the way") && (
               <>
                 <span className="w-1 h-1 rounded-full bg-white" />
                 <span className="text-sm text-green-200">On time</span>
@@ -1176,6 +1180,62 @@ export default function OrderDetail() {
             </div>
           </motion.div>
         )}
+
+        {/* Courier shipment - ECommerce orders only (one card per seller's parcel) */}
+        {isECommerce && !["Cancelled", "Returned"].includes(orderStatus) && (() => {
+          const shipments: any[] = (order as any)?.shiprocketShipments?.length
+            ? (order as any).shiprocketShipments
+            : (order as any)?.shiprocket
+              ? [(order as any).shiprocket]
+              : [];
+          const ecSteps = ["Confirmed", "Packed", "Shipped", "Delivered"];
+          const status: string = orderStatus; // the backend sends courier statuses too (Shipped, Picked up…)
+          const ecStep =
+            status === "Delivered" ? 3
+              : ["Shipped", "Picked up", "Out for Delivery", "On the way"].includes(status) ? 2
+                : status === "Processed" ? 1
+                  : 0;
+          return (
+            <motion.div
+              className="bg-white rounded-xl p-4 shadow-sm"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}>
+              <p className="font-semibold text-gray-900 mb-3">Shipping by courier</p>
+              <ol className="flex items-start mb-3">
+                {ecSteps.map((label, i) => (
+                  <li key={label} className="flex-1 flex flex-col items-center text-center">
+                    <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center ${i <= ecStep ? "bg-emerald-600 text-white" : "bg-gray-200 text-gray-500"}`}>
+                      {i <= ecStep ? "✓" : i + 1}
+                    </span>
+                    <span className={`mt-1 text-[11px] ${i <= ecStep ? "text-gray-900 font-semibold" : "text-gray-400"}`}>{label}</span>
+                  </li>
+                ))}
+              </ol>
+              {shipments.length === 0 ? (
+                <p className="text-sm text-gray-500">Courier details will appear here once your order is packed.</p>
+              ) : (
+                <div className="space-y-2">
+                  {shipments.map((s, i) => (
+                    <div key={s.shipmentId || s.awbCode || i} className="rounded-lg bg-gray-50 px-3 py-2 text-sm">
+                      {shipments.length > 1 && <p className="text-xs font-semibold text-gray-500 mb-0.5">Parcel {i + 1}</p>}
+                      <p className="text-gray-900">
+                        {s.courierName || "Courier partner"}
+                        {s.awbCode && <span className="text-gray-500"> · AWB {s.awbCode}</span>}
+                      </p>
+                      {s.status && <p className="text-xs text-gray-500">{s.status}</p>}
+                      {s.trackingUrl && (
+                        <a href={s.trackingUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-emerald-700 hover:underline">
+                          Track shipment ↗
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          );
+        })()}
 
         {/* Tip Section - Quick orders only; no rider to tip on an ECommerce courier shipment */}
         {!isECommerce && !["Delivered", "Completed", "Cancelled", "Returned"].includes(orderStatus) && (

@@ -4,6 +4,7 @@ import { useRef, useMemo, useCallback } from 'react';
 import { Product } from '../../../types/domain';
 import { useCart } from '../../../context/CartContext';
 import { useWishlist } from '../../../hooks/useWishlist';
+import { useUnavailableSellers } from '../../../hooks/useUnavailableSellers';
 import { useTranslation } from '../../../hooks/useTranslation';
 import Button from '../../../components/ui/button';
 import Badge from '../../../components/ui/badge';
@@ -51,6 +52,7 @@ export default function ProductCard({
   // Stabilize IDs
   const productId = useMemo(() => ((product as any).id || product._id) as string, [product.id, product._id]);
   const { isWishlisted, toggleWishlist } = useWishlist(productId);
+  const isSellerUnavailable = useUnavailableSellers()(product);
 
   const cartItem = useMemo(() => {
     return cart.items.find((item) => {
@@ -185,9 +187,9 @@ export default function ProductCard({
   }, [product, productId, inCartQty, updateQuantity, addToCart]);
 
   // Memoize class names
-  const cardClassName = useMemo(() => 
-    `bg-white rounded-xl border border-neutral-200/80 shadow-2xs hover:shadow-md transition-all duration-200 flex flex-col h-full overflow-hidden relative group`
-  , []);
+  const cardClassName = useMemo(() =>
+    `bg-white rounded-xl border border-neutral-200/80 shadow-2xs hover:shadow-md transition-all duration-200 flex flex-col h-full overflow-hidden relative group ${isSellerUnavailable ? 'grayscale opacity-70' : ''}`
+  , [isSellerUnavailable]);
 
   const imageContainerClassName = useMemo(() => 
     `w-full aspect-square bg-neutral-50/70 flex items-center justify-center p-0 relative overflow-hidden flex-shrink-0 cursor-pointer`
@@ -274,6 +276,12 @@ export default function ProductCard({
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400 text-3xl font-bold">
             {(productName || '?').charAt(0).toUpperCase()}
+          </div>
+        )}
+
+        {isSellerUnavailable && (
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-20 flex justify-center pointer-events-none">
+            <span className="bg-neutral-900/80 text-white text-[11px] font-bold px-2 py-1 rounded">Seller not available</span>
           </div>
         )}
 
@@ -369,7 +377,16 @@ export default function ProductCard({
 
       {/* 8. ADD Button (ALWAYS AT THE VERY BOTTOM OF THE CARD!) */}
       <div className="p-2.5 sm:p-3 pt-1 mt-auto">
-        {inCartQty === 0 ? (
+        {isSellerUnavailable ? (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled
+            className="w-full border-2 rounded-lg font-bold text-[11px] sm:text-xs h-9 sm:h-10 uppercase tracking-wide border-neutral-200 text-neutral-500 bg-neutral-50 cursor-not-allowed"
+          >
+            Seller not available
+          </Button>
+        ) : inCartQty === 0 ? (
           <Button
             ref={addButtonRef}
             variant="outline"

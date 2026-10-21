@@ -21,6 +21,8 @@ export interface ListingConfig {
   attributes: ListingAttribute[];
   rule: { defaultHsn?: string; isRegulated: boolean; requiredDocs: Array<{ key: string; label: string }> };
   seller: { gstRegistered: boolean; requiresShipping: boolean };
+  /** What checkout adds on top of the selling price: GST at the category's rate and a per-order platform fee. */
+  pricing?: { gstRate: number; platformFee: number };
 }
 
 export interface ComplianceDoc {

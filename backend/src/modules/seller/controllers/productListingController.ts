@@ -1,7 +1,9 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import Product from "../../../models/Product";
 import Seller from "../../../models/Seller";
 import Category from "../../../models/Category";
+import AppSettings from "../../../models/AppSettings";
 import { sellerDepartmentError } from "../../../services/sellerCategoryService";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import {
@@ -45,7 +47,7 @@ export const publicComplianceDocs = (product: any, requiredDocs: Array<{ key: st
 export const getListingConfig = asyncHandler(async (req: Request, res: Response) => {
   const sellerId = (req as any).user.userId;
   const q = req.query as Record<string, string | undefined>;
-  const [seller, config] = await Promise.all([
+  const [seller, config, settings, category] = await Promise.all([
     Seller.findById(sellerId).select("gstRegistered channels"),
     resolveListingConfig({
       headerCategoryId: q.headerCategoryId,
@@ -53,7 +55,15 @@ export const getListingConfig = asyncHandler(async (req: Request, res: Response)
       subcategory: q.subcategoryId,
       subSubCategory: q.subSubCategoryId,
     }),
+    AppSettings.getSettings(),
+    q.categoryId && mongoose.isValidObjectId(q.categoryId)
+      ? Category.findById(q.categoryId).select("taxId").populate("taxId", "percentage status")
+      : null,
   ]);
+  // Same rules checkout uses (taxService.computeItemGst): GST is added on top of the
+  // selling price at the category's active tax rate, and only while GST is switched on.
+  const tax: any = category?.taxId;
+  const gstRate = settings?.gstEnabled && tax?.status === "Active" ? Number(tax.percentage) || 0 : 0;
   return res.status(200).json({
     success: true,
     data: {
@@ -61,6 +71,10 @@ export const getListingConfig = asyncHandler(async (req: Request, res: Response)
       seller: {
         gstRegistered: seller?.gstRegistered === true,
         requiresShipping: (seller?.channels || []).includes("ECommerce"),
+      },
+      pricing: {
+        gstRate,
+        platformFee: Number(settings?.platformFee) || 0,
       },
     },
   });
@@ -114,7 +128,7 @@ export const duplicateProduct = asyncHandler(async (req: Request, res: Response)
 
   const copyFields = [
     "smallDescription", "description", "category", "subcategory", "subSubCategory", "headerCategoryId", "brand",
-    "mainImage", "galleryImages", "price", "discPrice", "compareAtPrice", "stock", "variationType", "manufacturer",
+    "mainImage", "galleryImages", "price", "discPrice", "compareAtPrice", "stock", "variationType", "variantAxes", "manufacturer",
     "madeIn", "tax", "fssaiLicNo", "totalAllowedQuantity", "isReturnable", "maxReturnDays", "returnPolicyText",
     "seoTitle", "seoKeywords", "seoDescription", "seoImageAlt", "pack", "shelfLife", "marketer", "tags", "condition",
     "modelNumber", "hsnCode", "attributes", "handlingTimeDays", "weightGrams", "dimensionsCm", "isShopByStoreOnly", "shopId",
@@ -130,6 +144,8 @@ export const duplicateProduct = asyncHandler(async (req: Request, res: Response)
     discPrice: v.discPrice,
     stock: v.stock,
     status: v.status,
+    images: v.images,
+    options: v.options,
   }));
   Object.assign(data, { status: "Draft", requiresApproval: true, publish: true, listingVersion: 2, listingMethod: "copy" });
   ensureSkus(sellerId, data);

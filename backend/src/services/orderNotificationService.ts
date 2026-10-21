@@ -502,13 +502,10 @@ export async function notifyDeliveryBoysOfNewOrder(
 }
 
 /**
- * Dispatches a Quick-commerce order to nearby delivery partners the moment
- * it's confirmed (COD/Wallet: right at placement; Online: right after
- * payment capture) — customers shouldn't have to wait for a seller to
- * manually accept before a rider gets a request. Safe to call from multiple
- * places (order creation, payment capture, seller-acceptance fallback) since
- * it no-ops once the order has already been dispatched/assigned, or if the
- * seller/admin has explicitly opted into manual rider assignment for it.
+ * Dispatches a Quick-commerce order to nearby delivery partners once the
+ * seller has accepted it (called from recomputeOrderFulfillment). It no-ops
+ * before acceptance, once the order has already been dispatched/assigned, or
+ * if the seller/admin has explicitly opted into manual rider assignment for it.
  */
 export async function dispatchOrderToDeliveryBoys(
     order: any,
@@ -516,6 +513,8 @@ export async function dispatchOrderToDeliveryBoys(
 ): Promise<void> {
     if (!io) return;
     if (order.channel !== 'Quick') return; // E-commerce ships via courier, no rider dispatch
+    // Riders get a request only after the seller has accepted the order.
+    if (order.sellerConfirmationStatus !== 'Resolved' || order.status !== 'Accepted') return;
     if (order.deliveryPreference) return; // Seller/admin opted for manual assignment — respect it
     if (order.deliveryBoy) return; // Already has a rider
 

@@ -195,6 +195,18 @@ export const initializeSocket = (httpServer: HttpServer) => {
         // Seller joins their notification room
         socket.on('join-seller-room', (sellerId: string) => {
             const normalizedSellerId = String(sellerId).trim();
+            // A seller's new-order alerts (and ring) are for that seller only: the
+            // room can be joined only by the seller signed in on this socket.
+            const user = (socket as any).user;
+            if (!user || user.userType !== 'Seller' || String(user.userId) !== normalizedSellerId) {
+                console.warn(`⚠️ Refused seller room join for ${normalizedSellerId} (socket user: ${user?.userId || 'none'})`);
+                socket.emit('joined-seller-room', { success: false, message: 'Not authorized for this seller room' });
+                return;
+            }
+            // One seller room per socket: leave any other seller's room joined earlier.
+            for (const room of socket.rooms) {
+                if (room.startsWith('seller-') && room !== `seller-${normalizedSellerId}`) socket.leave(room);
+            }
             console.log(`🏪 Seller ${normalizedSellerId} joined notifications room`);
             socket.join(`seller-${normalizedSellerId}`);
 

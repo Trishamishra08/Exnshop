@@ -18,16 +18,22 @@ export interface Order {
   deliveryBoyName?: string;
   deliveryBoyPhone?: string;
   paymentMethod?: string;
+  channel?: 'Quick' | 'ECommerce';
 }
 
 export interface OrderItem {
   srNo: string;
   product: string;
+  image?: string;
+  sku?: string;
   soldBy: string;
   unit: string;
   price: number;
   tax: number;
   taxPercent: number;
+  /** GST snapshot (shown on the E-commerce order screen). */
+  gst?: number;
+  gstPercent?: number;
   qty: number;
   subtotal: number;
 }
@@ -45,11 +51,16 @@ export interface DeliveryAddress {
 
 export interface OrderDetail {
   id: string;
+  orderNumber?: string;
+  /** Quick = rider/seller delivers; ECommerce = shipped by courier. */
+  channel?: 'Quick' | 'ECommerce';
+  shipment?: { awbCode: string; courierName: string; trackingUrl: string; status: string } | null;
+  deliveryPreference?: 'Self' | 'Admin';
   invoiceNumber: string;
   orderDate: string;
   deliveryDate: string;
   timeSlot: string;
-  status: 'Out For Delivery' | 'Received' | 'Payment Pending' | 'Cancelled' | 'Rejected';
+  status: string;
   customerName: string;
   customerEmail: string;
   customerPhone: string;
@@ -82,7 +93,7 @@ export interface AvailableDeliveryPartner {
 }
 
 export interface UpdateOrderStatusData {
-  status: 'Accepted' | 'On the way' | 'Delivered' | 'Cancelled' | 'Rejected';
+  status: 'Accepted' | 'Processed' | 'On the way' | 'Delivered' | 'Cancelled' | 'Rejected';
   deliveryPreference?: 'Self' | 'Admin';
   deliveryBoyId?: string;
 }
