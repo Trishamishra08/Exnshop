@@ -9,6 +9,8 @@ import {
   getPendingOrderAlerts,
   getAvailableDeliveryPartners,
   assignDeliveryBoySeller,
+  getShippingLabel,
+  generateShippingAwb,
 } from "../modules/seller/controllers/orderController";
 import { authenticate, requireUserType, requireApprovedUser } from "../middleware/auth";
 
@@ -39,6 +41,11 @@ router.get("/:id/earning-breakdown", getOrderEarningBreakdownSeller);
 
 // Note: sellers cannot mark COD as paid — that reconciliation is admin/delivery-agent
 // driven only (see admin cash collection flow). See markOrderCODPaidSeller removal.
+
+// E-commerce courier shipping label (data for the printable label + invoice)
+router.get("/:id/shipping-label", getShippingLabel);
+// Retry assigning the courier AWB for a packed E-commerce order
+router.post("/:id/shipping-label/awb", generateShippingAwb);
 
 // Update order status (support both PATCH and PUT)
 router.patch("/:id/status", updateOrderStatus);

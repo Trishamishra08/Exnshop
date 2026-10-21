@@ -9,6 +9,7 @@ import {
   getOrderEarningBreakdown,
 } from "../../../services/commissionService";
 import { getSellerPendingOrderAlerts } from "../../../services/orderAlertService";
+import { buildShippingLabels, ensureSellerAwb } from "../../../services/shippingLabelService";
 
 /**
  * Get pending order alerts that require seller action (survives page refresh).
@@ -672,16 +673,68 @@ export const updateOrderStatus = asyncHandler(
       }
     }
 
+    // Packed E-commerce order: get the courier AWB (and pickup) from Shiprocket
+    // so the shipping label can be printed.
+    let message = "Order status updated successfully";
+    let awbCode: string | undefined;
+    if (isECommerce && status === "Processed") {
+      const awb = await ensureSellerAwb(id, sellerId.toString());
+      awbCode = awb.awbCode;
+      message = awb.success
+        ? awb.message || "Marked as packed. Courier assigned — you can download the shipping label."
+        : `Marked as packed, but the courier AWB could not be generated: ${awb.message}`;
+    }
+
     return res.status(200).json({
       success: true,
-      message: "Order status updated successfully",
+      message,
       data: {
         id: order._id,
         status: order.status,
+        awbCode,
       },
     });
   },
 );
+
+/**
+ * Courier shipping label + tax invoice data for this seller's shipment
+ * (E-commerce orders, once the AWB is assigned).
+ */
+export const getShippingLabel = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = (req as any).user.userId;
+  const { id } = req.params;
+  if (!(await OrderItem.exists({ order: id, seller: sellerId }))) {
+    return res.status(404).json({ success: false, message: "Order not found" });
+  }
+  const labels = await buildShippingLabels(id, sellerId.toString());
+  if (labels.length === 0) {
+    return res.status(400).json({ success: false, message: "The shipping label is available once the order is packed and the courier AWB is assigned." });
+  }
+  return res.status(200).json({ success: true, data: labels });
+});
+
+/** Retries the courier/AWB assignment for a packed E-commerce order. */
+export const generateShippingAwb = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = (req as any).user.userId;
+  const { id } = req.params;
+  if (!(await OrderItem.exists({ order: id, seller: sellerId }))) {
+    return res.status(404).json({ success: false, message: "Order not found" });
+  }
+  const order = await Order.findById(id).select("status channel");
+  if (!order || order.channel !== "ECommerce") {
+    return res.status(400).json({ success: false, message: "Only E-commerce orders are shipped by courier" });
+  }
+  if (["Received", "Pending", "Accepted", "Cancelled", "Rejected", "Returned"].includes(order.status)) {
+    return res.status(400).json({ success: false, message: "Mark the order as packed before generating the courier AWB." });
+  }
+  const result = await ensureSellerAwb(id, sellerId.toString());
+  return res.status(result.success ? 200 : 400).json({
+    success: result.success,
+    message: result.success ? result.message || "Courier assigned" : result.message,
+    data: { awbCode: result.awbCode },
+  });
+});
 
 /**
  * Get available delivery partners for seller manual assignment

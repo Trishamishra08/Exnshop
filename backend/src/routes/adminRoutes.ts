@@ -182,6 +182,7 @@ router.get("/orders/:id/earning-breakdown", orderController.getOrderEarningBreak
 router.patch("/orders/:id/mark-cod-paid", orderController.markOrderCODPaid);
 router.patch("/orders/:id/status", orderController.updateOrderStatus);
 router.patch("/orders/:id/assign-delivery", orderController.assignDeliveryBoy);
+router.get("/orders/:id/shipping-label", orderController.getShippingLabels);
 router.get("/orders/export/csv", orderController.exportOrders);
 
 // ==================== Shipment Routes (E-Commerce channel, manual pre-Shiprocket) ====================

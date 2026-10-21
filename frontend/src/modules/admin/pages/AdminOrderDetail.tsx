@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { getOrderById, updateOrderStatus, getOrderEarningBreakdown, markOrderCODPaid, Order, type EarningBreakdown } from '../../../services/api/admin/adminOrderService';
 import { useToast } from '../../../context/ToastContext';
+import { getAdminShippingLabels } from '../../../services/api/shippingLabelService';
 import { formatDeliveryAddress } from '../../../utils/addressUtils';
 
 export default function AdminOrderDetail() {
@@ -13,6 +14,26 @@ export default function AdminOrderDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
   const [updating, setUpdating] = useState(false);
+  const [labelBusy, setLabelBusy] = useState(false);
+
+  // E-commerce: courier label + tax invoice for every seller shipment of the order.
+  const handleDownloadLabels = async () => {
+    if (!id) return;
+    setLabelBusy(true);
+    try {
+      const res = await getAdminShippingLabels(id);
+      if (res.success && res.data.length) {
+        const { downloadShippingLabels } = await import('../../../utils/shippingLabelPdf');
+        downloadShippingLabels(res.data, `Shipping_Labels_${res.data[0].orderNumber}.pdf`);
+      } else {
+        showToast(res.message || 'Shipping label is not available yet', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Shipping label is not available yet', 'error');
+    } finally {
+      setLabelBusy(false);
+    }
+  };
   const [markingCodPaid, setMarkingCodPaid] = useState(false);
 
   // Fetch order detail from API
@@ -174,8 +195,21 @@ export default function AdminOrderDetail() {
           </svg>
           Back to Orders
         </button>
-        <h1 className="text-2xl font-bold text-neutral-900">Order Details</h1>
-        <p className="text-neutral-600 mt-1">Order #{order.orderNumber}</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-neutral-900">Order Details</h1>
+            <p className="text-neutral-600 mt-1">Order #{order.orderNumber}</p>
+          </div>
+          {order.channel === 'ECommerce' && (
+            <button
+              onClick={handleDownloadLabels}
+              disabled={labelBusy}
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50"
+            >
+              {labelBusy ? 'Please wait…' : 'Download Shipping Label'}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

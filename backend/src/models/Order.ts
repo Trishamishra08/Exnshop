@@ -155,6 +155,9 @@ export interface IOrder extends Document {
     trackingUrl?: string;
     status?: string;
     pickupScheduledAt?: Date;
+    /** Courier sorting codes printed on the shipping label (when the courier provides them). */
+    routingCode?: string;
+    rtoRoutingCode?: string;
   };
   // One entry per seller: a Shiprocket shipment has a single pickup address,
   // so multi-seller orders ship as several shipments. `shiprocket` mirrors the first.
@@ -168,6 +171,10 @@ export interface IOrder extends Document {
     courierName?: string;
     trackingUrl?: string;
     status?: string;
+    routingCode?: string;
+    rtoRoutingCode?: string;
+    pickupScheduledAt?: Date;
+    awbAssignedAt?: Date;
   }>;
 
   // RTO (Return To Origin — courier tried to deliver, customer refused or was
@@ -569,6 +576,8 @@ const OrderSchema = new Schema<IOrder>(
       trackingUrl: { type: String, trim: true },
       status: { type: String, trim: true },
       pickupScheduledAt: { type: Date },
+      routingCode: { type: String, trim: true },
+      rtoRoutingCode: { type: String, trim: true },
     },
     shiprocketShipments: [
       {
@@ -582,6 +591,10 @@ const OrderSchema = new Schema<IOrder>(
         courierName: { type: String, trim: true },
         trackingUrl: { type: String, trim: true },
         status: { type: String, trim: true },
+        routingCode: { type: String, trim: true },
+        rtoRoutingCode: { type: String, trim: true },
+        pickupScheduledAt: { type: Date },
+        awbAssignedAt: { type: Date },
       },
     ],
     rtoDetails: {

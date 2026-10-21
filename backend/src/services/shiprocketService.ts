@@ -88,7 +88,7 @@ const describeShiprocketError = (error: any): string => {
   return data?.message || error?.message || "Unknown Shiprocket error";
 };
 
-interface ResolvedAddress {
+export interface ResolvedAddress {
   line1: string;
   line2: string;
   city: string;
@@ -100,7 +100,7 @@ interface ResolvedAddress {
  * Sellers store a free-text address plus a map pin, but Shiprocket needs a
  * state and pincode — derive them by reverse-geocoding the pin.
  */
-const resolveSellerAddress = async (seller: ISeller): Promise<ResolvedAddress> => {
+export const resolveSellerAddress = async (seller: ISeller): Promise<ResolvedAddress> => {
   const lat = seller.location?.coordinates?.[1] ?? parseFloat(seller.latitude || "");
   const lng = seller.location?.coordinates?.[0] ?? parseFloat(seller.longitude || "");
   const key = process.env.GOOGLE_MAPS_API_KEY;
@@ -428,5 +428,84 @@ export const trackShiprocketShipment = async (awbCode: string) => {
   } catch (error: any) {
     console.error("Error tracking Shiprocket shipment:", error?.response?.data || error.message);
     return { success: false, isMock: false, status: undefined, trackingUrl: "" };
+  }
+};
+
+export interface AwbAssignment {
+  success: boolean;
+  isMock: boolean;
+  awbCode?: string;
+  courierName?: string;
+  routingCode?: string;
+  rtoRoutingCode?: string;
+  pickupScheduledAt?: Date;
+  message?: string;
+}
+
+/**
+ * Asks Shiprocket to pick a courier for a created shipment and issue its AWB
+ * (the number the label's barcode and Data Matrix carry), then requests the
+ * courier pickup. Shiprocket charges the courier fee to the account's wallet
+ * at this point. In mock mode a test AWB is returned instead.
+ */
+export const assignAwbAndRequestPickup = async (shipmentId: string): Promise<AwbAssignment> => {
+  if (isMockMode()) {
+    // Deterministic 14-digit test AWB so the label can be tried without Shiprocket.
+    const digits = crypto.createHash("sha1").update(shipmentId).digest("hex").replace(/\D/g, "");
+    return {
+      success: true,
+      isMock: true,
+      awbCode: `9${(digits + "0000000000000").slice(0, 13)}`,
+      courierName: "Test Courier",
+      routingCode: "TEST/DEST",
+      rtoRoutingCode: "TEST/RTO",
+      pickupScheduledAt: new Date(),
+    };
+  }
+
+  try {
+    const token = await getAuthToken();
+    const headers = { Authorization: `Bearer ${token}` };
+    const { data } = await axios.post(
+      `${SHIPROCKET_BASE_URL}/courier/assign/awb`,
+      { shipment_id: Number(shipmentId) || shipmentId },
+      { headers }
+    );
+    const assigned = data?.response?.data || {};
+    if (data?.awb_assign_status !== 1 || !assigned.awb_code) {
+      return {
+        success: false,
+        isMock: false,
+        message: assigned.awb_assign_error || data?.message || "Shiprocket could not assign a courier to this shipment",
+      };
+    }
+
+    const result: AwbAssignment = {
+      success: true,
+      isMock: false,
+      awbCode: String(assigned.awb_code),
+      courierName: assigned.courier_name || "",
+      // Not every courier returns sorting codes; the label leaves them blank then.
+      routingCode: assigned.routing_code || assigned.routingCode || "",
+      rtoRoutingCode: assigned.rto_routing_code || assigned.rtoRoutingCode || "",
+    };
+
+    // Pickup request: the AWB is already valid, so a failure here is reported but not fatal.
+    try {
+      const pickup = await axios.post(
+        `${SHIPROCKET_BASE_URL}/courier/generate/pickup`,
+        { shipment_id: [Number(shipmentId) || shipmentId] },
+        { headers }
+      );
+      const scheduled = pickup.data?.response?.pickup_scheduled_date;
+      if (scheduled) result.pickupScheduledAt = new Date(scheduled);
+    } catch (pickupError: any) {
+      result.message = `AWB assigned, but the pickup request failed: ${describeShiprocketError(pickupError)}`;
+      console.error(`[Shiprocket] Pickup request failed for shipment ${shipmentId}:`, pickupError?.response?.data || pickupError.message);
+    }
+    return result;
+  } catch (error: any) {
+    console.error(`[Shiprocket] AWB assignment failed for shipment ${shipmentId}:`, error?.response?.data || error.message);
+    return { success: false, isMock: false, message: describeShiprocketError(error) };
   }
 };

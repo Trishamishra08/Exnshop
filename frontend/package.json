@@ -17,6 +17,7 @@
     "@react-google-maps/api": "^2.20.8",
     "apexcharts": "^5.3.6",
     "axios": "^1.13.2",
+    "bwip-js": "4.5.1",
     "clsx": "^2.1.0",
     "firebase": "^12.8.0",
     "framer-motion": "^10.16.16",

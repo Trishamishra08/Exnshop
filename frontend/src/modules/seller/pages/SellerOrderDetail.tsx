@@ -6,6 +6,7 @@ import { useToast } from '../../../context/ToastContext';
 import ConfirmationModal from '../../../components/ConfirmationModal';
 import { formatDeliveryAddress } from '../../../utils/addressUtils';
 import SellerQuickOrderDetail from './SellerQuickOrderDetail';
+import { getSellerShippingLabel, generateSellerAwb } from '../../../services/api/shippingLabelService';
 
 // E-commerce orders are packed by the seller and shipped by courier, so they get
 // their own screen. Quick orders keep the original rider-delivery screen.
@@ -97,6 +98,47 @@ export default function SellerOrderDetail() {
       .catch(() => setEarningBreakdown(null));
   }, [id, isECommerce]);
 
+  const reloadOrder = async () => {
+    if (!id) return;
+    const response = await getOrderById(id).catch(() => null);
+    if (response?.success && response.data) {
+      setOrderDetail(response.data);
+      setOrderStatus(response.data.status);
+    }
+  };
+
+  const [labelBusy, setLabelBusy] = useState(false);
+  const handleDownloadLabel = async () => {
+    if (!orderDetail) return;
+    setLabelBusy(true);
+    try {
+      const res = await getSellerShippingLabel(orderDetail.id);
+      if (res.success && res.data.length) {
+        const { downloadShippingLabels } = await import('../../../utils/shippingLabelPdf');
+        downloadShippingLabels(res.data, `Shipping_Label_${orderDetail.orderNumber || orderDetail.id}.pdf`);
+      } else {
+        showToast(res.message || 'Shipping label is not available yet', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Could not create the shipping label', 'error');
+    } finally {
+      setLabelBusy(false);
+    }
+  };
+  const handleGenerateAwb = async () => {
+    if (!orderDetail) return;
+    setLabelBusy(true);
+    try {
+      const res = await generateSellerAwb(orderDetail.id);
+      showToast(res.message || 'Courier assigned', 'success');
+      await reloadOrder();
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Could not assign a courier', 'error');
+    } finally {
+      setLabelBusy(false);
+    }
+  };
+
   const handleStatusUpdate = async (newStatus: string) => {
     if (!orderDetail) return;
 
@@ -107,7 +149,13 @@ export default function SellerOrderDetail() {
         const serverStatus = response.data?.status || newStatus;
         setOrderStatus(serverStatus);
         setOrderDetail({ ...orderDetail, status: serverStatus });
-        showToast(newStatus === 'Processed' ? 'Marked as packed' : `Order ${newStatus.toLowerCase()}`, 'success');
+        if (newStatus === 'Processed') {
+          // Packing assigns the courier AWB — reload to show it.
+          await reloadOrder();
+          showToast(response.message || 'Marked as packed', (response.data as any)?.awbCode ? 'success' : 'error');
+        } else {
+          showToast(`Order ${newStatus.toLowerCase()}`, 'success');
+        }
       } else {
         showToast('Failed to update order status', 'error');
       }
@@ -318,7 +366,9 @@ export default function SellerOrderDetail() {
     if (orderStatus === 'Accepted') {
       return (
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <p className="text-sm text-neutral-700 flex-1">Pack the items securely, then mark the order as packed so the courier can pick it up.</p>
+          <p className="text-sm text-neutral-700 flex-1">
+            Pack the items securely, then mark the order as packed. A courier is assigned and the shipping label becomes available to print and stick on the parcel.
+          </p>
           <div className="flex gap-2">
             <button
               disabled={updating}
@@ -341,7 +391,9 @@ export default function SellerOrderDetail() {
     return (
       <p className="text-sm text-neutral-700">
         {orderStatus === 'Processed'
-          ? 'Packed and waiting for courier pickup. Shipping and delivery updates come from the courier automatically.'
+          ? orderDetail.shipment?.awbCode
+            ? 'Packed. Download the shipping label, stick it on the parcel and hand it to the courier at pickup. Delivery updates come from the courier automatically.'
+            : 'Packed, but the courier AWB is not assigned yet. Use "Assign courier & get AWB" in the Shipping card.'
           : 'With the courier. Delivery updates come from the courier automatically.'}
       </p>
     );
@@ -366,7 +418,15 @@ export default function SellerOrderDetail() {
               {orderDetail.invoiceNumber && orderDetail.invoiceNumber !== orderRef ? ` · Invoice ${orderDetail.invoiceNumber}` : ''}
             </p>
           </div>
-          <div className="flex gap-2 print:hidden">
+          <div className="flex flex-wrap gap-2 print:hidden">
+            <button
+              onClick={handleDownloadLabel}
+              disabled={labelBusy || !orderDetail.shipment?.awbCode}
+              title={orderDetail.shipment?.awbCode ? 'Courier label + tax invoice (A4)' : 'Available after the order is packed and the courier AWB is assigned'}
+              className="px-3 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {labelBusy ? 'Please wait…' : 'Download Shipping Label'}
+            </button>
             <button
               onClick={handleExportPDF}
               className="px-3 py-2 rounded-lg border border-neutral-300 bg-white hover:bg-neutral-50 text-sm font-medium text-neutral-700"
@@ -505,6 +565,16 @@ export default function SellerOrderDetail() {
             <InfoRow label="Courier">{orderDetail.shipment?.courierName || 'Assigned at pickup'}</InfoRow>
             <InfoRow label="AWB">{orderDetail.shipment?.awbCode || '—'}</InfoRow>
             <InfoRow label="Shipment status">{orderDetail.shipment?.status || 'Not created yet'}</InfoRow>
+            {/* Packed but no AWB yet (e.g. Shiprocket was unreachable): let the seller retry. */}
+            {!orderDetail.shipment?.awbCode && !isPending && !isClosed && orderStatus !== 'Accepted' && orderStatus !== 'Delivered' && (
+              <button
+                onClick={handleGenerateAwb}
+                disabled={labelBusy}
+                className="mt-2 w-full px-3 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold disabled:opacity-50 print:hidden"
+              >
+                {labelBusy ? 'Please wait…' : 'Assign courier & get AWB'}
+              </button>
+            )}
             {orderDetail.shipment?.trackingUrl && (
               <a
                 href={orderDetail.shipment.trackingUrl}

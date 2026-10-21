@@ -1123,3 +1123,19 @@ export const getRtoEventsAdmin = asyncHandler(
     return res.status(200).json({ success: true, data: rtoEvents });
   }
 );
+
+/**
+ * Courier shipping labels + tax invoices for every shipment of an E-commerce
+ * order (one per seller), once their AWBs are assigned.
+ */
+export const getShippingLabels = asyncHandler(async (req: Request, res: Response) => {
+  const { buildShippingLabels } = await import("../../../services/shippingLabelService");
+  const labels = await buildShippingLabels(req.params.id);
+  if (labels.length === 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Shipping labels are available for E-commerce orders once the seller has packed them and the courier AWB is assigned.",
+    });
+  }
+  return res.status(200).json({ success: true, data: labels });
+});
