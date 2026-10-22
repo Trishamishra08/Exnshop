@@ -12,6 +12,10 @@ import { useTranslation } from "../../hooks/useTranslation";
 import { getIconByName } from "../../utils/iconLibrary";
 import { useCommerceMode } from "../../context/CommerceModeContext";
 
+// Upper end of the price filter. It must sit above the dearest product, or the default
+// range hides it (a ₹10,000 cap hid every phone priced above that).
+const MAX_PRICE = 500000;
+
 export default function CategoryPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -33,8 +37,8 @@ export default function CategoryPage() {
   const [appliedFilters, setAppliedFilters] = useState<string[]>([]); // Applied filters
   const [filterSearchQuery, setFilterSearchQuery] = useState("");
   const [selectedFilterCategory, setSelectedFilterCategory] = useState("Type");
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 10000]); // Default max price
-  const [appliedPriceRange, setAppliedPriceRange] = useState<[number, number]>([0, 10000]);
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, MAX_PRICE]);
+  const [appliedPriceRange, setAppliedPriceRange] = useState<[number, number]>([0, MAX_PRICE]);
 
   // Sort States
   const [isSortOpen, setIsSortOpen] = useState(false);
@@ -610,7 +614,7 @@ export default function CategoryPage() {
             <button
               onClick={() => setIsFiltersOpen(true)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                appliedFilters.length > 0 || appliedPriceRange[1] < 10000
+                appliedFilters.length > 0 || appliedPriceRange[1] < MAX_PRICE
                   ? "bg-emerald-50 text-emerald-700 border-emerald-300 shadow-2xs"
                   : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
               }`}
@@ -619,9 +623,9 @@ export default function CategoryPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
               </svg>
               <span>{t("common.filters", "Filters")}</span>
-              {(appliedFilters.length > 0 || appliedPriceRange[1] < 10000) && (
+              {(appliedFilters.length > 0 || appliedPriceRange[1] < MAX_PRICE) && (
                 <span className="bg-emerald-600 text-white text-[10px] w-4 h-4 flex items-center justify-center rounded-full font-bold ml-0.5">
-                  {appliedFilters.length + (appliedPriceRange[1] < 10000 ? 1 : 0)}
+                  {appliedFilters.length + (appliedPriceRange[1] < MAX_PRICE ? 1 : 0)}
                 </span>
               )}
             </button>
@@ -646,11 +650,11 @@ export default function CategoryPage() {
           </div>
 
           {/* Active Filters Clear Shortcut */}
-          {(appliedFilters.length > 0 || appliedPriceRange[1] < 10000 || sortBy !== "default" || searchQuery) && (
+          {(appliedFilters.length > 0 || appliedPriceRange[1] < MAX_PRICE || sortBy !== "default" || searchQuery) && (
             <button
               onClick={() => {
                 setAppliedFilters([]);
-                setAppliedPriceRange([0, 10000]);
+                setAppliedPriceRange([0, MAX_PRICE]);
                 setSortBy("default");
                 setSearchQuery("");
               }}
@@ -834,8 +838,8 @@ export default function CategoryPage() {
                           <input
                             type="range"
                             min="0"
-                            max="10000"
-                            step="100"
+                            max={MAX_PRICE}
+                            step="1000"
                             value={priceRange[1]}
                             onChange={(e) =>
                               setPriceRange([priceRange[0], parseInt(e.target.value)])
