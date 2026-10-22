@@ -18,6 +18,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { formatDeliveryAddress } from "../../utils/addressUtils";
 import SupportModal from "../../components/SupportModal";
+import InvoiceDocumentsPicker from "../../components/InvoiceDocumentsPicker";
 
 // Icon Components
 const ArrowLeftIcon = ({ className }: { className?: string }) => (
@@ -477,6 +478,7 @@ export default function OrderDetail() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [showItemsModal, setShowItemsModal] = useState(false);
+  const [showInvoiceSheet, setShowInvoiceSheet] = useState(false);
   const [showSpecialRequestsModal, setShowSpecialRequestsModal] =
     useState(false);
 
@@ -1401,6 +1403,59 @@ export default function OrderDetail() {
           ) : null}
         </motion.div>
 
+        {/* Order summary — Amazon-style price breakdown with the invoice download */}
+        {(() => {
+          const rupees = (n: number) => `₹${(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          const grandTotal = order.total ?? order.totalAmount ?? 0;
+          const shipping = order.shipping ?? order.fees?.deliveryFee ?? 0;
+          const platformFee = order.platformFee ?? order.fees?.platformFee ?? 0;
+          const discount = order.discount || 0;
+          const sellers = [...new Set((order.items || []).map((i: any) => i.seller?.storeName).filter(Boolean))] as string[];
+          const placed = order.orderDate || order.createdAt;
+          const rows: Array<[string, string]> = [
+            ["Item(s) Subtotal:", rupees(order.subtotal || 0)],
+            ["Shipping:", rupees(shipping)],
+          ];
+          if (platformFee > 0) rows.push(["Platform Fee:", rupees(platformFee)]);
+          if ((order.tax || 0) > 0) rows.push(["GST:", rupees(order.tax)]);
+          if ((order.tipAmount || 0) > 0) rows.push(["Delivery Tip:", rupees(order.tipAmount)]);
+          rows.push(["Total:", rupees(grandTotal + discount)]);
+          if (discount > 0) rows.push(["Promotion Applied:", `-${rupees(discount)}`]);
+          return (
+            <motion.div
+              className="bg-white rounded-xl shadow-sm p-4"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.78 }}>
+              <h3 className="text-base font-bold text-gray-900">Order summary</h3>
+              <div className="mt-1 text-sm text-gray-700 space-y-0.5">
+                {placed && (
+                  <p>Order placed {new Date(placed).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}</p>
+                )}
+                <p>Order number {order.orderNumber || order.id}</p>
+                {sellers.length > 0 && <p>Sold by: {sellers.join(", ")}</p>}
+              </div>
+              <div className="mt-3 space-y-1 text-sm text-gray-800">
+                {rows.map(([label, value]) => (
+                  <div key={label} className="flex justify-between">
+                    <span>{label}</span>
+                    <span>{value}</span>
+                  </div>
+                ))}
+                <div className="flex justify-between font-bold text-gray-900 pt-1">
+                  <span>Grand Total:</span>
+                  <span>{rupees(grandTotal)}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowInvoiceSheet(true)}
+                className="mt-3 text-sm font-medium text-blue-700 hover:underline">
+                Download Invoice
+              </button>
+            </motion.div>
+          );
+        })()}
+
         {/* Rate & Review — only for delivered orders */}
         {order?.status === "Delivered" && (
           <motion.div
@@ -1671,22 +1726,13 @@ export default function OrderDetail() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.85 }}>
-          {order?.invoiceEnabled ? (
-            <Link to={`/orders/${id}/invoice`} className="flex-1">
-              <Button className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white">
-                View Invoice
-              </Button>
-            </Link>
-          ) : (
-            <div className="flex-1">
-              <Button
-                className="w-full bg-gray-400 cursor-not-allowed text-white"
-                disabled
-                title="Invoice will be available after delivery is completed">
-                Invoice Unavailable
-              </Button>
-            </div>
-          )}
+          <div className="flex-1">
+            <Button
+              onClick={() => setShowInvoiceSheet(true)}
+              className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white">
+              Download Invoice
+            </Button>
+          </div>
           <Link to="/orders" className="flex-1">
             <Button variant="outline" className="w-full border-gray-300">
               All Orders
@@ -1694,6 +1740,34 @@ export default function OrderDetail() {
           </Link>
         </motion.div>
       </div>
+
+      {/* Download Invoice sheet: Printable Order Summary or the GST Invoice */}
+      <AnimatePresence>
+        {showInvoiceSheet && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[999] bg-black/60 flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={() => setShowInvoiceSheet(false)}>
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 320 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative bg-white rounded-t-3xl sm:rounded-3xl p-6 pb-8 sm:pb-6 max-w-md w-full shadow-2xl">
+              <button
+                onClick={() => setShowInvoiceSheet(false)}
+                aria-label="Close"
+                className="absolute -top-12 right-4 w-9 h-9 flex items-center justify-center text-white text-2xl">
+                ×
+              </button>
+              <InvoiceDocumentsPicker order={order} onDone={() => setShowInvoiceSheet(false)} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Cancel Order Modal */}
       <AnimatePresence>

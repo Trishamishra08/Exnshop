@@ -234,17 +234,24 @@ export function CartProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  // Sync localStorage items to backend on mount (one-time sync)
+  // Sync localStorage items to backend on mount (one-time sync).
+  // localStorage also mirrors the server cart of a logged-in customer, so only
+  // items the server doesn't have yet (added while logged out) are pushed —
+  // re-adding the rest would add their quantity again on every app start.
   useEffect(() => {
     const syncLocalCartToBackend = async () => {
       if (isAuthenticated && user?.userType === 'Customer' && !hasSyncedRef.current) {
         const localItems = items.filter(item => item?.product);
-        
+
         if (localItems.length > 0) {
           try {
+            const serverCart = await getCart({ latitude: location?.latitude, longitude: location?.longitude, channel: mode });
+            const serverProductIds = new Set(
+              (serverCart?.data?.items || []).map((it: any) => String(it.product?._id || it.product))
+            );
             for (const item of localItems) {
               const productId = item.product.id || item.product._id;
-              if (!productId) continue;
+              if (!productId || serverProductIds.has(String(productId))) continue;
 
               const variation = (item.product as any).variantId || 
                                (item.product as any).selectedVariant?._id || 

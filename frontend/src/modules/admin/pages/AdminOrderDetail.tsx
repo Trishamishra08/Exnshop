@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { getOrderById, updateOrderStatus, getOrderEarningBreakdown, markOrderCODPaid, Order, type EarningBreakdown } from '../../../services/api/admin/adminOrderService';
 import { useToast } from '../../../context/ToastContext';
 import { getAdminShippingLabels } from '../../../services/api/shippingLabelService';
+import { getAdminTaxInvoices } from '../../../services/api/taxInvoiceService';
 import { formatDeliveryAddress } from '../../../utils/addressUtils';
 
 export default function AdminOrderDetail() {
@@ -24,14 +25,35 @@ export default function AdminOrderDetail() {
       const res = await getAdminShippingLabels(id);
       if (res.success && res.data.length) {
         const { downloadShippingLabels } = await import('../../../utils/shippingLabelPdf');
-        downloadShippingLabels(res.data, `Shipping_Labels_${res.data[0].orderNumber}.pdf`);
+        await downloadShippingLabels(res.data, `Shipping_Labels_${res.data[0].invoice.orderNumber}.pdf`);
       } else {
         showToast(res.message || 'Shipping label is not available yet', 'error');
       }
     } catch (err: any) {
-      showToast(err.response?.data?.message || 'Shipping label is not available yet', 'error');
+      console.error('Shipping label failed', err);
+      showToast(err.response?.data?.message || `Could not create the shipping label${err?.message ? `: ${err.message}` : ''}`, 'error');
     } finally {
       setLabelBusy(false);
+    }
+  };
+  // Every seller's GST tax invoice for the order (Quick or E-commerce).
+  const [invoiceBusy, setInvoiceBusy] = useState(false);
+  const handleDownloadInvoices = async () => {
+    if (!id) return;
+    setInvoiceBusy(true);
+    try {
+      const res = await getAdminTaxInvoices(id);
+      if (res.success && res.data.length) {
+        const { downloadTaxInvoices } = await import('../../../utils/taxInvoicePdf');
+        await downloadTaxInvoices(res.data, `Invoice_${res.data[0].orderNumber}.pdf`);
+      } else {
+        showToast(res.message || 'Invoice is not available', 'error');
+      }
+    } catch (err: any) {
+      console.error('Tax invoice failed', err);
+      showToast(err.response?.data?.message || `Could not create the invoice${err?.message ? `: ${err.message}` : ''}`, 'error');
+    } finally {
+      setInvoiceBusy(false);
     }
   };
   const [markingCodPaid, setMarkingCodPaid] = useState(false);
@@ -200,15 +222,24 @@ export default function AdminOrderDetail() {
             <h1 className="text-2xl font-bold text-neutral-900">Order Details</h1>
             <p className="text-neutral-600 mt-1">Order #{order.orderNumber}</p>
           </div>
-          {order.channel === 'ECommerce' && (
+          <div className="flex flex-wrap gap-2">
             <button
-              onClick={handleDownloadLabels}
-              disabled={labelBusy}
-              className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50"
+              onClick={handleDownloadInvoices}
+              disabled={invoiceBusy}
+              className="px-4 py-2 bg-white border border-neutral-300 text-neutral-700 rounded-lg text-sm font-medium hover:bg-neutral-50 disabled:opacity-50"
             >
-              {labelBusy ? 'Please wait…' : 'Download Shipping Label'}
+              {invoiceBusy ? 'Please wait…' : 'Download Tax Invoice'}
             </button>
-          )}
+            {order.channel === 'ECommerce' && (
+              <button
+                onClick={handleDownloadLabels}
+                disabled={labelBusy}
+                className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 disabled:opacity-50"
+              >
+                {labelBusy ? 'Please wait…' : 'Download Shipping Label'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

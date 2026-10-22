@@ -19,7 +19,6 @@ import {
   SheetTitle,
   SheetClose,
 } from "../../components/ui/sheet";
-import WishlistButton from "../../components/WishlistButton";
 import { useWishlistContext } from "../../context/WishlistContext";
 
 import {
@@ -33,10 +32,11 @@ import {
   updateAddress,
 } from "../../services/api/customerAddressService";
 import GoogleMapsLocationPicker from "../../components/GoogleMapsLocationPicker";
-import { getProducts } from "../../services/api/customerProductService";
 import { addToWishlist } from "../../services/api/customerWishlistService";
 import { updateProfile } from "../../services/api/customerService";
 import { calculateProductPrice } from "../../utils/priceUtils";
+import { isSamePlace } from "../../utils/addressUtils";
+import { goBackOr } from "../../utils/navigation";
 import RazorpayCheckout from "../../components/RazorpayCheckout";
 import CashfreeCheckout from "../../components/CashfreeCheckout";
 import { getCustomerWalletBalance } from "../../services/api/customerWalletService";
@@ -50,7 +50,6 @@ export default function Checkout() {
     cart,
     updateQuantity,
     clearCart,
-    addToCart,
     removeFromCart,
     refreshCart,
     loading: cartLoading,
@@ -124,7 +123,6 @@ export default function Checkout() {
   const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [validatedDiscount, setValidatedDiscount] = useState<number>(0);
-  const [similarProducts, setSimilarProducts] = useState<any[]>([]);
 
   const [showCancellationPolicy, setShowCancellationPolicy] = useState(false);
   const [giftPackaging, setGiftPackaging] = useState<boolean>(false);
@@ -195,21 +193,19 @@ export default function Checkout() {
             addressResponse.data.find((a: any) => a.isDefault) ||
             addressResponse.data[0];
 
-          // Determine the best address text:
-          // Prefer the user's current NAMED location from the header (LocationContext)
-          // over the saved address street if it's a stale generic geocode string.
-          // The header location is set by the user manually via autocomplete/map and is the
-          // "true" delivery intent. The Address model may have an old Nominatim-reverse-geocoded string.
+          // The saved address is what the customer typed or confirmed, so it is shown as it is.
+          // The one exception is an address that was auto-created from raw coordinates (its text is
+          // just "lat, lng") — that one can take the header's named location, but only when the
+          // header location is the same place. Swapping in the header text for any other address
+          // mixed two places together (e.g. "Noida" text with an Indore city and pincode) and the
+          // result was saved back over what the customer had entered.
           let bestAddressText = defaultAddr.address;
-          
-          // If user has a header location with a named address and the saved address
-          // coordinates roughly match the user's current location, use the header address.
-          if (userLocation?.address && userLocation.address.trim() && defaultAddr.latitude && defaultAddr.longitude) {
-            // Only override if the saved address looks like a generic geocoded string (contains "Tahsil" or
-            // is very long without a recognizable named place) AND the user has a named location.
-            // A simple heuristic: use the header location address as it's always the user's current intent.
+          const savedText = (defaultAddr.address || '').trim();
+          const isCoordinateText = !savedText || /^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(savedText);
+
+          if (isCoordinateText && userLocation?.address && userLocation.address.trim() && isSamePlace(defaultAddr, userLocation)) {
             bestAddressText = userLocation.address;
-            
+
             // Also update the backend address record so future loads show the correct address
             try {
               if (defaultAddr._id) {
@@ -318,73 +314,6 @@ export default function Checkout() {
     fetchInitialData();
     fetchWallet();
   }, []);
-
-  // Fetch similar products dynamically
-  useEffect(() => {
-    const fetchSimilar = async () => {
-      const items = (cart?.items || []).filter((item) => item && item.product);
-      if (items.length === 0) return;
-
-      const cartItem = items[0];
-      try {
-        let response;
-        if (cartItem && cartItem.product) {
-          // Try to fetch by category of the first item
-          let catId = "";
-          const product = cartItem.product;
-
-          if (product.categoryId) {
-            catId =
-              typeof product.categoryId === "string"
-                ? product.categoryId
-                : (product.categoryId as any)._id ||
-                  (product.categoryId as any).id;
-          }
-
-          const modeParam = mode === "ECommerce" ? "ecommerce" : "quick";
-          if (catId) {
-            response = await getProducts({ category: catId, limit: 10, mode: modeParam });
-          } else {
-            response = await getProducts({ limit: 10, sort: "popular", mode: modeParam });
-          }
-        } else {
-          response = await getProducts({ limit: 10, sort: "popular", mode: mode === "ECommerce" ? "ecommerce" : "quick" });
-        }
-
-        if (response && response.data) {
-          // Filter out items already in cart
-          const itemsInCartIds = new Set(
-            (cart?.items || [])
-              .map((i) => i.product?.id || i.product?._id)
-              .filter(Boolean),
-          );
-          const filtered = response.data
-            .filter((p: any) => !itemsInCartIds.has(p.id || p._id))
-            .map((p: any) => {
-              const { displayPrice, mrp } = calculateProductPrice(p);
-              return {
-                ...p,
-                id: p._id || p.id,
-                name: p.productName || p.name || "Product",
-                imageUrl: p.mainImage || p.imageUrl || p.mainImageUrl || "",
-                price: displayPrice,
-                mrp: mrp,
-                pack:
-                  p.pack ||
-                  p.variations?.[0]?.title ||
-                  p.variations?.[0]?.name ||
-                  "Standard",
-              };
-            })
-            .slice(0, 6);
-          setSimilarProducts(filtered);
-        }
-      } catch (err) {
-        console.error("Failed to fetch similar products", err);
-      }
-    };
-    fetchSimilar();
-  }, [cart?.items?.length]);
 
   if (cartLoading) {
     return (
@@ -1177,7 +1106,11 @@ export default function Checkout() {
               <h3 className="text-3xl font-bold text-green-600 mb-2">
                 Order Placed!
               </h3>
-              <p className="text-gray-600">Your order is on the way</p>
+              <p className="text-gray-600">
+                {mode === "ECommerce"
+                  ? "Your order will be shipped by courier"
+                  : "Your order is on the way"}
+              </p>
             </div>
 
             {/* Action Button */}
@@ -1195,7 +1128,7 @@ export default function Checkout() {
         <div className="px-4 md:px-6 lg:px-8 py-2 md:py-3 flex items-center justify-between">
           {/* Back Arrow */}
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => goBackOr(navigate, "/")}
             className="w-7 h-7 flex items-center justify-center text-neutral-700 hover:bg-neutral-100 rounded-full transition-colors"
             aria-label="Go back">
             <svg
@@ -1474,260 +1407,6 @@ export default function Checkout() {
                 </div>
               ))}
           </div>
-        </div>
-      </div>
-
-      {/* You might also like */}
-      <div className="px-4 md:px-6 lg:px-8 py-2.5 md:py-3 border-b border-neutral-200">
-        <h2 className="text-sm font-semibold text-neutral-900 mb-2">
-          You might also like
-        </h2>
-        <div
-          className="flex gap-2 overflow-x-auto scrollbar-hide pb-3"
-          style={{ scrollSnapType: "x mandatory" }}>
-          {similarProducts.map((product) => {
-            // Get price details
-            const { displayPrice, mrp, discount, hasDiscount } =
-              calculateProductPrice(product);
-
-            // Get quantity in cart
-            const productId = product.id || product._id;
-            const inCartItem = (cart?.items || []).find((item) => {
-              const itemProductId = item.product?.id || item.product?._id;
-              return itemProductId === productId;
-            });
-            const inCartQty = inCartItem?.quantity || 0;
-
-            return (
-              <div
-                key={product.id}
-                className="flex-shrink-0 w-[140px]"
-                style={{ scrollSnapAlign: "start" }}>
-                <div
-                  className="bg-white rounded-lg overflow-hidden flex flex-col relative h-full"
-                  style={{ boxShadow: "0 1px 1px rgba(0, 0, 0, 0.03)" }}>
-                  {/* Product Image Area */}
-                  <div
-                    onClick={() =>
-                      navigate(`/product/${product.id || product._id}`)
-                    }
-                    className="relative block cursor-pointer">
-                    <div className="w-full h-28 bg-neutral-100 flex items-center justify-center overflow-hidden relative">
-                      {product.imageUrl || product.mainImage ? (
-                        <img
-                          src={product.imageUrl || product.mainImage}
-                          alt={product.name || product.productName || "Product"}
-                          className="w-full h-full object-contain"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = "none";
-                            const parent = target.parentElement;
-                            if (
-                              parent &&
-                              !parent.querySelector(".fallback-icon")
-                            ) {
-                              const fallback = document.createElement("div");
-                              fallback.className =
-                                "w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400 text-4xl fallback-icon";
-                              fallback.textContent = (
-                                product.name ||
-                                product.productName ||
-                                "?"
-                              )
-                                .charAt(0)
-                                .toUpperCase();
-                              parent.appendChild(fallback);
-                            }
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-neutral-100 text-neutral-400 text-4xl">
-                          {(product.name || product.productName || "?")
-                            .charAt(0)
-                            .toUpperCase()}
-                        </div>
-                      )}
-
-                      {/* Red Discount Badge - Top Left */}
-                      {discount > 0 && (
-                        <div className="absolute top-1 left-1 z-10 bg-red-600 text-white text-[9px] font-bold px-1 py-0.5 rounded">
-                          {discount}% OFF
-                        </div>
-                      )}
-
-                      {/* Heart Icon - Top Right */}
-                      <WishlistButton
-                        productId={product.id || product._id}
-                        size="sm"
-                        className="top-1 right-1 shadow-sm"
-                      />
-
-                      {/* ADD Button or Quantity Stepper - Overlaid on bottom right of image */}
-                      <div className="absolute bottom-1.5 right-1.5 z-10">
-                        <AnimatePresence mode="wait">
-                          {inCartQty === 0 ? (
-                            <motion.button
-                              key="add-button"
-                              initial={{ opacity: 0, scale: 0.8 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.8 }}
-                              transition={{ duration: 0.2 }}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                addToCart(product, e.currentTarget);
-                              }}
-                              className="bg-white/95 backdrop-blur-sm text-green-600 border-2 border-green-600 text-[10px] font-semibold px-2 py-1 rounded shadow-md hover:bg-white transition-colors">
-                              ADD
-                            </motion.button>
-                          ) : (
-                            <motion.div
-                              key="stepper"
-                              initial={{ opacity: 0, scale: 0.8 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.8 }}
-                              transition={{ duration: 0.2 }}
-                              className="flex items-center gap-1 bg-green-600 rounded px-1.5 py-1 shadow-md"
-                              onClick={(e) => e.stopPropagation()}>
-                              <motion.button
-                                whileTap={{ scale: 0.9 }}
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  updateQuantity(productId, inCartQty - 1);
-                                }}
-                                className="w-4 h-4 flex items-center justify-center text-white font-bold hover:bg-green-700 rounded transition-colors p-0 leading-none"
-                                style={{ lineHeight: 1, fontSize: "14px" }}>
-                                <span className="relative top-[-1px]">−</span>
-                              </motion.button>
-                              <motion.span
-                                key={inCartQty}
-                                initial={{ scale: 1.2, y: -2 }}
-                                animate={{ scale: 1, y: 0 }}
-                                transition={{
-                                  type: "spring",
-                                  stiffness: 500,
-                                  damping: 15,
-                                }}
-                                className="text-white font-bold min-w-[0.75rem] text-center"
-                                style={{ fontSize: "12px" }}>
-                                {inCartQty}
-                              </motion.span>
-                              <motion.button
-                                whileTap={{ scale: 0.9 }}
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  updateQuantity(productId, inCartQty + 1);
-                                }}
-                                className="w-4 h-4 flex items-center justify-center text-white font-bold hover:bg-green-700 rounded transition-colors p-0 leading-none"
-                                style={{ lineHeight: 1, fontSize: "14px" }}>
-                                <span className="relative top-[-1px]">+</span>
-                              </motion.button>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Product Details */}
-                  <div className="p-1.5 flex-1 flex flex-col bg-white">
-                    {/* Light Grey Tags */}
-                    <div className="flex gap-0.5 mb-0.5">
-                      <div className="bg-neutral-200 text-neutral-700 text-[8px] font-medium px-1 py-0.5 rounded">
-                        {product.pack || "1 unit"}
-                      </div>
-                      {product.pack &&
-                        (product.pack.includes("g") ||
-                          product.pack.includes("kg")) && (
-                          <div className="bg-neutral-200 text-neutral-700 text-[8px] font-medium px-1 py-0.5 rounded">
-                            {product.pack.replace(/[gk]/gi, "").trim()} GSM
-                          </div>
-                        )}
-                    </div>
-
-                    {/* Product Name */}
-                    <div
-                      onClick={() =>
-                        navigate(`/product/${product.id || product._id}`)
-                      }
-                      className="mb-0.5 cursor-pointer">
-                      <h3 className="text-[10px] font-bold text-neutral-900 line-clamp-2 leading-tight">
-                        {product.name || product.productName || "Product"}
-                      </h3>
-                    </div>
-
-                    {/* Rating and Reviews */}
-                    <div className="flex items-center gap-0.5 mb-0.5">
-                      <div className="flex items-center">
-                        {[...Array(5)].map((_, i) => (
-                          <svg
-                            key={i}
-                            width="8"
-                            height="8"
-                            viewBox="0 0 24 24"
-                            fill={i < 4 ? "#fbbf24" : "#e5e7eb"}
-                            xmlns="http://www.w3.org/2000/svg">
-                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                          </svg>
-                        ))}
-                      </div>
-                      <span className="text-[8px] text-neutral-500">(85)</span>
-                    </div>
-
-                    {/* Delivery Time */}
-                    <div className="text-[9px] text-neutral-600 mb-0.5">
-                      20 MINS
-                    </div>
-
-                    {/* Discount - Blue Text */}
-                    {discount > 0 && (
-                      <div className="text-[9px] text-blue-600 font-semibold mb-0.5">
-                        {discount}% OFF
-                      </div>
-                    )}
-
-                    {/* Price */}
-                    <div className="mb-1">
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-[13px] font-bold text-neutral-900">
-                          ₹{(displayPrice || 0).toLocaleString("en-IN")}
-                        </span>
-                        {hasDiscount && (
-                          <span className="text-[10px] text-neutral-400 line-through">
-                            ₹{(mrp || 0).toLocaleString("en-IN")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Bottom Link */}
-                    <div
-                      onClick={() =>
-                        navigate(
-                          `/category/${product.categoryId || product.category || "all"}`,
-                        )
-                      }
-                      className="w-full bg-green-100 text-green-700 text-[8px] font-medium py-0.5 rounded-lg flex items-center justify-between px-1 hover:bg-green-200 transition-colors mt-auto cursor-pointer">
-                      <span>See more like this</span>
-                      <div className="flex items-center gap-0.5">
-                        <div className="w-px h-2 bg-green-300"></div>
-                        <svg
-                          width="6"
-                          height="6"
-                          viewBox="0 0 8 8"
-                          fill="none"
-                          xmlns="http://www.w3.org/2000/svg">
-                          <path d="M0 0L8 4L0 8Z" fill="#16a34a" />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
         </div>
       </div>
 

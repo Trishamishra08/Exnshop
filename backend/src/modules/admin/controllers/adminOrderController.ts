@@ -1139,3 +1139,13 @@ export const getShippingLabels = asyncHandler(async (req: Request, res: Response
   }
   return res.status(200).json({ success: true, data: labels });
 });
+
+/** GST tax invoices for every seller of an order (Quick or E-commerce). */
+export const getTaxInvoices = asyncHandler(async (req: Request, res: Response) => {
+  const { buildTaxInvoices } = await import("../../../services/taxInvoiceService");
+  const invoices = await buildTaxInvoices(req.params.id);
+  if (invoices.length === 0) {
+    return res.status(404).json({ success: false, message: "No invoice for this order" });
+  }
+  return res.status(200).json({ success: true, data: invoices });
+});

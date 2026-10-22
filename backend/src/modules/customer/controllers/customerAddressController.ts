@@ -40,6 +40,13 @@ export const addAddress = async (req: Request, res: Response) => {
             existingAddress.city = city;
             existingAddress.state = state;
             existingAddress.pincode = pincode;
+            if (landmark !== undefined) existingAddress.landmark = landmark;
+            // A changed address must also move its map pin, otherwise the new city/pincode would
+            // sit on the old coordinates. 0,0 means "couldn't locate it" — keep the saved pin then.
+            if (typeof latitude === "number" && typeof longitude === "number" && (latitude || longitude)) {
+                existingAddress.latitude = latitude;
+                existingAddress.longitude = longitude;
+            }
             existingAddress.isDefault = isDefault || false;
 
             await existingAddress.save();
@@ -120,6 +127,12 @@ export const updateAddress = async (req: Request, res: Response) => {
             longitude,
             type,
         };
+
+        // 0,0 means "couldn't locate it" — keep the saved map pin rather than overwrite it.
+        if (!latitude && !longitude) {
+            delete updateData.latitude;
+            delete updateData.longitude;
+        }
 
         if (flat && street) {
             updateData.address = `${flat}, ${street}`;

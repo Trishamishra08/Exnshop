@@ -78,3 +78,36 @@ export function formatDeliveryAddress(
     mapsUrl,
   };
 }
+
+/**
+ * The backend stores an address as one string, "<flat>, <street>". Splits it back for the
+ * address form without losing anything: the first segment is the flat/house number and the
+ * rest is the street, so joining them again gives the exact same string.
+ */
+export function splitSavedAddress(address?: string | null): { flat: string; street: string } {
+  const text = (address || "").trim();
+  const cut = text.indexOf(", ");
+  if (cut < 0) return { flat: "", street: text };
+  return { flat: text.slice(0, cut), street: text.slice(cut + 2) };
+}
+
+/** True when two coordinates are within `withinKm` of each other (default 1 km). */
+export function isSamePlace(
+  a: { latitude?: number; longitude?: number },
+  b: { latitude?: number; longitude?: number },
+  withinKm = 1
+): boolean {
+  if (
+    typeof a.latitude !== "number" || typeof a.longitude !== "number" ||
+    typeof b.latitude !== "number" || typeof b.longitude !== "number"
+  ) {
+    return false;
+  }
+  const rad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = rad(b.latitude - a.latitude);
+  const dLng = rad(b.longitude - a.longitude);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(rad(a.latitude)) * Math.cos(rad(b.latitude)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(h)) <= withinKm;
+}

@@ -1,12 +1,12 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { getOrderById, updateOrderStatus, getOrderEarningBreakdown, type OrderDetail, type SellerEarningBreakdown } from '../../../services/api/orderService';
-import jsPDF from 'jspdf';
 import { useToast } from '../../../context/ToastContext';
 import ConfirmationModal from '../../../components/ConfirmationModal';
 import { formatDeliveryAddress } from '../../../utils/addressUtils';
 import SellerQuickOrderDetail from './SellerQuickOrderDetail';
 import { getSellerShippingLabel, generateSellerAwb } from '../../../services/api/shippingLabelService';
+import { getSellerTaxInvoice } from '../../../services/api/taxInvoiceService';
 
 // E-commerce orders are packed by the seller and shipped by courier, so they get
 // their own screen. Quick orders keep the original rider-delivery screen.
@@ -108,6 +108,7 @@ export default function SellerOrderDetail() {
   };
 
   const [labelBusy, setLabelBusy] = useState(false);
+  const [invoiceBusy, setInvoiceBusy] = useState(false);
   const handleDownloadLabel = async () => {
     if (!orderDetail) return;
     setLabelBusy(true);
@@ -115,12 +116,13 @@ export default function SellerOrderDetail() {
       const res = await getSellerShippingLabel(orderDetail.id);
       if (res.success && res.data.length) {
         const { downloadShippingLabels } = await import('../../../utils/shippingLabelPdf');
-        downloadShippingLabels(res.data, `Shipping_Label_${orderDetail.orderNumber || orderDetail.id}.pdf`);
+        await downloadShippingLabels(res.data, `Shipping_Label_${orderDetail.orderNumber || orderDetail.id}.pdf`);
       } else {
         showToast(res.message || 'Shipping label is not available yet', 'error');
       }
     } catch (err: any) {
-      showToast(err.response?.data?.message || 'Could not create the shipping label', 'error');
+      console.error('Shipping label failed', err);
+      showToast(err.response?.data?.message || `Could not create the shipping label${err?.message ? `: ${err.message}` : ''}`, 'error');
     } finally {
       setLabelBusy(false);
     }
@@ -215,122 +217,23 @@ export default function SellerOrderDetail() {
 
   const formatUnit = (unit: string) => (!unit || unit === 'N/A' || unit === 'Default' ? '' : unit);
 
-  const handleExportPDF = () => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 20;
-    const contentWidth = pageWidth - 2 * margin;
-    let yPos = margin;
-
-    const checkPageBreak = (requiredHeight: number) => {
-      if (yPos + requiredHeight > pageHeight - margin) {
-        doc.addPage();
-        yPos = margin;
+  const handleDownloadInvoice = async () => {
+    if (!orderDetail) return;
+    setInvoiceBusy(true);
+    try {
+      const res = await getSellerTaxInvoice(orderDetail.id);
+      if (res.success && res.data.length) {
+        const { downloadTaxInvoices } = await import('../../../utils/taxInvoicePdf');
+        await downloadTaxInvoices(res.data, `Invoice_${orderDetail.orderNumber || orderDetail.id}.pdf`);
+      } else {
+        showToast(res.message || 'Invoice is not available', 'error');
       }
-    };
-
-    doc.setFillColor(13, 148, 136);
-    doc.rect(margin, yPos, contentWidth, 15, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Exnshop', margin + 5, yPos + 10);
-    doc.setFontSize(10);
-    doc.text('E-commerce order', pageWidth - margin - 5, yPos + 10, { align: 'right' });
-    yPos += 25;
-
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(14);
-    doc.text(`Order #${orderRef}`, margin, yPos);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Invoice: ${orderDetail.invoiceNumber}`, pageWidth - margin, yPos, { align: 'right' });
-    yPos += 6;
-    doc.text(`Placed: ${formatDate(orderDetail.orderDate)}, ${formatTime(orderDetail.orderDate)}`, margin, yPos);
-    doc.text(`Status: ${statusLabel(orderStatus)}`, pageWidth - margin, yPos, { align: 'right' });
-    yPos += 6;
-    doc.text(`Payment: ${orderDetail.paymentMethod} (${orderDetail.paymentStatus})`, margin, yPos);
-    if (orderDetail.shipment?.awbCode) {
-      doc.text(`AWB: ${orderDetail.shipment.awbCode}`, pageWidth - margin, yPos, { align: 'right' });
+    } catch (err: any) {
+      console.error('Tax invoice failed', err);
+      showToast(err.response?.data?.message || `Could not create the invoice${err?.message ? `: ${err.message}` : ''}`, 'error');
+    } finally {
+      setInvoiceBusy(false);
     }
-    yPos += 10;
-
-    const colWidths = [contentWidth * 0.46, contentWidth * 0.14, contentWidth * 0.16, contentWidth * 0.08, contentWidth * 0.16];
-    const headers = ['Product', 'Price', 'GST', 'Qty', 'Amount'];
-    doc.setFillColor(245, 245, 245);
-    doc.rect(margin, yPos, contentWidth, 9, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    let xPos = margin;
-    headers.forEach((h, i) => {
-      doc.text(h, xPos + 2, yPos + 6);
-      xPos += colWidths[i];
-    });
-    yPos += 12;
-
-    doc.setFont('helvetica', 'normal');
-    orderDetail.items.forEach((item) => {
-      checkPageBreak(12);
-      const unit = formatUnit(item.unit);
-      const rowData = [
-        unit ? `${item.product} (${unit})` : item.product,
-        `Rs.${item.price.toFixed(2)}`,
-        `Rs.${(item.gst || 0).toFixed(2)} (${item.gstPercent || 0}%)`,
-        String(item.qty),
-        `Rs.${item.subtotal.toFixed(2)}`,
-      ];
-      xPos = margin;
-      rowData.forEach((data, i) => {
-        let text = data;
-        const maxWidth = colWidths[i] - 4;
-        if (doc.getTextWidth(text) > maxWidth) {
-          while (doc.getTextWidth(text + '...') > maxWidth && text.length > 0) text = text.slice(0, -1);
-          text += '...';
-        }
-        doc.text(text, xPos + 2, yPos + 4);
-        xPos += colWidths[i];
-      });
-      doc.setDrawColor(225, 225, 225);
-      doc.line(margin, yPos + 7, pageWidth - margin, yPos + 7);
-      yPos += 10;
-    });
-
-    checkPageBreak(30);
-    yPos += 4;
-    const totalsX = pageWidth - margin - 50;
-    doc.text('Subtotal:', totalsX, yPos, { align: 'right' });
-    doc.text(`Rs.${orderDetail.subtotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
-    yPos += 6;
-    doc.text('Tax:', totalsX, yPos, { align: 'right' });
-    doc.text(`Rs.${orderDetail.tax.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
-    yPos += 7;
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.text('Grand total:', totalsX, yPos, { align: 'right' });
-    doc.text(`Rs.${orderDetail.grandTotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
-    yPos += 14;
-
-    checkPageBreak(35);
-    doc.setFillColor(245, 245, 245);
-    doc.rect(margin, yPos, contentWidth, 8, 'F');
-    doc.setFontSize(10);
-    doc.text('SHIP TO', margin + 2, yPos + 5.5);
-    yPos += 13;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text(`${orderDetail.customerName}${orderDetail.customerPhone ? `  |  ${orderDetail.customerPhone}` : ''}`, margin, yPos);
-    yPos += 5;
-    const splitAddress = doc.splitTextToSize(address.formatted, contentWidth);
-    doc.text(splitAddress, margin, yPos);
-    yPos += splitAddress.length * 5 + 8;
-
-    checkPageBreak(12);
-    doc.setTextColor(120, 120, 120);
-    doc.setFontSize(8);
-    doc.text('Generated by Exnshop', pageWidth / 2, yPos, { align: 'center' });
-
-    doc.save(`Order_${orderRef}.pdf`);
   };
 
   const renderAction = () => {
@@ -428,10 +331,11 @@ export default function SellerOrderDetail() {
               {labelBusy ? 'Please wait…' : 'Download Shipping Label'}
             </button>
             <button
-              onClick={handleExportPDF}
-              className="px-3 py-2 rounded-lg border border-neutral-300 bg-white hover:bg-neutral-50 text-sm font-medium text-neutral-700"
+              onClick={handleDownloadInvoice}
+              disabled={invoiceBusy}
+              className="px-3 py-2 rounded-lg border border-neutral-300 bg-white hover:bg-neutral-50 text-sm font-medium text-neutral-700 disabled:opacity-50"
             >
-              Download PDF
+              {invoiceBusy ? 'Please wait…' : 'Download Tax Invoice'}
             </button>
             <button
               onClick={() => window.print()}

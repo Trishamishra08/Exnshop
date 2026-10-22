@@ -337,14 +337,14 @@ export default function ProductCard({
         )}
 
         {/* 5. Delivery Information */}
-        <div className="flex items-center gap-1 text-xs font-semibold text-neutral-500 mb-1">
+        <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs font-semibold text-neutral-500 mb-1">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-neutral-400 flex-shrink-0">
             <circle cx="12" cy="12" r="10" />
             <polyline points="12 6 12 12 16 14" />
           </svg>
-          <span>{isQuick ? '14 MINS' : 'SHOP ALL'}</span>
+          <span className="whitespace-nowrap">{isQuick ? '14 MINS' : 'SHOP ALL'}</span>
           {isQuick && isECommerce && (
-            <span className="text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-1 py-0.5 rounded uppercase tracking-tight">
+            <span className="text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-1 py-0.5 rounded uppercase tracking-tight whitespace-nowrap">
               Also ships
             </span>
           )}
@@ -363,12 +363,12 @@ export default function ProductCard({
         )}
 
         {/* 7. Price Row */}
-        <div className="mt-auto flex items-baseline gap-1.5 pt-1 mb-1">
-          <span className="text-base sm:text-lg font-black text-neutral-900">
+        <div className="mt-auto flex flex-wrap items-baseline gap-x-1.5 pt-1 mb-1">
+          <span className="text-base sm:text-lg font-black text-neutral-900 whitespace-nowrap">
             ₹{displayPrice.toLocaleString('en-IN')}
           </span>
           {mrp && mrp > displayPrice && (
-            <span className="text-xs sm:text-sm text-neutral-400 line-through font-normal">
+            <span className="text-xs sm:text-sm text-neutral-400 line-through font-normal whitespace-nowrap">
               ₹{mrp.toLocaleString('en-IN')}
             </span>
           )}

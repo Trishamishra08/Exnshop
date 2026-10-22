@@ -236,18 +236,20 @@ export default function Home() {
               const sectionTitle = getTranslatedField(section, "title") || section.title;
 
               if (section.displayType === "products" && section.data && section.data.length > 0) {
-                // Strict column mapping as requested - applies to ALL screen sizes including mobile
+                // The admin's column count applies from tablet width up; phones get
+                // 2 (3 on wider phones) so a product card has room for its name,
+                // delivery tag and price instead of clipping them.
                 const gridClass = {
                   2: "grid-cols-2",
-                  3: "grid-cols-3",
-                  4: "grid-cols-4",
-                  6: "grid-cols-6",
-                  8: "grid-cols-8"
-                }[columnCount] || "grid-cols-4";
+                  3: "grid-cols-2 sm:grid-cols-3",
+                  4: "grid-cols-2 sm:grid-cols-3 md:grid-cols-4",
+                  6: "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6",
+                  8: "grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
+                }[columnCount] || "grid-cols-2 sm:grid-cols-3 md:grid-cols-4";
 
-                // Use compact mode for 4 or more columns to fit content on mobile
-                const isCompact = columnCount >= 4;
-                const gapClass = columnCount >= 4 ? "gap-2" : "gap-3 md:gap-4";
+                // Compact cards only where 6+ columns actually show (large screens)
+                const isCompact = columnCount >= 6;
+                const gapClass = "gap-3 md:gap-4";
 
                 return (
                   <div key={section.id} className="mt-6 mb-6 md:mt-8 md:mb-8">

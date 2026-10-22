@@ -11,6 +11,7 @@ import {
   assignDeliveryBoySeller,
   getShippingLabel,
   generateShippingAwb,
+  getTaxInvoice,
 } from "../modules/seller/controllers/orderController";
 import { authenticate, requireUserType, requireApprovedUser } from "../middleware/auth";
 
@@ -46,6 +47,8 @@ router.get("/:id/earning-breakdown", getOrderEarningBreakdownSeller);
 router.get("/:id/shipping-label", getShippingLabel);
 // Retry assigning the courier AWB for a packed E-commerce order
 router.post("/:id/shipping-label/awb", generateShippingAwb);
+// GST tax invoice for this seller's items (any channel)
+router.get("/:id/tax-invoice", getTaxInvoice);
 
 // Update order status (support both PATCH and PUT)
 router.patch("/:id/status", updateOrderStatus);

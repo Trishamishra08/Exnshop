@@ -1431,23 +1431,23 @@ export default function ProductDetail() {
 
       {/* Sticky Footer */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-neutral-200 shadow-lg">
-        <div className="px-4 py-2.5 flex items-center justify-between">
-          {/* Left side - Product details */}
-          <div className="flex-1">
+        <div className="px-3 sm:px-4 py-2.5 flex items-center justify-between">
+          {/* Left side - Product details (shrinks so the buttons always fit on screen) */}
+          <div className="flex-1 min-w-0">
             {/* First line - Pack size */}
-            <div>
+            <div className="truncate">
               <span className="text-sm text-neutral-900 font-medium">
                 {variantTitle}
               </span>
             </div>
             {/* Second line - Price, MRP, and OFF */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-base font-bold text-neutral-900">
+            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+              <span className="text-base font-bold text-neutral-900 whitespace-nowrap">
                 ₹{variantPrice.toLocaleString('en-IN')}
               </span>
               {hasDiscount && (
                 <>
-                  <span className="text-xs text-neutral-500 line-through">
+                  <span className="text-xs text-neutral-500 line-through whitespace-nowrap">
                     MRP ₹{variantMrp.toLocaleString('en-IN')}
                   </span>
                   {discount > 0 && (
@@ -1465,7 +1465,7 @@ export default function ProductDetail() {
           </div>
 
           {/* Right side - Action Buttons (Add to Cart / Stepper AND Buy Now) */}
-          <div className="ml-3 flex items-center gap-2">
+          <div className="ml-2 sm:ml-3 flex flex-shrink-0 items-center gap-1.5 sm:gap-2">
             {isSellerUnavailable ? (
               <Button
                 disabled
@@ -1494,7 +1494,7 @@ export default function ProductDetail() {
                         variant="outline"
                         size="default"
                         onClick={handleAddToCart}
-                        className="px-4 py-2 text-sm font-semibold h-[38px] border-2 border-green-600 text-green-600 hover:bg-green-50 rounded-lg transition-colors whitespace-nowrap">
+                        className="px-3 sm:px-4 py-2 text-sm font-semibold h-[38px] border-2 border-green-600 text-green-600 hover:bg-green-50 rounded-lg transition-colors whitespace-nowrap">
                         {t("customer.addToCart", "Add to Cart")}
                       </Button>
                     </motion.div>
@@ -1542,7 +1542,7 @@ export default function ProductDetail() {
 
                 <Button
                   onClick={handleBuyNow}
-                  className="px-5 py-2 text-sm font-semibold h-[38px] bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors shadow-sm whitespace-nowrap">
+                  className="px-3 sm:px-5 py-2 text-sm font-semibold h-[38px] bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors shadow-sm whitespace-nowrap">
                   {t("customer.buyNow", "Buy Now")}
                 </Button>
               </>

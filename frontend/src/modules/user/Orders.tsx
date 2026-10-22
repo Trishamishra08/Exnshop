@@ -68,8 +68,14 @@ export default function Orders() {
             >
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <div className="text-sm font-semibold text-neutral-900 mb-1">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-neutral-900 mb-1">
                     {t("common.order", "Order")} #{shortId}
+                    {/* Both channels share this list; the tag tells a courier order from a rider-delivered one. */}
+                    {(order as any).channel === "ECommerce" ? (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700">E-commerce</span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-50 text-green-700">Quick</span>
+                    )}
                   </div>
                   <div className="text-xs text-neutral-500">{formatDate(order.createdAt)}</div>
                 </div>

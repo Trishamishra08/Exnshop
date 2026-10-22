@@ -10,6 +10,7 @@ import {
 } from "../../../services/commissionService";
 import { getSellerPendingOrderAlerts } from "../../../services/orderAlertService";
 import { buildShippingLabels, ensureSellerAwb } from "../../../services/shippingLabelService";
+import { buildTaxInvoices } from "../../../services/taxInvoiceService";
 
 /**
  * Get pending order alerts that require seller action (survives page refresh).
@@ -399,9 +400,12 @@ export const getOrderById = asyncHandler(
     });
 
     const sellerIdStr = sellerId.toString();
+    const shipments: any[] = order.shiprocketShipments || [];
+    // A single shipment with no seller on it (test-mode shipments carry none) is this order's only parcel.
     const myShipment =
-      (order.shiprocketShipments || []).find((s: any) => s.seller?.toString() === sellerIdStr) ||
-      (order.shiprocketShipments?.length ? undefined : order.shiprocket);
+      shipments.find((s) => s.seller?.toString() === sellerIdStr) ||
+      (shipments.length === 1 && !shipments[0].seller ? shipments[0] : undefined) ||
+      (shipments.length ? undefined : order.shiprocket);
 
     // Format order data for frontend
     const orderDetail = {
@@ -712,6 +716,20 @@ export const getShippingLabel = asyncHandler(async (req: Request, res: Response)
     return res.status(400).json({ success: false, message: "The shipping label is available once the order is packed and the courier AWB is assigned." });
   }
   return res.status(200).json({ success: true, data: labels });
+});
+
+/** GST tax invoice for this seller's items of an order (Quick or E-commerce). */
+export const getTaxInvoice = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = (req as any).user.userId;
+  const { id } = req.params;
+  if (!(await OrderItem.exists({ order: id, seller: sellerId }))) {
+    return res.status(404).json({ success: false, message: "Order not found" });
+  }
+  const invoices = await buildTaxInvoices(id, sellerId.toString());
+  if (invoices.length === 0) {
+    return res.status(400).json({ success: false, message: "No invoice: every item of yours on this order was cancelled or rejected." });
+  }
+  return res.status(200).json({ success: true, data: invoices });
 });
 
 /** Retries the courier/AWB assignment for a packed E-commerce order. */

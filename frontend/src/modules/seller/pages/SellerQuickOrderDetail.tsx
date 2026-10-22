@@ -1,10 +1,10 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { getOrderById, updateOrderStatus, getOrderEarningBreakdown, type OrderDetail, type SellerEarningBreakdown } from '../../../services/api/orderService';
-import jsPDF from 'jspdf';
 import { useToast } from '../../../context/ToastContext';
 import ConfirmationModal from '../../../components/ConfirmationModal';
 import { formatDeliveryAddress } from '../../../utils/addressUtils';
+import { getSellerTaxInvoice } from '../../../services/api/taxInvoiceService';
 import SellerAssignDeliveryBoyModal from '../components/SellerAssignDeliveryBoyModal';
 
 // Quick-commerce order screen. The flow (accept popup, status dropdown, rider
@@ -23,6 +23,7 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [deliveryPreference, setDeliveryPreference] = useState<'Self' | 'Admin'>('Self');
   const [earningBreakdown, setEarningBreakdown] = useState<SellerEarningBreakdown | null>(null);
+  const [invoiceBusy, setInvoiceBusy] = useState(false);
 
   // Fetch order detail from API
   useEffect(() => {
@@ -161,220 +162,23 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
     });
   };
 
-  const handleExportPDF = () => {
+  const handleDownloadInvoice = async () => {
     if (!orderDetail) return;
-
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 20;
-    const contentWidth = pageWidth - 2 * margin;
-    let yPos = margin;
-
-    // Helper function to add a new page if needed
-    const checkPageBreak = (requiredHeight: number) => {
-      if (yPos + requiredHeight > pageHeight - margin) {
-        doc.addPage();
-        yPos = margin;
-        return true;
+    setInvoiceBusy(true);
+    try {
+      const res = await getSellerTaxInvoice(orderDetail.id);
+      if (res.success && res.data.length) {
+        const { downloadTaxInvoices } = await import('../../../utils/taxInvoicePdf');
+        await downloadTaxInvoices(res.data, `Invoice_${orderDetail.orderNumber || orderDetail.id}.pdf`);
+      } else {
+        showToast(res.message || 'Invoice is not available', 'error');
       }
-      return false;
-    };
-
-    // Header - Company Info
-    doc.setFillColor(22, 163, 74); // Green color
-    doc.rect(margin, yPos, contentWidth, 15, 'F');
-
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Exnshop', margin + 5, yPos + 10);
-
-    yPos += 20;
-
-    // Company Details
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Exnshop', margin, yPos);
-    yPos += 7;
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text('From: Exnshop', margin, yPos);
-    yPos += 6;
-    doc.text('Email: support@exnshop.com', margin, yPos);
-    yPos += 6;
-    doc.text('Website: https://exnshop.com', margin, yPos);
-    yPos += 12;
-
-    // Invoice Details (Right aligned)
-    const rightX = pageWidth - margin;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Date: ${formatDate(orderDetail.orderDate)}`, rightX, yPos - 30, { align: 'right' });
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Invoice #${orderDetail.invoiceNumber}`, rightX, yPos - 20, { align: 'right' });
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Order ID: ${orderDetail.id}`, rightX, yPos - 14, { align: 'right' });
-    doc.text(`Delivery Date: ${formatDate(orderDetail.deliveryDate)}`, rightX, yPos - 8, { align: 'right' });
-    doc.text(`Order Time: ${formatTime(orderDetail.orderDate)}`, rightX, yPos - 2, { align: 'right' });
-
-    // Status badge
-    const statusWidth = doc.getTextWidth(orderStatus) + 8;
-    doc.setFillColor(59, 130, 246); // Blue for status
-    doc.roundedRect(rightX - statusWidth, yPos + 2, statusWidth, 6, 1, 1, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(9);
-    doc.text(orderStatus, rightX - statusWidth / 2, yPos + 5.5, { align: 'center' });
-
-    yPos += 15;
-    doc.setTextColor(0, 0, 0);
-
-    // Draw a line
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, yPos, pageWidth - margin, yPos);
-    yPos += 10;
-
-    // Table Header
-    checkPageBreak(20);
-    doc.setFillColor(245, 245, 245);
-    doc.rect(margin, yPos, contentWidth, 10, 'F');
-
-    const colWidths = [
-      contentWidth * 0.08,  // Sr. No.
-      contentWidth * 0.40,  // Product
-      contentWidth * 0.15,  // Price
-      contentWidth * 0.15,  // Tax
-      contentWidth * 0.10,  // Qty
-      contentWidth * 0.12,  // Subtotal
-    ];
-
-    let xPos = margin;
-    const headers = ['Sr. No.', 'Product', 'Price', 'Tax ₹ (%)', 'Qty', 'Subtotal'];
-
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 0, 0);
-
-    headers.forEach((header, index) => {
-      doc.text(header, xPos + 2, yPos + 7);
-      xPos += colWidths[index];
-    });
-
-    yPos += 12;
-
-    // Table Rows
-    orderDetail.items.forEach((item) => {
-      checkPageBreak(15);
-
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(0, 0, 0);
-
-      xPos = margin;
-      const rowData = [
-        item.srNo.toString(),
-        item.product,
-        `₹${item.price.toFixed(2)}`,
-        `${item.tax.toFixed(2)} (${item.taxPercent.toFixed(2)}%)`,
-        item.qty.toString(),
-        `₹${item.subtotal.toFixed(2)}`,
-      ];
-
-      rowData.forEach((data, index) => {
-        // Truncate long text
-        const maxWidth = colWidths[index] - 4;
-        let text = data;
-        if (doc.getTextWidth(text) > maxWidth && index === 1) {
-          // Truncate product name if too long
-          while (doc.getTextWidth(text + '...') > maxWidth && text.length > 0) {
-            text = text.slice(0, -1);
-          }
-          text += '...';
-        }
-        doc.text(text, xPos + 2, yPos + 5);
-        xPos += colWidths[index];
-      });
-
-      // Draw row separator
-      doc.setDrawColor(220, 220, 220);
-      doc.line(margin, yPos + 8, pageWidth - margin, yPos + 8);
-
-      yPos += 10;
-    });
-
-    // Calculate totals
-    const totalSubtotal = orderDetail.items.reduce((sum, item) => sum + item.subtotal, 0);
-    const totalTax = orderDetail.items.reduce((sum, item) => sum + item.tax, 0);
-    const grandTotal = totalSubtotal + totalTax;
-
-    yPos += 5;
-    checkPageBreak(30);
-
-    // Totals Section
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, yPos, pageWidth - margin, yPos);
-    yPos += 8;
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Subtotal:', pageWidth - margin - 60, yPos, { align: 'right' });
-    doc.text(`₹${totalSubtotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
-    yPos += 7;
-
-    doc.text('Tax:', pageWidth - margin - 60, yPos, { align: 'right' });
-    doc.text(`₹${totalTax.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
-    yPos += 7;
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.text('Grand Total:', pageWidth - margin - 60, yPos, { align: 'right' });
-    doc.text(`₹${grandTotal.toFixed(2)}`, pageWidth - margin, yPos, { align: 'right' });
-
-    // Customer Details in PDF
-    yPos += 15;
-    checkPageBreak(30);
-    doc.setDrawColor(220, 220, 220);
-    doc.setFillColor(245, 245, 245);
-    doc.rect(margin, yPos, contentWidth, 8, 'F');
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text('CUSTOMER DETAILS', margin + 2, yPos + 6);
-    yPos += 12;
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text(`Name: ${orderDetail.customerName}`, margin, yPos);
-    yPos += 5;
-    doc.text(`Phone: ${orderDetail.customerPhone}`, margin, yPos);
-    yPos += 5;
-    const addressInfo = formatDeliveryAddress(orderDetail.deliveryAddress);
-    const splitAddress = doc.splitTextToSize(`Address: ${addressInfo.formatted}`, contentWidth);
-    doc.text(splitAddress, margin, yPos);
-    yPos += (splitAddress.length * 5) + 5;
-
-    // Footer
-    checkPageBreak(20);
-    doc.setDrawColor(200, 200, 200);
-    doc.setLineWidth(0.5);
-    doc.line(margin, yPos, pageWidth - margin, yPos);
-    yPos += 8;
-
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 100, 100);
-    doc.text('Bill Generated by Exnshop', pageWidth / 2, yPos, { align: 'center' });
-    yPos += 8;
-
-    doc.setFontSize(8);
-    doc.text('Copyright © 2025. Developed By Exnshop', pageWidth / 2, yPos, { align: 'center' });
-
-    // Save the PDF
-    const fileName = `Invoice_${orderDetail.invoiceNumber}_${orderDetail.id}.pdf`;
-    doc.save(fileName);
+    } catch (err: any) {
+      console.error('Tax invoice failed', err);
+      showToast(err.response?.data?.message || `Could not create the invoice${err?.message ? `: ${err.message}` : ''}`, 'error');
+    } finally {
+      setInvoiceBusy(false);
+    }
   };
 
   const handlePrint = () => {
@@ -453,16 +257,17 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
           </div>
           <div className="flex gap-2 print:hidden">
             <button
-              onClick={handleExportPDF}
-              className="px-3 py-2 rounded-lg border border-neutral-300 bg-white hover:bg-neutral-50 text-sm font-medium text-neutral-700"
+              onClick={handleDownloadInvoice}
+              disabled={invoiceBusy}
+              className="px-3 py-2 rounded-lg border border-neutral-300 bg-white hover:bg-neutral-50 text-sm font-medium text-neutral-700 disabled:opacity-50"
             >
-              Export Invoice PDF
+              {invoiceBusy ? 'Please wait…' : 'Download Tax Invoice'}
             </button>
             <button
               onClick={handlePrint}
               className="px-3 py-2 rounded-lg border border-neutral-300 bg-white hover:bg-neutral-50 text-sm font-medium text-neutral-700"
             >
-              Print Invoice
+              Print
             </button>
           </div>
         </div>

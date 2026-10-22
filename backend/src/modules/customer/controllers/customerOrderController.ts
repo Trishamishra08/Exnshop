@@ -8,6 +8,7 @@ import mongoose from "mongoose";
 import { calculateDistance } from "../../../utils/locationHelper";
 import { notifySellersOfOrderUpdate } from "../../../services/sellerNotificationService";
 import { sendOrderStatusNotification } from "../../../services/notificationService";
+import { buildTaxInvoices, isInvoiceAvailable } from "../../../services/taxInvoiceService";
 import { generateDeliveryOtp } from "../../../services/deliveryOtpService";
 import AppSettings from "../../../models/AppSettings";
 import { getRoadDistances } from "../../../services/mapService";
@@ -1198,6 +1199,28 @@ export const getMyOrders = async (req: Request, res: Response) => {
   }
 };
 
+// GST tax invoices (one per seller) for the customer's own order, once it is delivered
+export const getOrderInvoice = async (req: Request, res: Response) => {
+  try {
+    const order = await Order.findOne({ _id: req.params.id, customer: req.user!.userId })
+      .select("status paymentStatus paymentMethod items total invoiceEnabled")
+      .lean();
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+    if (!isInvoiceAvailable(order)) {
+      return res.status(400).json({ success: false, message: "The invoice will be available once your order is delivered." });
+    }
+    const invoices = await buildTaxInvoices(String(order._id));
+    if (invoices.length === 0) {
+      return res.status(400).json({ success: false, message: "No invoice for this order" });
+    }
+    return res.status(200).json({ success: true, data: invoices });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: "Error building invoice", error: error.message });
+  }
+};
+
 // Get single order details
 export const getOrderById = async (req: Request, res: Response) => {
   try {
@@ -1292,10 +1315,7 @@ export const getOrderById = async (req: Request, res: Response) => {
     );
 
 
-    const isDeliveredOrCompleted = ["Delivered", "Completed"].includes(orderObj.status);
-    const isPaymentCompleted = orderObj.paymentStatus === "Paid" || (orderObj.paymentMethod === "COD" && isDeliveredOrCompleted);
-    const hasRequiredInvoiceData = Boolean(orderObj._id && orderObj.items && orderObj.items.length > 0 && orderObj.total != null);
-    const invoiceEnabled = orderObj.invoiceEnabled === true || (isDeliveredOrCompleted && isPaymentCompleted && hasRequiredInvoiceData);
+    const invoiceEnabled = isInvoiceAvailable(orderObj);
 
     const transformedOrder = {
       ...orderObj,

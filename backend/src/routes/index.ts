@@ -58,6 +58,7 @@ import {
   requestCustomerReturn,
   updateOrderNotes,
   refreshDeliveryOtp,
+  getOrderInvoice,
 } from "../modules/customer/controllers/customerOrderController";
 
 const router = Router();
@@ -144,6 +145,7 @@ router.post(
 );
 router.get("/customer/orders", authenticate, requireUserType("Customer"), getMyOrders);
 router.get("/customer/orders/:id", authenticate, requireUserType("Customer"), getOrderById);
+router.get("/customer/orders/:id/invoice", authenticate, requireUserType("Customer"), getOrderInvoice);
 router.post("/customer/orders/:id/cancel", authenticate, requireUserType("Customer"), cancelOrder);
 router.post("/customer/orders/:id/return", authenticate, requireUserType("Customer"), requestCustomerReturn);
 router.patch("/customer/orders/:id/notes", authenticate, requireUserType("Customer"), updateOrderNotes);

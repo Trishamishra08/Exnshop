@@ -9,6 +9,16 @@ import { getAddresses, addAddress, updateAddress, Address } from '../../services
 import { appConfig } from '../../services/configService';
 import { calculateProductPrice } from '../../utils/priceUtils';
 import GoogleMapsLocationPicker from '../../components/GoogleMapsLocationPicker';
+import { goBackOr } from '../../utils/navigation';
+import { splitSavedAddress } from '../../utils/addressUtils';
+
+// Checkout hands the saved address over as one string in `street` (flat empty). Split it so the
+// form shows the flat/house number on its own line instead of asking the customer to retype it.
+const withSplitStreet = (a: OrderAddress): OrderAddress => {
+  if (a.flat) return a;
+  const { flat, street } = splitSavedAddress(a.street);
+  return { ...a, flat, street };
+};
 
 export default function CheckoutAddress() {
   const { cart } = useCart();
@@ -21,15 +31,18 @@ export default function CheckoutAddress() {
   const editAddress = (location.state as any)?.editAddress as OrderAddress | undefined;
 
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
-  const [address, setAddress] = useState<OrderAddress>({
-    name: editAddress?.name || '',
-    phone: editAddress?.phone || '',
-    flat: editAddress?.flat || '',
-    street: editAddress?.street || '',
-    city: editAddress?.city || '',
-    pincode: editAddress?.pincode || '',
-    state: editAddress?.state || '',
-    landmark: editAddress?.landmark || '',
+  const [address, setAddress] = useState<OrderAddress>(() => {
+    const start = editAddress ? withSplitStreet(editAddress) : undefined;
+    return {
+      name: start?.name || '',
+      phone: start?.phone || '',
+      flat: start?.flat || '',
+      street: start?.street || '',
+      city: start?.city || '',
+      pincode: start?.pincode || '',
+      state: start?.state || '',
+      landmark: start?.landmark || '',
+    };
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof OrderAddress, string>>>({});
@@ -62,12 +75,12 @@ export default function CheckoutAddress() {
             if (!editAddress) {
               const homeAddr = response.data.find(a => a.type === 'Home');
               if (homeAddr) {
-                const parts = homeAddr.address.split(', ');
+                const parts = splitSavedAddress(homeAddr.address);
                 setAddress({
                   name: homeAddr.fullName,
                   phone: homeAddr.phone,
-                  flat: parts[0] || '',
-                  street: parts[1] || '',
+                  flat: parts.flat,
+                  street: parts.street,
                   city: homeAddr.city,
                   state: homeAddr.state || '',
                   pincode: homeAddr.pincode,
@@ -92,12 +105,12 @@ export default function CheckoutAddress() {
       const existingAddr = savedAddresses.find(a => a.type === typeLabel);
 
       if (existingAddr) {
-        const parts = existingAddr.address.split(', ');
+        const parts = splitSavedAddress(existingAddr.address);
         setAddress({
           name: existingAddr.fullName,
           phone: existingAddr.phone,
-          flat: parts[0] || '',
-          street: parts[1] || '',
+          flat: parts.flat,
+          street: parts.street,
           city: existingAddr.city,
           state: existingAddr.state || '',
           pincode: existingAddr.pincode,
@@ -124,15 +137,16 @@ export default function CheckoutAddress() {
   // Update address when editAddress changes
   useEffect(() => {
     if (editAddress) {
+      const start = withSplitStreet(editAddress);
       setAddress({
-        name: editAddress.name || '',
-        phone: editAddress.phone || '',
-        flat: editAddress.flat || '',
-        street: editAddress.street || '',
-        city: editAddress.city || '',
-        pincode: editAddress.pincode || '',
-        state: editAddress.state || '',
-        landmark: editAddress.landmark || '',
+        name: start.name || '',
+        phone: start.phone || '',
+        flat: start.flat || '',
+        street: start.street || '',
+        city: start.city || '',
+        pincode: start.pincode || '',
+        state: start.state || '',
+        landmark: start.landmark || '',
       });
 
       // Try to set address type based on editAddress if it has one
@@ -194,6 +208,11 @@ export default function CheckoutAddress() {
     }
 
     if (!validateForm()) {
+      showToast('Please fill the highlighted fields', 'error');
+      // Bring the first field that needs fixing into view.
+      window.setTimeout(() => {
+        document.querySelector('[aria-invalid="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 50);
       return;
     }
 
@@ -224,7 +243,17 @@ export default function CheckoutAddress() {
             console.log("Geocoded address to:", finalLat, finalLng);
           }
         } catch (e) {
-          console.warn("Geocoding failed, proceeding with 0,0", e);
+          console.warn("Geocoding failed, keeping the address's existing coordinates", e);
+        }
+      }
+
+      // If the address couldn't be placed on the map, keep the coordinates it already had
+      // instead of saving 0,0 (which makes the address look undeliverable).
+      if (!finalLat || !finalLng) {
+        finalLat = editAddress?.latitude || 0;
+        finalLng = editAddress?.longitude || 0;
+        if (finalLat && finalLng && (editAddress?.city !== address.city || editAddress?.pincode !== address.pincode)) {
+          showToast("We couldn't find this address on the map, so the old map pin was kept. Use 'Set Location on Map' on checkout to correct it.", 'info');
         }
       }
 
@@ -240,8 +269,8 @@ export default function CheckoutAddress() {
         type: addressType.charAt(0).toUpperCase() + addressType.slice(1) as 'Home' | 'Work' | 'Hotel' | 'Other', // Capitalize
         isDefault: true, // Auto set as default for now
         address: `${address.flat}, ${address.street}`, // Fallback combined string
-        latitude: finalLat,
-        longitude: finalLng,
+        // Only send coordinates we actually have; the server keeps the saved ones otherwise.
+        ...(finalLat && finalLng ? { latitude: finalLat, longitude: finalLng } : {}),
       };
 
       // If editing an existing address, use updateAddress instead
@@ -252,34 +281,30 @@ export default function CheckoutAddress() {
         await addAddress(payload);
       }
 
-      // Show success feedback logic if needed or just navigate
-      setTimeout(() => {
-        setIsSaving(false);
-        navigate('/checkout', { replace: true });
-      }, 500);
-    } catch (error) {
+      showToast('Address saved', 'success');
+      // Return to checkout by stepping back, so the history doesn't gain a second "/checkout"
+      // entry (that duplicate made checkout's Back button seem to do nothing).
+      goBackOr(navigate, '/checkout');
+    } catch (error: any) {
       console.error('Error saving address:', error);
+      showToast(error?.response?.data?.message || 'Could not save the address. Please try again.', 'error');
+    } finally {
       setIsSaving(false);
-      // Show error toast
     }
   };
 
-  const isFormValid = address.name.trim() !== '' &&
-    address.phone.trim().length >= 10 &&
-    address.flat.trim() !== '' &&
-    address.street.trim() !== '' &&
-    address.city.trim() !== '' &&
-    (address.state?.trim() || '') !== '' &&
-    address.pincode.trim().length >= 6;
+  // Back / Close: one step back to the page that opened this one (checkout), or straight to
+  // checkout when this page was opened directly and there is nothing earlier in the history.
+  const goBack = () => goBackOr(navigate, '/checkout');
 
   return (
-    <div className="pb-24 bg-white min-h-screen">
+    <div className="pb-32 bg-white min-h-screen">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-white border-b border-neutral-200">
         <div className="px-4 py-2 flex items-center justify-between">
           <div className="flex items-center">
             <button
-              onClick={() => navigate(-1)}
+              onClick={goBack}
               className="w-7 h-7 flex items-center justify-center text-neutral-700 hover:bg-neutral-100 rounded-full transition-colors mr-2"
               aria-label="Go back"
             >
@@ -290,7 +315,7 @@ export default function CheckoutAddress() {
             <h1 className="text-base font-bold text-neutral-900">Enter complete address</h1>
           </div>
           <button
-            onClick={() => navigate(-1)}
+            onClick={goBack}
             className="w-7 h-7 flex items-center justify-center text-neutral-700 hover:bg-neutral-100 rounded-full transition-colors"
             aria-label="Close"
           >
@@ -390,6 +415,8 @@ export default function CheckoutAddress() {
           <input
             type="text"
             value={address.name}
+            id="addr-name"
+            aria-invalid={Boolean(errors.name)}
             onChange={(e) => handleInputChange('name', e.target.value)}
             className={`w-full px-3 py-2 bg-white border rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-colors ${errors.name ? 'border-red-500' : 'border-neutral-200'
               }`}
@@ -405,6 +432,8 @@ export default function CheckoutAddress() {
           <input
             type="tel"
             value={address.phone}
+            id="addr-phone"
+            aria-invalid={Boolean(errors.phone)}
             onChange={(e) => handleInputChange('phone', e.target.value.replace(/\D/g, ''))}
             className={`w-full px-3 py-2 bg-white border rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-colors ${errors.phone ? 'border-red-500' : 'border-neutral-200'
               }`}
@@ -421,6 +450,8 @@ export default function CheckoutAddress() {
           <input
             type="text"
             value={address.flat}
+            id="addr-flat"
+            aria-invalid={Boolean(errors.flat)}
             onChange={(e) => handleInputChange('flat', e.target.value)}
             className={`w-full px-3 py-2 bg-white border rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-colors ${errors.flat ? 'border-red-500' : 'border-neutral-200'
               }`}
@@ -436,6 +467,8 @@ export default function CheckoutAddress() {
           <input
             type="text"
             value={address.street}
+            id="addr-street"
+            aria-invalid={Boolean(errors.street)}
             onChange={(e) => handleInputChange('street', e.target.value)}
             className={`w-full px-3 py-2 bg-white border rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-colors ${errors.street ? 'border-red-500' : 'border-neutral-200'
               }`}
@@ -451,6 +484,8 @@ export default function CheckoutAddress() {
           <input
             type="text"
             value={address.city}
+            id="addr-city"
+            aria-invalid={Boolean(errors.city)}
             onChange={(e) => handleInputChange('city', e.target.value)}
             className={`w-full px-3 py-2 bg-white border rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-colors ${errors.city ? 'border-red-500' : 'border-neutral-200'
               }`}
@@ -466,6 +501,8 @@ export default function CheckoutAddress() {
           <input
             type="text"
             value={address.state || ''}
+            id="addr-state"
+            aria-invalid={Boolean(errors.state)}
             onChange={(e) => handleInputChange('state', e.target.value)}
             className={`w-full px-3 py-2 bg-white border rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-colors ${errors.state ? 'border-red-500' : 'border-neutral-200'
               }`}
@@ -481,6 +518,8 @@ export default function CheckoutAddress() {
           <input
             type="text"
             value={address.pincode}
+            id="addr-pincode"
+            aria-invalid={Boolean(errors.pincode)}
             onChange={(e) => handleInputChange('pincode', e.target.value.replace(/\D/g, ''))}
             className={`w-full px-3 py-2 bg-white border rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 transition-colors ${errors.pincode ? 'border-red-500' : 'border-neutral-200'
               }`}
@@ -541,11 +580,14 @@ export default function CheckoutAddress() {
       </div>
 
       {/* Save Address Button */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 z-[60] shadow-lg">
+      <div
+        className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 z-[60] shadow-lg"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)' }}
+      >
         <button
           onClick={handleSaveAddress}
-          disabled={!isFormValid || isSaving}
-          className={`w-full py-3 px-4 font-semibold text-sm transition-colors ${isFormValid && !isSaving
+          disabled={isSaving}
+          className={`w-full py-3 px-4 font-semibold text-sm transition-colors ${!isSaving
             ? 'bg-green-600 text-white hover:bg-green-700'
             : 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
             }`}

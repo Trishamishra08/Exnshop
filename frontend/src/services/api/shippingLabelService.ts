@@ -1,6 +1,7 @@
 import api from './config';
+import type { TaxInvoice } from './taxInvoiceService';
 
-/** One courier shipment's label + tax invoice (built by the backend from the order). */
+/** One courier shipment's label, with that seller's tax invoice (built by the backend from the order). */
 export interface ShippingLabel {
   awbCode: string;
   courierName: string;
@@ -8,31 +9,9 @@ export interface ShippingLabel {
   rtoRoutingCode: string;
   paymentMethod: 'COD' | 'Prepaid';
   codAmount: number;
-  orderNumber: string;
   shipmentRef: string;
-  invoiceNumber: string;
-  orderDate: string;
-  invoiceDate: string;
-  customer: { name: string; phone: string; address: string; city: string; state: string; pincode: string };
-  seller: { name: string; contactName: string; address: string; city: string; state: string; pincode: string; gstin: string };
-  placeOfSupply: string;
-  taxType: 'IGST' | 'CGST_SGST';
-  items: Array<{
-    sku: string;
-    name: string;
-    size: string;
-    color: string;
-    hsn: string;
-    qty: number;
-    gross: number;
-    discount: number;
-    taxable: number;
-    gstRate: number;
-    gstAmount: number;
-    total: number;
-  }>;
-  otherCharges: number;
-  totals: { taxable: number; tax: number; total: number };
+  returnTo: { name: string; address: string; city: string; state: string; pincode: string };
+  invoice: TaxInvoice;
 }
 
 type Res<T> = { success: boolean; message?: string; data: T };

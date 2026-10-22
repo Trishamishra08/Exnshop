@@ -358,15 +358,30 @@ export const getMergedCart = async (req: Request, res: Response) => {
     }
 };
 
+// Most of one product a cart may hold: its stock (the chosen variant's, when it has one)
+// and the per-order limit, whichever is lower. No limit when neither is set.
+const maxCartQuantity = (product: any, variation?: string) => {
+    const variant = (product?.variations || []).find(
+        (v: any) => variation && (String(v._id) === String(variation) || v.value === variation || v.title === variation)
+    );
+    const limits = [Number(variant?.stock ?? product?.stock), Number(product?.totalAllowedQuantity)]
+        .filter((n) => Number.isFinite(n) && n > 0);
+    return limits.length ? Math.min(...limits) : Infinity;
+};
+
 // Add item to cart
 export const addToCart = async (req: Request, res: Response) => {
     try {
         const userId = req.user?.userId;
-        const { productId, quantity = 1, variation, channel: requestedChannel } = req.body;
+        const { productId, variation, channel: requestedChannel } = req.body;
+        const quantity = Number(req.body.quantity ?? 1);
         const { latitude, longitude } = req.query;
 
         if (!productId) {
             return res.status(400).json({ success: false, message: 'Product ID is required' });
+        }
+        if (!Number.isInteger(quantity) || quantity < 1) {
+            return res.status(400).json({ success: false, message: 'Quantity must be a whole number of at least 1' });
         }
 
         // Parse location
@@ -439,16 +454,17 @@ export const addToCart = async (req: Request, res: Response) => {
             variation: variation || null
         });
 
+        const maxQuantity = maxCartQuantity(product, variation);
         if (cartItem) {
             // Update quantity
-            cartItem.quantity += quantity;
+            cartItem.quantity = Math.min(cartItem.quantity + quantity, maxQuantity);
             await cartItem.save();
         } else {
             // Create new cart item
             cartItem = await CartItem.create({
                 cart: cart._id,
                 product: productId,
-                quantity,
+                quantity: Math.min(quantity, maxQuantity),
                 variation
             });
             cart.items.push(cartItem._id as any);
@@ -504,12 +520,12 @@ export const updateCartItem = async (req: Request, res: Response) => {
     try {
         const userId = req.user?.userId;
         const { itemId } = req.params;
-        const { quantity } = req.body;
+        const quantity = Number(req.body.quantity);
         const { latitude, longitude } = req.query;
         const channel = getChannel(req);
 
-        if (quantity < 1) {
-            return res.status(400).json({ success: false, message: 'Quantity must be at least 1' });
+        if (!Number.isInteger(quantity) || quantity < 1) {
+            return res.status(400).json({ success: false, message: 'Quantity must be a whole number of at least 1' });
         }
 
         // Parse location
@@ -549,7 +565,7 @@ export const updateCartItem = async (req: Request, res: Response) => {
             }
         }
 
-        cartItem.quantity = quantity;
+        cartItem.quantity = Math.min(quantity, maxCartQuantity(cartItem.product, cartItem.variation));
         await cartItem.save();
 
         cart.total = await calculateCartTotal(cart._id, channel === 'Quick' ? nearbySellerIds : null);
