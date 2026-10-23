@@ -707,7 +707,9 @@ export default function SellerProfile() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-5 sm:p-6 overflow-hidden max-h-[90vh] flex flex-col"
+              // Stays clear of the phone's navigation bar so the Save row is always on screen.
+              style={{ maxHeight: 'calc(100dvh - 2rem - var(--safe-bottom))' }}
+              className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-5 sm:p-6 overflow-hidden flex flex-col"
             >
               <div className="flex items-center justify-between border-b border-neutral-100 pb-3 mb-4">
                 <h3 className="text-lg font-bold text-neutral-900">Edit Vendor Profile</h3>
@@ -944,7 +946,8 @@ export default function SellerProfile() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-100">
+                {/* Pinned to the bottom of the scrolling form so Save is visible without scrolling down. */}
+                <div className="sticky bottom-0 z-10 bg-white flex items-center justify-end gap-2 pt-3 pb-1 border-t border-neutral-100">
                   <button
                     type="button"
                     onClick={() => setIsEditModalOpen(false)}

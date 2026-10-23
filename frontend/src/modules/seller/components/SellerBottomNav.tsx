@@ -287,7 +287,7 @@ export default function SellerBottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200/80 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] z-50 lg:hidden select-none"
+      className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200/80 shadow-[0_-2px_10px_rgba(0,0,0,0.06)] z-40 lg:hidden select-none"
       style={{ paddingBottom: 'var(--safe-bottom)' }}
     >
       <div className="flex justify-around items-center h-16 max-w-md mx-auto px-2">
