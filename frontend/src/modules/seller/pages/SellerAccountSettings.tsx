@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSellerProfile, updateSellerProfile, sendEmailVerification, verifySellerEmail } from '../../../services/api/auth/sellerAuthService';
+import { uploadImage } from '../../../services/api/uploadService';
 import { useAuth } from '../../../context/AuthContext';
 import { getHeaderCategoriesPublic, HeaderCategory } from '../../../services/api/headerCategoryService';
 import GoogleMapsAutocomplete from '../../../components/GoogleMapsAutocomplete';
@@ -111,6 +112,28 @@ const SellerAccountSettings = () => {
                 category: prev.category || nextCategories[0] || '',
             };
         });
+    };
+
+    // Profile photo / store logo: upload the chosen image and preview it; "Save Changes" stores it.
+    const [uploadingImage, setUploadingImage] = useState<'' | 'profile' | 'logo'>('');
+    const handleImagePick = async (field: 'profile' | 'logo', e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            setError('Please choose an image file');
+            return;
+        }
+        try {
+            setUploadingImage(field);
+            setError('');
+            const result = await uploadImage(file);
+            if (result?.url) setSellerData(prev => ({ ...prev, [field]: result.url }));
+        } catch (err: any) {
+            setError(err.message || 'Could not upload the image');
+        } finally {
+            setUploadingImage('');
+        }
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -351,12 +374,14 @@ const SellerAccountSettings = () => {
                                                             className="relative w-32 h-32 rounded-full object-cover border-4 border-white shadow-md bg-white"
                                                         />
                                                         {isEditing && (
-                                                            <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full cursor-pointer opacity-0 group-hover:opacity-100 transition-all duration-200 backdrop-blur-sm z-10">
+                                                            // A real file picker; shown on touch screens too (no hover there).
+                                                            <label className="absolute inset-0 flex items-center justify-center bg-black/40 sm:bg-black/50 rounded-full cursor-pointer opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200 z-10">
+                                                                <input type="file" accept="image/*" className="hidden" disabled={Boolean(uploadingImage)} onChange={(e) => handleImagePick('profile', e)} />
                                                                 <span className="text-white text-xs font-bold uppercase tracking-wider flex flex-col items-center gap-1">
                                                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                                                    Change
+                                                                    {uploadingImage === 'profile' ? 'Uploading…' : 'Change'}
                                                                 </span>
-                                                            </div>
+                                                            </label>
                                                         )}
                                                     </div>
                                                     <div className="text-center sm:text-left">
@@ -463,9 +488,10 @@ const SellerAccountSettings = () => {
                                                             />
                                                         </div>
                                                         {isEditing && (
-                                                            <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-xl cursor-pointer opacity-0 group-hover:opacity-100 transition-all duration-200 backdrop-blur-sm">
-                                                                <span className="text-white text-xs font-bold">UPLOAD</span>
-                                                            </div>
+                                                            <label className="absolute inset-0 flex items-center justify-center bg-black/40 sm:bg-black/50 rounded-xl cursor-pointer opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-200">
+                                                                <input type="file" accept="image/*" className="hidden" disabled={Boolean(uploadingImage)} onChange={(e) => handleImagePick('logo', e)} />
+                                                                <span className="text-white text-xs font-bold">{uploadingImage === 'logo' ? 'Uploading…' : 'UPLOAD'}</span>
+                                                            </label>
                                                         )}
                                                     </div>
                                                     <div>
