@@ -6,6 +6,12 @@ import {
 } from "../../../services/otpService";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Default admin login until the admin sets a real email in Admin Profile:
+// this one email takes a fixed OTP and no email is sent. Every other admin
+// email gets a real emailed code.
+const DEFAULT_ADMIN_EMAIL = (process.env.ADMIN_DEFAULT_EMAIL || "exnshop@gmail.com").trim().toLowerCase();
+const DEFAULT_ADMIN_OTP = process.env.ADMIN_DEFAULT_OTP || "123456";
 import { generateToken } from "../../../services/jwtService";
 import { asyncHandler } from "../../../utils/asyncHandler";
 
@@ -22,6 +28,9 @@ export const sendOTP = asyncHandler(async (req: Request, res: Response) => {
     const admin = await Admin.findOne({ email });
     if (!admin) {
       return res.status(404).json({ success: false, message: "Admin not found with this email" });
+    }
+    if (email === DEFAULT_ADMIN_EMAIL) {
+      return res.status(200).json({ success: true, message: "Enter the default admin OTP" });
     }
     try {
       const result = await sendEmailOtpService(email, "Admin", admin.firstName, "login", true);
@@ -46,7 +55,10 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: "Valid 6-digit OTP is required" });
     }
     const admin = await Admin.findOne({ email }).select("-password");
-    if (!admin || !(await verifyEmailOtpService(email, otp, "Admin"))) {
+    const otpOk = email === DEFAULT_ADMIN_EMAIL
+      ? String(otp) === DEFAULT_ADMIN_OTP
+      : await verifyEmailOtpService(email, otp, "Admin");
+    if (!admin || !otpOk) {
       return res.status(401).json({ success: false, message: "Invalid or expired OTP. Please try again." });
     }
     return sendAdminLogin(res, admin);
