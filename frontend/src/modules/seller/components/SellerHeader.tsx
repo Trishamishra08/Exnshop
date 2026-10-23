@@ -103,7 +103,7 @@ export default function SellerHeader({ onMenuClick, isSidebarOpen }: SellerHeade
                 className="h-7 sm:h-8 w-auto object-contain cursor-pointer mb-1"
                 style={{ maxWidth: '120px' }}
               />
-              <span className="text-[10px] font-semibold text-[#2563eb] bg-[#eff6ff] px-2.5 py-0.5 rounded-full ml-6">
+              <span className="text-[10px] font-semibold text-[#2563eb] bg-[#eff6ff] px-2.5 py-0.5 rounded-full">
                 Seller Panel
               </span>
             </button>

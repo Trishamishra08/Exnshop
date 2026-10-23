@@ -55,6 +55,54 @@ const SellerAccountSettings = () => {
     const [emailVerifyLoading, setEmailVerifyLoading] = useState(false);
     const [emailCodeSent, setEmailCodeSent] = useState(false);
     const [emailCodeInput, setEmailCodeInput] = useState('');
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+    // Which settings tab each validated field lives on, so a failed submit can jump there.
+    const FIELD_TAB: Record<string, string> = {
+        sellerName: 'profile',
+        storeName: 'store', city: 'store',
+        panCard: 'bank', gstin: 'bank', accountName: 'bank', bankName: 'bank', accountNumber: 'bank', ifsc: 'bank', upiId: 'bank',
+    };
+
+    // Format checks run on every field that has one; empty is allowed everywhere except
+    // sellerName/storeName (always required) — bank fields become required only once any
+    // one of them is filled in, so a seller can still save other tabs before adding payout info.
+    const validators: Record<string, (value: string, data: typeof sellerData) => string | undefined> = {
+        sellerName: (v) => (!v.trim() ? 'Full name is required' : v.trim().length < 2 ? 'Enter a valid name' : undefined),
+        storeName: (v) => (!v.trim() ? 'Store name is required' : v.trim().length < 2 ? 'Enter a valid store name' : undefined),
+        city: (v) => (!v.trim() ? 'City is required' : undefined),
+        panCard: (v) => (v && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(v) ? 'PAN must look like ABCDE1234F' : undefined),
+        gstin: (v) => (v && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(v) ? 'GSTIN must look like 09ABCDE1234F1Z5' : undefined),
+        accountName: (v, d) => (!v.trim() && (d.bankName || d.accountNumber || d.ifsc) ? 'Required once any bank detail is filled in' : undefined),
+        bankName: (v, d) => (!v.trim() && (d.accountName || d.accountNumber || d.ifsc) ? 'Required once any bank detail is filled in' : undefined),
+        accountNumber: (v) => (v && !/^[0-9]{9,18}$/.test(v) ? 'Account number must be 9–18 digits' : undefined),
+        ifsc: (v, d) => (d.accountNumber && !v ? 'IFSC is required with an account number' : v && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(v) ? 'IFSC must look like ABCD0123456' : undefined),
+        upiId: (v) => (v && !/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z][a-zA-Z0-9.]{1,64}$/.test(v) ? 'UPI ID must look like username@bank' : undefined),
+    };
+
+    const validateField = (name: string, value: string, data = sellerData) => {
+        const check = validators[name];
+        if (!check) return;
+        const message = check(value, data);
+        setFieldErrors(prev => {
+            const next = { ...prev };
+            if (message) next[name] = message; else delete next[name];
+            return next;
+        });
+    };
+
+    const handleFieldBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+        validateField(e.target.name, e.target.value);
+    };
+
+    const validateAll = (data: typeof sellerData): Record<string, string> => {
+        const errors: Record<string, string> = {};
+        for (const name of Object.keys(validators)) {
+            const message = validators[name]((data as any)[name] || '', data);
+            if (message) errors[name] = message;
+        }
+        return errors;
+    };
 
     useEffect(() => {
         fetchProfile();
@@ -114,9 +162,9 @@ const SellerAccountSettings = () => {
         });
     };
 
-    // Profile photo / store logo: upload the chosen image and preview it; "Save Changes" stores it.
-    const [uploadingImage, setUploadingImage] = useState<'' | 'profile' | 'logo'>('');
-    const handleImagePick = async (field: 'profile' | 'logo', e: React.ChangeEvent<HTMLInputElement>) => {
+    // Profile photo / store logo / store banner: upload the chosen image and preview it; "Save Changes" stores it.
+    const [uploadingImage, setUploadingImage] = useState<'' | 'profile' | 'logo' | 'storeBanner'>('');
+    const handleImagePick = async (field: 'profile' | 'logo' | 'storeBanner', e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         e.target.value = '';
         if (!file) return;
@@ -136,19 +184,36 @@ const SellerAccountSettings = () => {
         }
     };
 
+    // PAN, GSTIN and IFSC are conventionally upper-case; typing lower-case still matches.
+    const UPPERCASE_FIELDS = new Set(['panCard', 'gstin', 'ifsc']);
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
+        const nextValue = UPPERCASE_FIELDS.has(name) ? value.toUpperCase() : value;
         setSellerData(prev => ({
             ...prev,
-            [name]: value
+            [name]: nextValue
         }));
+        // Clear a field's error as soon as it's edited; full re-check happens on blur/submit.
+        if (fieldErrors[name]) setFieldErrors(prev => { const next = { ...prev }; delete next[name]; return next; });
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setError('');
+
+        // Full validation pass: name/store/city formats, PAN/GSTIN/IFSC/account/UPI formats.
+        const errors = validateAll(sellerData);
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(errors);
+            const firstTab = FIELD_TAB[Object.keys(errors)[0]];
+            if (firstTab) setActiveTab(firstTab);
+            setError('Please fix the highlighted fields before saving.');
+            return;
+        }
+
         try {
             setSaveLoading(true);
-            setError('');
 
             // Validate location if address is being updated
             if (sellerData.searchLocation && (!sellerData.latitude || !sellerData.longitude)) {
@@ -261,7 +326,10 @@ const SellerAccountSettings = () => {
                         <motion.button
                             whileHover={{ scale: 1.02 }}
                             whileTap={{ scale: 0.98 }}
-                            onClick={() => setIsEditing(!isEditing)}
+                            onClick={() => {
+                                if (isEditing) { setFieldErrors({}); setError(''); fetchProfile(); }
+                                setIsEditing(!isEditing);
+                            }}
                             className={`px-5 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 shadow-sm flex items-center gap-2 ${isEditing
                                 ? 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-200'
                                 : 'bg-teal-600 text-white hover:bg-teal-700 hover:shadow-md'
@@ -392,7 +460,7 @@ const SellerAccountSettings = () => {
                                                 </div>
 
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                                    <InputGroup label="Full Name" name="sellerName" value={sellerData.sellerName} onChange={handleInputChange} disabled={!isEditing} autoComplete="name" />
+                                                    <InputGroup label="Full Name" name="sellerName" value={sellerData.sellerName} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.sellerName} required disabled={!isEditing} autoComplete="name" />
                                                     <div>
                                                         {/* Email and mobile are the seller's login IDs; the server doesn't let them change here. */}
                                                         <InputGroup label="Email Address" name="email" value={sellerData.email} onChange={handleInputChange} disabled type="email" autoComplete="email" />
@@ -505,7 +573,7 @@ const SellerAccountSettings = () => {
                                                 </div>
 
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                                    <InputGroup label="Store Name" name="storeName" value={sellerData.storeName} onChange={handleInputChange} disabled={!isEditing} />
+                                                    <InputGroup label="Store Name" name="storeName" value={sellerData.storeName} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.storeName} required disabled={!isEditing} />
 
                                                     <div className="space-y-1.5">
                                                         <label className="text-sm font-semibold text-gray-700 ml-1">Primary Store Category</label>
@@ -610,7 +678,7 @@ const SellerAccountSettings = () => {
                                                         )}
                                                     </div>
 
-                                                    <InputGroup label="City" name="city" value={sellerData.city} onChange={handleInputChange} disabled={!isEditing} />
+                                                    <InputGroup label="City" name="city" value={sellerData.city} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.city} required disabled={!isEditing} />
 
                                                     <div className="space-y-1.5">
                                                         <div className="flex items-center justify-between">
@@ -687,11 +755,17 @@ const SellerAccountSettings = () => {
                                                             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
                                                         />
                                                         {isEditing && (
-                                                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 cursor-pointer opacity-0 group-hover:opacity-100 transition-all duration-300 backdrop-blur-sm">
+                                                            // A real file picker; shown on touch screens too (no hover there) — same pattern as the profile photo and store logo pickers above.
+                                                            <label className="absolute inset-0 flex items-center justify-center bg-black/40 cursor-pointer opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-300 backdrop-blur-sm">
+                                                                <input type="file" accept="image/*" className="hidden" disabled={Boolean(uploadingImage)} onChange={(e) => handleImagePick('storeBanner', e)} />
                                                                 <div className="bg-white/20 p-4 rounded-full border border-white/30 backdrop-blur-md">
-                                                                    <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                                                    {uploadingImage === 'storeBanner' ? (
+                                                                        <span className="text-white text-xs font-bold px-2">Uploading…</span>
+                                                                    ) : (
+                                                                        <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                                                                    )}
                                                                 </div>
-                                                            </div>
+                                                            </label>
                                                         )}
                                                     </div>
                                                     <p className="text-xs text-gray-500 ml-1">Recommended size: 1200x400px. Supports JPG, PNG.</p>
@@ -725,10 +799,10 @@ const SellerAccountSettings = () => {
                                                         <h4 className="text-lg font-bold text-gray-900">Bank Details</h4>
                                                     </div>
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-gray-50/50 p-6 rounded-xl border border-gray-100">
-                                                        <InputGroup label="Account Holder Name" name="accountName" value={sellerData.accountName} onChange={handleInputChange} disabled={!isEditing} />
-                                                        <InputGroup label="Bank Name" name="bankName" value={sellerData.bankName} onChange={handleInputChange} disabled={!isEditing} />
-                                                        <InputGroup label="Account Number" name="accountNumber" value={sellerData.accountNumber} onChange={handleInputChange} disabled={!isEditing} />
-                                                        <InputGroup label="IFSC Code" name="ifsc" value={sellerData.ifsc} onChange={handleInputChange} disabled={!isEditing} />
+                                                        <InputGroup label="Account Holder Name" name="accountName" value={sellerData.accountName} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.accountName} disabled={!isEditing} />
+                                                        <InputGroup label="Bank Name" name="bankName" value={sellerData.bankName} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.bankName} disabled={!isEditing} />
+                                                        <InputGroup label="Account Number" name="accountNumber" value={sellerData.accountNumber} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.accountNumber} disabled={!isEditing} type="text" placeholder="9–18 digit account number" />
+                                                        <InputGroup label="IFSC Code" name="ifsc" value={sellerData.ifsc} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.ifsc} disabled={!isEditing} placeholder="ABCD0123456" />
                                                     </div>
                                                 </section>
 
@@ -741,7 +815,7 @@ const SellerAccountSettings = () => {
                                                     </div>
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-gray-50/50 p-6 rounded-xl border border-gray-100">
                                                         <div>
-                                                            <InputGroup label="UPI ID" name="upiId" value={sellerData.upiId || ''} onChange={handleInputChange} disabled={!isEditing} placeholder="username@bank" />
+                                                            <InputGroup label="UPI ID" name="upiId" value={sellerData.upiId || ''} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.upiId} disabled={!isEditing} placeholder="username@bank" />
                                                             <p className="text-xs text-gray-500 mt-1 ml-1">Example: username@bank</p>
                                                         </div>
                                                     </div>
@@ -755,8 +829,8 @@ const SellerAccountSettings = () => {
                                                         <h4 className="text-lg font-bold text-gray-900">Tax Information</h4>
                                                     </div>
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-gray-50/50 p-6 rounded-xl border border-gray-100">
-                                                        <InputGroup label="PAN Card Number" name="panCard" value={sellerData.panCard} onChange={handleInputChange} disabled={!isEditing} />
-                                                        <InputGroup label="GSTIN" name="gstin" value={sellerData.gstin} onChange={handleInputChange} disabled={!isEditing} />
+                                                        <InputGroup label="PAN Card Number" name="panCard" value={sellerData.panCard} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.panCard} disabled={!isEditing} placeholder="ABCDE1234F" />
+                                                        <InputGroup label="GSTIN" name="gstin" value={sellerData.gstin} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.gstin} disabled={!isEditing} placeholder="09ABCDE1234F1Z5" />
                                                         <InputGroup label="Business Type" name="businessType" value={sellerData.businessType} onChange={handleInputChange} disabled={!isEditing} placeholder="e.g. Proprietorship, Pvt Ltd, Partnership" />
                                                         <InputGroup label="Tax Number (legacy, optional)" name="taxNumber" value={sellerData.taxNumber} onChange={handleInputChange} disabled={!isEditing} />
                                                     </div>
@@ -773,7 +847,7 @@ const SellerAccountSettings = () => {
                                         >
                                             <button
                                                 type="button"
-                                                onClick={() => setIsEditing(false)}
+                                                onClick={() => { setIsEditing(false); setFieldErrors({}); setError(''); fetchProfile(); }}
                                                 className="px-5 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200 transition-all"
                                             >
                                                 Cancel
@@ -802,22 +876,30 @@ const SellerAccountSettings = () => {
     );
 };
 
-const InputGroup = ({ label, name, value, onChange, disabled, type = "text", placeholder = "", autoComplete }: any) => (
+const InputGroup = ({ label, name, value, onChange, onBlur, disabled, type = "text", placeholder = "", autoComplete, error, required }: any) => (
 
     <div className="space-y-1.5">
-        <label className="text-sm font-semibold text-gray-700 ml-1">{label}</label>
+        <label className="text-sm font-semibold text-gray-700 ml-1">
+            {label}{required && <span className="text-red-500"> *</span>}
+        </label>
         <input
             type={type}
             name={name}
             value={value || ''}
             onChange={onChange}
+            onBlur={onBlur}
             disabled={disabled}
             placeholder={placeholder}
             autoComplete={autoComplete}
-            className={`w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all ${disabled ? 'bg-gray-50/50 text-gray-500 cursor-default' : 'bg-white'
-
+            aria-invalid={Boolean(error)}
+            className={`w-full px-4 py-2.5 rounded-lg border outline-none transition-all ${disabled
+                ? 'bg-gray-50/50 text-gray-500 cursor-default border-gray-300'
+                : error
+                    ? 'bg-white border-red-400 focus:ring-2 focus:ring-red-500/20 focus:border-red-500'
+                    : 'bg-white border-gray-300 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500'
                 }`}
         />
+        {error && <p className="text-xs text-red-600 ml-1">{error}</p>}
     </div>
 );
 
