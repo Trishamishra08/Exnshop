@@ -107,6 +107,8 @@ export interface GetOrdersParams {
   limit?: number;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+  /** Only Quick or only E-commerce orders; omitted = both. */
+  channel?: 'Quick' | 'ECommerce';
 }
 
 export interface PaginatedResponse<T> {

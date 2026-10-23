@@ -19,7 +19,7 @@ import Coupon from "../../../models/Coupon";
 import Return from "../../../models/Return";
 import { debitWallet } from "../../../services/walletManagementService";
 import { commitCouponUsage } from "../../../services/couponService";
-import { createShiprocketOrder } from "../../../services/shiprocketService";
+import { ensureOrderShipments } from "../../../services/shippingLabelService";
 import { resolveSellerChannel, CommerceChannel } from "../../../utils/commerceChannelHelper";
 import { computeItemGst, GstLineInput } from "../../../services/taxService";
 
@@ -859,6 +859,8 @@ export const createOrder = async (req: Request, res: Response) => {
     // single-channel cart (the common case) takes the exact same path it
     // always has.
     const itemsByChannel: Record<CommerceChannel, any[]> = { Quick: [], ECommerce: [] };
+    // One order = one shop: each channel's items must all come from the same seller.
+    const shopsByChannel: Record<CommerceChannel, Set<string>> = { Quick: new Set(), ECommerce: new Set() };
     for (const item of items) {
       if (!item.product || !item.product.id) {
         if (session) await session.abortTransaction();
@@ -878,6 +880,17 @@ export const createOrder = async (req: Request, res: Response) => {
       // orders. Honor the checkout request's declared channel for those.
       const itemChannel = resolveSellerChannel((productSeller?.seller as any)?.channels, requestedChannel);
       itemsByChannel[itemChannel].push(item);
+      const itemSellerId = (productSeller?.seller as any)?._id;
+      if (itemSellerId) shopsByChannel[itemChannel].add(String(itemSellerId));
+    }
+
+    if (shopsByChannel.Quick.size > 1 || shopsByChannel.ECommerce.size > 1) {
+      if (session) await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        code: "CART_HAS_MULTIPLE_SHOPS",
+        message: "You can order from one shop at a time. Please keep items from only one shop in your cart.",
+      });
     }
 
     const channelGroupsPresent = (["Quick", "ECommerce"] as CommerceChannel[]).filter(
@@ -1010,36 +1023,15 @@ export const createOrder = async (req: Request, res: Response) => {
         }
       }
 
-      // For confirmed E-Commerce orders, push the shipment to Shiprocket (non-blocking — never fails order creation)
+      // For confirmed E-Commerce orders, push the shipment to Shiprocket (non-blocking — never fails order creation).
+      // Online orders get theirs once the payment is captured (paymentService).
       if (
         builtOrder.channel === "ECommerce" &&
         (builtOrder.paymentStatus === "Paid" || builtOrder.paymentMethod === "COD")
       ) {
-        createShiprocketOrder(builtOrder)
-          .then(async (result) => {
-            if (result.success) {
-              const status = result.isMock ? "Mock: Order Created" : "Order Created";
-              const [primary] = result.shipments;
-              builtOrder.shiprocket = {
-                orderId: primary.orderId,
-                shipmentId: primary.shipmentId,
-                status,
-              };
-              builtOrder.shiprocketShipments = result.shipments.map((s) => ({
-                seller: s.seller as any,
-                channelOrderId: s.channelOrderId,
-                pickupLocation: s.pickupLocation,
-                orderId: s.orderId,
-                shipmentId: s.shipmentId,
-                status,
-              }));
-              await builtOrder.save();
-            }
-            if (result.message) {
-              console.error(`[Shiprocket] Failed to create shipment(s) for order ${builtOrder.orderNumber}:`, result.message);
-            }
-          })
-          .catch((err) => console.error("[Shiprocket] Unexpected error creating shipment:", err));
+        ensureOrderShipments(String(builtOrder._id)).catch((err) =>
+          console.error("[Shiprocket] Unexpected error creating shipment:", err)
+        );
       }
     }
 
@@ -1310,6 +1302,17 @@ export const getOrderById = async (req: Request, res: Response) => {
           activeReturnStatus: activeReturn ? activeReturn.status : null,
           activeReturnId: activeReturn ? activeReturn._id : null,
           activeReturnRejectionReason: activeReturn?.rejectionReason || null,
+          activeReturnType: activeReturn?.requestType || null,
+          // E-commerce return: the courier picking it up from the customer
+          activeReturnCourier: activeReturn?.shiprocketReturn?.awbCode
+            ? {
+                courierName: activeReturn.shiprocketReturn.courierName || "",
+                awbCode: activeReturn.shiprocketReturn.awbCode,
+                trackingUrl: activeReturn.shiprocketReturn.trackingUrl || "",
+              }
+            : null,
+          // Exchange: the order sending the new unit
+          activeReturnReplacementOrderId: activeReturn?.replacementOrder || null,
         };
       })
     );

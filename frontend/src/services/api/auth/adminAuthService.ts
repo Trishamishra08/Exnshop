@@ -54,11 +54,21 @@ export const sendOTP = async (mobile: string): Promise<SendOTPResponse> => {
   return response.data;
 };
 
+/** Send a real login OTP to the admin's email. */
+export const sendEmailOTP = async (email: string): Promise<SendOTPResponse> => {
+  const response = await api.post<SendOTPResponse>('/auth/admin/send-otp', { email });
+  return response.data;
+};
+
 /**
- * Verify OTP and login admin
+ * Verify OTP and login admin — by mobile, or by email when `byEmail` is set
+ * (then the first argument is the email).
  */
-export const verifyOTP = async (mobile: string, otp: string): Promise<VerifyOTPResponse> => {
-  const response = await api.post<VerifyOTPResponse>('/auth/admin/verify-otp', { mobile, otp });
+export const verifyOTP = async (mobileOrEmail: string, otp: string, byEmail = false): Promise<VerifyOTPResponse> => {
+  const response = await api.post<VerifyOTPResponse>(
+    '/auth/admin/verify-otp',
+    byEmail ? { email: mobileOrEmail, otp } : { mobile: mobileOrEmail, otp }
+  );
 
   if (response.data.success && response.data.data.token) {
     const userWithUserType = {

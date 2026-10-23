@@ -15,23 +15,14 @@ function mapShiprocketStatus(rawStatus: string | undefined): IOrder["status"] | 
   if (!rawStatus) return undefined;
   const normalized = rawStatus.trim().toUpperCase().replace(/[_-]/g, " ");
 
-  if (["DELIVERED", "RTO DELIVERED"].includes(normalized)) return "Delivered";
+  // "RTO DELIVERED" is the parcel reaching the seller again — a return, not a delivery.
   if (normalized.startsWith("RTO")) return "RTO";
+  if (normalized === "DELIVERED") return "Delivered";
   if (["OUT FOR DELIVERY"].includes(normalized)) return "Out for Delivery";
   if (["PICKED UP", "PICKUP COMPLETE"].includes(normalized)) return "Picked up";
-  if (
-    [
-      "SHIPPED",
-      "IN TRANSIT",
-      "READY TO SHIP",
-      "PICKUP SCHEDULED",
-      "PICKUP GENERATED",
-      "PICKUP QUEUED",
-      "INVOICED",
-      "MANIFEST GENERATED",
-    ].includes(normalized)
-  )
-    return "Shipped";
+  if (["SHIPPED", "IN TRANSIT"].includes(normalized)) return "Shipped";
+  // READY TO SHIP / PICKUP SCHEDULED / MANIFEST GENERATED … happen while the parcel
+  // is still with the seller: the order stays "Packed" until the courier picks it up.
   if (["CANCELED", "CANCELLED"].includes(normalized)) return "Cancelled";
 
   return undefined;
@@ -75,6 +66,12 @@ const handleTrackingWebhook = async (req: Request, res: Response) => {
     // Shiprocket's "Test Webhook" ping has no shipment identifiers and must get a 200.
     if (!awb && !order_id && !sr_order_id) {
       return res.status(200).json({ success: true, message: "Webhook reachable" });
+    }
+
+    // E-commerce return pickups ("RET-…") are tracked on their Return, not the order.
+    const { applyCourierReturnUpdate } = await import("../services/courierReturnService");
+    if (await applyCourierReturnUpdate(req.body)) {
+      return res.status(200).json({ success: true });
     }
 
     // `order_id` is the id we sent (our order number, "-N" suffixed per seller);
@@ -129,7 +126,8 @@ const handleTrackingWebhook = async (req: Request, res: Response) => {
 
     const mappedStatus =
       shipments.length > 1 ? overallStatus(shipments.map((s) => s.status)) : mapShiprocketStatus(current_status);
-    if (mappedStatus && !TERMINAL_STATUSES.has(order.status)) {
+    const isNewRto = mappedStatus === "RTO" && order.status !== "RTO" && !TERMINAL_STATUSES.has(order.status);
+    if (mappedStatus && !isNewRto && !TERMINAL_STATUSES.has(order.status)) {
       order.status = mappedStatus;
       if (mappedStatus === "Delivered" && !order.deliveredAt) {
         order.deliveredAt = new Date();
@@ -137,6 +135,24 @@ const handleTrackingWebhook = async (req: Request, res: Response) => {
     }
 
     await order.save();
+
+    // Courier is returning the parcel: run the full RTO (record, stock back,
+    // customer refund), the same as when an admin marks it by hand.
+    if (isNewRto) {
+      try {
+        const { initiateRto } = await import("../services/rtoService");
+        await initiateRto({
+          orderId: String(order._id),
+          reasonCode: "COURIER_RTO",
+          reason: current_status ? `Courier status: ${current_status}` : "Reported by the courier",
+          markedByRole: "System",
+        });
+      } catch (err: any) {
+        // Not RTO-eligible from its current status (e.g. never picked up): still record the status.
+        console.error(`[Shiprocket] Full RTO handling failed for ${order.orderNumber}:`, err.message);
+        await Order.updateOne({ _id: order._id }, { $set: { status: "RTO" } });
+      }
+    }
 
     return res.status(200).json({ success: true });
   } catch (error: any) {

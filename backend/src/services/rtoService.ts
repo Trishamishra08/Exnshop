@@ -11,8 +11,9 @@ export interface InitiateRtoParams {
   reasonCode: string;
   reason?: string;
   reverseShippingCost?: number;
-  markedBy: string;
-  markedByRole: "Delivery" | "Admin";
+  /** Absent for "System": the courier reported the RTO through its webhook. */
+  markedBy?: string;
+  markedByRole: "Delivery" | "Admin" | "System";
 }
 
 const RTO_ELIGIBLE_STATUSES = ["Shipped", "Picked up", "On the way", "Out for Delivery"];
@@ -56,7 +57,7 @@ export async function initiateRto(params: InitiateRtoParams) {
   order.status = "RTO";
   order.rtoDetails = {
     markedAt: new Date(),
-    markedBy: new mongoose.Types.ObjectId(markedBy),
+    markedBy: markedBy ? new mongoose.Types.ObjectId(markedBy) : undefined,
     markedByRole,
     reasonCode,
     reason,
@@ -95,7 +96,7 @@ export async function initiateRto(params: InitiateRtoParams) {
       courierName,
       reasonCode,
       reason,
-      markedBy: new mongoose.Types.ObjectId(markedBy),
+      markedBy: markedBy ? new mongoose.Types.ObjectId(markedBy) : undefined,
       markedByRole,
       reverseShippingCost: cost,
       status: "Initiated",
@@ -128,6 +129,18 @@ export async function initiateRto(params: InitiateRtoParams) {
     );
 
     rtoEvents.push(rtoEvent);
+  }
+
+  // The customer never got the parcel: whatever they already paid (online
+  // and/or wallet) goes back to them in full. A plain COD order paid nothing.
+  const paidOnline = order.paymentMethod !== "COD" && order.paymentStatus === "Paid";
+  if ((paidOnline || (order.walletAmountUsed || 0) > 0) && order.paymentStatus !== "Refunded") {
+    try {
+      const { handleOnlineOrderCancellation } = await import("./refundSettlementService");
+      await handleOnlineOrderCancellation(orderId, "Returned to seller (RTO) — the order was never delivered", { refundOnly: true });
+    } catch (err) {
+      console.error(`[RTO] Customer refund failed for order ${order.orderNumber}:`, err);
+    }
   }
 
   return { order, rtoEvents };

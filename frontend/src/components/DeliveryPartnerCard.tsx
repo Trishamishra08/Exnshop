@@ -14,8 +14,23 @@ interface DeliveryPartnerCardProps {
     distance: number
     isTracking: boolean
     deliveryOtp?: string
+    /** Order status and the rider's own status, to show where the rider is in the delivery. */
+    orderStatus?: string
+    riderStatus?: string
+    /** A rider (or the seller, for self delivery) has taken the order. */
+    assigned?: boolean
+    selfDelivery?: boolean
     onCall?: () => void
     onMessage?: () => void
+}
+
+// Where the delivery is, from the rider's side: 0 assigned → 1 picked up → 2 arriving.
+const riderStage = (orderStatus = '', riderStatus = '', nearby: boolean) => {
+    const pickedUp =
+        ['Out for Delivery', 'On the way', 'Picked up'].includes(orderStatus) ||
+        ['Picked Up', 'In Transit'].includes(riderStatus)
+    if (pickedUp && nearby) return 2
+    return pickedUp ? 1 : 0
 }
 
 export default function DeliveryPartnerCard({
@@ -24,6 +39,10 @@ export default function DeliveryPartnerCard({
     distance,
     isTracking,
     deliveryOtp,
+    orderStatus,
+    riderStatus,
+    assigned = true,
+    selfDelivery = false,
     onCall,
     onMessage
 }: DeliveryPartnerCardProps) {
@@ -58,6 +77,21 @@ export default function DeliveryPartnerCard({
         return `${hours}h ${mins}m`
     }
 
+    const stage = riderStage(orderStatus, riderStatus, isTracking && distance > 0 && distance < 200)
+    const waitingForStore = ['Received', 'Pending'].includes(orderStatus || '')
+    const statusLine = !assigned
+        ? waitingForStore
+            ? { text: 'Waiting for the store to accept your order', tone: 'text-amber-700', dot: 'bg-amber-500' }
+            : { text: 'Finding a delivery partner', tone: 'text-amber-700', dot: 'bg-amber-500' }
+        : selfDelivery
+            ? { text: stage === 0 ? 'The seller is preparing to deliver your order' : 'The seller is delivering your order', tone: 'text-green-700', dot: 'bg-green-500' }
+            : [
+                { text: 'Rider assigned · heading to the store', tone: 'text-blue-700', dot: 'bg-blue-500' },
+                { text: 'Picked up · on the way to you', tone: 'text-green-700', dot: 'bg-green-500' },
+                { text: 'Arriving now · keep your OTP ready', tone: 'text-green-700', dot: 'bg-green-500' },
+            ][stage]
+    const steps = ['Assigned', 'Picked up', 'Arriving']
+
     return (
         <motion.div
             className="mx-4 mt-4 bg-white rounded-xl shadow-sm overflow-hidden"
@@ -83,26 +117,24 @@ export default function DeliveryPartnerCard({
 
                     {/* Partner Details */}
                     <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900">
-                            {partner?.name || 'Delivery Partner'}
+                        <h3 className="font-semibold text-gray-900 truncate">
+                            {assigned ? partner?.name || 'Delivery Partner' : 'Delivery partner'}
                         </h3>
                         {partner?.vehicleNumber && (
                             <p className="text-sm text-gray-500">
                                 🏍️ {partner.vehicleNumber}
                             </p>
                         )}
-                        {isTracking && (
-                            <div className="flex items-center gap-1 mt-1">
-                                <motion.div
-                                    className="w-2 h-2 rounded-full bg-green-500"
-                                    animate={{ opacity: [1, 0.3, 1] }}
-                                    transition={{ duration: 2, repeat: Infinity }}
-                                />
-                                <span className="text-xs text-green-600 font-medium">
-                                    On the way
-                                </span>
-                            </div>
-                        )}
+                        <div className="flex items-center gap-1.5 mt-1">
+                            <motion.div
+                                className={`w-2 h-2 rounded-full flex-shrink-0 ${statusLine.dot}`}
+                                animate={{ opacity: [1, 0.3, 1] }}
+                                transition={{ duration: 2, repeat: Infinity }}
+                            />
+                            <span className={`text-xs font-semibold ${statusLine.tone}`}>
+                                {statusLine.text}
+                            </span>
+                        </div>
                     </div>
 
                     {/* Call Button */}
@@ -120,6 +152,33 @@ export default function DeliveryPartnerCard({
                     )}
                 </div>
             </div>
+
+            {/* Rider progress: Assigned → Picked up → Arriving */}
+            {assigned && !selfDelivery && (
+                <div className="px-4 pb-4">
+                    <div className="flex items-center">
+                        {steps.map((label, i) => (
+                            <div key={label} className="flex-1 flex items-center last:flex-none">
+                                <div className="flex flex-col items-center">
+                                    <div
+                                        className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                                            i <= stage ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-400'
+                                        }`}
+                                    >
+                                        {i < stage ? '✓' : i + 1}
+                                    </div>
+                                    <span className={`mt-1 text-[10px] font-medium whitespace-nowrap ${i <= stage ? 'text-gray-900' : 'text-gray-400'}`}>
+                                        {label}
+                                    </span>
+                                </div>
+                                {i < steps.length - 1 && (
+                                    <div className={`flex-1 h-0.5 mx-1 mb-4 ${i < stage ? 'bg-green-600' : 'bg-gray-200'}`} />
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Live Metrics */}
             {isTracking && (

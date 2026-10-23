@@ -80,7 +80,9 @@ Customer Refund Amount: ₹${customerRefundAmount}`);
   */
 export const handleOnlineOrderCancellation = async (
   orderId: string,
-  cancellationReason?: string
+  cancellationReason?: string,
+  /** RTO: refund only — the order stays "RTO" and its stock was already restored. */
+  options: { refundOnly?: boolean } = {}
 ): Promise<{ success: boolean; message: string; data?: any }> => {
   const maxRetries = 5;
   let attempt = 0;
@@ -205,7 +207,7 @@ export const handleOnlineOrderCancellation = async (
       }
 
       // 3. RESTORE INVENTORY STOCK (ONCE for non-cancelled items)
-      if (Array.isArray(order.items) && order.items.length > 0) {
+      if (!options.refundOnly && Array.isArray(order.items) && order.items.length > 0) {
         const Product = (await import("../models/Product")).default;
         for (const itemRef of order.items) {
           const orderItem = await OrderItem.findById(itemRef).session(session);
@@ -257,7 +259,7 @@ export const handleOnlineOrderCancellation = async (
 
       // Mark order payment status refunded & order status cancelled
       order.paymentStatus = "Refunded";
-      order.status = "Cancelled";
+      if (!options.refundOnly) order.status = "Cancelled";
 
       console.log(`\n[REFUND ORDER UPDATE]\nOrder ID: ${order._id}\nPrevious status: ${prevStatus}\nNew status: Cancelled\nPrevious paymentStatus: ${prevPayStatus}\nNew paymentStatus: Refunded`);
 
@@ -491,20 +493,23 @@ export const executeReturnRefundAndReversal = async (
           }
         }
 
-        // ALWAYS credit Customer Wallet for the return refund so the customer receives the in-app wallet balance
+        // Whatever wasn't refunded to the card/UPI (a COD order, or a failed online
+        // refund) goes to the customer's wallet — never both, or they'd be paid twice.
+        const walletRemainder = Math.max(0, remainingProductRefund - (refundDetails.razorpayRefundAmount || 0));
         const targetCustomerId = (order.customer || returnReq.customer)?.toString();
-        if (targetCustomerId) {
-          console.log(`[RETURN REFUND] Return ID: ${returnReq._id}, Customer ID: ${targetCustomerId}, Order ID: ${order._id}, Refund Amount: ₹${remainingProductRefund}`);
+        if (targetCustomerId && walletRemainder > 0) {
+          console.log(`[RETURN REFUND] Return ID: ${returnReq._id}, Customer ID: ${targetCustomerId}, Order ID: ${order._id}, Wallet Refund: ₹${walletRemainder}`);
           console.log(`[RETURN REFUND] Wallet Credit Started`);
           const custWalletRes = await creditWallet(
             targetCustomerId,
             "CUSTOMER",
-            remainingProductRefund,
+            walletRemainder,
             `Return refund for order #${order.orderNumber}`,
             order._id.toString(),
             undefined,
             session,
-            `RETURN_REFUND_WALLET_${returnReq._id.toString()}`,
+            // Distinct from the wallet-portion credit above, so neither is taken for a duplicate.
+            `RETURN_REFUND_WALLET_REST_${returnReq._id.toString()}`,
             "COD_RETURN_REFUND",
             returnReq._id.toString()
           );
@@ -513,7 +518,7 @@ export const executeReturnRefundAndReversal = async (
             throw new Error(`Failed to credit customer wallet return refund: ${custWalletRes.message}`);
           }
           console.log(`[RETURN REFUND] Wallet Credit Successful. Transaction ID: ${custWalletRes.data?.transactionId}`);
-          refundDetails.codWalletRefundAmount = remainingProductRefund;
+          refundDetails.codWalletRefundAmount = walletRemainder;
         }
       }
 

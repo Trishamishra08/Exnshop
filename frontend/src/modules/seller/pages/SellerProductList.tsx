@@ -523,9 +523,98 @@ export default function SellerProductList() {
           </div>
         )}
 
-        {/* Table */}
+        {/* Phone: one card per product (its first listed variant), instead of a 13-column table */}
         {!loading && !error && (
-          <div className="overflow-x-auto flex-1">
+          <div className="md:hidden space-y-3">
+            {displayedVariations
+              .filter((v, i) => i === 0 || displayedVariations[i - 1].productId !== v.productId)
+              .map((variation) => {
+                const product: any = products.find((p) => p._id === variation.productId);
+                const badge = product ? REVIEW_BADGE[reviewStage(product)] || REVIEW_BADGE.Active : null;
+                const variantCount = product?.variations?.length || 1;
+                return (
+                  <div key={variation.productId} className="bg-white rounded-xl border border-neutral-200 shadow-sm p-3">
+                    <div className="flex gap-3">
+                      <div className="w-16 h-16 flex-shrink-0 bg-white border border-neutral-200 rounded-lg p-1 flex items-center justify-center">
+                        <img
+                          src={variation.productImage}
+                          alt={variation.productName}
+                          className="max-w-full max-h-full object-contain"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "https://placehold.co/60x40?text=Img";
+                          }}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-neutral-900 line-clamp-2">{variation.productName}</p>
+                        <p className="mt-0.5 text-[11px] text-neutral-500 truncate">
+                          {[variation.category, variation.subCategory].filter(Boolean).join(" › ")}
+                        </p>
+                        <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
+                          <span className="text-sm font-bold text-neutral-900">
+                            ₹{(variation.discPrice > 0 ? variation.discPrice : variation.price).toFixed(2)}
+                          </span>
+                          {variation.discPrice > 0 && (
+                            <span className="text-xs text-neutral-400 line-through">₹{variation.price.toFixed(2)}</span>
+                          )}
+                          {variantCount > 1 && (
+                            <span className="text-[11px] text-neutral-500">{variantCount} variants</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                        {badge && (
+                          <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${badge.tone}`}>{badge.label}</span>
+                        )}
+                        {product?.pendingRevision?.submittedAt && (
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-purple-50 text-purple-800 border-purple-200">
+                            Edits under review
+                          </span>
+                        )}
+                        {(product?.status === "Rejected" || product?.status === "Draft") && (
+                          <button
+                            onClick={() => handleEdit(variation.productId)}
+                            className="text-[11px] font-semibold text-teal-700 hover:underline">
+                            {product.status === "Rejected" ? "Fix & resubmit" : "Finish & submit"}
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => handleEdit(variation.productId)}
+                          className="px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 rounded-lg">
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleCopy(variation.productId)}
+                          className="px-2.5 py-1.5 text-xs font-semibold text-neutral-700 bg-neutral-100 rounded-lg">
+                          Copy
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(variation.productId)}
+                          aria-label="Delete product"
+                          className="px-2.5 py-1.5 text-xs font-semibold text-red-700 bg-red-50 rounded-lg">
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                    {product?.status === "Rejected" && product?.rejectionReason && (
+                      <p className="mt-2 text-[11px] text-orange-800">{product.rejectionReason}</p>
+                    )}
+                  </div>
+                );
+              })}
+            {displayedVariations.length === 0 && (
+              <p className="py-8 text-center text-sm text-neutral-400">No products found.</p>
+            )}
+          </div>
+        )}
+
+        {/* Table (tablet and desktop) */}
+        {!loading && !error && (
+          <div className="hidden md:block overflow-x-auto flex-1">
             <table className="w-full text-left border-collapse border border-neutral-200">
               <thead>
                 <tr className="bg-neutral-50 text-xs font-bold text-neutral-800">

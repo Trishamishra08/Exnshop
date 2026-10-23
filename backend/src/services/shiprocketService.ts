@@ -373,6 +373,104 @@ export const createShiprocketOrder = async (
   };
 };
 
+export interface ReturnPickupParams {
+  /** Our id for the return shipment, kept distinct from the order number. */
+  channelOrderId: string;
+  customer: { name: string; phone: string; email?: string; address: string; city: string; state: string; pincode: string };
+  seller: { name: string; phone: string; email?: string; address: string; city: string; state: string; pincode: string };
+  item: { name: string; sku: string; units: number; sellingPrice: number; product?: any };
+}
+
+/**
+ * Books a courier reverse pickup: from the customer's address back to the
+ * seller, then assigns its AWB. In mock mode a test shipment and AWB are returned.
+ */
+export const createShiprocketReturn = async (
+  params: ReturnPickupParams
+): Promise<{ success: boolean; isMock: boolean; orderId?: string; shipmentId?: string; awbCode?: string; courierName?: string; message?: string }> => {
+  if (isMockMode()) {
+    return {
+      success: true,
+      isMock: true,
+      orderId: `mock_sr_return_${params.channelOrderId}`,
+      shipmentId: `mock_sr_return_shipment_${params.channelOrderId}`,
+      awbCode: `8${crypto.createHash("sha1").update(params.channelOrderId).digest("hex").replace(/\D/g, "").padEnd(13, "0").slice(0, 13)}`,
+      courierName: "Test Courier (return)",
+    };
+  }
+
+  try {
+    const token = await getAuthToken();
+    const headers = { Authorization: `Bearer ${token}` };
+    const parcel = await parcelForItems([{ product: params.item.product, quantity: params.item.units }]);
+    const { customer, seller, item } = params;
+    const payload = {
+      order_id: params.channelOrderId,
+      order_date: new Date().toISOString().slice(0, 10),
+      pickup_customer_name: customer.name,
+      pickup_last_name: "",
+      pickup_address: customer.address,
+      pickup_city: customer.city,
+      pickup_state: customer.state || customer.city,
+      pickup_country: "India",
+      pickup_pincode: customer.pincode,
+      pickup_email: customer.email || "support@exnshop.in",
+      pickup_phone: customer.phone,
+      shipping_customer_name: seller.name,
+      shipping_last_name: "",
+      shipping_address: seller.address,
+      shipping_city: seller.city,
+      shipping_state: seller.state || seller.city,
+      shipping_country: "India",
+      shipping_pincode: seller.pincode,
+      shipping_email: seller.email || "support@exnshop.in",
+      shipping_phone: seller.phone,
+      order_items: [{ name: item.name, sku: item.sku, units: item.units, selling_price: item.sellingPrice }],
+      payment_method: "Prepaid",
+      sub_total: item.sellingPrice * item.units,
+      ...parcel,
+    };
+    const { data } = await axios.post(`${SHIPROCKET_BASE_URL}/orders/create/return`, payload, { headers });
+    const orderId = data?.order_id?.toString();
+    const shipmentId = data?.shipment_id?.toString();
+    if (!shipmentId) {
+      return { success: false, isMock: false, orderId, message: data?.message || "Shiprocket did not create the return shipment" };
+    }
+
+    const awb = await assignReturnAwb(shipmentId);
+    return { ...awb, orderId, shipmentId };
+  } catch (error: any) {
+    console.error(`[Shiprocket] Return pickup failed for ${params.channelOrderId}:`, error?.response?.data || error.message);
+    return { success: false, isMock: false, message: describeShiprocketError(error) };
+  }
+};
+
+/** Assigns the courier AWB for an already-created return shipment (also used to retry). */
+export const assignReturnAwb = async (
+  shipmentId: string
+): Promise<{ success: boolean; isMock: boolean; awbCode?: string; courierName?: string; message?: string }> => {
+  if (isMockMode()) {
+    return { success: true, isMock: true, awbCode: `8${String(shipmentId).replace(/\D/g, "").padEnd(13, "0").slice(0, 13)}`, courierName: "Test Courier (return)" };
+  }
+  try {
+    const token = await getAuthToken();
+    // Reverse pickups get their AWB the same way, flagged as a return.
+    const { data } = await axios.post(
+      `${SHIPROCKET_BASE_URL}/courier/assign/awb`,
+      { shipment_id: Number(shipmentId) || shipmentId, is_return: 1 },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    const assigned = data?.response?.data || {};
+    if (data?.awb_assign_status !== 1 || !assigned.awb_code) {
+      return { success: false, isMock: false, message: assigned.awb_assign_error || data?.message || "No courier was assigned to the return yet" };
+    }
+    return { success: true, isMock: false, awbCode: String(assigned.awb_code), courierName: assigned.courier_name || "" };
+  } catch (error: any) {
+    console.error(`[Shiprocket] Return AWB failed for shipment ${shipmentId}:`, error?.response?.data || error.message);
+    return { success: false, isMock: false, message: describeShiprocketError(error) };
+  }
+};
+
 /**
  * Checks Shiprocket courier serviceability for a delivery pincode.
  */

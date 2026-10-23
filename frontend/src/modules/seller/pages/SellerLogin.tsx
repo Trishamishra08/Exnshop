@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { sendMobileOTP, verifyMobileOTP } from '../../../services/api/auth/sellerAuthService';
+import { sendMobileOTP, verifyMobileOTP, sendOTP as sendEmailOTP, verifyOTP as verifyEmailOTP } from '../../../services/api/auth/sellerAuthService';
+import LoginMethodTabs, { LoginMethod, isValidEmail } from '../../../components/LoginMethodTabs';
 import OTPInput from '../../../components/OTPInput';
 import { useAuth } from '../../../context/AuthContext';
 import AnimatedLogo from '../../../components/AnimatedLogo';
@@ -10,7 +11,10 @@ export default function SellerLogin() {
   const location = useLocation();
   const { login } = useAuth();
 
+  const [method, setMethod] = useState<LoginMethod>('mobile');
   const [mobileNumber, setMobileNumber] = useState('');
+  const [email, setEmail] = useState('');
+  const loginTarget = method === 'mobile' ? `+91 ${mobileNumber}` : email.trim();
   const [rememberMe, setRememberMe] = useState(true);
   const [showOTP, setShowOTP] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -19,20 +23,20 @@ export default function SellerLogin() {
   const [bgImgOk, setBgImgOk] = useState(true);
   const [showForgotModal, setShowForgotModal] = useState(false);
 
-  const isFormValid = mobileNumber.length === 10;
+  const isFormValid = method === 'mobile' ? mobileNumber.length === 10 : isValidEmail(email);
 
   const handleLogin = async () => {
     if (!isFormValid) {
-      setError('Please enter a valid 10-digit mobile number');
+      setError(method === 'mobile' ? 'Please enter a valid 10-digit mobile number' : 'Please enter a valid email address');
       return;
     }
 
     setLoading(true);
     setError('');
-    setInfoMessage(`An OTP will be sent to +91 ${mobileNumber}`);
+    setInfoMessage(`An OTP will be sent to ${loginTarget}`);
 
     try {
-      const response = await sendMobileOTP(mobileNumber);
+      const response = method === 'mobile' ? await sendMobileOTP(mobileNumber) : await sendEmailOTP(email.trim());
       if (response.success) {
         setShowOTP(true);
         setInfoMessage('');
@@ -53,7 +57,7 @@ export default function SellerLogin() {
     setError('');
 
     try {
-      const response = await verifyMobileOTP(mobileNumber, otp);
+      const response = method === 'mobile' ? await verifyMobileOTP(mobileNumber, otp) : await verifyEmailOTP(email.trim(), otp);
       if (response.success && response.data) {
         login(response.data.token, {
           id: response.data.user.id,
@@ -175,11 +179,26 @@ export default function SellerLogin() {
                   Seller Login
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 font-normal mt-0.5">
-                  Enter your mobile number to continue
+                  {method === 'mobile' ? 'Enter your mobile number to continue' : 'Enter your email to continue'}
                 </p>
               </div>
 
-              {/* Mobile Number Input */}
+              <LoginMethodTabs value={method} onChange={(m) => { setMethod(m); setError(''); }} disabled={loading} />
+
+              {method === 'email' ? (
+                <div className="w-full mb-3">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                    placeholder="Enter email address"
+                    className="w-full h-11 sm:h-12 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm sm:text-base font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-600/15 transition-all"
+                    disabled={loading}
+                    autoFocus
+                  />
+                </div>
+              ) : (
+              /* Mobile Number Input */
               <div className="w-full mb-3">
                 <div className="flex items-center h-11 sm:h-12 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:bg-white focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/15 transition-all shadow-xs">
                   <div className="w-[74px] h-full bg-slate-100/90 border-r border-slate-200/90 text-sm font-bold text-slate-700 flex items-center justify-center gap-1 select-none flex-shrink-0">
@@ -198,6 +217,7 @@ export default function SellerLogin() {
                   />
                 </div>
               </div>
+              )}
 
               {/* Remember Me & Forgot details row */}
               <div className="flex items-center justify-between text-xs sm:text-[13px] mb-3 px-0.5">
@@ -283,7 +303,7 @@ export default function SellerLogin() {
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 font-normal mt-1">
                   Enter the 6-digit code sent to{' '}
-                  <span className="font-bold text-blue-700">+91 {mobileNumber}</span>
+                  <span className="font-bold text-blue-700">{loginTarget}</span>
                 </p>
               </div>
 

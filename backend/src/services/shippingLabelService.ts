@@ -1,6 +1,6 @@
 import Order from "../models/Order";
 import Seller from "../models/Seller";
-import { assignAwbAndRequestPickup } from "./shiprocketService";
+import { assignAwbAndRequestPickup, createShiprocketOrder } from "./shiprocketService";
 import { buildTaxInvoices, type TaxInvoice } from "./taxInvoiceService";
 
 /**
@@ -21,6 +21,66 @@ const findSellerShipment = (order: any, sellerId: string) => {
   return { shipment: undefined, index: -1 };
 };
 
+// Orders whose Shiprocket shipments are being created right now (payment
+// capture and its webhook can both fire for the same order).
+const creatingShipments = new Set<string>();
+
+/**
+ * Creates the order's Shiprocket shipments (one per seller) if it has none
+ * yet. Called when a COD order is placed, when an online order's payment is
+ * captured, and again when a seller packs an order whose earlier attempt
+ * failed. An order that already has shipments is left alone, so it's safe to
+ * call repeatedly.
+ */
+export const ensureOrderShipments = async (orderId: string): Promise<{ success: boolean; message?: string }> => {
+  const key = String(orderId);
+  if (creatingShipments.has(key)) {
+    return { success: false, message: "The courier shipment is being created — please try again in a moment." };
+  }
+  creatingShipments.add(key);
+  try {
+    const order: any = await Order.findById(orderId);
+    if (!order) return { success: false, message: "Order not found" };
+    if (order.channel !== "ECommerce") return { success: false, message: "Only E-commerce orders are shipped by courier" };
+    if ((order.shiprocketShipments || []).length > 0 || order.shiprocket?.shipmentId) return { success: true };
+    if (order.paymentStatus !== "Paid" && order.paymentMethod !== "COD") {
+      return { success: false, message: "The order's payment isn't complete yet." };
+    }
+
+    const result = await createShiprocketOrder(order);
+    if (result.success) {
+      const status = result.isMock ? "Mock: Order Created" : "Order Created";
+      const [primary] = result.shipments;
+      // $set only these fields so a status change made meanwhile isn't overwritten.
+      await Order.updateOne(
+        { _id: order._id },
+        {
+          $set: {
+            shiprocket: { orderId: primary.orderId, shipmentId: primary.shipmentId, status },
+            shiprocketShipments: result.shipments.map((s) => ({
+              seller: s.seller,
+              channelOrderId: s.channelOrderId,
+              pickupLocation: s.pickupLocation,
+              orderId: s.orderId,
+              shipmentId: s.shipmentId,
+              status,
+            })),
+          },
+        }
+      );
+    }
+    if (result.message) {
+      console.error(`[Shiprocket] Failed to create shipment(s) for order ${order.orderNumber}:`, result.message);
+    }
+    return { success: result.success, message: result.message };
+  } catch (err: any) {
+    console.error("[Shiprocket] Unexpected error creating shipment:", err);
+    return { success: false, message: err?.message || "Could not create the courier shipment" };
+  } finally {
+    creatingShipments.delete(key);
+  }
+};
+
 /**
  * Makes sure this seller's shipment has an AWB: asks Shiprocket to assign a
  * courier and request the pickup when it doesn't yet. Safe to call again — an
@@ -30,13 +90,22 @@ export const ensureSellerAwb = async (
   orderId: string,
   sellerId: string
 ): Promise<{ success: boolean; awbCode?: string; message?: string }> => {
-  const order: any = await Order.findById(orderId);
+  let order: any = await Order.findById(orderId);
   if (!order) return { success: false, message: "Order not found" };
   if (order.channel !== "ECommerce") return { success: false, message: "Only E-commerce orders are shipped by courier" };
 
-  const { shipment, index } = findSellerShipment(order, sellerId);
+  let { shipment, index } = findSellerShipment(order, sellerId);
   if (!shipment?.shipmentId) {
-    return { success: false, message: "The courier shipment for this order hasn't been created on Shiprocket yet. Please contact support." };
+    // The shipment wasn't created when the order was placed/paid (e.g. Shiprocket was down) — try now.
+    const created = await ensureOrderShipments(orderId);
+    order = await Order.findById(orderId);
+    ({ shipment, index } = findSellerShipment(order, sellerId));
+    if (!shipment?.shipmentId) {
+      return {
+        success: false,
+        message: created.message || "The courier shipment for this order hasn't been created on Shiprocket yet. Please contact support.",
+      };
+    }
   }
   if (shipment.awbCode) return { success: true, awbCode: shipment.awbCode };
 

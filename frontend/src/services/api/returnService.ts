@@ -131,6 +131,12 @@ export const updateReturnStatus = async (id: string, data: UpdateReturnStatusDat
   return response.data;
 };
 
+/** Seller: retry creating the replacement order for a completed exchange (e.g. after restocking). */
+export const retryReplacementOrder = async (returnId: string) => {
+  const response = await api.post<ApiResponse<{ orderId?: string; orderNumber?: string }>>(`/returns/${returnId}/replacement`, {});
+  return response.data;
+};
+
 /**
  * Seller: Confirm physical receipt of returned item.
  * This is the ONLY action that triggers financial settlement.

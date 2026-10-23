@@ -447,6 +447,27 @@ export const addToCart = async (req: Request, res: Response) => {
             cart = await Cart.create({ customer: userId, channel, items: [], total: 0 });
         }
 
+        // One shop per cart: every order goes to one seller (one shop, one rider/parcel).
+        // Adding another shop's product asks the customer to replace the cart first.
+        const sellerId = String(seller?._id || seller);
+        const cartItems = await CartItem.find({ cart: cart._id }).populate('product', 'seller');
+        const otherShopItem = cartItems.find(
+            (ci: any) => ci.product?.seller && String(ci.product.seller) !== sellerId
+        );
+        if (otherShopItem) {
+            if (req.body.replaceCart !== true) {
+                const otherShop = await Seller.findById((otherShopItem.product as any).seller).select('storeName');
+                return res.status(409).json({
+                    success: false,
+                    code: 'CART_HAS_OTHER_SHOP',
+                    message: `Your cart has items from ${otherShop?.storeName || 'another shop'}. You can order from one shop at a time.`,
+                    data: { currentShop: otherShop?.storeName || '', newShop: seller?.storeName || '' },
+                });
+            }
+            await CartItem.deleteMany({ cart: cart._id });
+            cart.items = [];
+        }
+
         // Check if item already exists in cart
         let cartItem = await CartItem.findOne({
             cart: cart._id,

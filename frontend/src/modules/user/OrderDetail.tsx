@@ -1122,6 +1122,10 @@ export default function OrderDetail() {
           distance={routeInfo ? routeInfo.distanceValue : distance}
           isTracking={isConnected && !!deliveryLocation}
           deliveryOtp={order?.deliveryOtp}
+          orderStatus={orderStatus}
+          riderStatus={order?.deliveryBoyStatus}
+          assigned={Boolean(order?.deliveryPartner) || order?.deliveryPreference === "Self"}
+          selfDelivery={order?.deliveryPreference === "Self"}
           onCall={() => {
             const phone = order?.deliveryPartner?.phone || "1234567890";
             window.location.href = `tel:${phone}`;
@@ -1662,9 +1666,29 @@ export default function OrderDetail() {
                           )}
                         </div>
                       ) : (
-                        <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
-                          Request: {activeReturnStatus}
-                        </span>
+                        <div className="mt-1 space-y-1">
+                          <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                            {item.activeReturnType === 'EXCHANGE' ? 'Exchange' : 'Return'}: {activeReturnStatus}
+                          </span>
+                          {item.activeReturnCourier && (
+                            <p className="text-xs text-indigo-800 bg-indigo-50 p-2 rounded-lg border border-indigo-200">
+                              🚚 Pickup by {item.activeReturnCourier.courierName || 'courier'} · AWB {item.activeReturnCourier.awbCode}
+                              {item.activeReturnCourier.trackingUrl && (
+                                <>
+                                  {' · '}
+                                  <a href={item.activeReturnCourier.trackingUrl} target="_blank" rel="noopener noreferrer" className="font-semibold underline">
+                                    Track pickup
+                                  </a>
+                                </>
+                              )}
+                            </p>
+                          )}
+                          {item.activeReturnReplacementOrderId && (
+                            <Link to={`/orders/${item.activeReturnReplacementOrderId}`} className="inline-block text-xs font-semibold text-green-700 underline">
+                              View replacement order →
+                            </Link>
+                          )}
+                        </div>
                       )
                     ) : isReturnable && isReturnWindowActive ? (
                       <p className="text-xs text-green-700 font-medium mt-0.5">

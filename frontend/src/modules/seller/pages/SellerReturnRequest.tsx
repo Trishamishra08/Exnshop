@@ -5,6 +5,7 @@ import {
   getReturnRequestById,
   updateReturnStatus,
   confirmSellerReceipt,
+  retryReplacementOrder,
   ReturnRequest,
   ReturnRequestDetail,
   GetReturnRequestsParams,
@@ -666,6 +667,50 @@ export default function SellerReturnRequest() {
                       </p>
                     </div>
                   )}
+
+                  {/* E-commerce: courier reverse pickup details */}
+                  {(fullDetail as any)?.shiprocketReturn && (
+                    <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl text-sm space-y-1">
+                      <p className="font-bold text-indigo-800">🚚 Courier pickup from the customer</p>
+                      {(fullDetail as any).shiprocketReturn.awbCode ? (
+                        <p className="text-xs text-indigo-900">
+                          {(fullDetail as any).shiprocketReturn.courierName || 'Courier'} · AWB {(fullDetail as any).shiprocketReturn.awbCode}
+                          {(fullDetail as any).shiprocketReturn.status ? ` · ${(fullDetail as any).shiprocketReturn.status}` : ''}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-red-700">
+                          Not booked yet{(fullDetail as any).shiprocketReturn.error ? `: ${(fullDetail as any).shiprocketReturn.error}` : ''}. Exnshop support can retry it.
+                        </p>
+                      )}
+                      {(fullDetail as any).shiprocketReturn.trackingUrl && (
+                        <a href={(fullDetail as any).shiprocketReturn.trackingUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-indigo-700 hover:underline">
+                          Track pickup ↗
+                        </a>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Exchange completed without a replacement (e.g. out of stock): retry */}
+                  {(fullDetail?.requestType || selectedReturn.requestType) === 'EXCHANGE' &&
+                    (fullDetail?.status || selectedReturn.status) === 'Completed' &&
+                    !(fullDetail as any)?.replacementOrderId && (
+                      <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm flex items-center justify-between gap-3">
+                        <p className="text-xs text-amber-900">The replacement order hasn't been created yet (usually out of stock). Restock, then create it.</p>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const res = await retryReplacementOrder(selectedReturn.id);
+                              showToast(res.message || 'Replacement order created', res.success ? 'success' : 'error');
+                              if (res.success) setFullDetail({ ...(fullDetail as any), replacementOrderId: res.data?.orderId });
+                            } catch (err: any) {
+                              showToast(err.response?.data?.message || 'Could not create the replacement', 'error');
+                            }
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-amber-600 text-white text-xs font-semibold whitespace-nowrap">
+                          Create replacement
+                        </button>
+                      </div>
+                    )}
 
                   {/* 1. Product Information */}
                   <div className="space-y-3">

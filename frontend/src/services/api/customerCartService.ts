@@ -76,7 +76,8 @@ export const getMergedCart = async (
 /**
  * Add item to cart
  */
-export const addToCart = async (productId: string, quantity: number = 1, variation?: string, latitude?: number, longitude?: number, deliveryOption?: string, channel?: CommerceChannel): Promise<CartResponse> => {
+/** `replaceCart` empties the cart first — used after the customer agrees to switch to another shop. */
+export const addToCart = async (productId: string, quantity: number = 1, variation?: string, latitude?: number, longitude?: number, deliveryOption?: string, channel?: CommerceChannel, replaceCart?: boolean): Promise<CartResponse> => {
     const params: any = {};
     if (latitude !== undefined && longitude !== undefined) {
         params.latitude = latitude;
@@ -90,7 +91,8 @@ export const addToCart = async (productId: string, quantity: number = 1, variati
         quantity,
         variation,
         deliveryOption,
-        channel
+        channel,
+        ...(replaceCart ? { replaceCart: true } : {})
     }, { params });
     return response.data;
 };

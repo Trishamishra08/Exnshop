@@ -4,7 +4,10 @@ import {
   register,
   sendMobileOTP,
   verifyMobileOTP,
+  sendOTP as sendEmailOTP,
+  verifyOTP as verifyEmailOTP,
 } from "../../../services/api/auth/deliveryAuthService";
+import LoginMethodTabs, { LoginMethod } from "../../../components/LoginMethodTabs";
 import { removeAuthToken } from "../../../services/api/config";
 import { uploadDocument } from "../../../services/api/uploadService";
 import { validateDocumentFile, compressImage } from "../../../utils/imageUpload";
@@ -147,11 +150,13 @@ export default function DeliverySignUp() {
     }
   };
 
+  const [verifyBy, setVerifyBy] = useState<LoginMethod>("mobile");
+
   const handleOTPComplete = async (otp: string) => {
     setLoading(true);
     setError("");
     try {
-      const response = await verifyMobileOTP(formData.mobile, otp, sessionId);
+      const response = verifyBy === "mobile" ? await verifyMobileOTP(formData.mobile, otp, sessionId) : await verifyEmailOTP(formData.email.trim(), otp);
       if (response.success) navigate("/delivery");
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || "Invalid OTP. Please try again.");
@@ -391,9 +396,23 @@ export default function DeliverySignUp() {
               <div className="space-y-4 py-2">
                 <div className="text-center">
                   <div className="w-14 h-14 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mx-auto mb-3 text-2xl">📱</div>
-                  <h3 className="text-base font-bold text-slate-900">Verify Your Mobile</h3>
-                  <p className="text-xs text-slate-500 mt-1">Enter the 6-digit code sent to <span className="font-bold text-blue-700">{formData.mobile}</span></p>
+                  <h3 className="text-base font-bold text-slate-900">{verifyBy === "mobile" ? "Verify Your Mobile" : "Verify Your Email"}</h3>
+                  <p className="text-xs text-slate-500 mt-1">Enter the 6-digit code sent to <span className="font-bold text-blue-700">{verifyBy === "mobile" ? formData.mobile : formData.email}</span></p>
                 </div>
+
+                <LoginMethodTabs
+                  value={verifyBy}
+                  onChange={async (m) => {
+                    setVerifyBy(m);
+                    setError("");
+                    // The form already sent a mobile code; the email code is sent when chosen.
+                    if (m === "email") {
+                      setLoading(true);
+                      try { await sendEmailOTP(formData.email.trim()); } catch (e: any) { setError(e.response?.data?.message || "Could not send the email code."); } finally { setLoading(false); }
+                    }
+                  }}
+                  disabled={loading}
+                />
 
                 <div className="flex justify-center">
                   <OTPInput onComplete={handleOTPComplete} disabled={loading} />
@@ -408,7 +427,7 @@ export default function DeliverySignUp() {
                     className="flex-1 h-10 rounded-xl font-semibold text-xs bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95 transition-all border border-slate-200 cursor-pointer flex items-center justify-center">
                     ← Back
                   </button>
-                  <button onClick={async () => { setLoading(true); setError(""); try { const r = await sendMobileOTP(formData.mobile); if (r.sessionId) setSessionId(r.sessionId); } catch (e: any) { setError(e.message || "Failed to resend."); } finally { setLoading(false); } }} disabled={loading}
+                  <button onClick={async () => { setLoading(true); setError(""); try { if (verifyBy === "mobile") { const r = await sendMobileOTP(formData.mobile); if (r.sessionId) setSessionId(r.sessionId); } else { await sendEmailOTP(formData.email.trim()); } } catch (e: any) { setError(e.response?.data?.message || e.message || "Failed to resend."); } finally { setLoading(false); } }} disabled={loading}
                     className="flex-1 h-10 rounded-xl font-semibold text-xs bg-blue-50 text-blue-700 border border-blue-200/80 hover:bg-blue-100 active:scale-95 transition-all cursor-pointer flex items-center justify-center">
                     {loading ? "Sending..." : "Resend OTP"}
                   </button>

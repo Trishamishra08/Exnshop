@@ -52,7 +52,7 @@ export default function Orders() {
   }
 
   return (
-    <div className="pb-4 md:pb-8">
+    <div className="pb-24 md:pb-8">
       <div className="px-4 md:px-6 lg:px-8 py-4 md:py-6 bg-white border-b border-neutral-200 mb-4 md:mb-6 sticky top-0 z-10">
         <h1 className="text-xl md:text-2xl font-bold text-neutral-900">{t("customer.myOrders", "My Orders")}</h1>
       </div>
@@ -66,21 +66,23 @@ export default function Orders() {
               to={`/orders/${order.id}`}
               className="block bg-white rounded-xl border border-neutral-200 p-4 hover:shadow-md transition-shadow"
             >
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <div className="flex items-center gap-2 text-sm font-semibold text-neutral-900 mb-1">
-                    {t("common.order", "Order")} #{shortId}
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-semibold text-neutral-900 mb-1 truncate">
+                    {t("common.order", "Order")} #{(order as any).orderNumber || shortId}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="text-xs text-neutral-500 whitespace-nowrap">{formatDate(order.createdAt)}</span>
                     {/* Both channels share this list; the tag tells a courier order from a rider-delivered one. */}
                     {(order as any).channel === "ECommerce" ? (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700">E-commerce</span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 whitespace-nowrap">E-commerce</span>
                     ) : (
-                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-50 text-green-700">Quick</span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-50 text-green-700 whitespace-nowrap">Quick</span>
                     )}
                   </div>
-                  <div className="text-xs text-neutral-500">{formatDate(order.createdAt)}</div>
                 </div>
                 <span
-                  className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
+                  className={`flex-shrink-0 whitespace-nowrap px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
                     order.status
                   )}`}
                 >

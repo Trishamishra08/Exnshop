@@ -398,9 +398,8 @@ export default function ProductDetail() {
       variantId: selectedVariant?._id,
       variantTitle: variantTitle,
     };
-    if (inCartQty === 0) {
-      await addToCart(productWithVariant, addButtonRef.current);
-    }
+    // Stay on the page if the add was refused (e.g. the cart holds another shop's items).
+    if (inCartQty === 0 && !(await addToCart(productWithVariant, addButtonRef.current))) return;
     navigate('/checkout');
   };
 
@@ -1430,7 +1429,7 @@ export default function ProductDetail() {
       </div>
 
       {/* Sticky Footer */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-neutral-200 shadow-lg">
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-neutral-200 shadow-lg safe-bottom-pad">
         <div className="px-3 sm:px-4 py-2.5 flex items-center justify-between">
           {/* Left side - Product details (shrinks so the buttons always fit on screen) */}
           <div className="flex-1 min-w-0">

@@ -1,81 +1,61 @@
 import { Request, Response } from "express";
 import Admin from "../../../models/Admin";
 import {
-  sendOTP as sendOTPService,
-  verifyOTP as verifyOTPService,
+  sendEmailOtp as sendEmailOtpService,
+  verifyEmailOtp as verifyEmailOtpService,
 } from "../../../services/otpService";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 import { generateToken } from "../../../services/jwtService";
 import { asyncHandler } from "../../../utils/asyncHandler";
 
 /**
- * Send OTP to admin mobile number
+ * Send a login OTP to an admin's email. Admins log in by email + OTP only.
  */
 export const sendOTP = asyncHandler(async (req: Request, res: Response) => {
-  const { mobile } = req.body;
-
-  if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
-    return res.status(400).json({
-      success: false,
-      message: "Valid 10-digit mobile number is required",
-    });
+  // A real OTP is emailed to an existing admin.
+  if (req.body.email) {
+    const email = String(req.body.email).trim().toLowerCase();
+    if (!EMAIL_RE.test(email)) {
+      return res.status(400).json({ success: false, message: "Valid email address is required" });
+    }
+    const admin = await Admin.findOne({ email });
+    if (!admin) {
+      return res.status(404).json({ success: false, message: "Admin not found with this email" });
+    }
+    try {
+      const result = await sendEmailOtpService(email, "Admin", admin.firstName, "login", true);
+      return res.status(200).json({ success: true, message: result.message });
+    } catch (error: any) {
+      return res.status(400).json({ success: false, message: error.message || "Failed to send OTP" });
+    }
   }
 
-  // Check if admin exists with this mobile
-  const admin = await Admin.findOne({ mobile });
-  if (!admin) {
-    return res.status(404).json({
-      success: false,
-      message: "Admin not found with this mobile number",
-    });
-  }
-
-  // Send OTP - for login, always use default OTP
-  const result = await sendOTPService(mobile, "Admin", true);
-
-  return res.status(200).json({
-    success: true,
-    message: result.message,
-  });
+  return res.status(400).json({ success: false, message: "Admin login is by email only. Enter your admin email." });
 });
 
 /**
  * Verify OTP and login admin
  */
 export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
-  const { mobile, otp } = req.body;
+  const { otp } = req.body;
 
-  if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
-    return res.status(400).json({
-      success: false,
-      message: "Valid 10-digit mobile number is required",
-    });
+  if (req.body.email) {
+    const email = String(req.body.email).trim().toLowerCase();
+    if (!otp || !/^[0-9]{4,6}$/.test(otp)) {
+      return res.status(400).json({ success: false, message: "Valid 6-digit OTP is required" });
+    }
+    const admin = await Admin.findOne({ email }).select("-password");
+    if (!admin || !(await verifyEmailOtpService(email, otp, "Admin"))) {
+      return res.status(401).json({ success: false, message: "Invalid or expired OTP. Please try again." });
+    }
+    return sendAdminLogin(res, admin);
   }
 
-  if (!otp || !/^[0-9]{4,6}$/.test(otp)) {
-    return res.status(400).json({
-      success: false,
-      message: "Valid 6-digit OTP is required",
-    });
-  }
+  return res.status(400).json({ success: false, message: "Admin login is by email only. Enter your admin email." });
+});
 
-  // Verify OTP
-  const isValid = await verifyOTPService(mobile, otp, "Admin");
-  if (!isValid) {
-    return res.status(401).json({
-      success: false,
-      message: "OTP should be valid. Please try again.",
-    });
-  }
-
-  // Find admin
-  const admin = await Admin.findOne({ mobile }).select("-password");
-  if (!admin) {
-    return res.status(404).json({
-      success: false,
-      message: "Admin not found",
-    });
-  }
-
+const sendAdminLogin = (res: Response, admin: any) => {
   // Generate JWT token
   const token = generateToken(admin._id.toString(), "Admin", admin.role);
 
@@ -94,12 +74,17 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
       },
     },
   });
-});
+};
 
 /**
  * Register new admin (optional - typically admins are created by super admin)
  */
 export const register = asyncHandler(async (req: Request, res: Response) => {
+  // Creating admins is for a signed-in Super Admin only (admins log in by email, so an
+  // open route would let anyone make themselves an admin).
+  if ((req as any).user?.role !== "Super Admin") {
+    return res.status(403).json({ success: false, message: "Only a Super Admin can create admin accounts" });
+  }
   const { firstName, lastName, mobile, email, password, role } = req.body;
 
   // Validation

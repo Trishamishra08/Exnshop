@@ -15,6 +15,7 @@ import {
   clearCart as apiClearCart
 } from '../services/api/customerCartService';
 import { calculateProductPrice } from '../utils/priceUtils';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 // Mirrors the backend's channel-resolution rule in addToCart (customerCartController.ts):
 // a product belongs to its seller's channel; a seller enabled for both defaults to Quick.
@@ -37,7 +38,8 @@ interface AddToCartEvent {
 
 interface CartContextType {
   cart: Cart;
-  addToCart: (product: Product, sourceElement?: HTMLElement | null) => Promise<void>;
+  /** Resolves true once the item is in the cart (false if refused, e.g. another shop's cart). */
+  addToCart: (product: Product, sourceElement?: HTMLElement | null) => Promise<boolean>;
   removeFromCart: (productId: string) => Promise<void>;
   updateQuantity: (productId: string, quantity: number, variantId?: string, variantTitle?: string) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -80,6 +82,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return [];
   });
   const [lastAddEvent, setLastAddEvent] = useState<AddToCartEvent | null>(null);
+  // Set when an add is refused because the cart holds another shop's items (one shop per order).
+  const [shopConflict, setShopConflict] = useState<{ message: string; replace: () => Promise<void> } | null>(null);
+  const [replacingCart, setReplacingCart] = useState(false);
   const [loading, setLoading] = useState(true);
   const pendingOperationsRef = useRef<Set<string>>(new Set());
   const hasSyncedRef = useRef(false);
@@ -361,17 +366,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
     };
   }, [items, estimatedFee, estimatedDistanceKm, instantDeliveryAvailable, platformFee, freeDeliveryThreshold, minimumOrderValue, gstRate]);
 
-  const addToCart = async (product: Product, sourceElement?: HTMLElement | null) => {
+  const addToCart = async (product: Product, sourceElement?: HTMLElement | null): Promise<boolean> => {
     if (!isAuthenticated) {
       showToast("Please login first to add items to cart", "info");
       window.location.href = "/login";
-      return;
+      return false;
     }
     // Every add-to-cart button goes through here, so an offline Quick seller is
     // refused on every page (the server refuses it as well).
     if (isSellerOffline(product)) {
       showToast("This seller is not available right now.", "info");
-      return;
+      return false;
     }
 
     // Get consistent product ID - MongoDB returns _id, frontend expects id
@@ -379,9 +384,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     // Prevent concurrent operations on the same product
     if (pendingOperationsRef.current.has(productId)) {
-      return;
+      return false;
     }
     pendingOperationsRef.current.add(productId);
+    let added = false;
 
     // Which channel's cart this product actually belongs to (mirrors the
     // backend's own resolution) — may differ from the currently active `mode`
@@ -490,36 +496,52 @@ export function CartProvider({ children }: { children: ReactNode }) {
           variation = product.pack;
         }
 
-        const response = await apiAddToCart(
-          productId,
-          1,
-          variation,
-          location?.latitude,
-          location?.longitude,
-          undefined,
-          mode
-        );
-        if (response && response.data && response.data.items) {
-          const responseChannel = (response.data as any).channel;
-          // Only overwrite the currently-displayed single-mode `items` list if
-          // the item actually landed in that channel's cart — if it landed in
-          // the other channel (product added while browsing the other mode),
-          // leave `items` untouched and just refresh the merged cart view.
-          if (!responseChannel || responseChannel === mode) {
-            const mappedItems = mapApiItemsToState(response.data.items);
-            setItems(mappedItems);
-            setEstimatedFee(response.data.estimatedDeliveryFee);
-            setEstimatedDistanceKm(response.data.estimatedDistanceKm ?? null);
-            setInstantDeliveryAvailable(response.data.instantDeliveryAvailable !== false);
-            setPlatformFee(response.data.platformFee);
-            setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
-            setMinimumOrderValue(response.data.minimumOrderValue);
-            setGstRate(response.data.gstRate);
+        const applyResponse = (response: any) => {
+          if (response && response.data && response.data.items) {
+            const responseChannel = (response.data as any).channel;
+            // Only overwrite the currently-displayed single-mode `items` list if
+            // the item actually landed in that channel's cart — if it landed in
+            // the other channel (product added while browsing the other mode),
+            // leave `items` untouched and just refresh the merged cart view.
+            if (!responseChannel || responseChannel === mode) {
+              const mappedItems = mapApiItemsToState(response.data.items);
+              setItems(mappedItems);
+              setEstimatedFee(response.data.estimatedDeliveryFee);
+              setEstimatedDistanceKm(response.data.estimatedDistanceKm ?? null);
+              setInstantDeliveryAvailable(response.data.instantDeliveryAvailable !== false);
+              setPlatformFee(response.data.platformFee);
+              setFreeDeliveryThreshold(response.data.freeDeliveryThreshold);
+              setMinimumOrderValue(response.data.minimumOrderValue);
+              setGstRate(response.data.gstRate);
+            } else {
+              refreshMergedCart().catch(() => {});
+            }
           } else {
-            refreshMergedCart().catch(() => {});
+            console.warn('Response missing data or items:', response);
           }
-        } else {
-          console.warn('Response missing data or items:', response);
+        };
+
+        const addRequest = (replaceCart?: boolean) =>
+          apiAddToCart(productId, 1, variation, location?.latitude, location?.longitude, undefined, mode, replaceCart);
+
+        try {
+          applyResponse(await addRequest());
+          added = true;
+        } catch (error: any) {
+          // The cart holds another shop's items: ask before replacing them.
+          if (error.response?.status === 409 && error.response?.data?.code === 'CART_HAS_OTHER_SHOP') {
+            if (affectsCurrentModeCart) setItems(previousItems);
+            const { currentShop, newShop } = error.response.data.data || {};
+            setShopConflict({
+              message: `Your cart has items from ${currentShop || 'another shop'}. You can order from one shop at a time — clear the cart and add this item${newShop ? ` from ${newShop}` : ''}?`,
+              replace: async () => {
+                applyResponse(await addRequest(true));
+                showToast('Cart replaced', 'success');
+              },
+            });
+            return false;
+          }
+          throw error;
         }
       } catch (error: any) {
         console.error("Add to cart failed", error);
@@ -537,7 +559,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       // For unregistered users, the optimistic update is already saved to localStorage
       // Remove from pending operations immediately
       pendingOperationsRef.current.delete(productId);
+      added = true;
     }
+    return added;
   };
 
   const removeFromCart = async (productId: string) => {
@@ -710,6 +734,27 @@ export function CartProvider({ children }: { children: ReactNode }) {
       value={{ cart, addToCart, removeFromCart, updateQuantity, clearCart, refreshCart, lastAddEvent, loading, cartGroups, refreshMergedCart }}
     >
       {children}
+      <ConfirmationModal
+        isOpen={Boolean(shopConflict)}
+        title="Replace cart items?"
+        message={shopConflict?.message || ''}
+        confirmText="Replace cart"
+        cancelText="Cancel"
+        isLoading={replacingCart}
+        onCancel={() => setShopConflict(null)}
+        onConfirm={async () => {
+          if (!shopConflict) return;
+          setReplacingCart(true);
+          try {
+            await shopConflict.replace();
+          } catch (error: any) {
+            showToast(error.response?.data?.message || 'Could not replace the cart', 'error');
+          } finally {
+            setReplacingCart(false);
+            setShopConflict(null);
+          }
+        }}
+      />
     </CartContext.Provider>
   );
 }

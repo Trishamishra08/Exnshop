@@ -331,7 +331,16 @@ export default function Checkout() {
   // Show Empty Cart UI if no items and not successful order
   if (cart.items.length === 0 && !showOrderSuccess) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-white px-4">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-white px-4 relative">
+        {/* Back: the previous page, or Home when checkout was the first page opened */}
+        <button
+          onClick={() => goBackOr(navigate, "/")}
+          aria-label="Go back"
+          className="absolute top-3 left-3 w-10 h-10 rounded-full flex items-center justify-center text-neutral-800 hover:bg-neutral-100">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+        </button>
         <div className="w-24 h-24 bg-neutral-100 rounded-full flex items-center justify-center mb-6">
           <svg
             width="40"
@@ -361,7 +370,7 @@ export default function Checkout() {
           Looks like you haven't added anything to your cart yet.
         </p>
         <button
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/", { replace: true })}
           className="bg-green-600 text-white font-semibold py-3 px-8 rounded-lg hover:bg-green-700 transition-colors">
           Start Shopping
         </button>
@@ -978,7 +987,7 @@ export default function Checkout() {
 
               <div
                 className="p-4 bg-white border-t shrink-0"
-                style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+                style={{ paddingBottom: 'calc(1rem + var(--safe-bottom))' }}
               >
                 <p className="text-xs text-neutral-500 mb-3 text-center">
                   Move the map to set your exact delivery location
@@ -2363,7 +2372,7 @@ export default function Checkout() {
       {/* Bottom Sticky Button */}
       <div
         className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 z-[60] shadow-lg"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)' }}
+        style={{ paddingBottom: 'calc(var(--safe-bottom) + 10px)' }}
       >
         {!meetsMinimumOrder && (
           <div className="px-4 py-2 text-xs text-center text-amber-800 bg-amber-50 border-b border-amber-100">

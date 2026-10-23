@@ -53,6 +53,26 @@ export const verifyOTP = async (mobile: string, otp: string, sessionId?: string,
   return response.data;
 };
 
+/** Send a real login OTP to the customer's email. */
+export const sendEmailOTP = async (email: string): Promise<SendOTPResponse> => {
+  const response = await api.post<SendOTPResponse>('/auth/customer/send-sms-otp', { email });
+  return response.data;
+};
+
+/**
+ * Verify an email OTP and login. A new customer must also pass `mobile`; the
+ * server answers 409 `NEEDS_MOBILE` (OTP not used up) when it is missing.
+ */
+export const verifyEmailOTP = async (email: string, otp: string, mobile?: string): Promise<VerifyOTPResponse> => {
+  const response = await api.post<VerifyOTPResponse>('/auth/customer/verify-sms-otp', { loginBy: 'email', email, otp, mobile });
+
+  if (response.data.success && response.data.data.token) {
+    setAuthToken(response.data.data.token, 'Customer', { ...response.data.data.user, userType: 'Customer' as const });
+  }
+
+  return response.data;
+};
+
 /**
  * Logout customer
  */

@@ -3,6 +3,10 @@
 @tailwind utilities;
 
 :root {
+  /* Space to keep clear above the phone's system navigation bar. Inside the Android
+     app's WebView env() reports 0 even though the page draws under the bar, so
+     there it is at least the height of the 3-button bar (set via .in-app-webview). */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
   --exnshop-blue: #0056FF;
   --exnshop-blue-dark: #003ECC;
   --exnshop-blue-light: #3377FF;
@@ -17,7 +21,7 @@
     margin: 0;
     padding: 0;
     padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: var(--safe-bottom);
     width: 100%;
     overflow-x: hidden;
   }
@@ -104,3 +108,18 @@ video {
   z-index: 99999 !important;
 }
 
+html.in-app-webview {
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), 48px);
+}
+
+/* Razorpay checkout opens as a full-screen frame over the page: keep its
+   Continue / Pay button above the phone's navigation bar. */
+.razorpay-container {
+  bottom: var(--safe-bottom) !important;
+  height: auto !important;
+}
+
+/* Footer bars fixed to the bottom of the screen sit above the navigation bar. */
+.safe-bottom-pad {
+  padding-bottom: var(--safe-bottom);
+}

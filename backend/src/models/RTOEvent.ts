@@ -15,8 +15,8 @@ export interface IRTOEvent extends Document {
   courierName?: string;
   reasonCode: string;
   reason?: string;
-  markedBy: mongoose.Types.ObjectId;
-  markedByRole: "Delivery" | "Admin";
+  markedBy?: mongoose.Types.ObjectId;
+  markedByRole: "Delivery" | "Admin" | "System";
   reverseShippingCost: number;
   status: "Initiated" | "InTransit" | "ReceivedBySeller" | "Disposed" | "Lost";
   financialSettlementStatus: "Pending" | "Completed" | "Failed";
@@ -56,13 +56,13 @@ const RTOEventSchema = new Schema<IRTOEvent>(
       type: String,
       trim: true,
     },
+    // Absent when the courier reported the RTO (markedByRole "System").
     markedBy: {
       type: Schema.Types.ObjectId,
-      required: [true, "markedBy is required"],
     },
     markedByRole: {
       type: String,
-      enum: ["Delivery", "Admin"],
+      enum: ["Delivery", "Admin", "System"],
       required: true,
     },
     reverseShippingCost: {

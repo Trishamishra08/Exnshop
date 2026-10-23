@@ -4,7 +4,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { getSocketBaseURL } from '../../../services/api/config';
 
 export interface SellerNotification {
-    type: 'NEW_ORDER' | 'STATUS_UPDATE';
+    type: 'NEW_ORDER' | 'STATUS_UPDATE' | 'ORDER_CANCELLED';
     orderId: string;
     orderNumber: string;
     status: string;

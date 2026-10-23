@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { sendOTP, verifyOTP } from '../../services/api/auth/customerAuthService';
+import { sendOTP, verifyOTP, sendEmailOTP, verifyEmailOTP } from '../../services/api/auth/customerAuthService';
+import LoginMethodTabs, { LoginMethod, isValidEmail } from '../../components/LoginMethodTabs';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import OTPInput from '../../components/OTPInput';
@@ -15,7 +16,13 @@ export default function Login({ mode = 'login' }: LoginProps) {
   const navigate = useNavigate();
   const { login } = useAuth();
   const { setLanguage } = useLanguage();
+  const [method, setMethod] = useState<LoginMethod>('mobile');
   const [mobileNumber, setMobileNumber] = useState('');
+  const [email, setEmail] = useState('');
+  // Email signup: this email has no account yet, so the mobile number is asked
+  // for and the same code is submitted again with it (the server keeps the code).
+  const [needsMobile, setNeedsMobile] = useState(false);
+  const [pendingOtp, setPendingOtp] = useState('');
   const [showOTP, setShowOTP] = useState(false);
   const [sessionId, setSessionId] = useState('');
   const [loading, setLoading] = useState(false);
@@ -23,17 +30,17 @@ export default function Login({ mode = 'login' }: LoginProps) {
   const [infoMessage, setInfoMessage] = useState('');
   const [bgImgOk, setBgImgOk] = useState(true);
 
-const canContinue = mobileNumber.length === 10;
+const canContinue = method === 'mobile' ? mobileNumber.length === 10 : isValidEmail(email);
 
   const handleContinue = async () => {
     if (!canContinue) return;
 
     setLoading(true);
     setError('');
-    setInfoMessage('An OTP will be sent to your mobile number');
+    setInfoMessage(method === 'mobile' ? 'An OTP will be sent to your mobile number' : 'An OTP will be sent to your email');
 
     try {
-      const response = await sendOTP(mobileNumber);
+      const response = method === 'mobile' ? await sendOTP(mobileNumber) : await sendEmailOTP(email.trim());
       if (response.sessionId) {
         setSessionId(response.sessionId);
       }
@@ -52,7 +59,10 @@ const canContinue = mobileNumber.length === 10;
     setError('');
 
     try {
-      const response = await verifyOTP(mobileNumber, otp, sessionId);
+      const response =
+        method === 'mobile'
+          ? await verifyOTP(mobileNumber, otp, sessionId)
+          : await verifyEmailOTP(email.trim(), otp, needsMobile ? mobileNumber : undefined);
       if (response.success && response.data) {
         const userData = {
           id: response.data.user.id,
@@ -79,7 +89,14 @@ const canContinue = mobileNumber.length === 10;
         }
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'OTP should be valid. Please try again.');
+      if (err.response?.data?.code === 'NEEDS_MOBILE') {
+        // New email: ask for a mobile number, then finish with the same code.
+        setPendingOtp(otp);
+        setNeedsMobile(true);
+        setError('');
+      } else {
+        setError(err.response?.data?.message || 'OTP should be valid. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -175,11 +192,35 @@ const canContinue = mobileNumber.length === 10;
                   {isSignup ? 'Sign up' : 'Log in'}
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 font-normal mt-1">
-                  Enter your mobile number to continue
+                  {method === 'mobile' ? 'Enter your mobile number to continue' : 'Enter your email to continue'}
                 </p>
               </div>
 
-              {/* Mobile Number Input */}
+              <LoginMethodTabs
+                value={method}
+                onChange={(m) => {
+                  setMethod(m);
+                  setError('');
+                  setNeedsMobile(false);
+                }}
+                disabled={loading}
+              />
+
+              {method === 'email' ? (
+                <div className="w-full mb-3.5">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter email address"
+                    className="w-full h-12 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm sm:text-base font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-600/15 transition-all"
+                    disabled={loading}
+                    autoFocus
+                    id="customer-email-input"
+                  />
+                </div>
+              ) : (
+              /* Mobile Number Input */
               <div className="w-full mb-3.5">
                 <div className="flex items-center h-12 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:bg-white focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/15 transition-all shadow-xs">
                   {/* Country Code Block */}
@@ -201,6 +242,7 @@ const canContinue = mobileNumber.length === 10;
                   />
                 </div>
               </div>
+              )}
 
               {/* Info Message */}
               {infoMessage && !error && (
@@ -263,18 +305,52 @@ const canContinue = mobileNumber.length === 10;
               {/* OTP Verification Header */}
               <div className="w-full mb-4 text-center">
                 <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
-                  Verify Mobile
+                  {needsMobile ? 'Create your account' : method === 'mobile' ? 'Verify Mobile' : 'Verify Email'}
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 font-normal mt-1">
-                  Enter the 6-digit code sent to{' '}
-                  <span className="font-bold text-blue-700">+91 {mobileNumber}</span>
+                  {needsMobile ? (
+                    <>Add your mobile number to finish signing up with <span className="font-bold text-blue-700">{email}</span></>
+                  ) : (
+                    <>
+                      Enter the 6-digit code sent to{' '}
+                      <span className="font-bold text-blue-700">{method === 'mobile' ? `+91 ${mobileNumber}` : email}</span>
+                    </>
+                  )}
                 </p>
               </div>
 
-              {/* OTP Input Fields */}
+              {needsMobile ? (
+                <div className="w-full mb-4 space-y-3">
+                  <div className="flex items-center h-12 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:bg-white focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/15 transition-all">
+                    <div className="w-[74px] h-full bg-slate-100/90 border-r border-slate-200/90 text-sm font-bold text-slate-700 flex items-center justify-center gap-1 select-none">
+                      <span>🇮🇳</span>
+                      <span>+91</span>
+                    </div>
+                    <input
+                      type="tel"
+                      value={mobileNumber}
+                      onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      placeholder="Enter mobile number"
+                      className="flex-1 h-full px-3.5 text-sm sm:text-base font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none bg-transparent"
+                      maxLength={10}
+                      disabled={loading}
+                      autoFocus
+                    />
+                  </div>
+                  <button
+                    onClick={() => handleOTPComplete(pendingOtp)}
+                    disabled={mobileNumber.length !== 10 || loading}
+                    className="w-full h-12 rounded-xl font-semibold text-sm bg-blue-600 text-white disabled:bg-slate-100 disabled:text-slate-400"
+                  >
+                    {loading ? 'Creating account...' : 'Create account'}
+                  </button>
+                </div>
+              ) : (
+              /* OTP Input Fields */
               <div className="w-full mb-4 flex justify-center">
                 <OTPInput onComplete={handleOTPComplete} disabled={loading} />
               </div>
+              )}
 
               {/* Error Message */}
               {error && (
@@ -288,6 +364,7 @@ const canContinue = mobileNumber.length === 10;
                 <button
                   onClick={() => {
                     setShowOTP(false);
+                    setNeedsMobile(false);
                     setError('');
                   }}
                   disabled={loading}

@@ -510,6 +510,14 @@ export const assignDeliveryBoy = asyncHandler(
       });
     }
 
+    // E-commerce orders are delivered by the courier (Shiprocket), never by a rider.
+    if (order.channel === "ECommerce") {
+      return res.status(400).json({
+        success: false,
+        message: "E-commerce orders are shipped by courier. A delivery partner can't be assigned.",
+      });
+    }
+
     // Quick: a rider is involved only after the seller has accepted the order.
     if (order.channel === "Quick" && ["Received", "Pending"].includes(order.status)) {
       return res.status(400).json({
@@ -853,10 +861,18 @@ export const processReturnRequest = asyncHandler(
     // which is handled by seller/returnController.ts → confirmSellerReceipt()
     // DO NOT add executeReturnRefundAndReversal() here.
 
+    // E-commerce: book the courier reverse pickup on approval.
+    let courierNote = "";
+    if (status === "Approved" && (updatedReturn?.order as any)?.channel === "ECommerce") {
+      const { startCourierReturn } = await import("../../../services/courierReturnService");
+      const booked = await startCourierReturn(id);
+      courierNote = booked.success ? " Courier pickup booked." : ` Courier pickup not booked: ${booked.message}`;
+    }
+
     return res.status(200).json({
       success: true,
-      message: `Return request ${status ? status.toLowerCase() : "updated"} successfully`,
-      data: updatedReturn,
+      message: `Return request ${status ? status.toLowerCase() : "updated"} successfully.${courierNote}`,
+      data: courierNote ? await Return.findById(id).populate("order").populate("orderItem").populate("customer", "name email phone") : updatedReturn,
     });
   },
 );

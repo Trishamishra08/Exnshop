@@ -9,6 +9,7 @@ import Button from '../../components/ui/button';
 import LazyImage from '../../components/LazyImage';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculateProductPrice } from '../../utils/priceUtils';
+import { useUnavailableSellers } from '../../hooks/useUnavailableSellers';
 
 export default function Wishlist() {
   const navigate = useNavigate();
@@ -17,6 +18,7 @@ export default function Wishlist() {
   const { t } = useTranslation();
   const { wishlistProducts, loading, removeWishlistProduct } = useWishlistContext();
   const products = useMemo(() => wishlistProducts as Product[], [wishlistProducts]);
+  const isSellerOffline = useUnavailableSellers();
 
   const handleRemove = async (productId: string) => {
     try {
@@ -46,6 +48,8 @@ export default function Wishlist() {
             {products.map((product) => (
               (() => {
                 const productImage = product.imageUrl || product.mainImage || "";
+                // Quick seller offline right now: dimmed, labelled, and not addable.
+                const offline = isSellerOffline(product);
                 return (
               <motion.div
                 key={product.id}
@@ -53,7 +57,7 @@ export default function Wishlist() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="bg-white rounded-xl border border-neutral-100 shadow-sm overflow-hidden flex flex-col relative"
+                className={`bg-white rounded-xl border border-neutral-100 shadow-sm overflow-hidden flex flex-col relative ${offline ? "opacity-60 grayscale" : ""}`}
               >
                 <button
                   onClick={() => handleRemove(product.id)}
@@ -62,7 +66,12 @@ export default function Wishlist() {
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" /></svg>
                 </button>
 
-                <Link to={`/product/${product.id}`} className="aspect-square bg-neutral-50/70 flex items-center justify-center p-0 overflow-hidden">
+                <Link to={`/product/${product.id}`} className="relative aspect-square bg-neutral-50/70 flex items-center justify-center p-0 overflow-hidden">
+                  {offline && (
+                    <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 mx-auto w-fit bg-neutral-900/80 text-white text-[11px] font-bold px-2 py-1 rounded">
+                      Seller not available
+                    </span>
+                  )}
                   {product.imageUrl || product.mainImage ? (
                     <LazyImage
                       src={productImage}
@@ -93,9 +102,10 @@ export default function Wishlist() {
                       variant="outline"
                       size="sm"
                       onClick={() => addToCart(product)}
-                      className="w-full border-2 border-green-600 text-green-700 hover:bg-green-50 rounded-lg h-9 sm:h-10 text-xs sm:text-sm font-bold uppercase tracking-wider cursor-pointer shadow-2xs active:scale-95"
+                      disabled={offline}
+                      className="w-full border-2 border-green-600 text-green-700 hover:bg-green-50 rounded-lg h-9 sm:h-10 text-xs sm:text-sm font-bold uppercase tracking-wider cursor-pointer shadow-2xs active:scale-95 disabled:border-neutral-200 disabled:text-neutral-500 disabled:bg-neutral-50 disabled:cursor-not-allowed"
                     >
-                      {t("customer.addToCart", "ADD TO CART")}
+                      {offline ? "Seller not available" : t("customer.addToCart", "ADD TO CART")}
                     </Button>
                   </div>
                 </div>

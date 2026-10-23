@@ -814,10 +814,8 @@ async function verifyEmailOtpFromDb(
 }
 
 /**
- * Send a login OTP to the user's email — same universal-bypass (888888) and
- * mock-mode behavior as the mobile OTP flow, but delivered via email instead
- * of SMS. Used by Seller and Delivery login when the app is configured for
- * email-based login instead of mobile.
+ * Send a login OTP to the user's email. Always a real, random code sent over
+ * SMTP — the 123456 test code (OTP_UNIVERSAL_BYPASS) applies to mobile OTPs only.
  */
 export async function sendEmailOtp(
   email: string,
@@ -828,17 +826,6 @@ export async function sendEmailOtp(
 ): Promise<OtpResponse> {
   try {
     const otp = generateOTP(6);
-
-    // Special bypass — same fixed test code as mobile OTP, for consistent testing.
-    const specialOtp = getSpecialOtpForMobile(email);
-    if (specialOtp) {
-      // Don't save to DB for universal bypass, verifyEmailOtp skips DB check anyway
-      return {
-        success: true,
-        sessionId: "EMAIL_SESSION_" + email.trim().toLowerCase(),
-        message: "OTP sent to your email",
-      };
-    }
 
     await saveEmailOtpToDb(email, otp, userType);
     if (process.env.NODE_ENV !== "production" || DEBUG_SMS) {
@@ -883,11 +870,6 @@ export async function verifyEmailOtp(
   userType: "Seller" | "Admin" | "Customer" | "Delivery",
 ): Promise<boolean> {
   const normalizedOtp = String(otpInput).trim().replace(/\s/g, "");
-
-  const specialOtp = getSpecialOtpForMobile(email);
-  if (specialOtp) {
-    return normalizedOtp === specialOtp;
-  }
 
   if (!normalizedOtp || normalizedOtp.length < 4 || normalizedOtp.length > 6) {
     return false;

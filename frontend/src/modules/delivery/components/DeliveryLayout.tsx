@@ -77,7 +77,9 @@ function DeliveryLayoutContent({ children }: DeliveryLayoutContentProps) {
   };
 
   return (
-    <div className={`flex flex-col min-h-screen bg-neutral-100 transition-all duration-300 ${!isOnline ? 'grayscale' : ''}`}>
+    // Phone-first app: on wider screens it sits in a centred phone-width column instead of stretching.
+    <div className="min-h-screen bg-neutral-200">
+    <div className={`relative flex flex-col min-h-screen w-full md:max-w-xl md:mx-auto md:shadow-xl md:border-x md:border-neutral-200 bg-neutral-100 transition-all duration-300 ${!isOnline ? 'grayscale' : ''}`}>
       {autoplayBlocked && (
         <div className="bg-amber-500 text-white px-4 py-2 flex items-center justify-between text-sm font-semibold z-[10001] shrink-0">
           <span>🔔 Incoming delivery ringtone blocked by browser. Click to enable sound!</span>
@@ -114,7 +116,7 @@ function DeliveryLayoutContent({ children }: DeliveryLayoutContentProps) {
           </div>
         </div>
       )}
-      <main className="flex-1 overflow-y-auto scrollbar-hide pb-20">
+      <main className="flex-1 overflow-y-auto scrollbar-hide pb-[calc(5rem+var(--safe-bottom))]">
         {children}
       </main>
       <DeliveryBottomNav />
@@ -130,6 +132,7 @@ function DeliveryLayoutContent({ children }: DeliveryLayoutContentProps) {
           />
         )}
       </AnimatePresence>
+    </div>
     </div>
   );
 }

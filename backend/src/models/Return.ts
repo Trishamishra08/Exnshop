@@ -69,6 +69,21 @@ export interface IReturn extends Document {
   refundId?: mongoose.Types.ObjectId;
   financialSettlementStatus?: "Pending" | "Completed" | "Failed";
 
+  /** Exchange: the ₹0 order that sends the replacement unit to the customer. */
+  replacementOrder?: mongoose.Types.ObjectId;
+
+  // E-commerce returns: courier reverse pickup (Shiprocket) instead of a rider
+  shiprocketReturn?: {
+    channelOrderId?: string;
+    orderId?: string;
+    shipmentId?: string;
+    awbCode?: string;
+    courierName?: string;
+    trackingUrl?: string;
+    status?: string;
+    error?: string;
+  };
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -203,6 +218,17 @@ const ReturnSchema = new Schema<IReturn>(
     refundId: {
       type: Schema.Types.ObjectId,
       ref: "Refund",
+    },
+    replacementOrder: { type: Schema.Types.ObjectId, ref: "Order" },
+    shiprocketReturn: {
+      channelOrderId: { type: String },
+      orderId: { type: String },
+      shipmentId: { type: String },
+      awbCode: { type: String },
+      courierName: { type: String },
+      trackingUrl: { type: String },
+      status: { type: String },
+      error: { type: String },
     },
     financialSettlementStatus: {
       type: String,

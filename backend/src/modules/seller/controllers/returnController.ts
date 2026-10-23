@@ -155,6 +155,9 @@ export const getReturnRequestById = asyncHandler(
       orderId: orderDoc?.orderNumber,
       status: fullReturn.status,
       requestType: fullReturn.requestType || "RETURN",
+      // E-commerce: courier reverse pickup; exchange: the replacement order
+      shiprocketReturn: (fullReturn as any).shiprocketReturn,
+      replacementOrderId: (fullReturn as any).replacementOrder,
       lifecycle,
       customerName: orderDoc?.customerName,
       customerEmail: (fullReturn.customer as any)?.email,
@@ -257,8 +260,22 @@ export const updateReturnStatus = asyncHandler(
       updateData.rejectionReason = rejectionReason.trim();
     }
 
-    const updatedReturn = await Return.findByIdAndUpdate(id, updateData, { new: true });
+    let updatedReturn = await Return.findByIdAndUpdate(id, updateData, { new: true });
     const reqType = returnReq.requestType || "RETURN";
+
+    // E-commerce: book the courier reverse pickup now (Quick waits for a rider).
+    let courierNote = "";
+    if (status === "Approved") {
+      const parentOrder = await Order.findById(returnReq.order).select("channel");
+      if (parentOrder?.channel === "ECommerce") {
+        const { startCourierReturn } = await import("../../../services/courierReturnService");
+        const booked = await startCourierReturn(id);
+        courierNote = booked.success
+          ? " Courier pickup booked from the customer."
+          : ` Courier pickup could not be booked yet (${booked.message}); Exnshop support will retry.`;
+        updatedReturn = await Return.findById(id);
+      }
+    }
 
     // Send customer notification via notificationService
     try {
@@ -290,7 +307,9 @@ export const updateReturnStatus = asyncHandler(
       success: true,
       message:
         status === "Approved"
-          ? `${reqType === "EXCHANGE" ? "Exchange" : "Return"} approved. Now awaiting delivery partner assignment for pickup.`
+          ? courierNote
+            ? `${reqType === "EXCHANGE" ? "Exchange" : "Return"} approved.${courierNote}`
+            : `${reqType === "EXCHANGE" ? "Exchange" : "Return"} approved. Now awaiting delivery partner assignment for pickup.`
           : `${reqType === "EXCHANGE" ? "Exchange" : "Return"} rejected successfully.`,
       data: updatedReturn,
     });
@@ -365,11 +384,21 @@ export const confirmSellerReceipt = asyncHandler(
       });
     }
 
+    const reqType = returnReq.requestType || "RETURN";
+
+    // Exchange: send the replacement unit as a new ₹0 order.
+    let replacementNote = "";
+    if (reqType === "EXCHANGE") {
+      const { createReplacementOrder } = await import("../../../services/replacementOrderService");
+      const replacement = await createReplacementOrder(id, req.app.get("io"));
+      replacementNote = replacement.success
+        ? ` Replacement order #${replacement.orderNumber} created — accept it to send the new unit.`
+        : ` Replacement not created yet: ${replacement.message}`;
+    }
+
     const finalReturn = await Return.findById(id)
       .populate("order", "orderNumber")
       .populate("customer", "name email");
-
-    const reqType = returnReq.requestType || "RETURN";
 
     // Send customer notification that return/exchange is completed
     try {
@@ -399,7 +428,7 @@ export const confirmSellerReceipt = asyncHandler(
       success: true,
       message:
         reqType === "EXCHANGE"
-          ? "Exchange completed. Item received and replacement fulfilled (no cash refund)."
+          ? `Exchange: item received (no cash refund).${replacementNote}`
           : "Return completed. Financial settlement executed — customer refund issued.",
       data: {
         return: finalReturn,
@@ -409,3 +438,28 @@ export const confirmSellerReceipt = asyncHandler(
 
   }
 );
+
+/**
+ * POST /returns/:id/replacement
+ * Exchange whose replacement could not be created at receipt (usually out of
+ * stock): try again once the seller has restocked.
+ */
+export const retryReplacementOrder = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = (req as any).user?.userId;
+  let returnReq: any;
+  try {
+    returnReq = (await assertReturnBelongsToSeller(req.params.id, sellerId!)).returnReq;
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, message: err.message });
+  }
+  if (returnReq.requestType !== "EXCHANGE" || returnReq.status !== "Completed") {
+    return res.status(400).json({ success: false, message: "A replacement is created only for a completed exchange." });
+  }
+  const { createReplacementOrder } = await import("../../../services/replacementOrderService");
+  const result = await createReplacementOrder(req.params.id, req.app.get("io"));
+  return res.status(result.success ? 200 : 400).json({
+    success: result.success,
+    message: result.success ? `Replacement order #${result.orderNumber} created.` : result.message,
+    data: result,
+  });
+});

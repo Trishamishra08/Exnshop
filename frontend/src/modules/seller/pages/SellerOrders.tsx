@@ -17,6 +17,7 @@ export default function SellerOrders() {
   const [status, setStatus] = useState(initialStatus);
   const [entriesPerPage, setEntriesPerPage] = useState('10');
   const [searchQuery, setSearchQuery] = useState('');
+  const [channel, setChannel] = useState<'All' | 'Quick' | 'ECommerce'>('All');
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -60,6 +61,10 @@ export default function SellerOrders() {
           params.search = searchQuery;
         }
 
+        if (channel !== 'All') {
+          params.channel = channel;
+        }
+
         const response = await getOrders(params);
         if (response.success && response.data) {
           setOrders(response.data);
@@ -74,7 +79,7 @@ export default function SellerOrders() {
     };
 
     fetchOrders();
-  }, [dateRange, status, entriesPerPage, searchQuery, currentPage, sortField, sortDirection]);
+  }, [dateRange, status, entriesPerPage, searchQuery, currentPage, sortField, sortDirection, channel]);
 
   const handleClearDate = () => {
     setDateRange('');
@@ -170,6 +175,28 @@ export default function SellerOrders() {
           {/* Green Banner */}
           <div className="bg-green-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-t-lg">
             <h2 className="text-base sm:text-lg font-semibold">View Order List</h2>
+          </div>
+
+          {/* Channel tabs: a seller on both channels sees Quick and E-commerce orders apart */}
+          <div className="px-3 sm:px-4 md:px-6 pt-3 flex gap-2 overflow-x-auto">
+            {([
+              ['All', 'All orders', 'bg-neutral-900 text-white', 'bg-neutral-100 text-neutral-700'],
+              ['Quick', '⚡ Quick', 'bg-amber-500 text-white', 'bg-amber-50 text-amber-800'],
+              ['ECommerce', '🚚 E-commerce', 'bg-indigo-600 text-white', 'bg-indigo-50 text-indigo-700'],
+            ] as const).map(([value, label, activeCls, idleCls]) => (
+              <button
+                key={value}
+                onClick={() => {
+                  setChannel(value);
+                  setCurrentPage(1);
+                }}
+                className={`px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap transition-colors ${
+                  channel === value ? activeCls : idleCls
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
 
           {/* Filter and Action Bar */}
@@ -330,9 +357,56 @@ export default function SellerOrders() {
             </div>
           )}
 
-          {/* Table */}
+          {/* Phone: one card per order, Quick and E-commerce told apart by colour and tag */}
           {!loading && !error && (
-            <div className="overflow-x-auto -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6">
+            <div className="md:hidden space-y-3 py-3">
+              {paginatedOrders.length === 0 ? (
+                <p className="py-8 text-center text-xs text-neutral-500">No orders yet</p>
+              ) : (
+                paginatedOrders.map((order) => {
+                  const isECommerce = order.channel === 'ECommerce';
+                  return (
+                    <button
+                      key={order.id}
+                      onClick={() => navigate(`/seller/orders/${order.id}`)}
+                      className={`w-full text-left bg-white rounded-xl border border-neutral-200 border-l-4 shadow-sm p-3 active:bg-neutral-50 ${
+                        isECommerce ? 'border-l-indigo-500' : 'border-l-amber-500'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap ${
+                            isECommerce ? 'bg-indigo-50 text-indigo-700' : 'bg-amber-50 text-amber-800'
+                          }`}
+                        >
+                          {isECommerce ? '🚚 E-commerce · Ships by courier' : '⚡ Quick · Rider delivery'}
+                        </span>
+                        <span className={`flex-shrink-0 whitespace-nowrap px-2 py-0.5 text-[11px] font-medium rounded-full ${getStatusColor(order.status)}`}>
+                          {order.status}
+                        </span>
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-neutral-900 truncate">#{order.orderId}</div>
+                      <div className="mt-0.5 text-xs text-neutral-600 truncate">
+                        {order.customerName}
+                        {order.customerPhone ? ` · ${order.customerPhone}` : ''}
+                      </div>
+                      <div className="mt-2 flex items-end justify-between gap-2">
+                        <div className="text-[11px] text-neutral-500">
+                          {order.orderDate}
+                          <span className="capitalize"> · {order.paymentMethod || 'COD'}</span>
+                        </div>
+                        <div className="text-base font-bold text-neutral-900 whitespace-nowrap">₹{order.amount.toFixed(2)}</div>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {/* Table (tablet and desktop) */}
+          {!loading && !error && (
+            <div className="hidden md:block overflow-x-auto -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6">
               <table className="w-full min-w-[600px]">
                 <thead className="bg-neutral-50 border-b border-neutral-200">
                   <tr>

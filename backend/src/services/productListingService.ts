@@ -217,6 +217,12 @@ export interface ListingContext {
 }
 export const newListingContext = (): ListingContext => ({ configs: new Map() });
 
+/** A product sold under a brand needs proof the seller may sell that brand. */
+export const BRAND_AUTH_DOC = {
+  key: "brand_authorization",
+  label: "Brand authorization (authorization letter, trademark certificate or distributor invoice)",
+};
+
 export const configForProduct = async (p: any, ctx?: ListingContext) => {
   const scope = {
     headerCategoryId: idOf(p.headerCategoryId),
@@ -225,11 +231,28 @@ export const configForProduct = async (p: any, ctx?: ListingContext) => {
     subSubCategory: idOf(p.subSubCategory),
   };
   const key = JSON.stringify(scope);
-  const cached = ctx?.configs.get(key);
-  if (cached) return cached;
-  const config = await resolveListingConfig(scope);
-  ctx?.configs.set(key, config);
-  return config;
+  let config = ctx?.configs.get(key);
+  if (!config) {
+    config = await resolveListingConfig(scope);
+    ctx?.configs.set(key, config);
+  }
+  if (!p.brand) return config;
+  // Branded product: the brand document joins the category's own required documents.
+  return {
+    ...config,
+    rule: {
+      ...config.rule,
+      requiredDocs: [...config.rule.requiredDocs.filter((d) => d.key !== BRAND_AUTH_DOC.key), BRAND_AUTH_DOC],
+    },
+  };
+};
+
+const brandDocProblem = (p: any): string | null => {
+  if (!p.brand) return null;
+  const doc = (p.complianceDocs || []).find((d: any) => d.docType === BRAND_AUTH_DOC.key);
+  if (!doc) return "Document: Brand authorization";
+  if (doc.status === "Rejected") return "Document: Brand authorization (the uploaded one was rejected)";
+  return null;
 };
 
 /**
@@ -240,7 +263,11 @@ export const configForProduct = async (p: any, ctx?: ListingContext) => {
  */
 export const listingProblems = async (p: any, ctx?: ListingContext): Promise<string[]> => {
   const problems = submissionProblems(p);
-  if (!(p.listingVersion >= 2)) return problems;
+  if (!(p.listingVersion >= 2)) {
+    // Older/classic-form products skip the guided checks, but never the brand document.
+    const brandProblem = brandDocProblem(p);
+    return brandProblem ? [...problems, brandProblem] : problems;
+  }
 
   const sellerId = idOf(p.seller);
   let seller = ctx?.seller;

@@ -74,9 +74,10 @@ export default function SellerLayout({ children }: SellerLayoutProps) {
   const [notificationQueue, setNotificationQueue] = useState<SellerNotification[]>([]);
   const hasRehydratedRef = useRef(false);
 
-  // Count total actionable pending orders
-  const actionableCount = (activeNotification ? 1 : 0) + notificationQueue.length;
-  const { autoplayBlocked, enableAndPlaySound } = useRingtoneAlert('/assets/sound/seller_alert.mp3', actionableCount > 0);
+  // Ring only while a new order is waiting for the seller; status updates and
+  // cancellations still pop up, silently.
+  const hasNewOrderWaiting = [activeNotification, ...notificationQueue].some((n) => n?.type === 'NEW_ORDER');
+  const { autoplayBlocked, enableAndPlaySound } = useRingtoneAlert('/assets/sound/seller_alert.mp3', hasNewOrderWaiting);
 
   const showNextNotification = useCallback((queue: SellerNotification[]) => {
     const [next, ...rest] = queue;
@@ -99,6 +100,12 @@ export default function SellerLayout({ children }: SellerLayoutProps) {
   }, []);
 
   const handleNotificationReceived = useCallback((notification: SellerNotification) => {
+    if (notification.type === 'ORDER_CANCELLED') {
+      // The customer cancelled: drop that order's pending alert so it stops ringing.
+      const cancelledId = String(notification.orderId);
+      setNotificationQueue((queue) => queue.filter((n) => String(n.orderId) !== cancelledId));
+      setActiveNotification((current) => (current && String(current.orderId) === cancelledId ? null : current));
+    }
     enqueueNotification(notification);
   }, [enqueueNotification]);
 

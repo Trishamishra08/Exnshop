@@ -52,6 +52,10 @@ interface VariationRow {
 
 const MAX_OPTION_PHOTOS = 8;
 const MAX_VARIANT_AXES = 3;
+const BRAND_AUTH_DOC = {
+  key: 'brand_authorization',
+  label: 'Brand authorization (authorization letter, trademark certificate or distributor invoice)',
+};
 const emptyRow = (title = '', options: VariantOption[] = []): VariationRow => ({ title, options, price: '', discPrice: '', stock: '0', sku: '', images: [] });
 const comboTitle = (options: VariantOption[]) => options.map((o) => o.value).join(' / ');
 
@@ -324,6 +328,11 @@ export default function SellerProductWizard() {
     return problems;
   };
 
+  const requiredDocs = useMemo(
+    () => [...(config?.rule.requiredDocs || []).filter((d) => d.key !== BRAND_AUTH_DOC.key), ...(brand ? [BRAND_AUTH_DOC] : [])],
+    [config, brand]
+  );
+
   const readiness = useMemo(() => {
     const missing: { label: string; step: StepKey }[] = [];
     if (!productName.trim()) missing.push({ label: 'Product name', step: 'basic' });
@@ -341,14 +350,14 @@ export default function SellerProductWizard() {
       if (!(Number(weightGrams) > 0)) missing.push({ label: 'Package weight', step: 'shipping' });
       if (!(Number(dimL) > 0 && Number(dimW) > 0 && Number(dimH) > 0)) missing.push({ label: 'Package dimensions', step: 'shipping' });
     }
-    (config?.rule.requiredDocs || []).forEach((d) => {
+    requiredDocs.forEach((d) => {
       const doc = docs.find((x) => x.docType === d.key);
       if (!doc) missing.push({ label: `Document: ${d.label}`, step: 'review' });
       else if (doc.status === 'Rejected') missing.push({ label: `Document: ${d.label} (rejected, upload a new one)`, step: 'review' });
     });
     return missing;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productName, category, mainImageUrl, mainImageFile, config, attributes, rows, needsHsn, hsnCode, requiresShipping, weightGrams, dimL, dimW, dimH, docs]);
+  }, [productName, category, mainImageUrl, mainImageFile, config, attributes, rows, needsHsn, hsnCode, requiresShipping, weightGrams, dimL, dimW, dimH, docs, requiredDocs]);
 
   const stepDone = (key: StepKey): boolean => {
     switch (key) {
@@ -909,7 +918,7 @@ export default function SellerProductWizard() {
               <input className={inputCls} value={productName} onChange={(e) => setProductName(e.target.value)} maxLength={150} placeholder="e.g. Men's Cotton Round-Neck T-Shirt" />
             </Field>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Brand">
+              <Field label="Brand" hint={brand ? 'A branded product needs a brand authorization document (uploaded in the last step) before it can go live.' : undefined}>
                 <select className={inputCls} value={brand} onChange={(e) => setBrand(e.target.value)}>
                   <option value="">No brand / Generic</option>
                   {brands.map((b) => (
@@ -1323,11 +1332,11 @@ export default function SellerProductWizard() {
               </div>
             </div>
 
-            {(config?.rule.requiredDocs.length || 0) > 0 && (
+            {requiredDocs.length > 0 && (
               <div className="space-y-2">
                 <p className="text-sm font-semibold text-neutral-800">Compliance documents</p>
                 {!productId && <p className="text-xs text-amber-700">Complete the earlier steps first so the product is saved.</p>}
-                {config!.rule.requiredDocs.map((req) => {
+                {requiredDocs.map((req) => {
                   const doc = docs.find((d) => d.docType === req.key);
                   return (
                     <div key={req.key} className="rounded-xl border border-neutral-200 p-3 flex flex-col sm:flex-row sm:items-center gap-2">

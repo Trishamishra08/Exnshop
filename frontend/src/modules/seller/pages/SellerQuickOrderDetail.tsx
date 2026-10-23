@@ -331,7 +331,26 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
         <div className="lg:col-span-2 space-y-4">
           <section className={cardCls}>
             <h2 className={cardTitleCls}>Items ({orderDetail.items.length})</h2>
-            <div className="overflow-x-auto">
+            {/* Phone: one row per item instead of a sideways-scrolling table */}
+            <ul className="sm:hidden divide-y divide-neutral-100">
+              {orderDetail.items.map((item) => (
+                <li key={item.srNo} className="px-4 py-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-neutral-900 break-words">{item.product}</p>
+                    <p className="mt-0.5 text-xs text-neutral-500">
+                      {[formatUnit(item.unit, item.qty), `${item.qty} × ${money(item.price)}`].filter(Boolean).join(' · ')}
+                    </p>
+                    {item.tax > 0 && (
+                      <p className="text-[11px] text-neutral-400">
+                        Tax {money(item.tax)} ({item.taxPercent.toFixed(2)}%)
+                      </p>
+                    )}
+                  </div>
+                  <span className="text-sm font-semibold text-neutral-900 whitespace-nowrap">{money(item.subtotal)}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden sm:block overflow-x-auto">
               <table className="w-full min-w-[560px] text-sm">
                 <thead className="bg-neutral-50 text-xs text-neutral-500 uppercase tracking-wider">
                   <tr>

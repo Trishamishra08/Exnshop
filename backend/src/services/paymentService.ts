@@ -274,6 +274,14 @@ const captureForOneOrder = async (
                 }
             }
 
+            // E-commerce: the courier shipment is created now that the order is paid.
+            if (order.channel === 'ECommerce') {
+                const { ensureOrderShipments } = await import('./shippingLabelService');
+                ensureOrderShipments(order._id.toString()).catch((e) =>
+                    console.error("Failed to create Shiprocket shipment after payment capture:", e)
+                );
+            }
+
             // Create Pending Commissions
             try {
                 const { createPendingCommissions } = await import('./commissionService');
@@ -776,6 +784,14 @@ const applyPaymentCapturedToOrder = async (
                 console.error("Failed to notify sellers after webhook capture:", notifyError);
             }
             // Riders are requested only once the seller accepts.
+        }
+
+        // E-commerce: the courier shipment is created now that the order is paid.
+        if (order.channel === 'ECommerce') {
+            const { ensureOrderShipments } = await import('./shippingLabelService');
+            ensureOrderShipments(order._id.toString()).catch((e) =>
+                console.error("Failed to create Shiprocket shipment after webhook capture:", e)
+            );
         }
 
         // Create Pending Commissions

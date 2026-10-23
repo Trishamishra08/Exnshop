@@ -41,6 +41,7 @@ export const getOrders = asyncHandler(async (req: Request, res: Response) => {
     limit = "10",
     sortBy = "orderDate",
     sortOrder = "desc",
+    channel,
   } = req.query;
 
   // Find all order IDs that contain items from this seller
@@ -50,6 +51,10 @@ export const getOrders = asyncHandler(async (req: Request, res: Response) => {
 
   // Build query - filter by orders containing this seller's items
   const query: any = { _id: { $in: orderItems }, status: { $ne: "Pending" } };
+
+  // Channel tab: orders saved before channels existed count as Quick.
+  if (channel === "ECommerce") query.channel = "ECommerce";
+  else if (channel === "Quick") query.channel = { $ne: "ECommerce" };
 
   // Date range filter
   if (dateFrom || dateTo) {

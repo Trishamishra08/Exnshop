@@ -8,6 +8,7 @@ import { getProducts } from '../../services/api/customerProductService';
 import WishlistButton from '../../components/WishlistButton';
 import { calculateProductPrice } from '../../utils/priceUtils';
 import { useCommerceMode } from '../../context/CommerceModeContext';
+import { useUnavailableSellers } from '../../hooks/useUnavailableSellers';
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
@@ -42,6 +43,7 @@ export default function OrderAgain() {
   const { mode } = useCommerceMode();
   const navigate = useNavigate();
   const [addedOrders, setAddedOrders] = useState<Set<string>>(new Set());
+  const isSellerOffline = useUnavailableSellers();
 
   // Handle "Order Again" - Add all items from an order to cart
   const handleOrderAgain = (order: any, e: React.MouseEvent) => {
@@ -241,6 +243,8 @@ export default function OrderAgain() {
             // Get quantity in cart
             const cartItem = cart.items.find(item => item?.product && item.product.id === product.id);
             const inCartQty = cartItem?.quantity || 0;
+            // Quick seller offline right now: dimmed, labelled, and not addable.
+            const offline = isSellerOffline(product);
 
             return (
               <div
@@ -248,7 +252,7 @@ export default function OrderAgain() {
                 className="flex-shrink-0 w-[155px] sm:w-[170px]"
                 style={{ scrollSnapAlign: 'start' }}
               >
-                <div className="bg-white rounded-xl overflow-hidden flex flex-col relative h-full border border-neutral-200/80 shadow-2xs hover:shadow-md transition-all">
+                <div className={`bg-white rounded-xl overflow-hidden flex flex-col relative h-full border border-neutral-200/80 shadow-2xs hover:shadow-md transition-all ${offline ? 'opacity-60 grayscale' : ''}`}>
                   {/* Product Image Area */}
                   <div
                     onClick={() => navigate(`/product/${product.id}`)}
@@ -281,10 +285,20 @@ export default function OrderAgain() {
                         className="top-1.5 right-1.5 shadow-2xs"
                       />
 
+                      {offline && (
+                        <span className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 mx-auto w-fit bg-neutral-900/80 text-white text-[10px] font-bold px-2 py-1 rounded">
+                          Seller not available
+                        </span>
+                      )}
+
                       {/* ADD Button or Quantity Stepper - Overlaid on bottom right of image */}
                       <div className="absolute bottom-1.5 right-1.5 z-10">
                         <AnimatePresence mode="wait">
-                          {inCartQty === 0 ? (
+                          {offline ? (
+                            <span className="bg-neutral-100 text-neutral-400 text-xs font-bold px-2.5 py-1 rounded-lg border-2 border-neutral-200 cursor-not-allowed">
+                              {t("common.add", "ADD")}
+                            </span>
+                          ) : inCartQty === 0 ? (
                             <motion.button
                               key="add-button"
                               type="button"

@@ -86,7 +86,7 @@ export const LanguageSelection: React.FC = () => {
       style={{
         minHeight: "100dvh",
         paddingTop: "calc(1.5rem + env(safe-area-inset-top))",
-        paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))",
+        paddingBottom: "calc(1.5rem + var(--safe-bottom))",
       }}
     >
       {/* Background Soft Mint & Emerald Ambient Accents */}

@@ -9,6 +9,11 @@
     <link rel="shortcut icon" href="/exnshop_logo.png" />
     <link rel="apple-touch-icon" href="/exnshop_logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <script>
+      // Android app (WebView, "; wv)" in the user agent): the page is drawn under the
+      // system navigation bar, so bottom bars keep extra room (see --safe-bottom).
+      if (/; wv\)/.test(navigator.userAgent)) document.documentElement.classList.add("in-app-webview");
+    </script>
     <link rel="manifest" href="/manifest.json" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

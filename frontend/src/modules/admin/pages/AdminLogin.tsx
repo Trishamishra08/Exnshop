@@ -1,25 +1,28 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { sendOTP, verifyOTP } from '../../../services/api/auth/adminAuthService';
+import { sendEmailOTP, verifyOTP } from '../../../services/api/auth/adminAuthService';
+import { isValidEmail } from '../../../components/LoginMethodTabs';
 import OTPInput from '../../../components/OTPInput';
 import { useAuth } from '../../../context/AuthContext';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
   const { login } = useAuth();
-  const [mobileNumber, setMobileNumber] = useState('9876543210');
+  // Admins log in by email + OTP only.
+  const [email, setEmail] = useState('');
+  const canContinue = isValidEmail(email);
   const [showOTP, setShowOTP] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleMobileLogin = async () => {
-    if (mobileNumber.length !== 10) return;
+    if (!canContinue) return;
 
     setLoading(true);
     setError("");
 
     try {
-      await sendOTP(mobileNumber);
+      await sendEmailOTP(email.trim());
       setShowOTP(true);
     } catch (err: any) {
       setError(
@@ -35,7 +38,7 @@ export default function AdminLogin() {
     setError("");
 
     try {
-      const response = await verifyOTP(mobileNumber, otp);
+      const response = await verifyOTP(email.trim(), otp, true);
       if (response.success && response.data) {
         // Update AuthContext with token and user data
         login(response.data.token, {
@@ -107,30 +110,20 @@ export default function AdminLogin() {
         {/* Login Form */}
         <div className="p-6 space-y-4">
           {!showOTP ? (
-            /* Mobile Login Form */
+            /* Email Login Form */
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">
-                  Mobile Number
-                </label>
-                <div className="flex items-center bg-white border border-neutral-300 rounded-lg overflow-hidden focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-200 transition-all">
-                  <div className="px-3 py-2.5 text-sm font-medium text-neutral-600 border-r border-neutral-300 bg-neutral-50">
-                    +91
-                  </div>
-                  <input
-                    type="tel"
-                    value={mobileNumber}
-                    onChange={(e) =>
-                      setMobileNumber(
-                        e.target.value.replace(/\D/g, "").slice(0, 10)
-                      )
-                    }
-                    placeholder="Enter mobile number"
-                    className="flex-1 px-3 py-2.5 text-sm placeholder:text-neutral-400 focus:outline-none"
-                    maxLength={10}
-                    disabled={loading}
-                  />
-                </div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">Admin email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your admin email"
+                  className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg placeholder:text-neutral-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                  disabled={loading}
+                  autoFocus
+                />
+                <p className="mt-1.5 text-xs text-neutral-500">A 6-digit code will be sent to this email.</p>
               </div>
 
               {error && (
@@ -141,8 +134,8 @@ export default function AdminLogin() {
 
               <button
                 onClick={handleMobileLogin}
-                disabled={mobileNumber.length !== 10 || loading}
-                className={`w-full py-2.5 rounded-lg font-semibold text-sm transition-colors ${mobileNumber.length === 10 && !loading
+                disabled={!canContinue || loading}
+                className={`w-full py-2.5 rounded-lg font-semibold text-sm transition-colors ${canContinue && !loading
                   ? "bg-teal-600 text-white hover:bg-teal-700 shadow-md"
                   : "bg-neutral-300 text-neutral-500 cursor-not-allowed"
                   }`}>
@@ -157,7 +150,7 @@ export default function AdminLogin() {
                   Enter the 6-digit OTP sent to
                 </p>
                 <p className="text-sm font-semibold text-neutral-800">
-                  +91 {mobileNumber}
+                  {email}
                 </p>
               </div>
 
@@ -177,7 +170,7 @@ export default function AdminLogin() {
                   }}
                   disabled={loading}
                   className="flex-1 py-2.5 rounded-lg font-semibold text-sm bg-neutral-100 text-neutral-700 hover:bg-neutral-200 transition-colors border border-neutral-300">
-                  Change Number
+                  Change Email
                 </button>
                 <button
                   onClick={handleMobileLogin}

@@ -1,0 +1,112 @@
+import { Server as SocketIOServer } from "socket.io";
+import Return from "../models/Return";
+import Order from "../models/Order";
+import OrderItem from "../models/OrderItem";
+import Product from "../models/Product";
+
+/**
+ * Exchange: once the seller has the returned unit back, a ₹0 replacement order
+ * sends a new unit of the same variant to the customer, through the normal
+ * flow of its channel (Quick → seller accepts → rider; E-commerce → seller
+ * packs → courier). Safe to call again: one replacement per exchange.
+ */
+export const createReplacementOrder = async (
+  returnId: string,
+  io?: SocketIOServer
+): Promise<{ success: boolean; orderId?: string; orderNumber?: string; message?: string }> => {
+  const ret: any = await Return.findById(returnId);
+  if (!ret || ret.requestType !== "EXCHANGE") return { success: false, message: "Not an exchange request" };
+  if (ret.replacementOrder) {
+    const existing = await Order.findById(ret.replacementOrder).select("orderNumber");
+    return { success: true, orderId: String(ret.replacementOrder), orderNumber: existing?.orderNumber };
+  }
+
+  const original: any = await Order.findById(ret.order);
+  const item: any = await OrderItem.findById(ret.orderItem);
+  if (!original || !item) return { success: false, message: "Original order or item not found" };
+  const qty = ret.quantity || item.quantity || 1;
+
+  // Reserve the unit first: no stock, no replacement.
+  const product: any = await Product.findById(item.product).select("variations stock");
+  if (!product) return { success: false, message: "The product no longer exists" };
+  const vIndex = (product.variations || []).findIndex(
+    (v: any) => item.variation && (String(v._id) === String(item.variation) || v.value === item.variation || v.title === item.variation)
+  );
+  const reserved =
+    vIndex >= 0
+      ? await Product.updateOne(
+          { _id: product._id, [`variations.${vIndex}.stock`]: { $gte: qty } },
+          { $inc: { [`variations.${vIndex}.stock`]: -qty, stock: -qty } }
+        )
+      : await Product.updateOne({ _id: product._id, stock: { $gte: qty } }, { $inc: { stock: -qty } });
+  if (!reserved.modifiedCount) {
+    return { success: false, message: "The replacement is out of stock. Restock it, then retry the replacement." };
+  }
+
+  const order: any = await Order.create({
+    customer: original.customer,
+    customerName: original.customerName,
+    customerEmail: original.customerEmail,
+    customerPhone: original.customerPhone,
+    deliveryAddress: original.deliveryAddress,
+    items: [],
+    subtotal: 0,
+    tax: 0,
+    shipping: 0,
+    platformFee: 0,
+    discount: 0,
+    total: 0,
+    paymentMethod: "Replacement",
+    paymentStatus: "Paid",
+    status: "Received",
+    channel: original.channel || "Quick",
+    deliveryOption: original.deliveryOption || "Standard",
+    tipAmount: 0,
+    giftPackaging: false,
+    replacementFor: original._id,
+    adminNotes: `Replacement for order #${original.orderNumber} (exchange of ${item.productName}).`,
+  });
+  const newItem = await OrderItem.create({
+    order: order._id,
+    product: item.product,
+    seller: item.seller,
+    productName: item.productName,
+    productImage: item.productImage,
+    sku: item.sku,
+    unitPrice: 0,
+    quantity: qty,
+    total: 0,
+    subtotal: 0,
+    variation: item.variation,
+    variantTitle: item.variantTitle,
+    status: "Pending",
+    sellerStatus: "Pending",
+    commissionRate: 0,
+    commissionAmount: 0,
+    gstRate: 0,
+    gstAmount: 0,
+    isReturnable: false,
+    returnWindowDays: 0,
+  });
+  order.items = [newItem._id];
+  await order.save();
+
+  ret.replacementOrder = order._id;
+  await ret.save();
+
+  // Same start as any new order: the seller's panel rings.
+  if (io) {
+    try {
+      const { notifySellersOfOrderUpdate } = await import("./sellerNotificationService");
+      await notifySellersOfOrderUpdate(io, order, "NEW_ORDER");
+    } catch (err) {
+      console.error("[Replacement] Seller notification failed:", err);
+    }
+  }
+  // E-commerce: the courier shipment, as for any paid order.
+  if (order.channel === "ECommerce") {
+    const { ensureOrderShipments } = await import("./shippingLabelService");
+    ensureOrderShipments(String(order._id)).catch((err) => console.error("[Replacement] Shipment failed:", err));
+  }
+  return { success: true, orderId: String(order._id), orderNumber: order.orderNumber };
+};

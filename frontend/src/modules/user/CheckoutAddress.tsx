@@ -582,7 +582,7 @@ export default function CheckoutAddress() {
       {/* Save Address Button */}
       <div
         className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 z-[60] shadow-lg"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)' }}
+        style={{ paddingBottom: 'calc(var(--safe-bottom) + 10px)' }}
       >
         <button
           onClick={handleSaveAddress}

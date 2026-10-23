@@ -156,12 +156,25 @@ export const assignDeliveryPartnerToReturn = asyncHandler(
     }
 
     const returnReq = await Return.findById(id)
-      .populate("order", "orderNumber")
+      .populate("order", "orderNumber channel")
       .populate("customer", "name")
       .populate({ path: "orderItem", populate: { path: "product", select: "productName" } });
 
     if (!returnReq) {
       return res.status(404).json({ success: false, message: "Return request not found" });
+    }
+
+    // E-commerce returns come back by courier, never a rider: this books (or retries) the reverse pickup.
+    if ((returnReq.order as any)?.channel === "ECommerce") {
+      const { startCourierReturn } = await import("../../../services/courierReturnService");
+      const booked = await startCourierReturn(id);
+      return res.status(booked.success ? 200 : 400).json({
+        success: booked.success,
+        message: booked.success
+          ? "E-commerce returns are picked up by courier. The courier pickup is booked."
+          : `E-commerce returns are picked up by courier. Booking failed: ${booked.message}`,
+        data: await Return.findById(id),
+      });
     }
 
     // Validate state transition

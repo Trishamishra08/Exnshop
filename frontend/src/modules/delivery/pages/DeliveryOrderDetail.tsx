@@ -1051,7 +1051,7 @@ export default function DeliveryOrderDetail() {
 
             {/* Customer Delivery OTP Section (only when order is Out for Delivery) */}
             {order.status === 'Out for Delivery' && (
-                <div className="fixed bottom-24 left-6 right-6 z-30">
+                <div className="fixed bottom-24 left-6 right-6 mx-auto md:max-w-[33rem] z-30">
                     <div className="bg-white rounded-2xl p-4 shadow-2xl border border-neutral-200">
                         {isTestMode && (
                             <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs font-semibold flex items-center justify-between shadow-sm">
@@ -1124,7 +1124,7 @@ export default function DeliveryOrderDetail() {
             {/* Floating Glassmorphic Action Button Dock - Order Taken button or status update */}
             {/* Hide this button when order is "Out for Delivery" because OTP section is shown instead */}
             {nextStatus && order.status !== 'Picked up' && order.status !== 'Out for Delivery' && !showOtpInput && (
-                <div className="fixed bottom-24 left-6 right-6 z-30">
+                <div className="fixed bottom-24 left-6 right-6 mx-auto md:max-w-[33rem] z-30">
                     <button
                         onClick={() => handleStatusChange(nextStatus)}
                         className="w-full py-4 rounded-2xl bg-black/75 backdrop-blur-md border border-white/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] text-white font-bold text-lg transition-transform active:scale-[0.98] flex items-center justify-center gap-3 overflow-hidden group"

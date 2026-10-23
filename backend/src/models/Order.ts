@@ -145,6 +145,7 @@ export interface IOrder extends Document {
    *  both Quick and E-commerce items — absent for ordinary single-channel
    *  orders (the vast majority). */
   checkoutGroupId?: string;
+  replacementFor?: mongoose.Types.ObjectId;
 
   // Shiprocket shipment tracking (ECommerce channel only)
   shiprocket?: {
@@ -183,8 +184,8 @@ export interface IOrder extends Document {
   // per-seller record this snapshot summarizes.
   rtoDetails?: {
     markedAt: Date;
-    markedBy: mongoose.Types.ObjectId;
-    markedByRole: "Delivery" | "Admin";
+    markedBy?: mongoose.Types.ObjectId;
+    markedByRole: "Delivery" | "Admin" | "System";
     reasonCode: string;
     reason?: string;
     courierName?: string;
@@ -568,6 +569,11 @@ const OrderSchema = new Schema<IOrder>(
     checkoutGroupId: {
       type: String,
     },
+    // Set on a ₹0 replacement order: the order whose item was exchanged.
+    replacementFor: {
+      type: Schema.Types.ObjectId,
+      ref: "Order",
+    },
     shiprocket: {
       orderId: { type: String, trim: true },
       shipmentId: { type: String, trim: true },
@@ -600,7 +606,7 @@ const OrderSchema = new Schema<IOrder>(
     rtoDetails: {
       markedAt: { type: Date },
       markedBy: { type: Schema.Types.ObjectId },
-      markedByRole: { type: String, enum: ["Delivery", "Admin"] },
+      markedByRole: { type: String, enum: ["Delivery", "Admin", "System"] },
       reasonCode: { type: String, trim: true },
       reason: { type: String, trim: true },
       courierName: { type: String, trim: true },
