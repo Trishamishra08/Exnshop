@@ -70,6 +70,23 @@ export async function initiateRto(params: InitiateRtoParams) {
   // Restore inventory, exactly like a cancellation would.
   await processOrderStatusTransition(orderId, "RTO", previousStatus);
 
+  // The legacy step above only touches the old Inventory collection; the stock
+  // the shop actually sells from lives on the product (and its variant), where
+  // the order took it. Put each unit back there, once per item.
+  const Product = (await import("../models/Product")).default;
+  const returning = await OrderItem.find({ order: order._id, rtoReversed: { $ne: true }, status: { $ne: "Cancelled" } });
+  for (const item of returning) {
+    const product: any = await Product.findById(item.product).select("variations");
+    if (!product) continue;
+    const vIndex = (product.variations || []).findIndex(
+      (v: any) => item.variation && (String(v._id) === String(item.variation) || v.value === item.variation || v.title === item.variation)
+    );
+    await Product.updateOne(
+      { _id: item.product },
+      { $inc: vIndex >= 0 ? { [`variations.${vIndex}.stock`]: item.quantity, stock: item.quantity } : { stock: item.quantity } }
+    );
+  }
+
   // Safety net: reverse any commission that may already exist for this order.
   // Expected to be a no-op (see function doc), but cheap and idempotent.
   try {

@@ -294,7 +294,8 @@ export const handleOnlineOrderCancellation = async (
         },
       };
     } catch (error: any) {
-      if (session) await session.abortTransaction();
+      // A failed commit can't be aborted (the driver throws); don't let that hide the real error.
+      if (session) await session.abortTransaction().catch(() => {});
       const isWriteConflict =
         error?.message?.includes('Write conflict') ||
         error?.message?.includes('WriteConflict') ||
@@ -577,14 +578,19 @@ export const executeReturnRefundAndReversal = async (
         },
       };
     } catch (error: any) {
-      await session.abortTransaction();
+      // A failed commit can't be aborted (the driver throws); never let that hide
+      // the real error or skip the retry below.
+      await session.abortTransaction().catch(() => {});
       const isWriteConflict =
         error?.message?.includes('Write conflict') ||
         error?.message?.includes('WriteConflict') ||
         error?.code === 112 ||
         error?.codeName === 'WriteConflict' ||
-        (typeof error?.hasErrorLabel === 'function' && error.hasErrorLabel('TransientTransactionError'));
-      
+        (typeof error?.hasErrorLabel === 'function' &&
+          (error.hasErrorLabel('TransientTransactionError') || error.hasErrorLabel('UnknownTransactionCommitResult')));
+
+      // Safe to retry: a completed return is returned as-is at the top, and each
+      // wallet credit carries its own idempotency key, so nothing is paid twice.
       if (isWriteConflict && attempt < maxRetries) {
         console.warn(`[Return Settlement] Write conflict on attempt ${attempt}/${maxRetries}. Retrying in ${200 * attempt}ms...`);
         await new Promise(r => setTimeout(r, 200 * attempt));

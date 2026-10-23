@@ -283,6 +283,11 @@ export async function triggerReturnFinancialSettlement(
 
   // EXCHANGE: Zero financial refund. Mark settlement as Completed without touching balances.
   if (returnDoc.requestType === "EXCHANGE") {
+    // The seller has the item back: the exchange is complete (a return reaches
+    // "Completed" in its refund step; an exchange has no refund, so it is set here).
+    returnDoc.status = "Completed";
+    returnDoc.processedAt = new Date();
+    if (processedByUserId) (returnDoc as any).processedBy = processedByUserId;
     returnDoc.financialSettlementStatus = "Completed";
     returnDoc.refundAmount = 0;
     await returnDoc.save();
