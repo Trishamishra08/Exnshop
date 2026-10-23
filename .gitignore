@@ -80,3 +80,11 @@ coverage/
 branch_structure.json
 temp_auto_push.bat
 temp_interactive_push.bat
+
+# Personal / reference files kept only on this computer, never in the repo
+*.mp4
+/1518.pdf
+/1519.pdf
+/Sub_Order_Labels_*.pdf
+/Trisha Mishra-Resume*
+/Return_Replacement_Flow.pdf
