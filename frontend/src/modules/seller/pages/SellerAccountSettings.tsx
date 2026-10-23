@@ -369,7 +369,8 @@ const SellerAccountSettings = () => {
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                                     <InputGroup label="Full Name" name="sellerName" value={sellerData.sellerName} onChange={handleInputChange} disabled={!isEditing} autoComplete="name" />
                                                     <div>
-                                                        <InputGroup label="Email Address" name="email" value={sellerData.email} onChange={handleInputChange} disabled={!isEditing} type="email" autoComplete="email" />
+                                                        {/* Email and mobile are the seller's login IDs; the server doesn't let them change here. */}
+                                                        <InputGroup label="Email Address" name="email" value={sellerData.email} onChange={handleInputChange} disabled type="email" autoComplete="email" />
                                                         <div className="mt-1.5 ml-1">
                                                             {sellerData.isEmailVerified ? (
                                                                 <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700">
@@ -439,21 +440,13 @@ const SellerAccountSettings = () => {
                                                             )}
                                                         </div>
                                                     </div>
-                                                    <InputGroup label="Mobile Number" name="mobile" value={sellerData.mobile} onChange={handleInputChange} disabled={!isEditing} type="tel" autoComplete="tel" />
-
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-sm font-semibold text-gray-700 ml-1">Password</label>
-                                                        <div className="relative">
-                                                            <input
-                                                                type="password"
-                                                                autoComplete="new-password"
-                                                                placeholder="••••••••"
-                                                                disabled={!isEditing}
-                                                                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none disabled:bg-gray-50/50 disabled:text-gray-500 transition-all placeholder:text-gray-300"
-                                                            />
-                                                        </div>
-                                                        {isEditing && <p className="text-xs text-gray-400 ml-1">Leave blank to keep current password</p>}
-                                                    </div>
+                                                    <InputGroup label="Mobile Number" name="mobile" value={sellerData.mobile} onChange={handleInputChange} disabled type="tel" autoComplete="tel" />
+                                                    {/* No password: sellers sign in with an OTP sent to their mobile or email. */}
+                                                    {isEditing && (
+                                                        <p className="text-xs text-gray-500 ml-1 -mt-2">
+                                                            Email and mobile are your login IDs. To change them, contact Exnshop support.
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
                                         )}
