@@ -17,7 +17,7 @@ interface GoogleMapsTrackingProps {
     customerLocation: Location
     deliveryLocation?: Location
     isTracking: boolean
-    showRoute?: boolean // Whether to show actual route using Directions API
+    showRoute?: boolean // Whether to compute distance/ETA using Distance Matrix API
     routeOrigin?: Location // Origin for route (delivery partner location)
     routeDestination?: Location // Destination for route (seller shop or customer)
     routeWaypoints?: Location[] // Intermediate waypoints for the route
@@ -52,8 +52,7 @@ export default function GoogleMapsTracking({
 }: GoogleMapsTrackingProps) {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
     const mapRef = useRef<any>(null)
-    const directionsServiceRef = useRef<any>(null)
-    const directionsRendererRef = useRef<any>(null)
+    const distanceServiceRef = useRef<any>(null)
     const lastRouteCalcRef = useRef<{ time: number, origin: Location }>({ time: 0, origin: { lat: 0, lng: 0 } })
     const hasInitialBoundsFitted = useRef<boolean>(false)
     const [userHasInteracted, setUserHasInteracted] = useState<boolean>(false)
@@ -235,20 +234,22 @@ export default function GoogleMapsTracking({
         };
     }, [])
 
-    // Calculate and display route using Google Directions Service
+    // Calculate distance + ETA using Google Distance Matrix Service.
+    // (Distance Matrix only needs its own API enabled, not Directions — and we only need the
+    // distance/ETA numbers here; the actual line on the map is drawn as a straight Polyline below.)
     const calculateAndDisplayRoute = useCallback((origin: Location, destination: Location, waypoints: Location[] = []) => {
-        if (!isLoaded || !mapRef.current || !window.google?.maps) {
-            console.log('⚠️ Cannot calculate route: map not loaded or not ready')
+        if (!isLoaded || !window.google?.maps) {
+            console.log('⚠️ Cannot calculate distance: map not loaded or not ready')
             return
         }
 
         // Validate origin and destination
         if (!origin || !destination || !origin.lat || !origin.lng || !destination.lat || !destination.lng) {
-            console.log('⚠️ Cannot calculate route: invalid origin or destination', { origin, destination })
+            console.log('⚠️ Cannot calculate distance: invalid origin or destination', { origin, destination })
             return
         }
 
-        // Optimization: Throttle route calculation (min 5 seconds between calls)
+        // Optimization: Throttle calculation (min 5 seconds between calls)
         // unless origin has moved significantly (> 50m)
         const now = Date.now()
         const lastCalc = lastRouteCalcRef.current
@@ -266,96 +267,62 @@ export default function GoogleMapsTracking({
 
         lastRouteCalcRef.current = { time: now, origin: { ...origin } }
 
-        // Initialize DirectionsService if not already initialized
-        if (!directionsServiceRef.current) {
-            directionsServiceRef.current = new window.google.maps.DirectionsService()
+        // Initialize DistanceMatrixService if not already initialized
+        if (!distanceServiceRef.current) {
+            distanceServiceRef.current = new window.google.maps.DistanceMatrixService()
         }
 
-        // Initialize or reuse DirectionsRenderer
-        if (!directionsRendererRef.current) {
-            directionsRendererRef.current = new window.google.maps.DirectionsRenderer({
-                map: mapRef.current,
-                suppressMarkers: true, // We'll use custom markers
-                preserveViewport: true, // Preserve viewport - we'll center manually
-                polylineOptions: {
-                    strokeColor: '#3b82f6',
-                    strokeWeight: 6,
-                    strokeOpacity: 0.9,
-                },
-            })
-        } else {
-            // Ensure preserveViewport is true so route updates don't change viewport
-            directionsRendererRef.current.setOptions({ preserveViewport: true })
-        }
-
-        // Prepare waypoints
-        const googleWaypoints = waypoints.map(wp => ({
-            location: new window.google.maps.LatLng(wp.lat, wp.lng),
-            stopover: true
-        }));
-
-        // Calculate route
-        directionsServiceRef.current.route(
+        // Route through waypoints (if any) as intermediate destinations isn't supported by
+        // Distance Matrix in one call — use the final destination for the headline ETA, which is
+        // what the UI shows.
+        distanceServiceRef.current.getDistanceMatrix(
             {
-                origin: origin,
-                destination: destination,
-                waypoints: googleWaypoints,
+                origins: [origin],
+                destinations: [destination],
                 travelMode: window.google.maps.TravelMode.DRIVING,
-                // drivingOptions removed - trafficModel requires premium Maps Platform billing
-                optimizeWaypoints: waypoints.length > 1,
             },
             (result: any, status: any) => {
-                if (status === 'OK' && result.routes && result.routes[0]) {
+                const element = result?.rows?.[0]?.elements?.[0]
+                if (status === 'OK' && element && element.status === 'OK') {
                     setRouteError(null)
-                    const route = result.routes[0]
-                    if (route.legs && route.legs.length > 0) {
-                        let totalDistance = 0
-                        let totalDurationSeconds = 0
 
-                        route.legs.forEach((leg: any) => {
-                            totalDistance += leg.distance?.value || 0
-                            totalDurationSeconds += leg.duration?.value || 0
-                        })
+                    let totalDurationSeconds = (element.duration?.value || 0) + 120 // 2-minute buffer
+                    const totalDistance = element.distance?.value || 0
 
-                        totalDurationSeconds += 120 // 2-minute buffer
-
-                        const formatDuration = (seconds: number) => {
-                            if (seconds < 60) return `${Math.ceil(seconds)} sec`
-                            const mins = Math.ceil(seconds / 60)
-                            if (mins < 60) return `${mins} mins`
-                            const hours = Math.floor(mins / 60)
-                            const remainingMins = mins % 60
-                            return `${hours}h ${remainingMins}m`
-                        }
-
-                        const formatDistance = (meters: number) => {
-                            if (meters < 1000) return `${meters}m`
-                            return `${(meters / 1000).toFixed(1)} km`
-                        }
-
-                        setRouteInfo({
-                            distance: formatDistance(totalDistance),
-                            duration: formatDuration(totalDurationSeconds),
-                            durationValue: totalDurationSeconds,
-                            distanceValue: totalDistance,
-                        })
+                    const formatDuration = (seconds: number) => {
+                        if (seconds < 60) return `${Math.ceil(seconds)} sec`
+                        const mins = Math.ceil(seconds / 60)
+                        if (mins < 60) return `${mins} mins`
+                        const hours = Math.floor(mins / 60)
+                        const remainingMins = mins % 60
+                        return `${hours}h ${remainingMins}m`
                     }
 
-                    directionsRendererRef.current.setDirections(result);
+                    const formatDistance = (meters: number) => {
+                        if (meters < 1000) return `${meters}m`
+                        return `${(meters / 1000).toFixed(1)} km`
+                    }
+
+                    setRouteInfo({
+                        distance: formatDistance(totalDistance),
+                        duration: formatDuration(totalDurationSeconds),
+                        durationValue: totalDurationSeconds,
+                        distanceValue: totalDistance,
+                    })
                 } else {
-                    // Log actual status for debugging
-                    console.error(`❌ Directions API [status=${status}]:`, { origin, destination })
-                    if (status === 'REQUEST_DENIED') {
-                        console.error('ACTION REQUIRED: Enable Directions API at https://console.cloud.google.com/apis/library/directions-backend.googleapis.com')
+                    const elementStatus = element?.status || status
+                    console.error(`❌ Distance Matrix API [status=${elementStatus}]:`, { origin, destination })
+                    if (elementStatus === 'REQUEST_DENIED') {
+                        console.error('ACTION REQUIRED: Enable Distance Matrix API at https://console.cloud.google.com/apis/library/distance-matrix-backend.googleapis.com')
                     }
                     setRouteInfo(null)
 
-                    if (status === 'ZERO_RESULTS') {
+                    if (elementStatus === 'ZERO_RESULTS') {
                         setRouteError('No road route found. Showing straight line.')
-                    } else if (status === 'OVER_QUERY_LIMIT') {
+                    } else if (elementStatus === 'OVER_QUERY_LIMIT') {
                         setRouteError('Route service busy. Showing straight line.')
-                    } else if (status === 'REQUEST_DENIED') {
-                        setRouteError(`Directions API not enabled (${status}). Enable it in Google Cloud Console.`)
+                    } else if (elementStatus === 'REQUEST_DENIED') {
+                        setRouteError(`Distance Matrix API not enabled (${elementStatus}). Enable it in Google Cloud Console.`)
                     } else {
                         setRouteError('Navigation error. Showing straight line.')
                     }
@@ -364,15 +331,12 @@ export default function GoogleMapsTracking({
         )
     }, [isLoaded])
 
-    // Handle route calculation when routeOrigin and routeDestination are provided
+    // Handle distance/ETA calculation when routeOrigin and routeDestination are provided
     useEffect(() => {
-        if (showRoute && routeOrigin && routeDestination && isLoaded && mapRef.current) {
-            // Recalculate route when origin, destination or waypoints change
+        if (showRoute && routeOrigin && routeDestination && isLoaded) {
+            // Recalculate when origin or destination changes
             calculateAndDisplayRoute(routeOrigin, routeDestination, routeWaypoints)
-        } else if (!showRoute && directionsRendererRef.current) {
-            // Clear route if showRoute is false
-            directionsRendererRef.current.setMap(null)
-            directionsRendererRef.current = null
+        } else if (!showRoute) {
             setRouteInfo(null)
         }
     }, [showRoute, routeOrigin, routeDestination, routeWaypoints, isLoaded, calculateAndDisplayRoute])
@@ -621,17 +585,17 @@ export default function GoogleMapsTracking({
                         title="Delivery Partner"
                     />
                 )}
-                {( !showRoute || routeError ) && (
-                    <Polyline
-                        path={path}
-                        options={{
-                            strokeColor: routeError ? '#ef4444' : '#16a34a',
-                            strokeOpacity: 0.7,
-                            strokeWeight: 4,
-                            geodesic: true,
-                        }}
-                    />
-                )}
+                {/* Straight-line path — Distance Matrix gives distance/ETA numbers but not road
+                    geometry, so this line is always what's drawn on the map. */}
+                <Polyline
+                    path={path}
+                    options={{
+                        strokeColor: routeError ? '#ef4444' : '#16a34a',
+                        strokeOpacity: 0.7,
+                        strokeWeight: 4,
+                        geodesic: true,
+                    }}
+                />
             </GoogleMap>
         </div>
     )

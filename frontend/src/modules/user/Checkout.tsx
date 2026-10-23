@@ -1240,6 +1240,16 @@ export default function Checkout() {
           <button
             onClick={() => {
               // Prioritize saved address if available, then current GPS location (matches homepage header)
+              const hasOwnPin = Boolean(selectedAddress?.latitude && selectedAddress?.longitude);
+              if (!hasOwnPin && userLocation?.latitude && userLocation?.longitude) {
+                // The typed address has no pin of its own, so the map will open on this
+                // device's live GPS instead — tell the customer so they know to drag the
+                // pin to match the address they typed, instead of confirming it as-is.
+                showGlobalToast(
+                  "Your typed address isn't pinned on the map yet, so it opened on your current location. Drag the pin to your actual address, then tap Update Location.",
+                  'info'
+                );
+              }
               setMapLocation({
                 lat: selectedAddress?.latitude || userLocation?.latitude || 0,
                 lng: selectedAddress?.longitude || userLocation?.longitude || 0,

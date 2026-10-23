@@ -61,9 +61,17 @@ export const createRazorpayOrder = async (
     } catch (error: any) {
         console.error('Error creating Razorpay order:', error);
 
-        // Fallback for development/testing if Razorpay key is invalid, revoked, or unauthenticated or USE_MOCK_PAYMENT is true
+        // Fallback to a fake/mock order only when explicitly opted into mock mode, and only with
+        // TEST keys. A LIVE key that fails auth must never be silently swallowed into a mock order
+        // — that masks real problems (e.g. account KYC/activation not approved by Razorpay yet,
+        // wrong secret paired with the key) behind what looks like a working checkout, and real
+        // customers would be charged nothing while believing they paid.
         const isAuthError = error?.statusCode === 401 || error?.error?.code === 'BAD_REQUEST_ERROR' || (error?.message && String(error.message).includes('Authentication failed'));
-        if (process.env.USE_MOCK_PAYMENT === 'true' || isAuthError) {
+        const keyId = process.env.RAZORPAY_KEY_ID || '';
+        const isLiveKey = keyId.startsWith('rzp_live_');
+        const canMock = !isLiveKey && (process.env.USE_MOCK_PAYMENT === 'true' || isAuthError);
+
+        if (canMock) {
             if (isAuthError) {
                 console.warn('⚠️ [Payment] Razorpay credentials in backend/.env failed authentication (401). Falling back to mock payment.');
                 console.warn('💡 To display the official Razorpay Test Checkout popup (UPI/Card/Netbanking), update RAZORPAY_KEY_ID & RAZORPAY_KEY_SECRET in backend/.env with active test keys from https://dashboard.razorpay.com/#/app/keys.');
@@ -80,6 +88,10 @@ export const createRazorpayOrder = async (
                     isMock: true,
                 },
             };
+        }
+
+        if (isLiveKey && isAuthError) {
+            console.error('❌ [Payment] LIVE Razorpay key failed authentication — refusing to fall back to mock. Check that the account is activated (KYC approved) in the Razorpay Dashboard and that RAZORPAY_KEY_SECRET matches RAZORPAY_KEY_ID.');
         }
 
         return {

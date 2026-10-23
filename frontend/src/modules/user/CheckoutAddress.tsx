@@ -254,6 +254,11 @@ export default function CheckoutAddress() {
         finalLng = editAddress?.longitude || 0;
         if (finalLat && finalLng && (editAddress?.city !== address.city || editAddress?.pincode !== address.pincode)) {
           showToast("We couldn't find this address on the map, so the old map pin was kept. Use 'Set Location on Map' on checkout to correct it.", 'info');
+        } else if (!finalLat || !finalLng) {
+          // Brand-new address with no prior pin at all — without a warning here, checkout's
+          // "Set Location on Map" silently falls back to the device's live GPS later, which
+          // can show a completely different place than what was just typed.
+          showToast("We couldn't find this exact address on the map. Please use 'Set Location on Map' on checkout to pin your precise location.", 'info');
         }
       }
 
