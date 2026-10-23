@@ -7,6 +7,20 @@ import { getHeaderCategoriesPublic, HeaderCategory } from '../../../services/api
 import GoogleMapsAutocomplete from '../../../components/GoogleMapsAutocomplete';
 import LocationPickerMap from '../../../components/LocationPickerMap';
 
+// Standard Indian business entity types — stored as the plain string the backend
+// already expects, so any value a seller already had keeps showing even if it
+// doesn't match one of these exactly (added as a fallback option below).
+const BUSINESS_TYPES = [
+    'Individual / Proprietorship',
+    'Partnership',
+    'Limited Liability Partnership (LLP)',
+    'Private Limited Company',
+    'Public Limited Company',
+    'One Person Company (OPC)',
+    'Hindu Undivided Family (HUF)',
+    'Trust / Society / NGO',
+];
+
 const SellerAccountSettings = () => {
     const { user, updateUser } = useAuth();
     const [activeTab, setActiveTab] = useState('profile');
@@ -186,10 +200,21 @@ const SellerAccountSettings = () => {
 
     // PAN, GSTIN and IFSC are conventionally upper-case; typing lower-case still matches.
     const UPPERCASE_FIELDS = new Set(['panCard', 'gstin', 'ifsc']);
+    // What a field accepts while typing, not just on blur — a stray letter in an
+    // account number or a code longer than the real format is rejected as it's typed
+    // rather than only flagged afterwards.
+    const DIGITS_ONLY_FIELDS = new Set(['accountNumber']);
+    const ALPHANUMERIC_FIELDS = new Set(['panCard', 'gstin', 'ifsc']);
+    const FIELD_MAX_LENGTH: Record<string, number> = { accountNumber: 18, ifsc: 11, panCard: 10, gstin: 15 };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        const nextValue = UPPERCASE_FIELDS.has(name) ? value.toUpperCase() : value;
+        let nextValue = value;
+        if (DIGITS_ONLY_FIELDS.has(name)) nextValue = nextValue.replace(/\D/g, '');
+        if (ALPHANUMERIC_FIELDS.has(name)) nextValue = nextValue.replace(/[^a-zA-Z0-9]/g, '');
+        if (UPPERCASE_FIELDS.has(name)) nextValue = nextValue.toUpperCase();
+        const max = FIELD_MAX_LENGTH[name];
+        if (max) nextValue = nextValue.slice(0, max);
         setSellerData(prev => ({
             ...prev,
             [name]: nextValue
@@ -801,8 +826,8 @@ const SellerAccountSettings = () => {
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-gray-50/50 p-6 rounded-xl border border-gray-100">
                                                         <InputGroup label="Account Holder Name" name="accountName" value={sellerData.accountName} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.accountName} disabled={!isEditing} />
                                                         <InputGroup label="Bank Name" name="bankName" value={sellerData.bankName} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.bankName} disabled={!isEditing} />
-                                                        <InputGroup label="Account Number" name="accountNumber" value={sellerData.accountNumber} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.accountNumber} disabled={!isEditing} type="text" placeholder="9–18 digit account number" />
-                                                        <InputGroup label="IFSC Code" name="ifsc" value={sellerData.ifsc} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.ifsc} disabled={!isEditing} placeholder="ABCD0123456" />
+                                                        <InputGroup label="Account Number" name="accountNumber" value={sellerData.accountNumber} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.accountNumber} disabled={!isEditing} type="text" inputMode="numeric" maxLength={18} placeholder="9–18 digit account number" />
+                                                        <InputGroup label="IFSC Code" name="ifsc" value={sellerData.ifsc} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.ifsc} disabled={!isEditing} maxLength={11} placeholder="ABCD0123456" />
                                                     </div>
                                                 </section>
 
@@ -829,9 +854,31 @@ const SellerAccountSettings = () => {
                                                         <h4 className="text-lg font-bold text-gray-900">Tax Information</h4>
                                                     </div>
                                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-gray-50/50 p-6 rounded-xl border border-gray-100">
-                                                        <InputGroup label="PAN Card Number" name="panCard" value={sellerData.panCard} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.panCard} disabled={!isEditing} placeholder="ABCDE1234F" />
-                                                        <InputGroup label="GSTIN" name="gstin" value={sellerData.gstin} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.gstin} disabled={!isEditing} placeholder="09ABCDE1234F1Z5" />
-                                                        <InputGroup label="Business Type" name="businessType" value={sellerData.businessType} onChange={handleInputChange} disabled={!isEditing} placeholder="e.g. Proprietorship, Pvt Ltd, Partnership" />
+                                                        <InputGroup label="PAN Card Number" name="panCard" value={sellerData.panCard} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.panCard} disabled={!isEditing} maxLength={10} placeholder="ABCDE1234F" />
+                                                        <InputGroup label="GSTIN" name="gstin" value={sellerData.gstin} onChange={handleInputChange} onBlur={handleFieldBlur} error={fieldErrors.gstin} disabled={!isEditing} maxLength={15} placeholder="09ABCDE1234F1Z5" />
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-sm font-semibold text-gray-700 ml-1">Business Type</label>
+                                                            <div className="relative">
+                                                                <select
+                                                                    name="businessType"
+                                                                    value={sellerData.businessType}
+                                                                    onChange={handleInputChange}
+                                                                    disabled={!isEditing}
+                                                                    className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none disabled:bg-gray-50/50 disabled:text-gray-500 transition-all appearance-none bg-white"
+                                                                >
+                                                                    <option value="">Select business type</option>
+                                                                    {BUSINESS_TYPES.map(bt => (
+                                                                        <option key={bt} value={bt}>{bt}</option>
+                                                                    ))}
+                                                                    {sellerData.businessType && !BUSINESS_TYPES.includes(sellerData.businessType) && (
+                                                                        <option value={sellerData.businessType}>{sellerData.businessType}</option>
+                                                                    )}
+                                                                </select>
+                                                                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                                                                </div>
+                                                            </div>
+                                                        </div>
                                                         <InputGroup label="Tax Number (legacy, optional)" name="taxNumber" value={sellerData.taxNumber} onChange={handleInputChange} disabled={!isEditing} />
                                                     </div>
                                                 </section>
@@ -876,7 +923,7 @@ const SellerAccountSettings = () => {
     );
 };
 
-const InputGroup = ({ label, name, value, onChange, onBlur, disabled, type = "text", placeholder = "", autoComplete, error, required }: any) => (
+const InputGroup = ({ label, name, value, onChange, onBlur, disabled, type = "text", placeholder = "", autoComplete, error, required, maxLength, inputMode }: any) => (
 
     <div className="space-y-1.5">
         <label className="text-sm font-semibold text-gray-700 ml-1">
@@ -891,6 +938,8 @@ const InputGroup = ({ label, name, value, onChange, onBlur, disabled, type = "te
             disabled={disabled}
             placeholder={placeholder}
             autoComplete={autoComplete}
+            maxLength={maxLength}
+            inputMode={inputMode}
             aria-invalid={Boolean(error)}
             className={`w-full px-4 py-2.5 rounded-lg border outline-none transition-all ${disabled
                 ? 'bg-gray-50/50 text-gray-500 cursor-default border-gray-300'

@@ -4,12 +4,18 @@ import { motion } from 'framer-motion';
 import { useLanguage } from '../../../context/LanguageContext';
 import { getSellerNotifications } from '../../../services/api/sellerNotificationService';
 import { useAuth } from '../../../context/AuthContext';
+import { useKeyboardOpen } from '../../../hooks/useKeyboardOpen';
 
 export default function SellerBottomNav() {
   const location = useLocation();
   const { t } = useLanguage();
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  // While a text field is focused the on-screen keyboard is open; a `fixed
+  // bottom-0` nav would otherwise render mid-screen above it instead of
+  // staying at the real bottom. Hiding it for that window is simpler and
+  // more reliable across Android/iOS than tracking viewport resize.
+  const keyboardOpen = useKeyboardOpen();
 
   const isActive = (path: string) => {
     if (path === '/seller') {
@@ -284,6 +290,8 @@ export default function SellerBottomNav() {
       ),
     },
   ];
+
+  if (keyboardOpen) return null;
 
   return (
     <nav

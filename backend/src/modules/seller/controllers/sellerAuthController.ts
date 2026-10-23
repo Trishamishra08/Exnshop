@@ -604,8 +604,12 @@ export const updateProfile = asyncHandler(
     }
 
     // Verified business identity can only change through support once reviewed.
+    // If a field was previously unset/empty (e.g. legacy seller migrated before KYC),
+    // allowing them to supply it for the first time is permitted.
     const identityFields = ["businessType", "legalBusinessName", "panCard", "gstin", "gstRegistered"];
-    const identityChanges = diffFields(current, updates, identityFields);
+    const identityChanges = diffFields(current, updates, identityFields).filter(
+      (c) => Boolean(String((current as any)[c.field] ?? "").trim())
+    );
     const businessLocked =
       current.onboardingReview?.business?.status === "Approved" ||
       ["UnderReview", "Approved", "Active", "Suspended"].includes(effectiveStatus(current));
