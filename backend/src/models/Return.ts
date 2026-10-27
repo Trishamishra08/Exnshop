@@ -67,6 +67,8 @@ export interface IReturn extends Document {
   // Refund (applicable only to RETURN, ₹0 for EXCHANGE)
   refundAmount?: number;
   refundId?: mongoose.Types.ObjectId;
+  /** "Seller" when the seller refunded the item with no pickup; otherwise the customer asked for the return. */
+  initiatedBy?: "Customer" | "Seller";
   /** Courier pickup cost billed to the seller when the customer sent the item back after receiving it. */
   returnShippingCharge?: number;
   financialSettlementStatus?: "Pending" | "Completed" | "Failed";
@@ -222,6 +224,7 @@ const ReturnSchema = new Schema<IReturn>(
       ref: "Refund",
     },
     replacementOrder: { type: Schema.Types.ObjectId, ref: "Order" },
+    initiatedBy: { type: String, enum: ["Customer", "Seller"], default: "Customer" },
     returnShippingCharge: { type: Number, min: 0 },
     shiprocketReturn: {
       channelOrderId: { type: String },

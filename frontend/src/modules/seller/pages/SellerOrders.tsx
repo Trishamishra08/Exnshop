@@ -1,6 +1,17 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getOrders, Order, GetOrdersParams } from '../../../services/api/orderService';
+import { getPackingSlips } from '../../../services/api/shippingMethodService';
+import { useToast } from '../../../context/ToastContext';
+
+const fmtShipBy = (ymd?: string) => (ymd ? new Date(`${ymd}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '');
+const SHIP_STATE_STYLE: Record<string, string> = {
+  late: 'bg-red-100 text-red-700',
+  today: 'bg-amber-100 text-amber-800',
+  tomorrow: 'bg-blue-50 text-blue-700',
+  ok: 'bg-neutral-100 text-neutral-600',
+};
+const SHIP_STATE_LABEL: Record<string, string> = { late: 'Late', today: 'Ship today', tomorrow: 'Ship tomorrow', ok: 'Ship by' };
 
 
 type SortField = 'orderId' | 'deliveryDate' | 'orderDate' | 'status' | 'amount';
@@ -18,6 +29,10 @@ export default function SellerOrders() {
   const [entriesPerPage, setEntriesPerPage] = useState('10');
   const [searchQuery, setSearchQuery] = useState('');
   const [channel, setChannel] = useState<'All' | 'Quick' | 'ECommerce'>('All');
+  const { showToast } = useToast();
+  const [shipFilter, setShipFilter] = useState<'' | 'today' | 'tomorrow' | 'late'>('');
+  const [serverPages, setServerPages] = useState(1);
+  const [slipBusy, setSlipBusy] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -64,10 +79,14 @@ export default function SellerOrders() {
         if (channel !== 'All') {
           params.channel = channel;
         }
+        if (shipFilter) {
+          params.shipFilter = shipFilter;
+        }
 
         const response = await getOrders(params);
         if (response.success && response.data) {
           setOrders(response.data);
+          setServerPages((response as any).pagination?.pages || 1);
         } else {
           setError(response.message || 'Failed to fetch orders');
         }
@@ -79,7 +98,7 @@ export default function SellerOrders() {
     };
 
     fetchOrders();
-  }, [dateRange, status, entriesPerPage, searchQuery, currentPage, sortField, sortDirection, channel]);
+  }, [dateRange, status, entriesPerPage, searchQuery, currentPage, sortField, sortDirection, channel, shipFilter]);
 
   const handleClearDate = () => {
     setDateRange('');
@@ -119,10 +138,26 @@ export default function SellerOrders() {
 
   // Pagination (client-side for now, can be moved to backend later)
   const entriesPerPageNum = parseInt(entriesPerPage);
-  const totalPages = Math.ceil(orders.length / entriesPerPageNum);
+  // The server already returns just this page of orders.
+  const totalPages = serverPages;
   const startIndex = (currentPage - 1) * entriesPerPageNum;
-  const endIndex = startIndex + entriesPerPageNum;
-  const paginatedOrders = orders.slice(startIndex, endIndex);
+  const endIndex = startIndex + orders.length;
+  const paginatedOrders = orders;
+
+  const printSlips = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    setSlipBusy(true);
+    try {
+      const slips = await getPackingSlips(ids);
+      const { downloadPackingSlips } = await import('../../../utils/packingSlipPdf');
+      await downloadPackingSlips(slips, ids.length === 1 ? `Packing_Slip_${slips[0].orderNumber}.pdf` : 'Packing_Slips.pdf');
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Could not create the packing slip', 'error');
+    } finally {
+      setSlipBusy(false);
+    }
+  };
+  const ecommerceOnPage = orders.filter((o) => o.channel === 'ECommerce' && ['Received', 'Accepted', 'Processed'].includes(o.status));
 
   const handlePreviousPage = () => {
     setCurrentPage(prev => Math.max(1, prev - 1));
@@ -198,6 +233,31 @@ export default function SellerOrders() {
               </button>
             ))}
           </div>
+
+          {/* Ship-by quick filters for courier orders, like Amazon's "Ship by today" and "Late" */}
+          {channel !== 'Quick' && (
+            <div className="px-3 sm:px-4 md:px-6 pt-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-neutral-500 mr-1">Ship-by:</span>
+              {([['', 'All'], ['today', 'Ship by today'], ['tomorrow', 'Due tomorrow'], ['late', 'Late']] as const).map(([value, label]) => (
+                <button
+                  key={value || 'all'}
+                  onClick={() => { setShipFilter(value); setCurrentPage(1); }}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${shipFilter === value ? (value === 'late' ? 'bg-red-600 border-red-600 text-white' : 'bg-indigo-600 border-indigo-600 text-white') : 'bg-white border-neutral-300 text-neutral-600 hover:bg-neutral-50'}`}
+                >
+                  {label}
+                </button>
+              ))}
+              {ecommerceOnPage.length > 0 && (
+                <button
+                  onClick={() => printSlips(ecommerceOnPage.map((o) => o.id))}
+                  disabled={slipBusy}
+                  className="ml-auto px-3 py-1 rounded-full text-xs font-semibold border border-teal-600 text-teal-700 hover:bg-teal-50 disabled:opacity-50"
+                >
+                  {slipBusy ? 'Preparing…' : `Print packing slips (${ecommerceOnPage.length})`}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Filter and Action Bar */}
           <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-b border-neutral-200">
@@ -390,6 +450,11 @@ export default function SellerOrders() {
                         {order.customerName}
                         {order.customerPhone ? ` · ${order.customerPhone}` : ''}
                       </div>
+                      {isECommerce && order.shipState && (
+                        <div className={`mt-2 inline-flex px-2 py-0.5 rounded text-[11px] font-semibold ${SHIP_STATE_STYLE[order.shipState]}`}>
+                          {SHIP_STATE_LABEL[order.shipState]} {fmtShipBy(order.shipByDate)}
+                        </div>
+                      )}
                       <div className="mt-2 flex items-end justify-between gap-2">
                         <div className="text-[11px] text-neutral-500">
                           {order.orderDate}
@@ -600,6 +665,11 @@ export default function SellerOrders() {
                           <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(order.status)}`}>
                             {order.status}
                           </span>
+                          {order.channel === 'ECommerce' && order.shipState && (
+                            <div className={`mt-1 inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold ${SHIP_STATE_STYLE[order.shipState]}`}>
+                              {SHIP_STATE_LABEL[order.shipState]} {fmtShipBy(order.shipByDate)}
+                            </div>
+                          )}
                         </td>
                         <td className="px-3 sm:px-4 md:px-6 py-3 text-xs sm:text-sm text-neutral-900 font-medium">
                           ₹{order.amount.toFixed(2)}
@@ -614,6 +684,15 @@ export default function SellerOrders() {
                           >
                             View
                           </button>
+                          {order.channel === 'ECommerce' && ['Received', 'Accepted', 'Processed', 'Shipped'].includes(order.status) && (
+                            <button
+                              onClick={() => printSlips([order.id])}
+                              disabled={slipBusy}
+                              className="ml-3 text-teal-700 hover:text-teal-800 text-xs sm:text-sm font-medium disabled:opacity-50"
+                            >
+                              Packing slip
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -626,7 +705,7 @@ export default function SellerOrders() {
           {/* Pagination */}
           <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 border-t border-neutral-200 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
             <div className="text-xs sm:text-sm text-neutral-700">
-              Showing {orders.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, orders.length)} of {orders.length} entries
+              Showing {orders.length === 0 ? 0 : startIndex + 1} to {endIndex} (page {currentPage} of {totalPages})
             </div>
             <div className="flex items-center gap-2">
               <button

@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
+import Seller from "../../../models/Seller";
 import Order from "../../../models/Order";
 import OrderItem from "../../../models/OrderItem";
 import { asyncHandler } from "../../../utils/asyncHandler";
@@ -11,6 +13,7 @@ import {
 import { getSellerPendingOrderAlerts } from "../../../services/orderAlertService";
 import { buildShippingLabels, ensureSellerAwb } from "../../../services/shippingLabelService";
 import { buildTaxInvoices } from "../../../services/taxInvoiceService";
+import { getHandlingSettings, shipDatesFor } from "../../../services/shipByService";
 import {
   applySelfShipmentStatus,
   getSellerShippingMethod,
@@ -113,16 +116,35 @@ export const getOrders = asyncHandler(async (req: Request, res: Response) => {
   const sort: any = {};
   sort[sortBy as string] = sortOrder === "asc" ? 1 : -1;
 
-  // Get orders with populated customer and delivery info
-  const orders = await Order.find(query)
-    .populate("customer", "name email phone")
-    .populate("deliveryBoy", "name mobile")
-    .sort(sort)
-    .skip(skip)
-    .limit(limitNum);
+  const handling = await getHandlingSettings(sellerId.toString());
+  const shipFilter = String(req.query.shipFilter || "");
 
-  // Get total count for pagination
-  const total = await Order.countDocuments(query);
+  let orders: any[];
+  let total: number;
+  if (["today", "tomorrow", "late"].includes(shipFilter)) {
+    // Ship-by is worked out per order from the seller's handling settings, so it can't be a database
+    // query: take every parcel still waiting to ship, keep the ones in this state, then page them.
+    query.channel = "ECommerce";
+    query.status = { $in: ["Received", "Accepted", "Processed"] };
+    const waiting = await Order.find(query)
+      .populate("customer", "name email phone")
+      .populate("deliveryBoy", "name mobile")
+      .sort(sort);
+    const matching = waiting.filter((o) => shipDatesFor(o as any, handling).shipState === shipFilter);
+    total = matching.length;
+    orders = matching.slice(skip, skip + limitNum);
+  } else {
+    // Get orders with populated customer and delivery info
+    orders = await Order.find(query)
+      .populate("customer", "name email phone")
+      .populate("deliveryBoy", "name mobile")
+      .sort(sort)
+      .skip(skip)
+      .limit(limitNum);
+
+    // Get total count for pagination
+    total = await Order.countDocuments(query);
+  }
 
   // Format response for frontend
   const formattedOrders = orders.map((order) => ({
@@ -155,6 +177,7 @@ export const getOrders = asyncHandler(async (req: Request, res: Response) => {
     deliveryBoyPhone: (order.deliveryBoy as any)?.mobile || "",
     deliveryPreference: order.deliveryPreference,
     paymentMethod: order.paymentMethod,
+    ...(order.channel === "ECommerce" ? shipDatesFor(order as any, handling) : {}),
   }));
 
   return res.status(200).json({
@@ -418,6 +441,7 @@ export const getOrderById = asyncHandler(
       (shipments.length ? undefined : order.shiprocket);
 
     const shippingMethod = await getSellerShippingMethod(sellerIdStr);
+    const shipDates = order.channel === "ECommerce" ? shipDatesFor(order as any, await getHandlingSettings(sellerIdStr)) : null;
 
     // Format order data for frontend
     const orderDetail = {
@@ -425,6 +449,7 @@ export const getOrderById = asyncHandler(
       orderNumber: order.orderNumber,
       channel: order.channel || "Quick",
       shippingMethod,
+      shipDates,
       shipment: myShipment
         ? {
             awbCode: myShipment.awbCode || "",
@@ -762,6 +787,51 @@ export const getTaxInvoice = asyncHandler(async (req: Request, res: Response) =>
     return res.status(400).json({ success: false, message: "No invoice: every item of yours on this order was cancelled or rejected." });
   }
   return res.status(200).json({ success: true, data: invoices });
+});
+
+/**
+ * Packing slip data for this seller's part of one or more orders (comma-separated ids):
+ * what to pick and pack, who it is going to, and ship-by. Not a tax invoice.
+ */
+export const getPackingSlips = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = (req as any).user.userId.toString();
+  const ids = String(req.query.ids || "").split(",").map((x) => x.trim()).filter(Boolean).slice(0, 50);
+  if (ids.length === 0 || ids.some((i) => !mongoose.isValidObjectId(i))) {
+    return res.status(400).json({ success: false, message: "Provide the order ids to print" });
+  }
+  const handling = await getHandlingSettings(sellerId);
+  const seller: any = await Seller.findById(sellerId).select("storeName sellerName mobile address city").lean();
+
+  const slips = [];
+  for (const id of ids) {
+    const items: any[] = await OrderItem.find({ order: id, seller: sellerId, status: { $ne: "Cancelled" }, sellerStatus: { $ne: "Rejected" } }).lean();
+    if (items.length === 0) continue;
+    const order: any = await Order.findById(id).lean();
+    if (!order) continue;
+    const shipment = (order.shiprocketShipments || []).find((s: any) => String(s.seller) === sellerId) || (order.shiprocketShipments?.length ? undefined : order.shiprocket);
+    const dates = order.channel === "ECommerce" ? shipDatesFor(order, handling) : null;
+    const a = order.deliveryAddress || {};
+    slips.push({
+      orderId: String(order._id),
+      orderNumber: order.orderNumber,
+      orderDate: order.orderDate || order.createdAt,
+      channel: order.channel || "Quick",
+      paymentMethod: order.paymentMethod,
+      shipByDate: dates?.shipByDate,
+      deliverByDate: dates?.deliverByDate,
+      customer: {
+        name: order.customerName,
+        phone: order.customerPhone,
+        address: [a.address, a.city, a.state, a.pincode].filter(Boolean).join(", "),
+      },
+      seller: { name: seller?.storeName || seller?.sellerName, phone: seller?.mobile, address: [seller?.address, seller?.city].filter(Boolean).join(", ") },
+      courier: shipment?.courierName || "",
+      trackingNumber: shipment?.awbCode || "",
+      items: items.map((i) => ({ name: i.productName, sku: i.sku || "", variation: i.variation || "", quantity: i.quantity })),
+    });
+  }
+  if (slips.length === 0) return res.status(404).json({ success: false, message: "Nothing to print for these orders" });
+  return res.status(200).json({ success: true, data: slips });
 });
 
 /** Self-shipping seller: save the courier company and tracking number for this order. */

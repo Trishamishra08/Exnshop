@@ -13,6 +13,7 @@ import customerRoutes from "./customerRoutes";
 import sellerRoutes from "./sellerRoutes";
 import claimRoutes from "./claimRoutes";
 import supportTicketRoutes from "./supportTicketRoutes";
+import refundRequestRoutes from "./refundRequestRoutes";
 import campaignRoutes from "./campaignRoutes";
 import rtoRoutes from "./rtoRoutes";
 import uploadRoutes from "./uploadRoutes";
@@ -175,6 +176,7 @@ router.use("/claims", claimRoutes);
 
 // Seller support ticket routes (protected, seller only)
 router.use("/support-tickets", supportTicketRoutes);
+router.use("/refund-requests", refundRequestRoutes);
 
 // Seller advertisement campaign routes (protected, seller only)
 router.use("/campaigns", campaignRoutes);

@@ -7,6 +7,7 @@ import { getHeaderCategoriesPublic, HeaderCategory } from '../../../services/api
 import GoogleMapsAutocomplete from '../../../components/GoogleMapsAutocomplete';
 import LocationPickerMap from '../../../components/LocationPickerMap';
 import ShippingMethodCard from '../components/ShippingMethodCard';
+import ShippingSettingsCard from '../components/ShippingSettingsCard';
 import { getShippingMethod } from '../../../services/api/shippingMethodService';
 
 // Standard Indian business entity types — stored as the plain string the backend
@@ -832,7 +833,12 @@ const SellerAccountSettings = () => {
                                             </div>
                                         )}
 
-                                        {activeTab === 'shipping' && <ShippingMethodCard />}
+                                        {activeTab === 'shipping' && (
+                                            <>
+                                                <ShippingMethodCard />
+                                                <ShippingSettingsCard />
+                                            </>
+                                        )}
 
                                         {activeTab === 'bank' && (
                                             <div className="space-y-10">

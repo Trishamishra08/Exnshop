@@ -7,6 +7,8 @@ import {
   requestShippingMethodChange,
 } from "../services/sellerShippingService";
 import { previewShippingCharge } from "../services/shippingChargeService";
+import Seller from "../models/Seller";
+import { DEFAULT_HANDLING, normalizeHandling, validateHandlingInput } from "../services/shipByService";
 
 const router = Router();
 
@@ -41,6 +43,26 @@ router.get(
       getShippingMethodState(sellerId(req)),
     ]);
     return { ...preview, sellerPays: state.effectiveMethod === "Company", method: state.effectiveMethod };
+  }),
+);
+
+// Handling time, working days, cut-off, holidays (they set each order's ship-by date)
+router.get(
+  "/settings",
+  handle(async (req) => {
+    const seller: any = await Seller.findById(sellerId(req)).select("handlingTimeDays operatingDays holidays orderCutoffTime defaultCourier").lean();
+    return { ...normalizeHandling(seller), defaultCourier: seller?.defaultCourier || "", defaults: DEFAULT_HANDLING };
+  }),
+);
+router.put(
+  "/settings",
+  requireApprovedUser,
+  handle(async (req) => {
+    const checked = validateHandlingInput(req.body || {});
+    if (!checked.ok) throw Object.assign(new Error(checked.message), { statusCode: 400 });
+    await Seller.updateOne({ _id: sellerId(req) }, { $set: checked.value });
+    const seller: any = await Seller.findById(sellerId(req)).select("handlingTimeDays operatingDays holidays orderCutoffTime defaultCourier").lean();
+    return { ...normalizeHandling(seller), defaultCourier: seller?.defaultCourier || "", defaults: DEFAULT_HANDLING };
   }),
 );
 

@@ -7,7 +7,8 @@ import { formatDeliveryAddress } from '../../../utils/addressUtils';
 import SellerQuickOrderDetail from './SellerQuickOrderDetail';
 import { getSellerShippingLabel, generateSellerAwb } from '../../../services/api/shippingLabelService';
 import { getSellerTaxInvoice } from '../../../services/api/taxInvoiceService';
-import { getShippingMethod, saveSelfShippingDetails } from '../../../services/api/shippingMethodService';
+import { getHandlingSettings, getPackingSlips, getShippingMethod, saveSelfShippingDetails } from '../../../services/api/shippingMethodService';
+import RefundOrderModal from '../components/RefundOrderModal';
 
 // E-commerce orders are packed by the seller and shipped by courier, so they get
 // their own screen. Quick orders keep the original rider-delivery screen.
@@ -80,7 +81,27 @@ export default function SellerOrderDetail() {
     getShippingMethod()
       .then((s) => setCouriers(s.couriers))
       .catch(() => setCouriers([]));
+    // Pre-select the seller's usual courier when this order has none saved yet.
+    getHandlingSettings()
+      .then((h) => h.defaultCourier && setSelCourier((cur) => cur || h.defaultCourier))
+      .catch(() => undefined);
   }, [isSelf]);
+
+  const [slipBusy, setSlipBusy] = useState(false);
+  const [showRefund, setShowRefund] = useState(false);
+  const printSlip = async () => {
+    if (!orderDetail) return;
+    setSlipBusy(true);
+    try {
+      const slips = await getPackingSlips([orderDetail.id]);
+      const { downloadPackingSlips } = await import('../../../utils/packingSlipPdf');
+      await downloadPackingSlips(slips, `Packing_Slip_${slips[0].orderNumber}.pdf`);
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Could not create the packing slip', 'error');
+    } finally {
+      setSlipBusy(false);
+    }
+  };
 
   useEffect(() => {
     const s = orderDetail?.shipment;
@@ -427,8 +448,39 @@ export default function SellerOrderDetail() {
               Placed {formatDate(orderDetail.orderDate)} at {formatTime(orderDetail.orderDate)}
               {orderDetail.invoiceNumber && orderDetail.invoiceNumber !== orderRef ? ` · Invoice ${orderDetail.invoiceNumber}` : ''}
             </p>
+            {orderDetail.shipDates && (
+              <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
+                {orderDetail.shipDates.shipState && (
+                  <span
+                    className={`px-2 py-0.5 rounded font-semibold ${
+                      { late: 'bg-red-100 text-red-700', today: 'bg-amber-100 text-amber-800', tomorrow: 'bg-blue-50 text-blue-700', ok: 'bg-neutral-100 text-neutral-600' }[orderDetail.shipDates.shipState]
+                    }`}
+                  >
+                    {{ late: 'Late: ship now', today: 'Ship today', tomorrow: 'Ship tomorrow', ok: 'Ship by' }[orderDetail.shipDates.shipState]}
+                  </span>
+                )}
+                <span className="text-neutral-600">
+                  Ship by <b>{formatDate(orderDetail.shipDates.shipByDate)}</b> · Deliver by <b>{formatDate(orderDetail.shipDates.deliverByDate)}</b>
+                </span>
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap gap-2 print:hidden">
+            <button
+              onClick={printSlip}
+              disabled={slipBusy}
+              className="px-3 py-2 rounded-lg border border-neutral-300 bg-white hover:bg-neutral-50 text-sm font-medium text-neutral-700 disabled:opacity-50"
+            >
+              {slipBusy ? 'Please wait…' : 'Print Packing Slip'}
+            </button>
+            {orderStatus === 'Delivered' && (
+              <button
+                onClick={() => setShowRefund(true)}
+                className="px-3 py-2 rounded-lg border border-red-300 bg-white hover:bg-red-50 text-sm font-medium text-red-700"
+              >
+                Refund order
+              </button>
+            )}
             {!isSelf && <button
               onClick={handleDownloadLabel}
               disabled={labelBusy || !orderDetail.shipment?.awbCode}
@@ -647,6 +699,17 @@ export default function SellerOrderDetail() {
           </Card>
         </div>
       </div>
+
+      {showRefund && (
+        <RefundOrderModal
+          orderRef={orderDetail.orderNumber || orderDetail.id}
+          onClose={() => setShowRefund(false)}
+          onDone={() => {
+            setShowRefund(false);
+            navigate('/seller/refunds');
+          }}
+        />
+      )}
 
       <ConfirmationModal
         isOpen={showRejectModal}

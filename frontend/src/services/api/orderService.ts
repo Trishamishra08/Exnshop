@@ -19,6 +19,10 @@ export interface Order {
   deliveryBoyPhone?: string;
   paymentMethod?: string;
   channel?: 'Quick' | 'ECommerce';
+  /** E-commerce orders only: India dates (YYYY-MM-DD) from the seller's handling settings. */
+  shipByDate?: string;
+  deliverByDate?: string;
+  shipState?: 'late' | 'today' | 'tomorrow' | 'ok' | null;
 }
 
 export interface OrderItem {
@@ -55,6 +59,7 @@ export interface OrderDetail {
   /** Quick = rider/seller delivers; ECommerce = shipped by courier. */
   channel?: 'Quick' | 'ECommerce';
   shippingMethod?: 'Self' | 'Company';
+  shipDates?: { shipByDate: string; deliverByDate: string; shipState: 'late' | 'today' | 'tomorrow' | 'ok' | null } | null;
   shipment?: { awbCode: string; courierName: string; trackingUrl: string; status: string; provider?: 'Shiprocket' | 'Self' } | null;
   deliveryPreference?: 'Self' | 'Admin';
   invoiceNumber: string;
@@ -110,6 +115,8 @@ export interface GetOrdersParams {
   sortOrder?: 'asc' | 'desc';
   /** Only Quick or only E-commerce orders; omitted = both. */
   channel?: 'Quick' | 'ECommerce';
+  /** Only parcels that still need shipping: due today, due tomorrow, or already late. */
+  shipFilter?: 'today' | 'tomorrow' | 'late';
 }
 
 export interface PaginatedResponse<T> {

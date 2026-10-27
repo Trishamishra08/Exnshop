@@ -12,6 +12,7 @@ import {
   getShippingLabel,
   generateShippingAwb,
   saveSelfShippingDetails,
+  getPackingSlips,
   getTaxInvoice,
 } from "../modules/seller/controllers/orderController";
 import { authenticate, requireUserType, requireApprovedUser } from "../middleware/auth";
@@ -27,6 +28,8 @@ router.use(requireApprovedUser);
 router.get("/", getOrders);
 // Pending actionable order alerts (must be before /:id)
 router.get("/pending-alerts", getPendingOrderAlerts);
+// Packing slips for one or more orders (must be before /:id)
+router.get("/packing-slips", getPackingSlips);
 // Settlement page (must be before /:id)
 router.get("/settlement", getSettlementOrders);
 

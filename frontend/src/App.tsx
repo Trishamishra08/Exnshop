@@ -164,6 +164,12 @@ const SellerBulkUpload = lazyWithRetry(
 const SellerClaims = lazyWithRetry(
   () => import("./modules/seller/pages/SellerClaims"), "SellerClaims"
 );
+const SellerRefunds = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerRefunds"), "SellerRefunds"
+);
+const AdminRefundRequests = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminRefundRequests"), "AdminRefundRequests"
+);
 const SellerSupportTickets = lazyWithRetry(
   () => import("./modules/seller/pages/SellerSupportTickets"), "SellerSupportTickets"
 );
@@ -746,6 +752,10 @@ function App() {
                                         element={<SellerClaims />}
                                       />
                                       <Route
+                                        path="refunds"
+                                        element={<SellerRefunds />}
+                                      />
+                                      <Route
                                         path="rto-dashboard"
                                         element={<SellerRtoDashboard />}
                                       />
@@ -865,6 +875,10 @@ function App() {
                                       <Route
                                         path="support-tickets"
                                         element={<AdminSupportTickets />}
+                                      />
+                                      <Route
+                                        path="refund-requests"
+                                        element={<AdminRefundRequests />}
                                       />
                                       <Route
                                         path="shipping-rates"

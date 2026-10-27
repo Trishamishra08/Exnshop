@@ -189,6 +189,12 @@ export interface ISeller extends Document {
    */
   shippingMethod?: "Self" | "Company";
   shippingMethodChosenAt?: Date;
+  /** Used to work out each order's ship-by date (see shipByService). */
+  handlingTimeDays?: number;
+  operatingDays?: number[]; // 0 = Sunday … 6 = Saturday
+  holidays?: string[]; // YYYY-MM-DD (India date)
+  orderCutoffTime?: string; // HH:mm India time; orders after this count as next working day
+  defaultCourier?: string; // pre-selected courier on self-shipped orders
   shippingMethodRequest?: {
     requestedMethod: "Self" | "Company";
     reason?: string;
@@ -538,6 +544,11 @@ const SellerSchema = new Schema<ISeller>(
     shiprocketPickupSyncError: { type: String },
     shippingMethod: { type: String, enum: ["Self", "Company"] },
     shippingMethodChosenAt: { type: Date },
+    handlingTimeDays: { type: Number, min: 0, max: 7 },
+    operatingDays: { type: [Number] },
+    holidays: { type: [String] },
+    orderCutoffTime: { type: String, trim: true },
+    defaultCourier: { type: String, trim: true },
     shippingMethodRequest: {
       type: new Schema(
         {
