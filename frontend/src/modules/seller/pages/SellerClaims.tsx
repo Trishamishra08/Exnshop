@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getMyClaims, raiseClaim, Claim } from '../../../services/api/claimService';
-import { uploadImages } from '../../../services/api/uploadService';
+import { uploadImages, uploadVideos, uploadDocuments } from '../../../services/api/uploadService';
 import { useToast } from '../../../context/ToastContext';
 
 export default function SellerClaims() {
@@ -15,6 +15,8 @@ export default function SellerClaims() {
     const [description, setDescription] = useState('');
     const [claimAmount, setClaimAmount] = useState('');
     const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+    const [videoFiles, setVideoFiles] = useState<File[]>([]);
+    const [documentFiles, setDocumentFiles] = useState<File[]>([]);
 
     const fetchClaims = async () => {
         try {
@@ -38,6 +40,8 @@ export default function SellerClaims() {
         setDescription('');
         setClaimAmount('');
         setPhotoFiles([]);
+        setVideoFiles([]);
+        setDocumentFiles([]);
     };
 
     const handleSubmit = async () => {
@@ -47,17 +51,19 @@ export default function SellerClaims() {
         }
         try {
             setSaving(true);
-            let photos: string[] = [];
-            if (photoFiles.length > 0) {
-                const uploaded = await uploadImages(photoFiles, 'exnshop/claims');
-                photos = uploaded.map((u) => u.secureUrl);
-            }
+            const [photos, videos, documents] = await Promise.all([
+                photoFiles.length ? uploadImages(photoFiles, 'exnshop/claims').then((r) => r.map((u) => u.secureUrl)) : [],
+                videoFiles.length ? uploadVideos(videoFiles, 'exnshop/claims').then((r) => r.map((u) => u.secureUrl)) : [],
+                documentFiles.length ? uploadDocuments(documentFiles).then((r) => r.map((u) => u.secureUrl)) : [],
+            ]);
             const response = await raiseClaim({
                 orderId: orderId.trim(),
                 reason: reason.trim(),
                 description: description.trim() || undefined,
                 claimAmount: Number(claimAmount),
                 photos,
+                videos,
+                documents,
             });
             if (response.success) {
                 showToast('Claim raised successfully', 'success');
@@ -123,8 +129,8 @@ export default function SellerClaims() {
                                         <td className="p-4 align-middle font-medium">{claim.orderNumber || claim.order}</td>
                                         <td className="p-4 align-middle">
                                             <div>{claim.reason}</div>
-                                            {claim.status === 'Rejected' && claim.adminDecisionReason && (
-                                                <div className="text-xs text-red-600 mt-1">Admin: {claim.adminDecisionReason}</div>
+                                            {claim.adminDecisionReason && (
+                                                <div className={`text-xs mt-1 ${claim.status === 'Rejected' ? 'text-red-600' : 'text-neutral-500'}`}>Admin: {claim.adminDecisionReason}</div>
                                             )}
                                         </td>
                                         <td className="p-4 align-middle">₹{claim.claimAmount}</td>
@@ -155,7 +161,7 @@ export default function SellerClaims() {
                                     value={orderId}
                                     onChange={(e) => setOrderId(e.target.value)}
                                     className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500"
-                                    placeholder="Order ID from Orders page"
+                                    placeholder="e.g. ORD1793037570830479"
                                 />
                             </div>
                             <div>
@@ -204,6 +210,32 @@ export default function SellerClaims() {
                                 />
                                 {photoFiles.length > 0 && (
                                     <p className="text-xs text-neutral-500 mt-1">{photoFiles.length} photo(s) selected</p>
+                                )}
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-neutral-700 mb-1">Evidence Videos <span className="text-xs text-neutral-400">(max 3, 100MB each)</span></label>
+                                <input
+                                    type="file"
+                                    accept="video/*"
+                                    multiple
+                                    onChange={(e) => setVideoFiles(Array.from(e.target.files || []).slice(0, 3))}
+                                    className="text-sm text-neutral-700 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-teal-600 file:text-white file:text-sm file:font-medium hover:file:bg-teal-700 file:cursor-pointer cursor-pointer"
+                                />
+                                {videoFiles.length > 0 && (
+                                    <p className="text-xs text-neutral-500 mt-1">{videoFiles.length} video(s) selected</p>
+                                )}
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-neutral-700 mb-1">Documents <span className="text-xs text-neutral-400">(invoice, courier receipt — PDF/image, max 5)</span></label>
+                                <input
+                                    type="file"
+                                    accept="application/pdf,image/*"
+                                    multiple
+                                    onChange={(e) => setDocumentFiles(Array.from(e.target.files || []).slice(0, 5))}
+                                    className="text-sm text-neutral-700 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-teal-600 file:text-white file:text-sm file:font-medium hover:file:bg-teal-700 file:cursor-pointer cursor-pointer"
+                                />
+                                {documentFiles.length > 0 && (
+                                    <p className="text-xs text-neutral-500 mt-1">{documentFiles.length} document(s) selected</p>
                                 )}
                             </div>
                         </div>

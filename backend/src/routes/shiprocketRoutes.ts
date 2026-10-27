@@ -124,6 +124,7 @@ const handleTrackingWebhook = async (req: Request, res: Response) => {
       };
     }
 
+    const wasDelivered = order.status === "Delivered";
     const mappedStatus =
       shipments.length > 1 ? overallStatus(shipments.map((s) => s.status)) : mapShiprocketStatus(current_status);
     const isNewRto = mappedStatus === "RTO" && order.status !== "RTO" && !TERMINAL_STATUSES.has(order.status);
@@ -135,6 +136,26 @@ const handleTrackingWebhook = async (req: Request, res: Response) => {
     }
 
     await order.save();
+
+    // Delivered by the courier: release the sellers' earnings (into the
+    // return-window hold, then the wallet) — the same step a rider's delivery
+    // triggers. COD courier orders have no earning records yet (those are only
+    // created on online payment), so create them first.
+    if (!wasDelivered && order.status === "Delivered") {
+      try {
+        const Commission = (await import("../models/Commission")).default;
+        const { createPendingCommissions, distributeCommissions } = await import("../services/commissionService");
+        if (!(await Commission.exists({ order: order._id, type: "SELLER" }))) {
+          await createPendingCommissions(String(order._id));
+        }
+        const result = await distributeCommissions(String(order._id));
+        if (!result.success) {
+          console.error(`[Shiprocket] Earnings release failed for ${order.orderNumber}: ${result.message}`);
+        }
+      } catch (err: any) {
+        console.error(`[Shiprocket] Earnings release failed for ${order.orderNumber}:`, err.message);
+      }
+    }
 
     // Courier is returning the parcel: run the full RTO (record, stock back,
     // customer refund), the same as when an admin marks it by hand.

@@ -9,8 +9,12 @@ export interface IClaim extends Document {
   reason: string;
   description?: string;
   photos: string[];
+  videos: string[];
+  documents: string[];
   claimAmount: number;
   approvedAmount?: number;
+  /** The date the seller had to raise this claim by (receipt of the RTO/return + the claim window). */
+  claimDeadline?: Date;
   status: "Raised" | "Under Review" | "Approved" | "Rejected";
   adminDecisionReason?: string;
   decidedBy?: mongoose.Types.ObjectId;
@@ -56,6 +60,14 @@ const ClaimSchema = new Schema<IClaim>(
       type: [String],
       default: [],
     },
+    videos: {
+      type: [String],
+      default: [],
+    },
+    documents: {
+      type: [String],
+      default: [],
+    },
     claimAmount: {
       type: Number,
       required: [true, "Claim amount is required"],
@@ -64,6 +76,9 @@ const ClaimSchema = new Schema<IClaim>(
     approvedAmount: {
       type: Number,
       min: [0, "Approved amount cannot be negative"],
+    },
+    claimDeadline: {
+      type: Date,
     },
     status: {
       type: String,

@@ -24,18 +24,10 @@ export default function SellerSignUp() {
     categories: [] as string[],
     address: '',
     city: '',
-    panCard: '',
-    taxName: '',
-    taxNumber: '',
     searchLocation: '',
     latitude: '',
     longitude: '',
     serviceRadiusKm: '10',
-    accountName: '',
-    bankName: '',
-    branch: '',
-    accountNumber: '',
-    ifsc: '',
     channels: ['Quick'] as ('Quick' | 'ECommerce')[],
   });
 
@@ -389,29 +381,6 @@ export default function SellerSignUp() {
                     <label className={labelCls}>City <span className="text-red-500">*</span></label>
                     <input type="text" name="city" value={formData.city} onChange={handleInputChange} placeholder="Your city" required disabled={loading}
                       className="w-full h-10 px-3 text-xs font-semibold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 focus:bg-white transition-all placeholder:text-slate-400 placeholder:font-normal" />
-                  </div>
-                </div>
-
-                {/* ── Optional Info ── */}
-                <div className="border-t border-slate-100 pt-3 mb-3">
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Optional Info</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { name: 'panCard', label: 'PAN Card', placeholder: 'PAN number' },
-                      { name: 'taxName', label: 'Tax Name', placeholder: 'GST / Tax name' },
-                      { name: 'taxNumber', label: 'Tax Number', placeholder: 'Tax number' },
-                      { name: 'ifsc', label: 'IFSC Code', placeholder: 'IFSC code' },
-                      { name: 'accountName', label: 'Account Name', placeholder: 'Account holder' },
-                      { name: 'bankName', label: 'Bank Name', placeholder: 'Bank name' },
-                      { name: 'accountNumber', label: 'Account No.', placeholder: 'Account number' },
-                      { name: 'branch', label: 'Branch', placeholder: 'Branch name' },
-                    ].map((f) => (
-                      <div key={f.name}>
-                        <label className={labelCls}>{f.label}</label>
-                        <input type="text" name={f.name} value={(formData as any)[f.name]} onChange={handleInputChange} placeholder={f.placeholder} disabled={loading}
-                          className="w-full h-9 px-2.5 text-xs font-semibold text-slate-900 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 focus:bg-white transition-all placeholder:text-slate-400 placeholder:font-normal" />
-                      </div>
-                    ))}
                   </div>
                 </div>
 

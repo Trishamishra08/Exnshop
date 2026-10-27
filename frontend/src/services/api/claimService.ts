@@ -9,8 +9,11 @@ export interface Claim {
   reason: string;
   description?: string;
   photos: string[];
+  videos?: string[];
+  documents?: string[];
   claimAmount: number;
   approvedAmount?: number;
+  claimDeadline?: string;
   status: "Raised" | "Under Review" | "Approved" | "Rejected";
   adminDecisionReason?: string;
   decidedAt?: string;
@@ -23,6 +26,8 @@ export interface RaiseClaimData {
   description?: string;
   claimAmount: number;
   photos?: string[];
+  videos?: string[];
+  documents?: string[];
   returnRequestId?: string;
 }
 

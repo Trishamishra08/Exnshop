@@ -94,6 +94,18 @@ export const uploadMultipleDocuments = multer({
   fileFilter: documentFileFilter,
 });
 
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
+const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm", "video/x-matroska", "video/3gpp"];
+
+export const uploadMultipleVideos = multer({
+  storage,
+  limits: { fileSize: MAX_VIDEO_SIZE },
+  fileFilter: (_req: Request, file: any, cb: multer.FileFilterCallback) => {
+    if (ALLOWED_VIDEO_TYPES.includes(file.mimetype)) cb(null, true);
+    else cb(new Error(`Invalid file type. Allowed types: ${ALLOWED_VIDEO_TYPES.join(", ")}`));
+  },
+});
+
 // File filter + multer instance for CSV bulk-upload (products, etc.)
 const MAX_CSV_SIZE = 10 * 1024 * 1024; // 10MB
 const csvFileFilter = (

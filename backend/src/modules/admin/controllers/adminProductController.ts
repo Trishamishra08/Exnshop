@@ -996,9 +996,20 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
 
   if (channel === "Quick" || channel === "ECommerce") {
     const channelSellerIds = await Seller.find({ channels: channel }).distinct("_id");
-    query.seller = query.seller
-      ? { $eq: query.seller, $in: channelSellerIds }
-      : { $in: channelSellerIds };
+    const existingSellerIds = await Seller.find({}).distinct("_id");
+    // A product whose seller record no longer exists ("orphaned" — the seller
+    // was deleted but their products weren't) can't be attributed to either
+    // channel. Always include it rather than letting it silently disappear
+    // from every tab, which otherwise makes it impossible to find and clean up.
+    const visibleSellerFilter = {
+      $or: [{ seller: { $in: channelSellerIds } }, { seller: { $nin: existingSellerIds } }],
+    };
+    if (query.seller) {
+      query.$and = [...(query.$and || []), { seller: query.seller }, visibleSellerFilter];
+      delete query.seller;
+    } else {
+      Object.assign(query, visibleSellerFilter);
+    }
   }
 
   // Only filter by status if explicitly provided

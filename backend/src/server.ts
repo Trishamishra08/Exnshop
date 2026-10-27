@@ -184,6 +184,23 @@ async function startServer() {
       console.error("[Settlement] Initial escrow release failed:", err)
     );
 
+    // Auto-reject a seller's share of an order if they never respond
+    // (Accept/Reject) within SELLER_TIMEOUT_MS of the order being placed —
+    // previously this value was configured but never enforced, so an order a
+    // seller missed (app closed, offline) sat "Pending" forever and kept
+    // re-surfacing the new-order alert indefinitely. Checked every minute so
+    // the actual delay stays close to the configured timeout.
+    const { expireUnansweredSellerOrders } = await import("./services/sellerOrderTimeoutService");
+    const SELLER_TIMEOUT_CHECK_INTERVAL_MS = 60 * 1000; // 1 minute
+    setInterval(() => {
+      expireUnansweredSellerOrders(io).catch((err) =>
+        console.error("[SellerTimeout] Scheduled check failed:", err)
+      );
+    }, SELLER_TIMEOUT_CHECK_INTERVAL_MS);
+    expireUnansweredSellerOrders(io).catch((err) =>
+      console.error("[SellerTimeout] Initial check failed:", err)
+    );
+
     console.log(`   [DEBUG] Fully started at: ${new Date().toISOString()}\n`);
   } catch (err) {
     console.error("\n\x1b[31m✗ Startup init failed (API is up but DB/features may be down)\x1b[0m");

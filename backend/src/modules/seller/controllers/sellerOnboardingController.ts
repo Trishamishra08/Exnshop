@@ -28,6 +28,8 @@ import {
   uploadPrivateDocument,
 } from "../../../services/sellerOnboardingService";
 import { queueSellerPickupSync } from "../../../services/shiprocketService";
+import { runVerificationChecks } from "../../../services/sellerVerificationService";
+import { apiclubConfigured } from "../../../services/apiclubService";
 
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
@@ -327,6 +329,15 @@ export const submitOnboarding = asyncHandler(async (req: Request, res: Response)
     status === "ActionRequired" ? "Seller application resubmitted" : "New seller application",
     `${seller.storeName} (${seller.mobile}) submitted their application for review.`
   );
+
+  // Auto-run the bank penny-drop check as soon as the seller submits, instead of
+  // waiting for an admin to trigger it manually. Runs in the background — never
+  // blocks or fails the submission itself if APIclub is unreachable/unconfigured.
+  if (apiclubConfigured()) {
+    runVerificationChecks(seller, ["BANK"], { actorName: "System (auto on submit)" }).catch((err) =>
+      console.error(`[Onboarding] Auto bank verification failed for seller ${seller._id}:`, err?.message)
+    );
+  }
 
   return res.json({ success: true, message: "Application submitted for review", data: buildOnboardingView(seller) });
 });

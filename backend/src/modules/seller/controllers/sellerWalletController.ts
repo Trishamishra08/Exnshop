@@ -138,6 +138,47 @@ export const getWithdrawals = async (req: Request, res: Response) => {
 };
 
 /**
+ * Settlement report: payment summary + one settlement row per order.
+ * Query: status (Pending|Processing|Settled|Paid|Cancelled), from, to (ISO dates), page, limit
+ */
+export const getSettlementReport = async (req: Request, res: Response) => {
+    try {
+        const sellerId = (req as any).user!.userId;
+        const { status, from, to } = req.query as Record<string, string | undefined>;
+        const page = Math.max(1, parseInt((req.query.page as string) || '1', 10));
+        const limit = Math.min(500, Math.max(1, parseInt((req.query.limit as string) || '20', 10)));
+
+        const { buildSellerSettlementReport } = await import('../../../services/sellerSettlementReportService');
+        const { summary, rows } = await buildSellerSettlementReport(sellerId);
+
+        const fromTime = from ? new Date(from).getTime() : null;
+        const toTime = to ? new Date(to).setHours(23, 59, 59, 999) : null;
+        const filtered = rows.filter((r) => {
+            if (status && status !== 'All' && r.status !== status) return false;
+            const t = new Date(r.date).getTime();
+            if (fromTime && t < fromTime) return false;
+            if (toTime && t > toTime) return false;
+            return true;
+        });
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                summary,
+                rows: filtered.slice((page - 1) * limit, page * limit),
+                pagination: { page, limit, total: filtered.length, pages: Math.ceil(filtered.length / limit) },
+            },
+        });
+    } catch (error: any) {
+        console.error('Error building settlement report:', error);
+        return res.status(500).json({
+            success: false,
+            message: error.message || 'Failed to build settlement report',
+        });
+    }
+};
+
+/**
  * Get seller commission earnings
  */
 export const getCommissions = async (req: Request, res: Response) => {

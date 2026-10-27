@@ -52,7 +52,7 @@ export const getOrderItemCommissionRate = async (
 
     // Fetch settings if not provided
     const settings = _settings || (await AppSettings.getSettings());
-    const globalRate = settings?.globalCommissionRate ?? 10;
+    const globalRate = settings?.globalCommissionRate ?? 0;
 
     const seller = await Seller.findById(finalSellerId);
 
@@ -77,7 +77,7 @@ export const getOrderItemCommissionRate = async (
     return globalRate;
   } catch (error) {
     console.error("Error calculating commission rate:", error);
-    return 10; // Default fallback on error
+    return 0; // Default fallback on error
   }
 };
 
@@ -105,10 +105,10 @@ export const getSellerCommissionRate = async (
     // @ts-ignore
     return settings && settings.globalCommissionRate !== undefined
       ? settings.globalCommissionRate
-      : 10;
+      : 0;
   } catch (error) {
     console.error("Error getting seller commission rate:", error);
-    return 10; // Default fallback
+    return 0; // Default fallback
   }
 };
 
@@ -435,7 +435,12 @@ export const distributeCommissions = async (orderId: string) => {
       }
     }
 
-    const isSelfAssign = !order.deliveryBoy;
+    // Courier (e-commerce) shipments: the courier collects any COD cash and
+    // remits it to the platform, and the platform pays the courier — so they
+    // settle like prepaid orders, with no rider-cash or seller-delivery logic.
+    const isCourierShipment = (order as any).channel === "ECommerce";
+    const treatAsCOD = !isCourierShipment && order.paymentMethod?.toUpperCase() === "COD";
+    const isSelfAssign = !order.deliveryBoy && !isCourierShipment;
     const shippingTotal = order.shipping || 0;
 
     // Self Delivery without rider: add delivery charge to seller earnings (proportional by item total)
@@ -456,7 +461,7 @@ export const distributeCommissions = async (orderId: string) => {
 
     // Credit / Hold Seller Wallets
     for (const [sellerId, data] of sellerEarnings.entries()) {
-      if (order.paymentMethod === "COD") {
+      if (treatAsCOD) {
         if (!isSelfAssign) {
           console.log(
             `[COD] Delaying seller credit for order ${order.orderNumber}. Will be credited when delivery boy pays admin.`,
@@ -494,7 +499,7 @@ export const distributeCommissions = async (orderId: string) => {
     }
 
     // For COD orders, delegate to the specialized COD processing logic
-    if (order.paymentMethod && order.paymentMethod.toUpperCase() === "COD") {
+    if (treatAsCOD) {
       if (isSelfAssign) {
         await session.commitTransaction();
         await processCODOrderDeliverySelf(orderId);
@@ -1474,19 +1479,14 @@ export const releaseExpiredEscrow = async (
         const netAmount = comm.orderAmount - comm.commissionAmount;
         const sellerId = comm.seller.toString();
 
-        // Move balance from onHoldBalance -> balance
+        // Take it off hold here; creditWallet adds it to the available balance
+        // (incrementing balance here too would credit the seller twice).
         await Seller.findByIdAndUpdate(
           sellerId,
-          {
-            $inc: {
-              onHoldBalance: -netAmount,
-              balance: netAmount,
-            },
-          },
+          { $inc: { onHoldBalance: -netAmount } },
           { session }
         );
 
-        // Record Credit Wallet Transaction
         await creditWallet(
           sellerId,
           "SELLER",
@@ -1494,7 +1494,8 @@ export const releaseExpiredEscrow = async (
           `Released held sale proceeds after return window expired (Order ${comm.order})`,
           comm.order.toString(),
           comm._id.toString(),
-          session
+          session,
+          `ESCROW-${comm._id}`
         );
 
         comm.status = "Paid";

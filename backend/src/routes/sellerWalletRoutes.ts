@@ -6,6 +6,7 @@ import {
     requestWithdrawal,
     getWithdrawals,
     getCommissions,
+    getSettlementReport,
 } from '../modules/seller/controllers/sellerWalletController';
 
 const router = Router();
@@ -25,5 +26,8 @@ router.get('/withdrawals', getWithdrawals);
 
 // Commission earnings
 router.get('/commissions', getCommissions);
+
+// Settlement report (summary + per-order settlement rows)
+router.get('/settlement-report', getSettlementReport);
 
 export default router;

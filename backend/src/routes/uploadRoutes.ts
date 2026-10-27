@@ -5,6 +5,7 @@ import {
   uploadMultipleImages,
   uploadDocument,
   uploadMultipleDocuments,
+  uploadMultipleVideos,
   handleUploadError,
 } from "../middleware/upload";
 import {
@@ -86,6 +87,29 @@ router.post(
       success: true,
       data: results,
     });
+  })
+);
+
+/**
+ * POST /api/v1/upload/videos
+ * Upload multiple videos (e.g. claim evidence)
+ */
+router.post(
+  "/videos",
+  authenticate,
+  requireUserType("Admin", "Seller"),
+  uploadMultipleVideos.array("videos", 3),
+  handleUploadError,
+  asyncHandler(async (req: Request, res: Response) => {
+    const files = (req as any).files as any[] | undefined;
+    if (!files || files.length === 0) {
+      return res.status(400).json({ success: false, message: "No video files provided" });
+    }
+    const folder = (req.body.folder as string) || CLOUDINARY_FOLDERS.PRODUCTS;
+    const results = await Promise.all(
+      files.map((file) => uploadImageFromBuffer(file.buffer, { folder, resourceType: "video" }))
+    );
+    return res.status(200).json({ success: true, data: results });
   })
 );
 

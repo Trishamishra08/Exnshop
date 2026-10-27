@@ -71,3 +71,47 @@ export const getSellerCommissions = async () => {
         throw error;
     }
 };
+
+export type SettlementStatus = 'Pending' | 'Processing' | 'Settled' | 'Paid' | 'Cancelled';
+
+export interface SettlementRow {
+    settlementId: string;
+    orderId: string;
+    orderNumber: string;
+    date: string;
+    grossAmount: number;
+    deductions: number;
+    netAmount: number;
+    status: SettlementStatus;
+    expectedSettlementDate: string | null;
+    paymentDate: string | null;
+    bankReference: string | null;
+}
+
+export interface PaymentSummary {
+    totalSales: number;
+    deliveredSales: number;
+    pendingSettlement: number;
+    settledToWallet: number;
+    paidToBank: number;
+    refunds: number;
+    platformDeductions: number;
+}
+
+export const getSettlementReport = async (params: {
+    status?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    limit?: number;
+}): Promise<{
+    success: boolean;
+    data: {
+        summary: PaymentSummary;
+        rows: SettlementRow[];
+        pagination: { page: number; limit: number; total: number; pages: number };
+    };
+}> => {
+    const response = await api.get('/seller/wallet-new/settlement-report', { params });
+    return response.data;
+};

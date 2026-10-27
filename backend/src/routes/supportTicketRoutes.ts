@@ -4,6 +4,7 @@ import {
   getMyTickets,
   getMyTicketById,
   replyToTicketAsSeller,
+  closeTicketAsSeller,
 } from "../modules/seller/controllers/supportTicketController";
 import { authenticate, requireUserType, requireApprovedUser } from "../middleware/auth";
 
@@ -17,5 +18,6 @@ router.post("/", createTicket);
 router.get("/my", getMyTickets);
 router.get("/my/:id", getMyTicketById);
 router.post("/my/:id/reply", replyToTicketAsSeller);
+router.post("/my/:id/close", closeTicketAsSeller);
 
 export default router;

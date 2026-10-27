@@ -301,7 +301,7 @@ const AppSettingsSchema = new Schema<IAppSettings>(
     // Commission Settings
     globalCommissionRate: {
       type: Number,
-      default: 10,
+      default: 0,
       min: [0, "Commission rate cannot be negative"],
       max: [100, "Commission rate cannot exceed 100%"],
     },

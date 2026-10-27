@@ -4,8 +4,10 @@ import {
     getTicketByIdAdmin,
     replyToTicketAsAdmin,
 } from '../../../services/api/admin/adminSupportTicketService';
-import { SupportTicket } from '../../../services/api/supportTicketService';
+import { SupportTicket, ticketStatusLabel, TICKET_STATUS_STYLES } from '../../../services/api/supportTicketService';
 import { useToast } from '../../../context/ToastContext';
+import TicketTimeline from '../../../components/TicketTimeline';
+import AttachmentList from '../../../components/AttachmentList';
 
 export default function AdminSupportTickets() {
     const { showToast } = useToast();
@@ -65,15 +67,18 @@ export default function AdminSupportTickets() {
         }
     };
 
-    const statusBadge = (status: SupportTicket['status']) => {
-        const styles: Record<SupportTicket['status'], string> = {
-            Open: 'bg-blue-100 text-blue-800',
-            'In Progress': 'bg-amber-100 text-amber-800',
-            Resolved: 'bg-green-100 text-green-800',
-            Closed: 'bg-neutral-100 text-neutral-600',
-        };
-        return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${styles[status]}`}>{status}</span>;
-    };
+    const statusBadge = (status: SupportTicket['status']) => (
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${TICKET_STATUS_STYLES[status]}`}>
+            {ticketStatusLabel(status)}
+        </span>
+    );
+
+    const stageButtons: { status: SupportTicket['status']; label: string; cls: string }[] = [
+        { status: 'Assigned', label: 'Assign to Support Team', cls: 'border-indigo-400 text-indigo-700 hover:bg-indigo-50' },
+        { status: 'In Progress', label: 'Start Investigation', cls: 'border-amber-400 text-amber-700 hover:bg-amber-50' },
+        { status: 'Resolved', label: 'Mark Resolved', cls: 'border-green-500 text-green-700 hover:bg-green-50' },
+        { status: 'Closed', label: 'Close Ticket', cls: 'border-neutral-400 text-neutral-700 hover:bg-neutral-50' },
+    ];
 
     if (selectedTicket) {
         return (
@@ -87,15 +92,20 @@ export default function AdminSupportTickets() {
                         </div>
                         {statusBadge(selectedTicket.status)}
                     </div>
+                    <div className="px-6 py-4 border-b border-neutral-200">
+                        <TicketTimeline ticket={selectedTicket} />
+                    </div>
                     <div className="p-6 flex-1 overflow-y-auto space-y-4">
                         <div className="bg-neutral-50 border border-neutral-200 rounded-lg p-4">
-                            <p className="text-sm text-neutral-800">{selectedTicket.description}</p>
+                            <p className="text-sm text-neutral-800 whitespace-pre-wrap">{selectedTicket.description}</p>
+                            <AttachmentList urls={selectedTicket.attachments} />
                         </div>
                         {selectedTicket.messages.map((msg, idx) => (
                             <div key={idx} className={`flex ${msg.sender === 'Admin' ? 'justify-end' : 'justify-start'}`}>
                                 <div className={`max-w-[75%] rounded-lg px-4 py-2 text-sm ${msg.sender === 'Admin' ? 'bg-teal-600 text-white' : 'bg-neutral-100 text-neutral-800'}`}>
                                     <p className="text-xs opacity-70 mb-1">{msg.sender === 'Admin' ? 'You (Support)' : getSellerLabel(selectedTicket.seller)} · {new Date(msg.createdAt).toLocaleString('en-GB')}</p>
-                                    <p>{msg.message}</p>
+                                    <p className="whitespace-pre-wrap">{msg.message}</p>
+                                    <AttachmentList urls={msg.attachments} light={msg.sender === 'Admin'} />
                                 </div>
                             </div>
                         ))}
@@ -118,11 +128,21 @@ export default function AdminSupportTickets() {
                                 Send
                             </button>
                         </div>
-                        <div className="flex gap-2">
-                            <button onClick={() => handleReply('In Progress')} className="px-3 py-1.5 border border-amber-400 text-amber-700 hover:bg-amber-50 rounded text-xs font-medium">Mark In Progress</button>
-                            <button onClick={() => handleReply('Resolved')} className="px-3 py-1.5 border border-green-500 text-green-700 hover:bg-green-50 rounded text-xs font-medium">Mark Resolved</button>
-                            <button onClick={() => handleReply('Closed')} className="px-3 py-1.5 border border-neutral-400 text-neutral-700 hover:bg-neutral-50 rounded text-xs font-medium">Close Ticket</button>
+                        <div className="flex gap-2 flex-wrap">
+                            {stageButtons
+                                .filter((b) => b.status !== selectedTicket.status)
+                                .map((b) => (
+                                    <button
+                                        key={b.status}
+                                        onClick={() => handleReply(b.status)}
+                                        disabled={sending}
+                                        className={`px-3 py-1.5 border rounded text-xs font-medium disabled:opacity-50 ${b.cls}`}
+                                    >
+                                        {b.label}
+                                    </button>
+                                ))}
                         </div>
+                        <p className="text-[11px] text-neutral-400">A reply moves a new ticket to "With Support Team" automatically. A status change sent with a reply applies both.</p>
                     </div>
                 </div>
             </div>
@@ -144,8 +164,9 @@ export default function AdminSupportTickets() {
                             className="px-3 py-1.5 rounded text-sm bg-white text-neutral-800"
                         >
                             <option value="">All Statuses</option>
-                            <option value="Open">Open</option>
-                            <option value="In Progress">In Progress</option>
+                            <option value="Open">Ticket Created</option>
+                            <option value="Assigned">With Support Team</option>
+                            <option value="In Progress">Under Investigation</option>
                             <option value="Resolved">Resolved</option>
                             <option value="Closed">Closed</option>
                         </select>

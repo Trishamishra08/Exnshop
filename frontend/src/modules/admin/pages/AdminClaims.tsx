@@ -36,7 +36,7 @@ export default function AdminClaims() {
         setDecisionReason('');
     };
 
-    const handleDecision = async (status: 'Approved' | 'Rejected') => {
+    const handleDecision = async (status: 'Approved' | 'Rejected' | 'Under Review') => {
         if (!reviewTarget) return;
         if (status === 'Rejected' && !decisionReason.trim()) {
             showToast('Please provide a reason for rejection', 'error');
@@ -51,7 +51,7 @@ export default function AdminClaims() {
                 decisionReason.trim() || undefined
             );
             if (response.success) {
-                showToast(`Claim ${status.toLowerCase()}`, 'success');
+                showToast(status === 'Under Review' ? 'Claim marked under review' : `Claim ${status.toLowerCase()}`, 'success');
                 setReviewTarget(null);
                 fetchClaims();
             } else {
@@ -177,6 +177,28 @@ export default function AdminClaims() {
                                     </div>
                                 </div>
                             )}
+                            {(reviewTarget.videos?.length ?? 0) > 0 && (
+                                <div>
+                                    <p className="text-xs text-neutral-500 mb-2">Evidence Videos</p>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {reviewTarget.videos!.map((video, idx) => (
+                                            <video key={idx} src={video} controls className="w-40 h-28 rounded border border-neutral-200 bg-black" />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            {(reviewTarget.documents?.length ?? 0) > 0 && (
+                                <div>
+                                    <p className="text-xs text-neutral-500 mb-2">Documents</p>
+                                    <div className="flex flex-col gap-1">
+                                        {reviewTarget.documents!.map((doc, idx) => (
+                                            <a key={idx} href={doc} target="_blank" rel="noreferrer" className="text-sm text-teal-700 hover:underline">
+                                                Document {idx + 1}
+                                            </a>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-sm font-medium text-neutral-700 mb-1">Approved Amount (₹)</label>
                                 <input
@@ -207,6 +229,15 @@ export default function AdminClaims() {
                             >
                                 Cancel
                             </button>
+                            {reviewTarget.status === 'Raised' && (
+                                <button
+                                    onClick={() => handleDecision('Under Review')}
+                                    disabled={processing}
+                                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded text-sm font-medium transition-colors disabled:opacity-50"
+                                >
+                                    Mark Under Review
+                                </button>
+                            )}
                             <button
                                 onClick={() => handleDecision('Rejected')}
                                 disabled={processing}

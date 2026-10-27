@@ -140,6 +140,21 @@ export async function uploadDocuments(
   throw new Error(response.data.message || "Failed to upload documents");
 }
 
+export async function uploadVideos(files: File[], folder?: string): Promise<UploadResult[]> {
+  const formData = new FormData();
+  files.forEach((file) => formData.append("videos", file));
+  if (folder) formData.append("folder", folder);
+
+  const response = await api.post<UploadResponse>("/upload/videos", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+
+  if (response.data.success && response.data.data) {
+    return Array.isArray(response.data.data) ? response.data.data : [response.data.data];
+  }
+  throw new Error(response.data.message || "Failed to upload videos");
+}
+
 /**
  * Delete an image from Cloudinary by public_id
  */

@@ -25,6 +25,27 @@ function isBetterEntry(
  * (surfaces the seller's best current bid for this product), with earliest
  * `createdAt` as the final tiebreak.
  */
+/**
+ * Total budget not exhausted, and today's budget not exhausted. todaySpend is
+ * only reset on the next click, so a lastSpendDate before today means today's
+ * spend is effectively 0 — the campaign serves again each new day by itself.
+ */
+const servableBudgetExpr = (now: Date) => {
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  return {
+    $and: [
+      { $lt: ["$spend", "$totalBudget"] },
+      {
+        $or: [
+          { $lt: [{ $ifNull: ["$lastSpendDate", new Date(0)] }, startOfToday] },
+          { $lt: ["$todaySpend", "$dailyBudget"] },
+        ],
+      },
+    ],
+  };
+};
+
 export const resolveWinningCampaignEntry = async (
   productId: mongoose.Types.ObjectId | string
 ): Promise<WinningCampaignEntry | null> => {
@@ -34,7 +55,7 @@ export const resolveWinningCampaignEntry = async (
     status: "Active",
     startDate: { $lte: now },
     endDate: { $gte: now },
-    $expr: { $lt: ["$spend", "$totalBudget"] },
+    $expr: servableBudgetExpr(now),
   });
 
   let best: WinningCampaignEntry | null = null;
@@ -72,7 +93,7 @@ export const getActiveCampaignsForProducts = async (
     status: "Active",
     startDate: { $lte: now },
     endDate: { $gte: now },
-    $expr: { $lt: ["$spend", "$totalBudget"] },
+    $expr: servableBudgetExpr(now),
   });
 
   for (const campaign of candidates) {
@@ -146,7 +167,10 @@ export const recordClick = async (productId: string): Promise<void> => {
   campaign.spend += costPerClick;
   campaign.todaySpend += costPerClick;
 
-  if (campaign.spend >= campaign.totalBudget || campaign.todaySpend >= campaign.dailyBudget) {
+  // Only the total budget pauses the campaign. Hitting the daily budget just
+  // stops it being served for the rest of today (see servableBudgetExpr); it
+  // resumes automatically tomorrow instead of staying paused forever.
+  if (campaign.spend >= campaign.totalBudget) {
     campaign.status = "Paused";
   }
 

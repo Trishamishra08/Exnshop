@@ -128,7 +128,7 @@ export default function SellerWallet() {
       {/* Settlement Summary */}
       <div className="mx-4 mb-4 grid grid-cols-2 gap-3">
         <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-          <p className="text-xs text-gray-500 mb-1">Total Settled (Paid Out)</p>
+          <p className="text-xs text-gray-500 mb-1">Total Settled to Wallet</p>
           <p className="text-xl font-bold text-green-600">₹{(commissions.paid || 0).toFixed(2)}</p>
         </div>
         <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">

@@ -158,12 +158,14 @@ export default function SellerCampaigns() {
                             <thead>
                                 <tr className="bg-neutral-50 text-xs font-bold text-neutral-800 border-b border-neutral-200">
                                     <th className="p-4">Products</th>
+                                    <th className="p-4">Duration</th>
                                     <th className="p-4">Budget</th>
                                     <th className="p-4">Spend</th>
                                     <th className="p-4">Impressions</th>
                                     <th className="p-4">Clicks</th>
                                     <th className="p-4">CTR</th>
                                     <th className="p-4">Orders</th>
+                                    <th className="p-4">Conversion</th>
                                     <th className="p-4">Revenue</th>
                                     <th className="p-4">ROAS</th>
                                     <th className="p-4">Status</th>
@@ -178,12 +180,17 @@ export default function SellerCampaigns() {
                                                 {getProductsLabel(campaign)}
                                             </button>
                                         </td>
+                                        <td className="p-4 align-middle text-xs whitespace-nowrap">
+                                            {new Date(campaign.startDate).toLocaleDateString('en-GB')}<br />
+                                            to {new Date(campaign.endDate).toLocaleDateString('en-GB')}
+                                        </td>
                                         <td className="p-4 align-middle text-xs">₹{campaign.dailyBudget}/day<br />₹{campaign.totalBudget} total</td>
                                         <td className="p-4 align-middle">₹{campaign.spend.toFixed(0)}</td>
                                         <td className="p-4 align-middle">{campaign.impressions}</td>
                                         <td className="p-4 align-middle">{campaign.clicks}</td>
                                         <td className="p-4 align-middle">{campaign.metrics?.overall.ctr.toFixed(1) || 0}%</td>
                                         <td className="p-4 align-middle">{campaign.metrics?.overall.orders || 0}</td>
+                                        <td className="p-4 align-middle">{campaign.metrics?.overall.conversionRate.toFixed(1) || 0}%</td>
                                         <td className="p-4 align-middle">₹{campaign.metrics?.overall.revenue.toFixed(0) || 0}</td>
                                         <td className="p-4 align-middle">{campaign.metrics?.overall.roas.toFixed(2) || 0}x</td>
                                         <td className="p-4 align-middle">{statusBadge(campaign.status)}</td>
