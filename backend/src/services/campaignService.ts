@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Campaign, { ICampaign, ICampaignProduct } from "../models/Campaign";
+import CampaignDailyStat from "../models/CampaignDailyStat";
 import OrderItem from "../models/OrderItem";
 import AppSettings from "../models/AppSettings";
 import Product from "../models/Product";
@@ -7,6 +8,15 @@ import Seller from "../models/Seller";
 import { chargeAdSpend } from "./walletManagementService";
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+/** India calendar date (YYYY-MM-DD) of an instant. */
+export const istDayString = (d: Date = new Date()): string => new Date(d.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
+
+/** Append an entry to a campaign's change history (newest last, keeps the latest 100). */
+export const pushHistory = (campaignId: any, action: string, detail?: string) =>
+  Campaign.updateOne({ _id: campaignId }, { $push: { history: { $each: [{ at: new Date(), action, detail }], $slice: -100 } } }).catch((err) =>
+    console.error("Failed to write campaign history:", err?.message)
+  );
 
 /** Midnight India time for `now` — daily ad budgets reset on the Indian day, not the server's. */
 export const istDayStart = (now: Date = new Date()): Date => {
@@ -70,6 +80,7 @@ export const resolveWinningCampaignEntry = async (
   const candidates = await Campaign.find({
     "products.product": productId,
     status: "Active",
+    archived: { $ne: true },
     startDate: { $lte: now },
     endDate: { $gte: now },
     $expr: servableBudgetExpr(now),
@@ -110,6 +121,7 @@ export const getActiveCampaignsForProducts = async (
   const candidates = await Campaign.find({
     "products.product": { $in: productIds },
     status: "Active",
+    archived: { $ne: true },
     startDate: { $lte: now },
     endDate: { $gte: now },
     $expr: servableBudgetExpr(now),
@@ -147,7 +159,11 @@ export const recordImpressions = (
   entries: { campaignId: mongoose.Types.ObjectId | string; productId: mongoose.Types.ObjectId | string }[]
 ): void => {
   if (entries.length === 0) return;
+  const day = istDayString();
   for (const { campaignId, productId } of entries) {
+    CampaignDailyStat.updateOne({ campaign: campaignId, day }, { $inc: { impressions: 1 } }, { upsert: true }).catch((err) =>
+      console.error("Failed to record daily ad impression:", err)
+    );
     Campaign.updateOne(
       { _id: campaignId, "products.product": productId },
       { $inc: { impressions: 1, "products.$.impressions": 1 } }
@@ -177,6 +193,9 @@ export const recordClick = async (productId: string): Promise<void> => {
     `AD-${campaign._id}-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
   );
   if (!charged) return;
+  CampaignDailyStat.updateOne({ campaign: campaign._id, day: istDayString(now) }, { $inc: { clicks: 1, spend: costPerClick } }, { upsert: true }).catch((err) =>
+    console.error("Failed to record daily ad click:", err)
+  );
 
   // Reset today's spend (campaign-wide and per-product) if this is the first
   // click of a new Indian day.
@@ -202,6 +221,7 @@ export const recordClick = async (productId: string): Promise<void> => {
   // resumes automatically tomorrow instead of staying paused forever.
   if (campaign.spend >= campaign.totalBudget) {
     campaign.status = "Paused";
+    campaign.history = [...(campaign.history || []), { at: new Date(), action: "Paused automatically", detail: "Total budget used" }].slice(-100);
   }
 
   await campaign.save();
@@ -390,4 +410,100 @@ export const completeExpiredCampaigns = async (): Promise<void> => {
     { status: { $in: ["Active", "Paused"] }, endDate: { $lt: new Date() } },
     { status: "Completed" }
   ).catch((err) => console.error("Failed to auto-complete expired campaigns:", err));
+};
+
+export interface AnalyticsRow {
+  day: string;
+  impressions: number;
+  clicks: number;
+  spend: number;
+  orders: number;
+  revenue: number;
+}
+
+/**
+ * Daily performance for a seller's campaigns (all, or one) over the last `days`
+ * India days. Impressions, clicks and spend come from the per-day counters kept
+ * since daily tracking began; orders and revenue are read live from sales of the
+ * campaigns' products, like the per-campaign numbers.
+ */
+export const campaignAnalytics = async (sellerId: string, days: number, campaignId?: string) => {
+  const span = Math.min(180, Math.max(1, Math.floor(days) || 30));
+  const campaigns = await Campaign.find({ seller: sellerId, ...(campaignId ? { _id: campaignId } : {}) })
+    .select("products.product")
+    .lean();
+  const campaignIds = campaigns.map((c: any) => c._id);
+  const productIds = [...new Set(campaigns.flatMap((c: any) => c.products.map((p: any) => String(p.product))))].map(
+    (id) => new mongoose.Types.ObjectId(id),
+  );
+
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const today = new Date();
+  const dayList: string[] = [];
+  for (let i = span - 1; i >= 0; i--) dayList.push(istDayString(new Date(today.getTime() - i * DAY_MS)));
+  const fromDay = dayList[0];
+  const fromInstant = new Date(new Date(`${fromDay}T00:00:00Z`).getTime() - IST_OFFSET_MS);
+
+  const [stats, sales] = await Promise.all([
+    campaignIds.length ? CampaignDailyStat.find({ campaign: { $in: campaignIds }, day: { $gte: fromDay } }).lean() : [],
+    productIds.length
+      ? OrderItem.aggregate([
+          {
+            $match: {
+              seller: new mongoose.Types.ObjectId(sellerId),
+              product: { $in: productIds },
+              status: { $ne: "Cancelled" },
+              createdAt: { $gte: fromInstant },
+            },
+          },
+          {
+            $group: {
+              _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: "Asia/Kolkata" } },
+              orders: { $sum: 1 },
+              revenue: { $sum: "$total" },
+            },
+          },
+        ])
+      : [],
+  ]);
+
+  const byDay = new Map<string, AnalyticsRow>(dayList.map((d) => [d, { day: d, impressions: 0, clicks: 0, spend: 0, orders: 0, revenue: 0 }]));
+  for (const s of stats as any[]) {
+    const row = byDay.get(s.day);
+    if (!row) continue;
+    row.impressions += s.impressions || 0;
+    row.clicks += s.clicks || 0;
+    row.spend += s.spend || 0;
+  }
+  for (const s of sales as any[]) {
+    const row = byDay.get(s._id);
+    if (!row) continue;
+    row.orders += s.orders;
+    row.revenue += s.revenue;
+  }
+
+  const series = dayList.map((d) => {
+    const r = byDay.get(d)!;
+    return { ...r, spend: Math.round(r.spend * 100) / 100, revenue: Math.round(r.revenue * 100) / 100 };
+  });
+  const sum = (k: keyof AnalyticsRow) => series.reduce((a, r) => a + (r[k] as number), 0);
+  const impressions = sum("impressions");
+  const clicks = sum("clicks");
+  const spend = sum("spend");
+  const orders = sum("orders");
+  const revenue = sum("revenue");
+  return {
+    days: span,
+    series,
+    totals: {
+      impressions,
+      clicks,
+      spend: Math.round(spend * 100) / 100,
+      orders,
+      revenue: Math.round(revenue * 100) / 100,
+      ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+      conversionRate: clicks > 0 ? (orders / clicks) * 100 : 0,
+      roas: spend > 0 ? revenue / spend : 0,
+    },
+  };
 };

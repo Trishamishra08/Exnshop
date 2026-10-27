@@ -9,8 +9,22 @@ export interface ICampaignProduct {
   clicks: number;
 }
 
+export interface ICampaignHistoryEntry {
+  at: Date;
+  action: string;
+  detail?: string;
+}
+
 export interface ICampaign extends Document {
   seller: mongoose.Types.ObjectId;
+  /** Seller-chosen label, so campaigns are told apart without reading product lists. */
+  name?: string;
+  /** The campaign runs until the seller stops it (endDate is parked far in the future). */
+  noEndDate?: boolean;
+  /** Hidden from the default list and never served; kept for its history and numbers. */
+  archived?: boolean;
+  /** Newest last, capped at 100 entries. */
+  history?: ICampaignHistoryEntry[];
   /** Several products/catalogs, each with its own seller-set CPC bid —
    *  like Meesho's "Create Campaign" screen. One campaign, one shared
    *  Daily/Total Budget pool, many products. */
@@ -53,6 +67,15 @@ const CampaignProductSchema = new Schema<ICampaignProduct>(
 
 const CampaignSchema = new Schema<ICampaign>(
   {
+    name: { type: String, trim: true, maxlength: 80 },
+    noEndDate: { type: Boolean, default: false },
+    archived: { type: Boolean, default: false },
+    history: {
+      type: [
+        new Schema({ at: { type: Date, default: Date.now }, action: { type: String, required: true }, detail: { type: String } }, { _id: false }),
+      ],
+      default: [],
+    },
     seller: {
       type: Schema.Types.ObjectId,
       ref: "Seller",

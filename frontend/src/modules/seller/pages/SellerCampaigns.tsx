@@ -1,14 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
     getMyCampaigns,
     createCampaign,
     updateCampaignStatus,
     deleteCampaign,
+    archiveCampaign,
     Campaign,
 } from '../../../services/api/campaignService';
 import { getProducts, Product } from '../../../services/api/productService';
 import { useToast } from '../../../context/ToastContext';
 import ProductMultiSelect, { SelectedProductBid } from '../components/ProductMultiSelect';
+import CampaignPerformance from '../components/CampaignPerformance';
+
+type Preset = 'all' | 'noSales' | 'noImpressions' | 'topSales';
+const PRESETS: { key: Preset; label: string }[] = [
+    { key: 'all', label: 'All campaigns' },
+    { key: 'noSales', label: 'Campaigns with no sales' },
+    { key: 'noImpressions', label: 'Campaigns with no impressions' },
+    { key: 'topSales', label: 'Sorted by sales' },
+];
 
 export default function SellerCampaigns() {
     const { showToast } = useToast();
@@ -19,6 +29,10 @@ export default function SellerCampaigns() {
     const [saving, setSaving] = useState(false);
     const [detailsCampaign, setDetailsCampaign] = useState<Campaign | null>(null);
     const [adFunds, setAdFunds] = useState<number | null>(null);
+    const [preset, setPreset] = useState<Preset>('all');
+    const [showArchived, setShowArchived] = useState(false);
+    const [name, setName] = useState('');
+    const [noEndDate, setNoEndDate] = useState(false);
 
     const [selectedProducts, setSelectedProducts] = useState<SelectedProductBid[]>([]);
     const [dailyBudget, setDailyBudget] = useState('');
@@ -29,7 +43,7 @@ export default function SellerCampaigns() {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const [campaignsRes, productsRes] = await Promise.all([getMyCampaigns(), getProducts({ status: 'Active' } as any)]);
+            const [campaignsRes, productsRes] = await Promise.all([getMyCampaigns(showArchived ? 'only' : undefined), getProducts({ status: 'Active' } as any)]);
             if (campaignsRes.success && campaignsRes.data) setCampaigns(campaignsRes.data);
             if (campaignsRes.adFunds !== undefined) setAdFunds(campaignsRes.adFunds);
             if (productsRes.success && productsRes.data) setProducts(productsRes.data);
@@ -42,9 +56,59 @@ export default function SellerCampaigns() {
 
     useEffect(() => {
         fetchData();
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showArchived]);
+
+    const visible = useMemo(() => {
+        const list = campaigns.filter((c) => {
+            if (preset === 'noSales') return (c.metrics?.overall.orders || 0) === 0;
+            if (preset === 'noImpressions') return c.impressions === 0;
+            return true;
+        });
+        return preset === 'topSales' ? [...list].sort((a, b) => (b.metrics?.overall.revenue || 0) - (a.metrics?.overall.revenue || 0)) : list;
+    }, [campaigns, preset]);
+
+    const exportCsv = () => {
+        const header = ['Name', 'Products', 'Status', 'Start', 'End', 'Daily budget', 'Total budget', 'Spend', 'Impressions', 'Clicks', 'CTR %', 'Orders', 'Conversion %', 'Revenue', 'ROAS'];
+        const rows = visible.map((c) => [
+            c.name || '',
+            getProductsLabel(c),
+            c.status,
+            new Date(c.startDate).toLocaleString('en-GB'),
+            c.noEndDate ? 'No end date' : new Date(c.endDate).toLocaleString('en-GB'),
+            c.dailyBudget,
+            c.totalBudget,
+            c.spend.toFixed(2),
+            c.impressions,
+            c.clicks,
+            (c.metrics?.overall.ctr || 0).toFixed(2),
+            c.metrics?.overall.orders || 0,
+            (c.metrics?.overall.conversionRate || 0).toFixed(2),
+            (c.metrics?.overall.revenue || 0).toFixed(2),
+            (c.metrics?.overall.roas || 0).toFixed(2),
+        ]);
+        const csv = [header, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `campaigns-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleArchive = async (c: Campaign) => {
+        try {
+            const res = await archiveCampaign(c._id, !c.archived);
+            showToast(res.message || (c.archived ? 'Campaign restored' : 'Campaign archived'), 'success');
+            fetchData();
+        } catch (err: any) {
+            showToast(err.response?.data?.message || 'Could not update the campaign', 'error');
+        }
+    };
 
     const openCreateModal = () => {
+        setName('');
+        setNoEndDate(false);
         setSelectedProducts([]);
         setDailyBudget('');
         setTotalBudget('');
@@ -56,7 +120,7 @@ export default function SellerCampaigns() {
     };
 
     const handleCreate = async () => {
-        if (selectedProducts.length === 0 || !dailyBudget || !totalBudget || !startDate || !endDate) {
+        if (selectedProducts.length === 0 || !dailyBudget || !totalBudget || !startDate || (!endDate && !noEndDate)) {
             showToast('Select at least one product and fill all fields', 'error');
             return;
         }
@@ -68,11 +132,13 @@ export default function SellerCampaigns() {
         try {
             setSaving(true);
             const response = await createCampaign({
+                name: name.trim() || undefined,
+                noEndDate,
                 products: selectedProducts.map((p) => ({ productId: p.productId, cpcBid: Number(p.cpcBid) })),
                 dailyBudget: Number(dailyBudget),
                 totalBudget: Number(totalBudget),
                 startDate,
-                endDate,
+                endDate: noEndDate ? undefined : endDate,
             });
             if (response.success) {
                 showToast('Campaign created as Draft', 'success');
@@ -171,10 +237,37 @@ export default function SellerCampaigns() {
                     </div>
                 )}
 
+                <CampaignPerformance />
+
+                <div className="px-4 sm:px-6 py-3 border-b border-neutral-200 flex flex-wrap items-center gap-2">
+                    {PRESETS.map((p) => (
+                        <button
+                            key={p.key}
+                            onClick={() => setPreset(p.key)}
+                            className={`px-3 py-1 rounded-full text-xs font-semibold border ${preset === p.key ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-neutral-300 text-neutral-600 hover:bg-neutral-50'}`}
+                        >
+                            {p.label}
+                        </button>
+                    ))}
+                    <label className="ml-auto flex items-center gap-1.5 text-xs text-neutral-600 cursor-pointer">
+                        <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+                        Show archived only
+                    </label>
+                    <button
+                        onClick={exportCsv}
+                        disabled={visible.length === 0}
+                        className="px-3 py-1 rounded-full text-xs font-semibold border border-teal-600 text-teal-700 hover:bg-teal-50 disabled:opacity-40"
+                    >
+                        Export CSV
+                    </button>
+                </div>
+
                 {loading ? (
                     <div className="p-8 text-center text-neutral-500">Loading campaigns...</div>
                 ) : campaigns.length === 0 ? (
-                    <div className="p-12 text-center text-neutral-400">No campaigns yet. Create one to start promoting your products.</div>
+                    <div className="p-12 text-center text-neutral-400">{showArchived ? 'No archived campaigns.' : 'No campaigns yet. Create one to start promoting your products.'}</div>
+                ) : visible.length === 0 ? (
+                    <div className="p-12 text-center text-neutral-400">No campaigns match this filter.</div>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
@@ -196,16 +289,17 @@ export default function SellerCampaigns() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {campaigns.map((campaign) => (
+                                {visible.map((campaign) => (
                                     <tr key={campaign._id} className="hover:bg-neutral-50 transition-colors text-sm text-neutral-700 border-b border-neutral-200">
                                         <td className="p-4 align-middle font-medium max-w-[220px]">
                                             <button onClick={() => setDetailsCampaign(campaign)} className="text-left hover:underline">
-                                                {getProductsLabel(campaign)}
+                                                {campaign.name || getProductsLabel(campaign)}
                                             </button>
+                                            {campaign.name && <p className="text-[11px] font-normal text-neutral-400 truncate">{getProductsLabel(campaign)}</p>}
                                         </td>
                                         <td className="p-4 align-middle text-xs whitespace-nowrap">
                                             {fmtDateTime(campaign.startDate)}<br />
-                                            to {fmtDateTime(campaign.endDate)}
+                                            {campaign.noEndDate ? 'No end date' : `to ${fmtDateTime(campaign.endDate)}`}
                                         </td>
                                         <td className="p-4 align-middle text-xs">₹{campaign.dailyBudget}/day<br />₹{campaign.totalBudget} total</td>
                                         <td className="p-4 align-middle">₹{campaign.spend.toFixed(0)}</td>
@@ -225,6 +319,14 @@ export default function SellerCampaigns() {
                                                         className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-medium rounded transition-colors"
                                                     >
                                                         {campaign.status === 'Active' ? 'Pause' : 'Activate'}
+                                                    </button>
+                                                )}
+                                                {campaign.status !== 'Active' && (
+                                                    <button
+                                                        onClick={() => handleArchive(campaign)}
+                                                        className="px-2 py-1.5 text-neutral-600 hover:bg-neutral-100 text-xs font-medium rounded transition-colors"
+                                                    >
+                                                        {campaign.archived ? 'Restore' : 'Archive'}
                                                     </button>
                                                 )}
                                                 {campaign.status !== 'Active' && campaign.status !== 'Completed' && (
@@ -253,6 +355,10 @@ export default function SellerCampaigns() {
                         </div>
                         <div className="p-6 space-y-4">
                             <div>
+                                <label className="block text-sm font-medium text-neutral-700 mb-1">Campaign name <span className="text-xs text-neutral-400">(optional)</span></label>
+                                <input type="text" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} placeholder="e.g. Diwali kurta sale" className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500" />
+                            </div>
+                            <div>
                                 <label className="block text-sm font-medium text-neutral-700 mb-1">Select Products &amp; Set Bids</label>
                                 <ProductMultiSelect products={products} selected={selectedProducts} onChange={setSelectedProducts} />
                                 {products.length === 0 && (
@@ -274,7 +380,11 @@ export default function SellerCampaigns() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-neutral-700 mb-1">End (date &amp; time)</label>
-                                    <input type="datetime-local" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500" />
+                                    <input type="datetime-local" value={endDate} disabled={noEndDate} onChange={(e) => setEndDate(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 disabled:bg-neutral-100 disabled:text-neutral-400" />
+                                    <label className="mt-1.5 flex items-center gap-1.5 text-xs text-neutral-600 cursor-pointer">
+                                        <input type="checkbox" checked={noEndDate} onChange={(e) => setNoEndDate(e.target.checked)} />
+                                        No end date (runs until I stop it)
+                                    </label>
                                 </div>
                             </div>
                             <p className="text-xs text-neutral-400">
@@ -295,9 +405,10 @@ export default function SellerCampaigns() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4" onClick={() => setDetailsCampaign(null)}>
                     <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
                         <div className="bg-teal-600 text-white px-6 py-4 rounded-t-lg flex items-center justify-between sticky top-0">
-                            <h3 className="text-lg font-semibold">Per-Product Performance</h3>
+                            <h3 className="text-lg font-semibold">{detailsCampaign.name || 'Campaign'} — Performance</h3>
                             <button onClick={() => setDetailsCampaign(null)} className="text-teal-100 hover:text-white text-sm">Close</button>
                         </div>
+                        <CampaignPerformance campaignId={detailsCampaign._id} />
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse">
                                 <thead>
@@ -329,6 +440,21 @@ export default function SellerCampaigns() {
                                     })}
                                 </tbody>
                             </table>
+                        </div>
+                        <div className="px-6 py-4 border-t border-neutral-200">
+                            <h4 className="text-sm font-bold text-neutral-800 mb-2">History</h4>
+                            {(detailsCampaign.history || []).length === 0 ? (
+                                <p className="text-xs text-neutral-400">No changes recorded yet.</p>
+                            ) : (
+                                <ul className="space-y-1.5 max-h-48 overflow-y-auto">
+                                    {[...(detailsCampaign.history || [])].reverse().map((h, i) => (
+                                        <li key={i} className="text-xs text-neutral-600 flex gap-3">
+                                            <span className="text-neutral-400 whitespace-nowrap">{new Date(h.at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                                            <span><b className="text-neutral-800">{h.action}</b>{h.detail ? ` · ${h.detail}` : ''}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                         </div>
                     </div>
                 </div>

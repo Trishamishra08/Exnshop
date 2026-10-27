@@ -10,6 +10,8 @@ import {
   getServingState,
   getSellerAdFunds,
   parseCampaignDate,
+  pushHistory,
+  campaignAnalytics,
 } from "../../../services/campaignService";
 
 interface ProductBidInput {
@@ -19,7 +21,9 @@ interface ProductBidInput {
 
 export const createCampaign = asyncHandler(async (req: Request, res: Response) => {
   const sellerId = (req as any).user.userId;
-  const { products, dailyBudget, totalBudget, startDate, endDate } = req.body as {
+  const { name, noEndDate, products, dailyBudget, totalBudget, startDate, endDate } = req.body as {
+    name?: string;
+    noEndDate?: boolean;
     products: ProductBidInput[];
     dailyBudget: number;
     totalBudget: number;
@@ -27,7 +31,7 @@ export const createCampaign = asyncHandler(async (req: Request, res: Response) =
     endDate: string;
   };
 
-  if (!Array.isArray(products) || products.length === 0 || !dailyBudget || !totalBudget || !startDate || !endDate) {
+  if (!Array.isArray(products) || products.length === 0 || !dailyBudget || !totalBudget || !startDate || (!endDate && !noEndDate)) {
     return res.status(400).json({
       success: false,
       message: "products (at least one), dailyBudget, totalBudget, startDate and endDate are required",
@@ -53,7 +57,7 @@ export const createCampaign = asyncHandler(async (req: Request, res: Response) =
   }
 
   const start = parseCampaignDate(startDate, "start");
-  const end = parseCampaignDate(endDate, "end");
+  const end = noEndDate ? new Date("2099-12-31T23:59:59.999+05:30") : parseCampaignDate(endDate, "end");
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
     return res.status(400).json({ success: false, message: "Invalid start or end date" });
   }
@@ -82,6 +86,9 @@ export const createCampaign = asyncHandler(async (req: Request, res: Response) =
 
   const campaign = await Campaign.create({
     seller: sellerId,
+    name: name?.trim() || undefined,
+    noEndDate: Boolean(noEndDate),
+    history: [{ at: new Date(), action: "Created", detail: `${products.length} product(s), ₹${Number(dailyBudget)}/day, ₹${Number(totalBudget)} total` }],
     products: products.map((p) => ({
       product: p.productId,
       cpcBid: Number(p.cpcBid),
@@ -108,7 +115,9 @@ export const getMyCampaigns = asyncHandler(async (req: Request, res: Response) =
   const sellerId = (req as any).user.userId;
   await completeExpiredCampaigns();
 
-  const campaigns = await Campaign.find({ seller: sellerId })
+  const archivedParam = String(req.query.archived || "");
+  const archivedFilter = archivedParam === "only" ? { archived: true } : archivedParam === "all" ? {} : { archived: { $ne: true } };
+  const campaigns = await Campaign.find({ seller: sellerId, ...archivedFilter })
     .populate("products.product", "productName mainImage price")
     .sort({ createdAt: -1 });
 
@@ -132,7 +141,9 @@ export const getMyCampaigns = asyncHandler(async (req: Request, res: Response) =
 export const updateCampaign = asyncHandler(async (req: Request, res: Response) => {
   const sellerId = (req as any).user.userId;
   const { id } = req.params;
-  const { dailyBudget, totalBudget, startDate, endDate, products } = req.body as {
+  const { name, noEndDate, dailyBudget, totalBudget, startDate, endDate, products } = req.body as {
+    name?: string;
+    noEndDate?: boolean;
     dailyBudget?: number;
     totalBudget?: number;
     startDate?: string;
@@ -199,7 +210,14 @@ export const updateCampaign = asyncHandler(async (req: Request, res: Response) =
     });
   }
 
+  if (name !== undefined) campaign.name = name.trim() || undefined;
+  if (noEndDate !== undefined) {
+    campaign.noEndDate = Boolean(noEndDate);
+    if (noEndDate) campaign.endDate = new Date("2099-12-31T23:59:59.999+05:30");
+  }
+
   await campaign.save();
+  pushHistory(campaign._id, "Edited", [name !== undefined && "name", dailyBudget !== undefined && "daily budget", totalBudget !== undefined && "total budget", (startDate !== undefined || endDate !== undefined || noEndDate !== undefined) && "dates", products !== undefined && "products and bids"].filter(Boolean).join(", ") || undefined);
 
   return res.status(200).json({
     success: true,
@@ -252,14 +270,39 @@ export const updateCampaignStatus = asyncHandler(async (req: Request, res: Respo
     }
   }
 
+  if (status === "Active" && campaign.archived) {
+    return res.status(400).json({ success: false, message: "Restore this campaign from the archive before activating it." });
+  }
+
   campaign.status = status;
   await campaign.save();
+  pushHistory(campaign._id, status === "Active" ? "Activated" : "Paused", "By seller");
 
   return res.status(200).json({
     success: true,
     message: `Campaign ${status === "Active" ? "activated" : "paused"}`,
     data: campaign,
   });
+});
+
+/** Hide a campaign from the default list (and stop it); restore brings it back as Paused. */
+export const archiveCampaign = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = (req as any).user.userId;
+  const archive = req.body?.archived !== false;
+  const campaign = await Campaign.findOne({ _id: req.params.id, seller: sellerId });
+  if (!campaign) return res.status(404).json({ success: false, message: "Campaign not found" });
+  campaign.archived = archive;
+  if (archive && campaign.status === "Active") campaign.status = "Paused";
+  await campaign.save();
+  pushHistory(campaign._id, archive ? "Archived" : "Restored from archive");
+  return res.status(200).json({ success: true, message: archive ? "Campaign archived" : "Campaign restored", data: campaign });
+});
+
+/** Daily performance over the last N days, for all campaigns or one. */
+export const getCampaignAnalytics = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = (req as any).user.userId;
+  const data = await campaignAnalytics(sellerId, Number(req.query.days) || 30, (req.query.campaignId as string) || undefined);
+  return res.status(200).json({ success: true, data });
 });
 
 export const deleteCampaign = asyncHandler(async (req: Request, res: Response) => {
