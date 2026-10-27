@@ -279,6 +279,7 @@ router.post("/wallet/withdrawal/process", walletController.processWithdrawalWrap
 router.put("/withdrawals/:id/approve", withdrawalController.approveWithdrawal);
 router.put("/withdrawals/:id/reject", withdrawalController.rejectWithdrawal);
 router.put("/withdrawals/:id/complete", withdrawalController.completeWithdrawal);
+router.post("/withdrawals/:id/pay-razorpay", withdrawalController.payWithdrawalViaRazorpayX);
 
 
 

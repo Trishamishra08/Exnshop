@@ -6,6 +6,7 @@ import WithdrawRequest from "../../../models/WithdrawRequest";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import {
   approveWithdrawal,
+  payWithdrawalViaRazorpayX,
   rejectWithdrawal,
   completeWithdrawal,
 } from "./adminWithdrawalController";
@@ -295,6 +296,8 @@ export const processWithdrawalWrapper = asyncHandler(
     } else if (action === "Reject") {
       req.body.remarks = remark; // Map 'remark' to 'remarks'
       return rejectWithdrawal(req, res);
+    } else if (action === "PayRazorpay") {
+      return payWithdrawalViaRazorpayX(req, res);
     } else if (action === "Complete") {
       if (!transactionReference) {
         return res.status(400).json({

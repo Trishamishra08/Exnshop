@@ -7,6 +7,9 @@ import {
   completeExpiredCampaigns,
   getBidCompetitiveness,
   getSuggestedMinimumCpc,
+  getServingState,
+  getSellerAdFunds,
+  parseCampaignDate,
 } from "../../../services/campaignService";
 
 interface ProductBidInput {
@@ -49,11 +52,32 @@ export const createCampaign = asyncHandler(async (req: Request, res: Response) =
     });
   }
 
-  if (new Date(endDate) <= new Date(startDate)) {
+  const start = parseCampaignDate(startDate, "start");
+  const end = parseCampaignDate(endDate, "end");
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return res.status(400).json({ success: false, message: "Invalid start or end date" });
+  }
+  if (end <= start) {
     return res.status(400).json({
       success: false,
       message: "End date must be after start date",
     });
+  }
+  if (end <= new Date()) {
+    return res.status(400).json({ success: false, message: "End date must be in the future" });
+  }
+  if (Number(dailyBudget) <= 0 || Number(totalBudget) <= 0) {
+    return res.status(400).json({ success: false, message: "Daily and total budget must be more than 0" });
+  }
+  if (Number(dailyBudget) > Number(totalBudget)) {
+    return res.status(400).json({ success: false, message: "Daily budget cannot be more than the total budget" });
+  }
+  const minBid = Math.min(...products.map((p) => Number(p.cpcBid)));
+  if (minBid <= 0) {
+    return res.status(400).json({ success: false, message: "Cost per click must be more than 0" });
+  }
+  if (minBid > Number(dailyBudget)) {
+    return res.status(400).json({ success: false, message: "Daily budget must cover at least one click of every product" });
   }
 
   const campaign = await Campaign.create({
@@ -68,8 +92,8 @@ export const createCampaign = asyncHandler(async (req: Request, res: Response) =
     })),
     dailyBudget: Number(dailyBudget),
     totalBudget: Number(totalBudget),
-    startDate,
-    endDate,
+    startDate: start,
+    endDate: end,
     status: "Draft",
   });
 
@@ -88,10 +112,12 @@ export const getMyCampaigns = asyncHandler(async (req: Request, res: Response) =
     .populate("products.product", "productName mainImage price")
     .sort({ createdAt: -1 });
 
+  const funds = await getSellerAdFunds(sellerId);
   const withMetrics = await Promise.all(
     campaigns.map(async (c) => ({
       ...c.toObject(),
       metrics: await computeCampaignMetrics(c),
+      servingState: getServingState(c, funds),
     }))
   );
 
@@ -99,6 +125,7 @@ export const getMyCampaigns = asyncHandler(async (req: Request, res: Response) =
     success: true,
     message: "Campaigns fetched successfully",
     data: withMetrics,
+    adFunds: funds,
   });
 });
 
@@ -126,8 +153,14 @@ export const updateCampaign = asyncHandler(async (req: Request, res: Response) =
 
   if (dailyBudget !== undefined) campaign.dailyBudget = Number(dailyBudget);
   if (totalBudget !== undefined) campaign.totalBudget = Number(totalBudget);
-  if (startDate !== undefined) campaign.startDate = new Date(startDate);
-  if (endDate !== undefined) campaign.endDate = new Date(endDate);
+  if (startDate !== undefined) campaign.startDate = parseCampaignDate(startDate, "start");
+  if (endDate !== undefined) campaign.endDate = parseCampaignDate(endDate, "end");
+  if (campaign.endDate <= campaign.startDate) {
+    return res.status(400).json({ success: false, message: "End date must be after start date" });
+  }
+  if (campaign.dailyBudget > campaign.totalBudget) {
+    return res.status(400).json({ success: false, message: "Daily budget cannot be more than the total budget" });
+  }
 
   if (products !== undefined) {
     if (!Array.isArray(products) || products.length === 0) {
@@ -203,6 +236,20 @@ export const updateCampaignStatus = asyncHandler(async (req: Request, res: Respo
       success: false,
       message: "This campaign's total budget is exhausted. Increase the budget before reactivating.",
     });
+  }
+
+  if (status === "Active") {
+    if (campaign.endDate <= new Date()) {
+      return res.status(400).json({ success: false, message: "This campaign's end date has passed. Edit the dates first." });
+    }
+    const funds = await getSellerAdFunds(sellerId);
+    const minBid = Math.min(...campaign.products.map((p) => p.cpcBid));
+    if (funds < minBid) {
+      return res.status(400).json({
+        success: false,
+        message: `Ad clicks are charged from your payout. Your payout balance (₹${funds.toFixed(2)}) can't cover a ₹${minBid} click yet.`,
+      });
+    }
   }
 
   campaign.status = status;

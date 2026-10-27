@@ -63,6 +63,20 @@ export default function AdminWithdrawals() {
         }
     };
 
+    const handlePayRazorpay = async (id: string) => {
+        try {
+            setIsProcessing(true);
+            const response = await processWithdrawal({ requestId: id, action: 'PayRazorpay' });
+            showToast(response.message || 'Payout started', response.success ? 'success' : 'error');
+            fetchWithdrawals();
+        } catch (error: any) {
+            showToast(error.response?.data?.message || 'Failed to start payout', 'error');
+            fetchWithdrawals();
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
     const handleRejectSubmit = async (remarks: string) => {
         if (!rejectModal.requestId) return;
         const id = rejectModal.requestId;
@@ -121,7 +135,7 @@ export default function AdminWithdrawals() {
         <div className="max-w-7xl mx-auto">
             {/* Filters */}
             <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-                {['all', 'Pending', 'Approved', 'Completed', 'Rejected'].map((status) => (
+                {['all', 'Pending', 'Approved', 'Processing', 'Completed', 'Rejected'].map((status) => (
                     <button
                         key={status}
                         onClick={() => setFilter(status)}
@@ -174,6 +188,8 @@ export default function AdminWithdrawals() {
                                             ? 'bg-green-100 text-green-700'
                                             : withdrawal.status === 'Approved'
                                                 ? 'bg-blue-100 text-blue-700'
+                                                : withdrawal.status === 'Processing'
+                                                ? 'bg-indigo-100 text-indigo-700'
                                                 : withdrawal.status === 'Rejected'
                                                     ? 'bg-red-100 text-red-700'
                                                     : 'bg-yellow-100 text-yellow-700'
@@ -255,17 +271,37 @@ export default function AdminWithdrawals() {
                                 </div>
                             )}
 
+                            {withdrawal.payoutFailureReason && withdrawal.status === 'Approved' && (
+                                <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                                    <p className="text-xs text-amber-700 uppercase tracking-wide mb-1">Last payout attempt failed</p>
+                                    <p className="text-sm text-amber-900">{withdrawal.payoutFailureReason}</p>
+                                </div>
+                            )}
+
+                            {withdrawal.status === 'Processing' && (
+                                <div className="mt-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-900">
+                                    Payout sent to Razorpay{withdrawal.payoutStatus ? ` (${withdrawal.payoutStatus})` : ''}. This updates automatically when the bank confirms.
+                                </div>
+                            )}
+
                             {withdrawal.status === 'Approved' && (
-                                <div className="mt-4 border-t pt-4">
+                                <div className="mt-4 border-t pt-4 flex flex-col sm:flex-row gap-3">
+                                    <button
+                                        onClick={() => handlePayRazorpay(withdrawal._id || withdrawal.id)}
+                                        disabled={isProcessing}
+                                        className="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50"
+                                    >
+                                        Pay via Razorpay
+                                    </button>
                                     <button
                                         onClick={() => {
                                             setSelectedWithdrawal(withdrawal);
                                             setShowCompleteModal(true);
                                         }}
                                         disabled={isProcessing}
-                                        className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
+                                        className="flex-1 bg-white text-blue-700 border border-blue-200 py-2 rounded-lg font-medium hover:bg-blue-50 transition disabled:opacity-50"
                                     >
-                                        Mark as Completed
+                                        Mark as Paid (manual)
                                     </button>
                                 </div>
                             )}

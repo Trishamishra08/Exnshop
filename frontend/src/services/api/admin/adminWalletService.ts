@@ -33,11 +33,13 @@ export interface WithdrawalRequest {
   userEmail: string;
   amount: number;
   requestDate: string;
-  status: "Pending" | "Approved" | "Rejected";
+  status: "Pending" | "Approved" | "Processing" | "Rejected" | "Completed";
   paymentMethod: string;
   accountDetails: string;
   remark?: string;
   transactionReference?: string;
+  payoutStatus?: string;
+  payoutFailureReason?: string;
 }
 
 export interface AdminEarning {
@@ -194,7 +196,7 @@ export const getWithdrawalRequests = async (params?: {
  */
 export const processWithdrawal = async (data: {
   requestId: string;
-  action: "Approve" | "Reject" | "Complete";
+  action: "Approve" | "Reject" | "Complete" | "PayRazorpay";
   remark?: string;
   transactionReference?: string;
 }): Promise<ApiResponse<any>> => {

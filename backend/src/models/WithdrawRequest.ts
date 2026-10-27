@@ -4,7 +4,10 @@ export interface IWithdrawRequest extends Document {
     userId: mongoose.Types.ObjectId; // Generic user reference (seller or delivery boy)
     userType: 'SELLER' | 'DELIVERY_BOY'; // Type of user
     amount: number;
-    status: 'Pending' | 'Approved' | 'Rejected' | 'Completed';
+    status: 'Pending' | 'Approved' | 'Processing' | 'Rejected' | 'Completed';
+    razorpayPayoutId?: string; // RazorpayX payout id once a payout has been created
+    payoutStatus?: string; // Last status reported by RazorpayX (queued, processing, processed, failed, reversed…)
+    payoutFailureReason?: string;
     paymentMethod: 'Bank Transfer' | 'UPI';
     accountDetails: string;
     upiId?: string;
@@ -35,9 +38,12 @@ const WithdrawRequestSchema = new Schema<IWithdrawRequest>(
         },
         status: {
             type: String,
-            enum: ['Pending', 'Approved', 'Rejected', 'Completed'],
+            enum: ['Pending', 'Approved', 'Processing', 'Rejected', 'Completed'],
             default: 'Pending',
         },
+        razorpayPayoutId: { type: String, trim: true, index: true, sparse: true },
+        payoutStatus: { type: String, trim: true },
+        payoutFailureReason: { type: String, trim: true },
         paymentMethod: {
             type: String,
             enum: ['Bank Transfer', 'UPI'],

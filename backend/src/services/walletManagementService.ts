@@ -8,7 +8,49 @@ import mongoose from "mongoose";
 import { payoutBlockReason } from "./sellerOnboardingService";
 
 export type WalletUserType = "SELLER" | "DELIVERY_BOY" | "CUSTOMER";
-export type WalletCategory = "COD_RETURN_REFUND" | "ORDER_CANCELLATION_REFUND" | "ORDER_PAYMENT" | "MANUAL_ADMIN_CREDIT" | "MANUAL_ADMIN_DEBIT" | "RTO_REVERSE_SHIPPING_DEBIT";
+export type WalletCategory = "COD_RETURN_REFUND" | "ORDER_CANCELLATION_REFUND" | "ORDER_PAYMENT" | "MANUAL_ADMIN_CREDIT" | "MANUAL_ADMIN_DEBIT" | "RTO_REVERSE_SHIPPING_DEBIT" | "AD_SPEND";
+
+/**
+ * Charge an ad click to a seller's payout. The seller's payout is their
+ * available balance plus earnings still on hold, so a click is allowed while
+ * that total covers it; if it pushes the available balance below zero, the
+ * shortfall is recovered automatically from the next settlement credited.
+ * Returns false (nothing charged) when the seller's payout can't cover it.
+ */
+export const chargeAdSpend = async (
+  sellerId: string,
+  amount: number,
+  description: string,
+  reference: string,
+): Promise<boolean> => {
+  if (amount <= 0) return true;
+  const updated = await Seller.findOneAndUpdate(
+    {
+      _id: sellerId,
+      $expr: {
+        $gte: [{ $add: [{ $ifNull: ["$balance", 0] }, { $ifNull: ["$onHoldBalance", 0] }] }, amount],
+      },
+    },
+    { $inc: { balance: -amount } },
+    { new: true },
+  ).select("balance");
+  if (!updated) return false;
+
+  const balanceAfter = updated.balance || 0;
+  await WalletTransaction.create({
+    userId: sellerId,
+    userType: "SELLER",
+    category: "AD_SPEND",
+    amount,
+    balanceBefore: balanceAfter + amount,
+    balanceAfter,
+    type: "Debit",
+    description,
+    status: "Completed",
+    reference,
+  });
+  return true;
+};
 
 /**
  * Credit wallet

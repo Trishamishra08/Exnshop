@@ -42,7 +42,16 @@ export interface Campaign {
     clicks: number;
     createdAt: string;
     metrics: CampaignMetricsResult;
+    servingState?: ServingState;
 }
+
+export type ServingState =
+    | "Running"
+    | "Scheduled"
+    | "DailyBudgetReached"
+    | "TotalBudgetReached"
+    | "LowPayoutBalance"
+    | "NotRunning";
 
 export interface ProductBidInput {
     productId: string;
@@ -66,8 +75,8 @@ export const createCampaign = async (data: {
     return response.data;
 };
 
-export const getMyCampaigns = async (): Promise<ApiResponse<Campaign[]>> => {
-    const response = await api.get<ApiResponse<Campaign[]>>("/campaigns/my");
+export const getMyCampaigns = async (): Promise<ApiResponse<Campaign[]> & { adFunds?: number }> => {
+    const response = await api.get<ApiResponse<Campaign[]> & { adFunds?: number }>("/campaigns/my");
     return response.data;
 };
 

@@ -586,7 +586,8 @@ export const processRefund = async (
 export const handleWebhook = async (
     body: any,
     signature: string,
-    io?: any
+    io?: any,
+    rawBody?: Buffer | string
 ): Promise<{ success: boolean; message: string }> => {
     try {
         const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
@@ -595,13 +596,17 @@ export const handleWebhook = async (
             throw new Error('Razorpay webhook secret not configured');
         }
 
-        // Verify webhook signature
+        // The signature covers the exact bytes Razorpay sent; a re-serialized
+        // copy of the parsed body can differ (key order, spacing) and fail.
+        const signedPayload = rawBody ?? JSON.stringify(body);
         const expectedSignature = crypto
             .createHmac('sha256', webhookSecret)
-            .update(JSON.stringify(body))
+            .update(signedPayload)
             .digest('hex');
 
-        if (expectedSignature !== signature) {
+        const expectedBuf = Buffer.from(expectedSignature);
+        const givenBuf = Buffer.from(String(signature || ''));
+        if (expectedBuf.length !== givenBuf.length || !crypto.timingSafeEqual(expectedBuf, givenBuf)) {
             throw new Error('Invalid webhook signature');
         }
 
@@ -635,6 +640,20 @@ export const handleWebhook = async (
             case 'order.paid':
                 // Acknowledged webhook events
                 console.log(`ℹ️ [Webhook] Acknowledged ${event} event cleanly.`);
+                break;
+
+            case 'payout.queued':
+            case 'payout.initiated':
+            case 'payout.processed':
+            case 'payout.updated':
+            case 'payout.rejected':
+            case 'payout.failed':
+            case 'payout.reversed':
+            case 'payout.cancelled':
+                if (body.payload?.payout?.entity) {
+                    const { handlePayoutWebhook } = await import('./razorpayPayoutService');
+                    await handlePayoutWebhook(event, body.payload.payout.entity);
+                }
                 break;
 
             default:

@@ -50,6 +50,20 @@ export const getAllWithdrawals = async (req: Request, res: Response) => {
 };
 
 /**
+ * Pay an approved withdrawal to the user's bank/UPI through RazorpayX.
+ */
+export const payWithdrawalViaRazorpayX = async (req: Request, res: Response) => {
+    try {
+        const { payWithdrawalViaRazorpay } = await import('../../../services/razorpayPayoutService');
+        const result = await payWithdrawalViaRazorpay(req.params.id, (req as any).user!.userId);
+        return res.status(result.success ? 200 : 400).json(result);
+    } catch (error: any) {
+        console.error('Error paying withdrawal via Razorpay:', error);
+        return res.status(500).json({ success: false, message: error.message || 'Failed to pay withdrawal' });
+    }
+};
+
+/**
  * Approve withdrawal request
  */
 export const approveWithdrawal = async (req: Request, res: Response) => {

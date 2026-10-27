@@ -3,6 +3,24 @@ import Campaign, { ICampaign, ICampaignProduct } from "../models/Campaign";
 import OrderItem from "../models/OrderItem";
 import AppSettings from "../models/AppSettings";
 import Product from "../models/Product";
+import Seller from "../models/Seller";
+import { chargeAdSpend } from "./walletManagementService";
+
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+/** Midnight India time for `now` — daily ad budgets reset on the Indian day, not the server's. */
+export const istDayStart = (now: Date = new Date()): Date => {
+  const ist = new Date(now.getTime() + IST_OFFSET_MS);
+  ist.setUTCHours(0, 0, 0, 0);
+  return new Date(ist.getTime() - IST_OFFSET_MS);
+};
+
+/** A seller's payout (available + on hold) must cover a click for their ad to be shown. */
+const fundsBySeller = async (campaigns: ICampaign[]): Promise<Map<string, number>> => {
+  const ids = [...new Set(campaigns.map((c) => c.seller.toString()))];
+  const sellers = await Seller.find({ _id: { $in: ids } }).select("balance onHoldBalance").lean();
+  return new Map(sellers.map((s: any) => [s._id.toString(), (s.balance || 0) + (s.onHoldBalance || 0)]));
+};
 
 export interface WinningCampaignEntry {
   campaign: ICampaign;
@@ -31,8 +49,7 @@ function isBetterEntry(
  * spend is effectively 0 — the campaign serves again each new day by itself.
  */
 const servableBudgetExpr = (now: Date) => {
-  const startOfToday = new Date(now);
-  startOfToday.setHours(0, 0, 0, 0);
+  const startOfToday = istDayStart(now);
   return {
     $and: [
       { $lt: ["$spend", "$totalBudget"] },
@@ -57,11 +74,13 @@ export const resolveWinningCampaignEntry = async (
     endDate: { $gte: now },
     $expr: servableBudgetExpr(now),
   });
+  const funds = await fundsBySeller(candidates);
 
   let best: WinningCampaignEntry | null = null;
   for (const campaign of candidates) {
     const entry = campaign.products.find((p) => p.product.toString() === productId.toString());
     if (!entry) continue;
+    if ((funds.get(campaign.seller.toString()) ?? 0) < entry.cpcBid) continue;
     if (
       !best ||
       isBetterEntry(
@@ -95,11 +114,14 @@ export const getActiveCampaignsForProducts = async (
     endDate: { $gte: now },
     $expr: servableBudgetExpr(now),
   });
+  const funds = await fundsBySeller(candidates);
 
   for (const campaign of candidates) {
+    const sellerFunds = funds.get(campaign.seller.toString()) ?? 0;
     for (const entry of campaign.products) {
       const pid = entry.product.toString();
       if (!idSet.has(pid)) continue;
+      if (sellerFunds < entry.cpcBid) continue;
       const existing = map.get(pid);
       if (
         !existing ||
@@ -147,10 +169,18 @@ export const recordClick = async (productId: string): Promise<void> => {
   const now = new Date();
   const costPerClick = productEntry.cpcBid;
 
+  // The click is paid from the seller's payout; if it can't be charged, it isn't counted.
+  const charged = await chargeAdSpend(
+    campaign.seller.toString(),
+    costPerClick,
+    `Ad click charge (campaign ${campaign._id.toString().slice(-6).toUpperCase()})`,
+    `AD-${campaign._id}-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
+  if (!charged) return;
+
   // Reset today's spend (campaign-wide and per-product) if this is the first
-  // click of a new day.
-  const isNewDay =
-    !campaign.lastSpendDate || campaign.lastSpendDate.toDateString() !== now.toDateString();
+  // click of a new Indian day.
+  const isNewDay = !campaign.lastSpendDate || campaign.lastSpendDate < istDayStart(now);
   if (isNewDay) {
     campaign.todaySpend = 0;
     campaign.lastSpendDate = now;
@@ -309,6 +339,46 @@ export const getBidCompetitiveness = async (
 export const getSuggestedMinimumCpc = async (): Promise<number> => {
   const settings = await AppSettings.findOne().select("adCostPerClick");
   return settings?.adCostPerClick ?? 2;
+};
+
+export type CampaignServingState =
+  | "Running"
+  | "Scheduled"
+  | "DailyBudgetReached"
+  | "TotalBudgetReached"
+  | "LowPayoutBalance"
+  | "NotRunning";
+
+/** Why an Active campaign is or isn't being shown right now, for the seller's screen. */
+export const getServingState = (campaign: ICampaign, sellerFunds: number, now: Date = new Date()): CampaignServingState => {
+  if (campaign.status !== "Active") return "NotRunning";
+  if (campaign.startDate > now) return "Scheduled";
+  if (campaign.spend >= campaign.totalBudget) return "TotalBudgetReached";
+  const spentToday = campaign.lastSpendDate && campaign.lastSpendDate >= istDayStart(now) ? campaign.todaySpend : 0;
+  if (spentToday >= campaign.dailyBudget) return "DailyBudgetReached";
+  const minBid = Math.min(...campaign.products.map((p) => p.cpcBid));
+  if (sellerFunds < minBid) return "LowPayoutBalance";
+  return "Running";
+};
+
+/**
+ * Parses a campaign start/end the seller entered. A full date-time is taken as
+ * given; a bare date (YYYY-MM-DD) means the start or end of that day in India.
+ */
+export const parseCampaignDate = (value: string, edge: "start" | "end"): Date => {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return new Date(`${value}T${edge === "start" ? "00:00:00.000" : "23:59:59.999"}+05:30`);
+  }
+  // A date-time with no timezone (from a datetime-local input) is India time.
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(value)) {
+    return new Date(`${value}${value.length === 16 ? ":00" : ""}+05:30`);
+  }
+  return new Date(value);
+};
+
+export const getSellerAdFunds = async (sellerId: string): Promise<number> => {
+  const seller = await Seller.findById(sellerId).select("balance onHoldBalance").lean();
+  return ((seller as any)?.balance || 0) + ((seller as any)?.onHoldBalance || 0);
 };
 
 /**

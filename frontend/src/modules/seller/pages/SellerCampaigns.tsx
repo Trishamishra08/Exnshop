@@ -18,6 +18,7 @@ export default function SellerCampaigns() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [saving, setSaving] = useState(false);
     const [detailsCampaign, setDetailsCampaign] = useState<Campaign | null>(null);
+    const [adFunds, setAdFunds] = useState<number | null>(null);
 
     const [selectedProducts, setSelectedProducts] = useState<SelectedProductBid[]>([]);
     const [dailyBudget, setDailyBudget] = useState('');
@@ -30,6 +31,7 @@ export default function SellerCampaigns() {
             setLoading(true);
             const [campaignsRes, productsRes] = await Promise.all([getMyCampaigns(), getProducts({ status: 'Active' } as any)]);
             if (campaignsRes.success && campaignsRes.data) setCampaigns(campaignsRes.data);
+            if (campaignsRes.adFunds !== undefined) setAdFunds(campaignsRes.adFunds);
             if (productsRes.success && productsRes.data) setProducts(productsRes.data);
         } catch (err) {
             showToast('Failed to load campaigns', 'error');
@@ -132,6 +134,21 @@ export default function SellerCampaigns() {
         return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${styles[status]}`}>{status}</span>;
     };
 
+    const servingNote = (campaign: Campaign) => {
+        const notes: Partial<Record<NonNullable<Campaign['servingState']>, { text: string; cls: string }>> = {
+            Running: { text: 'Showing now', cls: 'text-green-700' },
+            Scheduled: { text: 'Starts at the start time', cls: 'text-neutral-500' },
+            DailyBudgetReached: { text: "Today's budget used — resumes tomorrow", cls: 'text-amber-700' },
+            TotalBudgetReached: { text: 'Total budget used', cls: 'text-amber-700' },
+            LowPayoutBalance: { text: 'Payout balance too low to charge a click', cls: 'text-red-600' },
+        };
+        const note = campaign.servingState ? notes[campaign.servingState] : undefined;
+        return note ? <p className={`text-[11px] mt-1 leading-tight max-w-[140px] ${note.cls}`}>{note.text}</p> : null;
+    };
+
+    const fmtDateTime = (d: string) =>
+        new Date(d).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+
     return (
         <div className="flex flex-col h-full">
             <div className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
@@ -147,6 +164,12 @@ export default function SellerCampaigns() {
                         + New Campaign
                     </button>
                 </div>
+
+                {adFunds !== null && (
+                    <div className="px-4 sm:px-6 py-2.5 bg-amber-50 border-b border-amber-200 text-xs text-amber-900">
+                        Ad clicks are deducted from your payout. Payout available for ads: <b>₹{adFunds.toFixed(2)}</b> (wallet balance + earnings on hold).
+                    </div>
+                )}
 
                 {loading ? (
                     <div className="p-8 text-center text-neutral-500">Loading campaigns...</div>
@@ -181,8 +204,8 @@ export default function SellerCampaigns() {
                                             </button>
                                         </td>
                                         <td className="p-4 align-middle text-xs whitespace-nowrap">
-                                            {new Date(campaign.startDate).toLocaleDateString('en-GB')}<br />
-                                            to {new Date(campaign.endDate).toLocaleDateString('en-GB')}
+                                            {fmtDateTime(campaign.startDate)}<br />
+                                            to {fmtDateTime(campaign.endDate)}
                                         </td>
                                         <td className="p-4 align-middle text-xs">₹{campaign.dailyBudget}/day<br />₹{campaign.totalBudget} total</td>
                                         <td className="p-4 align-middle">₹{campaign.spend.toFixed(0)}</td>
@@ -193,7 +216,7 @@ export default function SellerCampaigns() {
                                         <td className="p-4 align-middle">{campaign.metrics?.overall.conversionRate.toFixed(1) || 0}%</td>
                                         <td className="p-4 align-middle">₹{campaign.metrics?.overall.revenue.toFixed(0) || 0}</td>
                                         <td className="p-4 align-middle">{campaign.metrics?.overall.roas.toFixed(2) || 0}x</td>
-                                        <td className="p-4 align-middle">{statusBadge(campaign.status)}</td>
+                                        <td className="p-4 align-middle">{statusBadge(campaign.status)}{servingNote(campaign)}</td>
                                         <td className="p-4 align-middle">
                                             <div className="flex items-center gap-2">
                                                 {(campaign.status === 'Active' || campaign.status === 'Paused' || campaign.status === 'Draft') && (
@@ -246,16 +269,16 @@ export default function SellerCampaigns() {
                                     <input type="number" min="0" value={totalBudget} onChange={(e) => setTotalBudget(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-neutral-700 mb-1">Start Date</label>
-                                    <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500" />
+                                    <label className="block text-sm font-medium text-neutral-700 mb-1">Start (date &amp; time)</label>
+                                    <input type="datetime-local" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-neutral-700 mb-1">End Date</label>
-                                    <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500" />
+                                    <label className="block text-sm font-medium text-neutral-700 mb-1">End (date &amp; time)</label>
+                                    <input type="datetime-local" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500" />
                                 </div>
                             </div>
                             <p className="text-xs text-neutral-400">
-                                This budget is shared across all selected products — whichever gets clicked draws from it. Campaigns are created as Draft — activate it from the list once you're ready to start spending.
+                                Pick one or more products. You pay only per click, at the cost-per-click you set for each product, and it is taken from your payout. Once the daily budget is used the ad pauses for that day and resumes the next day; the ad stops at the end time you set. Campaigns are created as Draft — activate from the list when ready.
                             </p>
                         </div>
                         <div className="px-6 py-4 border-t border-neutral-200 flex justify-end gap-2 sticky bottom-0 bg-white">
