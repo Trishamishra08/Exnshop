@@ -239,6 +239,9 @@ const AdminCourierManagement = lazyWithRetry(
 const AdminClaims = lazyWithRetry(
   () => import("./modules/admin/pages/AdminClaims"), "AdminClaims"
 );
+const AdminShippingMethodRequests = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminShippingMethodRequests"), "AdminShippingMethodRequests"
+);
 const AdminSupportTickets = lazyWithRetry(
   () => import("./modules/admin/pages/AdminSupportTickets"), "AdminSupportTickets"
 );
@@ -859,6 +862,10 @@ function App() {
                                       <Route
                                         path="support-tickets"
                                         element={<AdminSupportTickets />}
+                                      />
+                                      <Route
+                                        path="shipping-method-requests"
+                                        element={<AdminShippingMethodRequests />}
                                       />
                                       <Route
                                         path="campaigns"

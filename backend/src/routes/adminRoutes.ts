@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticate, requireUserType } from "../middleware/auth";
+import { getShippingMethodRequests, decideShippingMethod, setSellerShippingMethod } from "../modules/admin/controllers/adminShippingMethodController";
 
 // Dashboard Controllers
 import * as dashboardController from "../modules/admin/controllers/adminDashboardController";
@@ -339,6 +340,9 @@ router.delete("/policies/:id", policyController.deletePolicy);
 router.get("/sellers", sellerController.getAllSellers);
 
 // ==================== Courier/Logistics Routes ====================
+router.get("/shipping-method-requests", getShippingMethodRequests);
+router.post("/sellers/:sellerId/shipping-method/decision", decideShippingMethod);
+router.put("/sellers/:sellerId/shipping-method", setSellerShippingMethod);
 router.get("/couriers", courierController.getCouriers);
 router.get("/couriers/:id", courierController.getCourierById);
 router.post("/couriers", courierController.createCourier);

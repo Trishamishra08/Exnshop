@@ -40,6 +40,7 @@ import fcmTokenRoutes from "./fcmTokenRoutes";
 import paymentRoutes from "./paymentRoutes";
 import shiprocketRoutes from "./shiprocketRoutes";
 import sellerWalletRoutes from "./sellerWalletRoutes";
+import sellerShippingRoutes from "./sellerShippingRoutes";
 import deliveryWalletRoutes from "./deliveryWalletRoutes";
 import adminWithdrawalRoutes from "./adminWithdrawalRoutes";
 import adminTranslationRoutes from "./adminTranslationRoutes";
@@ -221,6 +222,7 @@ router.use("/webhooks", shiprocketRoutes);
 
 // Seller wallet routes (protected, seller only)
 router.use("/seller/wallet-new", authenticate, requireUserType("Seller"), sellerWalletRoutes);
+router.use("/seller/shipping", sellerShippingRoutes);
 
 // Delivery wallet routes (protected, delivery only)
 router.use("/delivery/wallet", authenticate, requireUserType("Delivery"), deliveryWalletRoutes);

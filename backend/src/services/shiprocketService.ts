@@ -268,7 +268,9 @@ interface ShiprocketOrderResult {
  * successful response without calling the real API.
  */
 export const createShiprocketOrder = async (
-  order: IOrder & { _id: any }
+  order: IOrder & { _id: any },
+  /** Only create shipments for these sellers (sellers who ship themselves are left out). */
+  onlySellerIds?: string[]
 ): Promise<ShiprocketOrderResult> => {
   if (isMockMode()) {
     console.warn(
@@ -279,6 +281,7 @@ export const createShiprocketOrder = async (
       isMock: true,
       shipments: [
         {
+          seller: onlySellerIds?.length === 1 ? onlySellerIds[0] : undefined,
           channelOrderId: order.orderNumber,
           pickupLocation: DEFAULT_PICKUP_LOCATION(),
           orderId: `mock_sr_order_${order._id}`,
@@ -290,8 +293,12 @@ export const createShiprocketOrder = async (
 
   const orderItems = await OrderItem.find({ _id: { $in: order.items } });
   const groups = new Map<string, typeof orderItems>();
+  // How many sellers the order really has — a seller who ships themselves is
+  // left out of `groups`, but the order is still multi-seller.
+  const sellerCountOnOrder = new Set(orderItems.map((i) => i.seller?.toString() || "unknown")).size;
   for (const item of orderItems) {
     const key = item.seller?.toString() || "unknown";
+    if (onlySellerIds && !onlySellerIds.includes(key)) continue;
     groups.set(key, [...(groups.get(key) || []), item]);
   }
 
@@ -301,7 +308,7 @@ export const createShiprocketOrder = async (
 
   for (const [sellerId, items] of groups) {
     index += 1;
-    const channelOrderId = groups.size === 1 ? order.orderNumber : `${order.orderNumber}-${index}`;
+    const channelOrderId = sellerCountOnOrder === 1 ? order.orderNumber : `${order.orderNumber}-${index}`;
 
     let pickupLocation = DEFAULT_PICKUP_LOCATION();
     if (sellerId !== "unknown") {
@@ -341,7 +348,7 @@ export const createShiprocketOrder = async (
         })),
         payment_method: order.paymentMethod === "COD" ? "COD" : "Prepaid",
         sub_total:
-          groups.size === 1
+          sellerCountOnOrder === 1
             ? order.subtotal
             : items.reduce((sum, item) => sum + (item.unitPrice || 0) * (item.quantity || 0), 0),
         ...parcel,

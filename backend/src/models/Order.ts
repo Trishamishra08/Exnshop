@@ -176,6 +176,8 @@ export interface IOrder extends Document {
     rtoRoutingCode?: string;
     pickupScheduledAt?: Date;
     awbAssignedAt?: Date;
+    /** "Self" = the seller booked their own courier (courierName + awbCode hold the courier and tracking number). */
+    provider?: "Shiprocket" | "Self";
   }>;
 
   // RTO (Return To Origin — courier tried to deliver, customer refused or was
@@ -601,6 +603,7 @@ const OrderSchema = new Schema<IOrder>(
         rtoRoutingCode: { type: String, trim: true },
         pickupScheduledAt: { type: Date },
         awbAssignedAt: { type: Date },
+        provider: { type: String, enum: ["Shiprocket", "Self"] },
       },
     ],
     rtoDetails: {

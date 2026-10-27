@@ -181,6 +181,24 @@ export interface ISeller extends Document {
   shiprocketPickupSyncedAt?: Date;
   shiprocketPickupSyncError?: string;
 
+  /**
+   * How this seller ships E-commerce orders: "Self" (seller books their own
+   * courier and enters the tracking number) or "Company" (Exnshop ships it via
+   * Shiprocket/other). Unset until chosen; unset behaves as "Company". The
+   * first choice applies immediately; any later change needs admin approval.
+   */
+  shippingMethod?: "Self" | "Company";
+  shippingMethodChosenAt?: Date;
+  shippingMethodRequest?: {
+    requestedMethod: "Self" | "Company";
+    reason?: string;
+    status: "Pending" | "Approved" | "Rejected";
+    requestedAt: Date;
+    decidedAt?: Date;
+    decidedBy?: string;
+    adminNote?: string;
+  };
+
   createdAt: Date;
   updatedAt: Date;
   // FCM Push Notification Tokens
@@ -518,6 +536,23 @@ const SellerSchema = new Schema<ISeller>(
     shiprocketPickupSignature: { type: String },
     shiprocketPickupSyncedAt: { type: Date },
     shiprocketPickupSyncError: { type: String },
+    shippingMethod: { type: String, enum: ["Self", "Company"] },
+    shippingMethodChosenAt: { type: Date },
+    shippingMethodRequest: {
+      type: new Schema(
+        {
+          requestedMethod: { type: String, enum: ["Self", "Company"], required: true },
+          reason: { type: String, trim: true, maxlength: 500 },
+          status: { type: String, enum: ["Pending", "Approved", "Rejected"], default: "Pending" },
+          requestedAt: { type: Date, default: Date.now },
+          decidedAt: { type: Date },
+          decidedBy: { type: String },
+          adminNote: { type: String, trim: true, maxlength: 500 },
+        },
+        { _id: false }
+      ),
+      default: undefined,
+    },
     // FCM Push Notification Tokens
     fcmTokens: {
       type: [String],

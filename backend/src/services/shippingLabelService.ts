@@ -1,6 +1,8 @@
 import Order from "../models/Order";
+import OrderItem from "../models/OrderItem";
 import Seller from "../models/Seller";
 import { assignAwbAndRequestPickup, createShiprocketOrder } from "./shiprocketService";
+import { companyShippedSellerIds, getSellerShippingMethod } from "./sellerShippingService";
 import { buildTaxInvoices, type TaxInvoice } from "./taxInvoiceService";
 
 /**
@@ -42,12 +44,21 @@ export const ensureOrderShipments = async (orderId: string): Promise<{ success: 
     const order: any = await Order.findById(orderId);
     if (!order) return { success: false, message: "Order not found" };
     if (order.channel !== "ECommerce") return { success: false, message: "Only E-commerce orders are shipped by courier" };
-    if ((order.shiprocketShipments || []).length > 0 || order.shiprocket?.shipmentId) return { success: true };
+    // Shipments a self-shipping seller entered don't count: those aren't on Shiprocket.
+    const selfEntries: any[] = (order.shiprocketShipments || []).filter((s: any) => s.provider === "Self");
+    const hasShiprocketShipment =
+      (order.shiprocketShipments || []).some((s: any) => s.provider !== "Self") || order.shiprocket?.shipmentId;
+    if (hasShiprocketShipment) return { success: true };
     if (order.paymentStatus !== "Paid" && order.paymentMethod !== "COD") {
       return { success: false, message: "The order's payment isn't complete yet." };
     }
 
-    const result = await createShiprocketOrder(order);
+    // Sellers who ship themselves get no Shiprocket shipment; only the rest do.
+    const sellerIds = [...new Set((await OrderItem.find({ order: order._id }).select("seller").lean()).map((i: any) => String(i.seller)))];
+    const companySellerIds = await companyShippedSellerIds(sellerIds);
+    if (companySellerIds.length === 0) return { success: true };
+
+    const result = await createShiprocketOrder(order, companySellerIds);
     if (result.success) {
       const status = result.isMock ? "Mock: Order Created" : "Order Created";
       const [primary] = result.shipments;
@@ -57,14 +68,18 @@ export const ensureOrderShipments = async (orderId: string): Promise<{ success: 
         {
           $set: {
             shiprocket: { orderId: primary.orderId, shipmentId: primary.shipmentId, status },
-            shiprocketShipments: result.shipments.map((s) => ({
-              seller: s.seller,
-              channelOrderId: s.channelOrderId,
-              pickupLocation: s.pickupLocation,
-              orderId: s.orderId,
-              shipmentId: s.shipmentId,
-              status,
-            })),
+            shiprocketShipments: [
+              ...selfEntries,
+              ...result.shipments.map((s) => ({
+                seller: s.seller,
+                channelOrderId: s.channelOrderId,
+                pickupLocation: s.pickupLocation,
+                orderId: s.orderId,
+                shipmentId: s.shipmentId,
+                status,
+                provider: "Shiprocket",
+              })),
+            ],
           },
         }
       );
@@ -93,6 +108,9 @@ export const ensureSellerAwb = async (
   let order: any = await Order.findById(orderId);
   if (!order) return { success: false, message: "Order not found" };
   if (order.channel !== "ECommerce") return { success: false, message: "Only E-commerce orders are shipped by courier" };
+  if ((await getSellerShippingMethod(sellerId)) === "Self") {
+    return { success: false, message: "You ship your orders yourself. Enter the courier and tracking number instead." };
+  }
 
   let { shipment, index } = findSellerShipment(order, sellerId);
   if (!shipment?.shipmentId) {

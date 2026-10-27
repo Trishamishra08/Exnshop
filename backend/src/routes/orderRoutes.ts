@@ -11,6 +11,7 @@ import {
   assignDeliveryBoySeller,
   getShippingLabel,
   generateShippingAwb,
+  saveSelfShippingDetails,
   getTaxInvoice,
 } from "../modules/seller/controllers/orderController";
 import { authenticate, requireUserType, requireApprovedUser } from "../middleware/auth";
@@ -47,6 +48,8 @@ router.get("/:id/earning-breakdown", getOrderEarningBreakdownSeller);
 router.get("/:id/shipping-label", getShippingLabel);
 // Retry assigning the courier AWB for a packed E-commerce order
 router.post("/:id/shipping-label/awb", generateShippingAwb);
+// Self-shipping sellers: courier company + tracking number for this order
+router.put("/:id/self-shipping", saveSelfShippingDetails);
 // GST tax invoice for this seller's items (any channel)
 router.get("/:id/tax-invoice", getTaxInvoice);
 

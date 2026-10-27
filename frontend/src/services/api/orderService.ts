@@ -54,7 +54,8 @@ export interface OrderDetail {
   orderNumber?: string;
   /** Quick = rider/seller delivers; ECommerce = shipped by courier. */
   channel?: 'Quick' | 'ECommerce';
-  shipment?: { awbCode: string; courierName: string; trackingUrl: string; status: string } | null;
+  shippingMethod?: 'Self' | 'Company';
+  shipment?: { awbCode: string; courierName: string; trackingUrl: string; status: string; provider?: 'Shiprocket' | 'Self' } | null;
   deliveryPreference?: 'Self' | 'Admin';
   invoiceNumber: string;
   orderDate: string;
@@ -93,7 +94,7 @@ export interface AvailableDeliveryPartner {
 }
 
 export interface UpdateOrderStatusData {
-  status: 'Accepted' | 'Processed' | 'On the way' | 'Delivered' | 'Cancelled' | 'Rejected';
+  status: 'Accepted' | 'Processed' | 'Shipped' | 'On the way' | 'Delivered' | 'Cancelled' | 'Rejected';
   deliveryPreference?: 'Self' | 'Admin';
   deliveryBoyId?: string;
 }

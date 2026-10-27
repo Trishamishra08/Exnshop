@@ -11,6 +11,11 @@ import {
 import { getSellerPendingOrderAlerts } from "../../../services/orderAlertService";
 import { buildShippingLabels, ensureSellerAwb } from "../../../services/shippingLabelService";
 import { buildTaxInvoices } from "../../../services/taxInvoiceService";
+import {
+  applySelfShipmentStatus,
+  getSellerShippingMethod,
+  saveSelfShipment,
+} from "../../../services/sellerShippingService";
 
 /**
  * Get pending order alerts that require seller action (survives page refresh).
@@ -412,17 +417,21 @@ export const getOrderById = asyncHandler(
       (shipments.length === 1 && !shipments[0].seller ? shipments[0] : undefined) ||
       (shipments.length ? undefined : order.shiprocket);
 
+    const shippingMethod = await getSellerShippingMethod(sellerIdStr);
+
     // Format order data for frontend
     const orderDetail = {
       id: order._id,
       orderNumber: order.orderNumber,
       channel: order.channel || "Quick",
+      shippingMethod,
       shipment: myShipment
         ? {
             awbCode: myShipment.awbCode || "",
             courierName: myShipment.courierName || "",
             trackingUrl: myShipment.trackingUrl || "",
             status: myShipment.status || "",
+            provider: myShipment.provider || "Shiprocket",
           }
         : null,
       invoiceNumber: order.invoiceNumber || order.orderNumber || "N/A",
@@ -497,8 +506,11 @@ export const updateOrderStatus = asyncHandler(
     // accepts and packs them, and the courier's tracking updates mark them
     // shipped and delivered.
     const isECommerce = order.channel === "ECommerce";
+    // A seller who ships E-commerce orders themselves also marks them shipped and
+    // delivered; for everyone else the courier's tracking updates do that.
+    const isSelfShipper = isECommerce && (await getSellerShippingMethod(sellerId.toString())) === "Self";
     const allowedStatuses = isECommerce
-      ? ["Accepted", "Processed", "Cancelled", "Rejected"]
+      ? ["Accepted", "Processed", "Cancelled", "Rejected", ...(isSelfShipper ? ["Shipped", "Delivered"] : [])]
       : ["Accepted", "On the way", "Delivered", "Cancelled", "Rejected"];
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({
@@ -522,7 +534,7 @@ export const updateOrderStatus = asyncHandler(
     const previousStatus = order.status;
 
     // Allow same status only when updating deliveryPreference or in multi-seller acceptance phase
-    if (order.status === status && !deliveryPreference && status !== "Accepted" && status !== "Rejected") {
+    if (order.status === status && !deliveryPreference && status !== "Accepted" && status !== "Rejected" && !isSelfShipper) {
       return res.status(400).json({
         success: false,
         message: `Order is already ${status}`,
@@ -595,8 +607,19 @@ export const updateOrderStatus = asyncHandler(
       // NON-ACCEPT/REJECT STATUS UPDATES (On the way, Delivered, Cancelled)
       // These are unchanged from the original logic for full compatibility
       // ──────────────────────────────────────────────────────────────────────
-      if (order.status !== status) {
-        order.status = status;
+      // Self-shipped parcels: record this seller's parcel status, and move the
+      // whole order only as far as every parcel has got.
+      let nextStatus: string = status;
+      if (isSelfShipper && (status === "Processed" || status === "Shipped" || status === "Delivered")) {
+        const selfResult = await applySelfShipmentStatus(order, sellerId.toString(), status as "Processed" | "Shipped" | "Delivered");
+        if (!selfResult.ok) {
+          return res.status(400).json({ success: false, message: selfResult.message });
+        }
+        nextStatus = selfResult.orderStatus;
+      }
+
+      if (order.status !== nextStatus) {
+        order.status = nextStatus as any;
       }
 
       if (deliveryPreference && (status === "Accepted" || order.status === "Accepted")) {
@@ -655,7 +678,7 @@ export const updateOrderStatus = asyncHandler(
     }
 
     // Distribute commissions on delivery (unchanged)
-    if (status === "Delivered" && previousStatus !== "Delivered") {
+    if (order.status === "Delivered" && previousStatus !== "Delivered") {
       try {
         const { distributeCommissions } = await import(
           "../../../services/commissionService"
@@ -686,7 +709,11 @@ export const updateOrderStatus = asyncHandler(
     // so the shipping label can be printed.
     let message = "Order status updated successfully";
     let awbCode: string | undefined;
-    if (isECommerce && status === "Processed") {
+    if (isSelfShipper && status === "Processed") {
+      message = "Marked as packed. Hand the parcel to your courier, then mark it as shipped.";
+    } else if (isSelfShipper && status === "Shipped") {
+      message = "Marked as shipped. The customer can now track it with your tracking number.";
+    } else if (isECommerce && status === "Processed") {
       const awb = await ensureSellerAwb(id, sellerId.toString());
       awbCode = awb.awbCode;
       message = awb.success
@@ -735,6 +762,17 @@ export const getTaxInvoice = asyncHandler(async (req: Request, res: Response) =>
     return res.status(400).json({ success: false, message: "No invoice: every item of yours on this order was cancelled or rejected." });
   }
   return res.status(200).json({ success: true, data: invoices });
+});
+
+/** Self-shipping seller: save the courier company and tracking number for this order. */
+export const saveSelfShippingDetails = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = (req as any).user.userId;
+  try {
+    const data = await saveSelfShipment(req.params.id, sellerId.toString(), req.body || {});
+    return res.status(200).json({ success: true, message: "Courier and tracking number saved", data });
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Could not save shipping details" });
+  }
 });
 
 /** Retries the courier/AWB assignment for a packed E-commerce order. */
