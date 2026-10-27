@@ -9,6 +9,12 @@ import mongoose from "mongoose";
 import Category from "../models/Category";
 import Product from "../models/Product";
 import WalletTransaction from "../models/WalletTransaction";
+import { companyShippedSellerIds } from "./sellerShippingService";
+import { allocateByValue, parcelCharge } from "./shippingChargeService";
+
+/** What a seller actually receives for an item: price − commission − courier shipping billed to them. */
+export const sellerNetOf = (c: { orderAmount: number; commissionAmount: number; shippingCharge?: number }) =>
+  c.orderAmount - c.commissionAmount - (c.shippingCharge || 0);
 
 /**
  * Get the effective commission rate for a product/item
@@ -280,8 +286,25 @@ export const createPendingCommissions = async (orderId: string) => {
     }
 
     const items = order.items;
-    // Group items by seller to aggregate earnings (though we store per item mostly)
-    // We'll calculate per item as per original logic
+
+    // Courier-shipped (E-commerce) orders: sellers on "By Company" shipping are billed the
+    // parcel's courier charge, spread over their items. Self-shipping sellers pay their own courier.
+    const shippingByItem = new Map<string, number>();
+    if ((order as any).channel === "ECommerce") {
+      const docs: any[] = [];
+      for (const itemId of items) {
+        const d = await OrderItem.findById(itemId);
+        if (d) docs.push(d);
+      }
+      const bySeller = new Map<string, any[]>();
+      for (const d of docs) bySeller.set(String(d.seller), [...(bySeller.get(String(d.seller)) || []), d]);
+      for (const sellerId of await companyShippedSellerIds([...bySeller.keys()])) {
+        const sellerItems = bySeller.get(sellerId)!;
+        const charge = await parcelCharge(sellerItems.map((i) => ({ product: i.product, quantity: i.quantity })));
+        const parts = allocateByValue(charge, sellerItems.map((i) => i.total));
+        sellerItems.forEach((it, idx) => shippingByItem.set(String(it._id), parts[idx]));
+      }
+    }
 
     for (const itemId of items) {
       const item = await OrderItem.findById(itemId);
@@ -295,7 +318,12 @@ export const createPendingCommissions = async (orderId: string) => {
         item.seller.toString(),
       );
       const commissionAmount = (item.total * commissionRate) / 100;
-      const netEarning = item.total - commissionAmount;
+      const shippingCharge = shippingByItem.get(String(item._id)) || 0;
+      const netEarning = item.total - commissionAmount - shippingCharge;
+      if (shippingCharge > 0) {
+        item.shippingCharge = shippingCharge;
+        await item.save();
+      }
 
       console.log(
         `[Commission] Item: ${item.product}, Rate: ${commissionRate}%, Amount: ${commissionAmount}, Net: ${netEarning}`,
@@ -310,6 +338,7 @@ export const createPendingCommissions = async (orderId: string) => {
         orderAmount: item.total,
         commissionRate,
         commissionAmount,
+        shippingCharge,
         status: "Pending",
       });
     }
@@ -415,7 +444,7 @@ export const distributeCommissions = async (orderId: string) => {
 
       if (comm.type === "SELLER" && comm.seller) {
         const sellerId = comm.seller.toString();
-        const netAmount = comm.orderAmount - comm.commissionAmount;
+        const netAmount = sellerNetOf(comm);
 
         if (!sellerEarnings.has(sellerId)) {
           sellerEarnings.set(sellerId, {
@@ -707,7 +736,7 @@ export const processPendingCODPayouts = async (
 
         // Credit Seller Wallet
         const netEarning =
-          Math.round((comm.orderAmount - comm.commissionAmount) * 100) / 100;
+          Math.round(sellerNetOf(comm) * 100) / 100;
         if (comm.seller) {
           await creditWallet(
             comm.seller.toString(),
@@ -806,7 +835,7 @@ export const getCommissionSummary = async (
       // For Delivery Boys, earning is the Commission Amount itself
       const earningAmount =
         userType === "SELLER"
-          ? c.orderAmount - c.commissionAmount
+          ? sellerNetOf(c)
           : c.commissionAmount;
 
       summary.total += earningAmount;
@@ -1130,7 +1159,7 @@ export const getOrderEarningBreakdown = async (
         item.seller?.toString?.() ?? item.seller,
       ));
     const itemCommission = (item.total * commissionRate) / 100;
-    const itemSellerEarning = item.total - itemCommission;
+    const itemSellerEarning = item.total - itemCommission - (item.shippingCharge || 0);
 
     breakdown.adminProductCommission += itemCommission;
     const sellerId = (item.seller?.toString?.() ?? item.seller).toString();
@@ -1476,7 +1505,7 @@ export const releaseExpiredEscrow = async (
 
     for (const comm of expiredCommissions) {
       if (comm.type === "SELLER" && comm.seller) {
-        const netAmount = comm.orderAmount - comm.commissionAmount;
+        const netAmount = sellerNetOf(comm);
         const sellerId = comm.seller.toString();
 
         // Take it off hold here; creditWallet adds it to the available balance

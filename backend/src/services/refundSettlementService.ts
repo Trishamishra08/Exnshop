@@ -8,7 +8,8 @@ import Customer from "../models/Customer";
 import Refund from "../models/Refund";
 import { processRefund } from "./paymentService";
 import { processCashfreeRefundForPayment } from "./cashfreeService";
-import { debitWallet, creditWallet } from "./walletManagementService";
+import { debitWallet, creditWallet, chargeSellerShipping } from "./walletManagementService";
+import { returnPickupCharge } from "./shippingChargeService";
 
 export interface IItemRefundCalculation {
   returnedItemTotal: number;
@@ -38,7 +39,9 @@ export const calculateItemRefundAmount = (
   // With ||, commissionRate=0 would fall back to 10, charging sellers a 10% fee when they have 0% commission.
   const returnedCommissionRate = orderItem.commissionRate ?? 10;
   const returnedCommissionAmount = Math.round((returnedItemTotal * returnedCommissionRate) / 100 * 100) / 100;
-  const sellerNetReversal = Math.round((returnedItemTotal - returnedCommissionAmount) * 100) / 100;
+  // The seller was paid price − commission − the courier charge billed on this item, so only that is taken back.
+  const returnedShippingShare = Math.round((orderItem.shippingCharge || 0) * proportion * 100) / 100;
+  const sellerNetReversal = Math.round((returnedItemTotal - returnedCommissionAmount - returnedShippingShare) * 100) / 100;
 
   // Coupon-Aware Customer Refund Calculation:
   // Allocate order-level coupon discount proportionally to the returned item/quantity value.
@@ -423,6 +426,28 @@ export const executeReturnRefundAndReversal = async (
       } else if (existingCommission && existingCommission.status === "Pending") {
         existingCommission.status = "Cancelled";
         await existingCommission.save({ session });
+      }
+
+      // 1b. RETURN PICKUP SHIPPING: the customer kept the parcel and then sent it back, so the seller
+      // bears both directions — the outbound charge already stayed deducted above, and the courier
+      // pickup the company booked for this return is billed to the seller now.
+      if (
+        (order as any).channel === "ECommerce" &&
+        (returnReq as any).requestType === "RETURN" &&
+        ((returnReq as any).shiprocketReturn?.shipmentId || (returnReq as any).shiprocketReturn?.awbCode)
+      ) {
+        const pickupCharge = await returnPickupCharge(orderItem.product, returnReq.quantity);
+        if (pickupCharge > 0) {
+          const charged = await chargeSellerShipping(
+            sellerId,
+            pickupCharge,
+            `Return pickup shipping for order #${order.orderNumber} (${returnReq.quantity}x ${orderItem.productName})`,
+            `RETSHIP-${returnReq._id.toString()}`,
+            order._id.toString(),
+            session
+          );
+          if (charged) (returnReq as any).returnShippingCharge = pickupCharge;
+        }
       }
 
       // 2. DETERMINISTIC CUSTOMER REFUND ALLOCATION

@@ -59,3 +59,28 @@ export const decideShippingMethodRequest = async (sellerId: string, decision: "A
 
 export const setSellerShippingMethod = async (sellerId: string, method: ShippingMethod) =>
   (await api.put<Wrapped<unknown>>(`/admin/sellers/${sellerId}/shipping-method`, { method })).data;
+
+// ── Shipping charge ──
+export interface ShippingChargePreview {
+  chargeableGrams: number;
+  charge: number;
+  sellerPays: boolean;
+  method: ShippingMethod;
+}
+
+export const getShippingChargePreview = async (input: { weightGrams?: string; length?: string; width?: string; height?: string }): Promise<ShippingChargePreview> =>
+  (await api.get<Wrapped<ShippingChargePreview>>("/seller/shipping/charge-preview", { params: input })).data.data;
+
+export interface ShippingRates {
+  baseCharge: number;
+  baseWeightGrams: number;
+  perExtraSlabCharge: number;
+  slabGrams: number;
+  volumetricDivisor: number;
+}
+
+export const getShippingRates = async (): Promise<ShippingRates> =>
+  (await api.get<Wrapped<ShippingRates>>("/admin/shipping-rates")).data.data;
+
+export const updateShippingRates = async (rates: Partial<ShippingRates>): Promise<ShippingRates> =>
+  (await api.put<Wrapped<ShippingRates>>("/admin/shipping-rates", rates)).data.data;

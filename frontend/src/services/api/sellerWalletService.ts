@@ -81,6 +81,8 @@ export interface SettlementRow {
     date: string;
     grossAmount: number;
     deductions: number;
+    commissionAmount: number;
+    shippingCharge: number;
     netAmount: number;
     status: SettlementStatus;
     expectedSettlementDate: string | null;
@@ -96,6 +98,7 @@ export interface PaymentSummary {
     paidToBank: number;
     refunds: number;
     platformDeductions: number;
+    returnShippingCharges: number;
 }
 
 export const getSettlementReport = async (params: {

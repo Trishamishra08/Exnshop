@@ -120,21 +120,9 @@ export async function initiateRto(params: InitiateRtoParams) {
       financialSettlementStatus: "Pending",
     });
 
-    // The real financial consequence of an RTO: the seller bears the
-    // reverse-shipping cost — not a commission reversal (there is usually
-    // none to reverse), a direct debit for the courier's return-trip fee.
-    if (cost > 0) {
-      await debitWallet(
-        sellerId,
-        "SELLER",
-        cost,
-        `Reverse shipping cost for RTO on order #${order.orderNumber}`,
-        order._id.toString(),
-        undefined,
-        `RTO-${rtoEvent._id}`,
-        "RTO_REVERSE_SHIPPING_DEBIT"
-      );
-    }
+    // Policy: the customer never took the parcel, so the seller pays no shipping for it.
+    // The outbound courier charge is only billed when an order is delivered, so there is
+    // nothing to refund, and the reverse-trip cost (recorded on the event) is not debited.
 
     rtoEvent.financialSettlementStatus = "Completed";
     rtoEvent.commissionReversalDone = true;

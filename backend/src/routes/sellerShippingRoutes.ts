@@ -6,6 +6,7 @@ import {
   getShippingMethodState,
   requestShippingMethodChange,
 } from "../services/sellerShippingService";
+import { previewShippingCharge } from "../services/shippingChargeService";
 
 const router = Router();
 
@@ -25,6 +26,23 @@ const sellerId = (req: Request) => String((req as any).user.userId);
 
 // Current method, any pending change request, and the courier companies to pick from
 router.get("/method", handle((req) => getShippingMethodState(sellerId(req))));
+
+// Shipping charge for a product's weight/size, and whether this seller pays it (By Company)
+router.get(
+  "/charge-preview",
+  handle(async (req) => {
+    const q = req.query as Record<string, string | undefined>;
+    const num = (v?: string) => (v !== undefined && v !== "" && Number.isFinite(Number(v)) ? Number(v) : undefined);
+    const [preview, state] = await Promise.all([
+      previewShippingCharge({
+        weightGrams: num(q.weightGrams),
+        dimensionsCm: { length: num(q.length), width: num(q.width), height: num(q.height) },
+      }),
+      getShippingMethodState(sellerId(req)),
+    ]);
+    return { ...preview, sellerPays: state.effectiveMethod === "Company", method: state.effectiveMethod };
+  }),
+);
 
 // First choice only — applies immediately and becomes fixed
 router.put(

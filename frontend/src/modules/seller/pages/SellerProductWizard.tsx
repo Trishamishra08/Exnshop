@@ -7,6 +7,7 @@ import { getCategories, getSubcategories, getSubSubCategories } from '../../../s
 import { getBrands, Brand } from '../../../services/api/brandService';
 import { getActiveTaxes } from '../../../services/api/taxService';
 import { useToast } from '../../../context/ToastContext';
+import ShippingChargePreview from '../components/ShippingChargePreview';
 import {
   ComplianceDoc,
   ListingConfig,
@@ -1290,6 +1291,7 @@ export default function SellerProductWizard() {
                 </div>
               </Field>
             </div>
+            {requiresShipping && <ShippingChargePreview weightGrams={weightGrams} length={dimL} width={dimW} height={dimH} />}
             <Field label="Return eligibility">
               <div className="grid grid-cols-2 gap-2 max-w-xs">
                 {[true, false].map((b) => (

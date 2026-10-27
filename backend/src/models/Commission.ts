@@ -13,6 +13,8 @@ export interface ICommission extends Document {
   orderAmount: number;
   commissionRate: number; // Percentage
   commissionAmount: number;
+  /** Courier shipping charge billed to the seller on this item; the seller's net = orderAmount − commissionAmount − shippingCharge. */
+  shippingCharge?: number;
 
   // Status
   status: "Pending" | "OnHold" | "Paid" | "Cancelled";
@@ -69,6 +71,11 @@ const CommissionSchema = new Schema<ICommission>(
       type: Number,
       required: [true, "Commission amount is required"],
       min: [0, "Commission amount cannot be negative"],
+    },
+    shippingCharge: {
+      type: Number,
+      default: 0,
+      min: [0, "Shipping charge cannot be negative"],
     },
 
     // Status

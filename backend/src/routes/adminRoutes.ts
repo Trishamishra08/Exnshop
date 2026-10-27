@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate, requireUserType } from "../middleware/auth";
-import { getShippingMethodRequests, decideShippingMethod, setSellerShippingMethod } from "../modules/admin/controllers/adminShippingMethodController";
+import { getShippingMethodRequests, decideShippingMethod, setSellerShippingMethod, getRates as getShippingRatesAdmin, updateRates as updateShippingRatesAdmin } from "../modules/admin/controllers/adminShippingMethodController";
 
 // Dashboard Controllers
 import * as dashboardController from "../modules/admin/controllers/adminDashboardController";
@@ -343,6 +343,8 @@ router.get("/sellers", sellerController.getAllSellers);
 router.get("/shipping-method-requests", getShippingMethodRequests);
 router.post("/sellers/:sellerId/shipping-method/decision", decideShippingMethod);
 router.put("/sellers/:sellerId/shipping-method", setSellerShippingMethod);
+router.get("/shipping-rates", getShippingRatesAdmin);
+router.put("/shipping-rates", updateShippingRatesAdmin);
 router.get("/couriers", courierController.getCouriers);
 router.get("/couriers/:id", courierController.getCourierById);
 router.post("/couriers", courierController.createCourier);

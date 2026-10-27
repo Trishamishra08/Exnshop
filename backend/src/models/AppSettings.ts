@@ -52,6 +52,15 @@ export interface IAppSettings extends Document {
   // Commission Settings
   globalCommissionRate?: number;
 
+  /** Courier shipping charge billed to sellers (company-shipped orders and customer-return pickups). */
+  shippingRates?: {
+    baseCharge: number; // ₹ for a parcel up to baseWeightGrams
+    baseWeightGrams: number;
+    perExtraSlabCharge: number; // ₹ for each extra slab (or part of one)
+    slabGrams: number;
+    volumetricDivisor: number; // L×W×H (cm) ÷ this = volumetric kg
+  };
+
 
   // Delivery Settings
   platformFee?: number;
@@ -296,6 +305,14 @@ const AppSettingsSchema = new Schema<IAppSettings>(
         type: Boolean,
         default: false,
       },
+    },
+
+    shippingRates: {
+      baseCharge: { type: Number, default: 50, min: 0 },
+      baseWeightGrams: { type: Number, default: 500, min: 1 },
+      perExtraSlabCharge: { type: Number, default: 25, min: 0 },
+      slabGrams: { type: Number, default: 500, min: 1 },
+      volumetricDivisor: { type: Number, default: 5000, min: 1 },
     },
 
     // Commission Settings

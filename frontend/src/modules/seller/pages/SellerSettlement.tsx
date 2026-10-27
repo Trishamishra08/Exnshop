@@ -63,13 +63,14 @@ function SettlementReport() {
     setExporting(true);
     try {
       const res = await getSettlementReport({ status, from: from || undefined, to: to || undefined, page: 1, limit: 500 });
-      const header = ['Date', 'Order ID', 'Gross Amount', 'Deductions', 'Net Amount', 'Settlement ID', 'Status', 'Payment Date', 'Bank Reference'];
+      const header = ['Date', 'Order ID', 'Gross Amount', 'Commission', 'Shipping Charge', 'Net Amount', 'Settlement ID', 'Status', 'Payment Date', 'Bank Reference'];
       const lines = res.data.rows.map((r) =>
         [
           fmtDate(r.date),
           r.orderNumber,
           r.grossAmount.toFixed(2),
-          r.deductions.toFixed(2),
+          r.commissionAmount.toFixed(2),
+          r.shippingCharge.toFixed(2),
           r.netAmount.toFixed(2),
           r.settlementId,
           r.status,
@@ -99,6 +100,7 @@ function SettlementReport() {
         { label: 'Settled to Wallet', value: summary.settledToWallet, tone: 'text-blue-700', note: 'Ready to withdraw' },
         { label: 'Paid Settlement', value: summary.paidToBank, tone: 'text-green-700', note: 'Withdrawn to bank' },
         { label: 'Refunds', value: summary.refunds, tone: 'text-red-700', note: 'Customer returns' },
+        { label: 'Return Shipping', value: summary.returnShippingCharges, tone: 'text-red-700', note: 'Courier pickup for returns' },
       ]
     : [];
 
@@ -173,7 +175,8 @@ function SettlementReport() {
                   <th className="text-left py-3 px-4">Date</th>
                   <th className="text-left py-3 px-4">Order ID</th>
                   <th className="text-right py-3 px-4">Gross</th>
-                  <th className="text-right py-3 px-4">Deductions</th>
+                  <th className="text-right py-3 px-4">Commission</th>
+                  <th className="text-right py-3 px-4">Shipping</th>
                   <th className="text-right py-3 px-4">Net</th>
                   <th className="text-left py-3 px-4">Settlement ID</th>
                   <th className="text-left py-3 px-4">Status</th>
@@ -187,7 +190,8 @@ function SettlementReport() {
                     <td className="py-3 px-4 whitespace-nowrap text-neutral-600">{fmtDate(r.date)}</td>
                     <td className="py-3 px-4 font-medium text-neutral-900">{r.orderNumber}</td>
                     <td className="py-3 px-4 text-right">{inr(r.grossAmount)}</td>
-                    <td className="py-3 px-4 text-right text-red-600">−{inr(r.deductions)}</td>
+                    <td className="py-3 px-4 text-right text-red-600">−{inr(r.commissionAmount)}</td>
+                    <td className="py-3 px-4 text-right text-red-600">−{inr(r.shippingCharge)}</td>
                     <td className="py-3 px-4 text-right font-semibold">{inr(r.netAmount)}</td>
                     <td className="py-3 px-4 font-mono text-xs text-neutral-600">{r.settlementId}</td>
                     <td className="py-3 px-4">
@@ -216,7 +220,7 @@ function SettlementReport() {
         )}
       </div>
       <p className="text-xs text-neutral-400">
-        Deductions are the platform commission on each order. Bank withdrawals are matched to settled orders oldest-first to show which orders have been paid out.
+        Deductions are the platform commission and, for orders shipped by the company, the courier shipping charge. Return pickup charges come out of your wallet when a customer sends an item back. Bank withdrawals are matched to settled orders oldest-first to show which orders have been paid out.
       </p>
     </div>
   );

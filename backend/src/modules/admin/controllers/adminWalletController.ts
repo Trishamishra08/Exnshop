@@ -452,7 +452,7 @@ export const getDueSettlements = asyncHandler(async (_req: Request, res: Respons
     seller: c.seller,
     orderAmount: c.orderAmount,
     commissionAmount: c.commissionAmount,
-    netAmount: Number((c.orderAmount - c.commissionAmount).toFixed(2)),
+    netAmount: Number((c.orderAmount - c.commissionAmount - (c.shippingCharge || 0)).toFixed(2)),
     onHoldUntil: c.onHoldUntil,
   }));
 

@@ -4,6 +4,7 @@ import Order from "../models/Order";
 import OrderItem from "../models/OrderItem";
 import Return from "../models/Return";
 import WithdrawRequest from "../models/WithdrawRequest";
+import WalletTransaction from "../models/WalletTransaction";
 
 /**
  * Pending    — order not delivered yet, or COD cash not yet reconciled
@@ -19,7 +20,10 @@ export interface SettlementRow {
   orderNumber: string;
   date: Date;
   grossAmount: number;
+  /** Everything taken off: platform commission + courier shipping charge. */
   deductions: number;
+  commissionAmount: number;
+  shippingCharge: number;
   netAmount: number;
   status: SettlementStatus;
   expectedSettlementDate: Date | null;
@@ -35,6 +39,8 @@ export interface PaymentSummary {
   paidToBank: number;
   refunds: number;
   platformDeductions: number;
+  /** Courier pickup charges billed for customer returns (these come out of the wallet, not the order row). */
+  returnShippingCharges: number;
 }
 
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -98,7 +104,9 @@ export async function buildSellerSettlementReport(sellerId: string): Promise<{
     const order: any = orderById.get(orderId);
     const live = comms.filter((c) => c.status !== "Cancelled");
     const gross = live.reduce((a, c) => a + c.orderAmount, 0);
-    const deductions = live.reduce((a, c) => a + c.commissionAmount, 0);
+    const commissionTotal = live.reduce((a, c) => a + c.commissionAmount, 0);
+    const shippingTotal = live.reduce((a, c) => a + (c.shippingCharge || 0), 0);
+    const deductions = commissionTotal + shippingTotal;
     const net = gross - deductions;
 
     let status: SettlementStatus;
@@ -122,6 +130,8 @@ export async function buildSellerSettlementReport(sellerId: string): Promise<{
       date: order?.createdAt || comms[0].createdAt,
       grossAmount: round(gross),
       deductions: round(deductions),
+      commissionAmount: round(commissionTotal),
+      shippingCharge: round(shippingTotal),
       netAmount: round(net),
       status,
       expectedSettlementDate:
@@ -160,6 +170,11 @@ export async function buildSellerSettlementReport(sellerId: string): Promise<{
     coveredSoFar = needed;
   }
 
+  const returnShippingTxns = await WalletTransaction.find({ userId: sellerObjectId, userType: "SELLER", category: "RETURN_SHIPPING_DEBIT" })
+    .select("amount")
+    .lean();
+  const returnShippingCharges = returnShippingTxns.reduce((a: number, t: any) => a + (t.amount || 0), 0);
+
   const paidToBank = completedWithdrawals.reduce((a, w: any) => a + w.amount, 0);
 
   rows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -173,6 +188,7 @@ export async function buildSellerSettlementReport(sellerId: string): Promise<{
       paidToBank: round(paidToBank),
       refunds: round(refunds),
       platformDeductions: round(platformDeductions),
+      returnShippingCharges: round(returnShippingCharges),
     },
     rows,
   };

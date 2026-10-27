@@ -27,6 +27,8 @@ export interface IOrderItem extends Document {
   orderId?: string;
   commissionRate: number;
   commissionAmount: number;
+  /** This item's share of the courier shipping charge billed to the seller (company-shipped E-commerce orders only). */
+  shippingCharge?: number;
 
   // Return Policy Snapshot
   isReturnable: boolean;
@@ -125,6 +127,11 @@ const OrderItemSchema = new Schema<IOrderItem>(
     commissionAmount: {
       type: Number,
       default: 0,
+    },
+    shippingCharge: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     subtotal: {
       type: Number,
