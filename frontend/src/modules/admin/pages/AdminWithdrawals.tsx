@@ -12,6 +12,7 @@ export default function AdminWithdrawals() {
     const { showToast } = useToast();
     const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
     const [loading, setLoading] = useState(true);
+    const [razorpayEnabled, setRazorpayEnabled] = useState(false);
     const [filter, setFilter] = useState('all');
     const [showCompleteModal, setShowCompleteModal] = useState(false);
     const [selectedWithdrawal, setSelectedWithdrawal] = useState<any>(null);
@@ -37,6 +38,7 @@ export default function AdminWithdrawals() {
                     setWithdrawals(data);
                 } else if (data && typeof data === 'object' && 'requests' in data) {
                     setWithdrawals((data as any).requests || []);
+                    setRazorpayEnabled(Boolean((data as any).razorpayPayoutsEnabled));
                 } else {
                     setWithdrawals([]);
                 }
@@ -286,22 +288,26 @@ export default function AdminWithdrawals() {
 
                             {withdrawal.status === 'Approved' && (
                                 <div className="mt-4 border-t pt-4 flex flex-col sm:flex-row gap-3">
-                                    <button
-                                        onClick={() => handlePayRazorpay(withdrawal._id || withdrawal.id)}
-                                        disabled={isProcessing}
-                                        className="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50"
-                                    >
-                                        Pay via Razorpay
-                                    </button>
+                                    {razorpayEnabled && (
+                                        <button
+                                            onClick={() => handlePayRazorpay(withdrawal._id || withdrawal.id)}
+                                            disabled={isProcessing}
+                                            className="flex-1 bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50"
+                                        >
+                                            Pay via Razorpay
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => {
                                             setSelectedWithdrawal(withdrawal);
                                             setShowCompleteModal(true);
                                         }}
                                         disabled={isProcessing}
-                                        className="flex-1 bg-white text-blue-700 border border-blue-200 py-2 rounded-lg font-medium hover:bg-blue-50 transition disabled:opacity-50"
+                                        className={`flex-1 py-2 rounded-lg font-medium transition disabled:opacity-50 ${razorpayEnabled
+                                            ? 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-50'
+                                            : 'bg-blue-600 text-white hover:bg-blue-700'}`}
                                     >
-                                        Mark as Paid (manual)
+                                        {razorpayEnabled ? 'Mark as Paid (manual)' : 'Mark as Completed'}
                                     </button>
                                 </div>
                             )}

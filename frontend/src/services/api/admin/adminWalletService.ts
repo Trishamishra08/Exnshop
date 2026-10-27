@@ -183,10 +183,10 @@ export const getWithdrawalRequests = async (params?: {
   limit?: number;
   status?: string;
 }): Promise<
-  ApiResponse<{ requests: WithdrawalRequest[]; pagination: any }>
+  ApiResponse<{ requests: WithdrawalRequest[]; pagination: any; razorpayPayoutsEnabled?: boolean }>
 > => {
   const response = await api.get<
-    ApiResponse<{ requests: WithdrawalRequest[]; pagination: any }>
+    ApiResponse<{ requests: WithdrawalRequest[]; pagination: any; razorpayPayoutsEnabled?: boolean }>
   >("/admin/wallet/withdrawals", { params });
   return response.data;
 };

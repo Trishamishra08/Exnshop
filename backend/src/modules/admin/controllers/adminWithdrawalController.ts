@@ -28,10 +28,13 @@ export const getAllWithdrawals = async (req: Request, res: Response) => {
 
         const total = await WithdrawRequest.countDocuments(query);
 
+        const { razorpayPayoutsConfigured } = await import('../../../services/razorpayPayoutService');
+
         return res.status(200).json({
             success: true,
             data: {
                 requests,
+                razorpayPayoutsEnabled: razorpayPayoutsConfigured(),
                 pagination: {
                     page: Number(page),
                     limit: Number(limit),
