@@ -450,6 +450,7 @@ export const getOrderById = asyncHandler(
       channel: order.channel || "Quick",
       shippingMethod,
       shipDates,
+      exchangeInfo: (order as any).exchangeInfo || null,
       shipment: myShipment
         ? {
             awbCode: myShipment.awbCode || "",

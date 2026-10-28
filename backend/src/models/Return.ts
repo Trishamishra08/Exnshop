@@ -77,6 +77,10 @@ export interface IReturn extends Document {
   qc?: { result: "Passed" | "Failed"; note?: string; at: Date; by?: string };
   /** Automatic review flags, e.g. REPEAT_REQUESTS when a customer files many requests in a short time. */
   flags?: string[];
+  /** Delivery charge for the exchange and who bears it, fixed when the request is made. */
+  exchangeShipping?: { amount: number; payer: "Customer" | "Seller" };
+  /** Quick exchange: the rider takes the old item when delivering the replacement, in one trip. */
+  doorstepSwap?: boolean;
   /** "Seller" when the seller refunded the item with no pickup; otherwise the customer asked for the return. */
   initiatedBy?: "Customer" | "Seller";
   /** Courier pickup cost billed to the seller when the customer sent the item back after receiving it. */
@@ -235,6 +239,8 @@ const ReturnSchema = new Schema<IReturn>(
     },
     replacementOrder: { type: Schema.Types.ObjectId, ref: "Order" },
     initiatedBy: { type: String, enum: ["Customer", "Seller"], default: "Customer" },
+    exchangeShipping: { type: new Schema({ amount: { type: Number, default: 0 }, payer: { type: String, enum: ["Customer", "Seller"] } }, { _id: false }), default: undefined },
+    doorstepSwap: { type: Boolean, default: false },
     requestedVariation: { type: new Schema({ id: { type: String }, label: { type: String } }, { _id: false }), default: undefined },
     condition: { type: String, enum: ["Unused", "Defective", "Used"] },
     exchangeState: { type: String, enum: ["OutOfStock", "QCFailed", "RefundInitiated"] },

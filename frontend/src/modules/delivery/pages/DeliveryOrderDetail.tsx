@@ -108,6 +108,7 @@ export default function DeliveryOrderDetail() {
     const [rejectingOrder, setRejectingOrder] = useState(false);
     const [sellerLocations, setSellerLocations] = useState<any[]>([]);
     const [showOtpInput, setShowOtpInput] = useState(false);
+    const [oldItemCollected, setOldItemCollected] = useState(false);
     const [otpValue, setOtpValue] = useState('');
     const [otpSending, setOtpSending] = useState(false);
     const [otpVerifying, setOtpVerifying] = useState(false);
@@ -243,7 +244,7 @@ export default function DeliveryOrderDetail() {
         }
         try {
             setOtpVerifying(true);
-            const result = await verifyDeliveryOtp(id, otpValue);
+            const result = await verifyDeliveryOtp(id, otpValue, oldItemCollected);
             showToast(result.message || 'OTP verified successfully. Order marked as delivered.', 'success');
             await fetchOrder(); // Refresh order data
             setShowOtpInput(false);
@@ -1059,6 +1060,21 @@ export default function DeliveryOrderDetail() {
                                 <span className="text-[11px] text-amber-700">GPS verification bypassed</span>
                             </div>
                         )}
+                        {order.exchangeInfo && (
+                            <div className="mb-3 p-3 rounded-xl border border-blue-200 bg-blue-50 text-xs text-blue-900 space-y-1.5">
+                                <p className="font-bold text-sm">Exchange order</p>
+                                <p>{order.exchangeInfo.note}</p>
+                                {order.exchangeInfo.payer === "Customer" && order.exchangeInfo.deliveryCharge > 0 && (
+                                    <p className="font-semibold">Collect ₹{Number(order.exchangeInfo.deliveryCharge).toFixed(2)} from the customer (cash on delivery).</p>
+                                )}
+                                {order.exchangeInfo.collectOldItem && (
+                                    <label className="flex items-start gap-2 pt-1 cursor-pointer font-semibold">
+                                        <input type="checkbox" checked={oldItemCollected} onChange={(e) => setOldItemCollected(e.target.checked)} className="mt-0.5 h-4 w-4" />
+                                        <span>I have collected the old item from the customer</span>
+                                    </label>
+                                )}
+                            </div>
+                        )}
                         <p className="text-sm font-semibold text-neutral-900 mb-3">{t("delivery.customerDeliveryOtp", "Customer Delivery OTP")}</p>
 
                         {/* Distance indicator */}
@@ -1110,7 +1126,7 @@ export default function DeliveryOrderDetail() {
                                     <button
                                         onClick={handleVerifyOtp}
                                         className="flex-1 py-3 rounded-xl bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-colors"
-                                        disabled={otpVerifying || otpValue.length !== 4}
+                                        disabled={otpVerifying || otpValue.length !== 4 || (order.exchangeInfo?.collectOldItem && !oldItemCollected)}
                                     >
                                         {otpVerifying ? t("delivery.verifying", "Verifying...") : t("delivery.verifyOtp", "Verify OTP")}
                                     </button>

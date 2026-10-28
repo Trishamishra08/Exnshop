@@ -177,6 +177,13 @@ export const assignDeliveryPartnerToReturn = asyncHandler(
       });
     }
 
+    if ((returnReq as any).doorstepSwap) {
+      return res.status(400).json({
+        success: false,
+        message: "This exchange is a doorstep swap: the rider who delivers the replacement collects the old item. No separate pickup is assigned.",
+      });
+    }
+
     // Validate state transition
     try {
       const { validateAdminReturnTransition } = await import("../../../services/returnLifecycleService");

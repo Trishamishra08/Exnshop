@@ -179,11 +179,11 @@ export const sendDeliveryOtp = async (id: string, coords?: { latitude?: number; 
   }
 };
 
-export const verifyDeliveryOtp = async (id: string, otp: string) => {
+export const verifyDeliveryOtp = async (id: string, otp: string, oldItemCollected?: boolean) => {
   try {
     const response = await api.post(
       `${BASE_URL}/orders/${id}/verify-delivery-otp`,
-      { otp },
+      { otp, oldItemCollected },
     );
     return response.data;
   } catch (error) {

@@ -12,7 +12,7 @@ export const EMPTY_EXTRAS: ExchangeExtrasValue = { variationId: '', condition: '
 /** Reasons where the customer must show the problem in a photo (matches the server). */
 export const reasonNeedsPhoto = (reason: string) => /defect|damag|wrong/i.test(reason);
 /** Size/colour reasons where the customer chooses the variant they want. */
-export const reasonNeedsVariant = (reason: string) => /size|fit|colo/i.test(reason);
+export const reasonNeedsVariant = (reason: string) => /size|fit|colo/i.test(reason) && !/wrong/i.test(reason);
 
 /**
  * Extra exchange details: which size/variant the customer wants, what condition
@@ -40,11 +40,11 @@ export default function ExchangeExtras({
   useEffect(() => {
     if (!isExchange) return;
     setLoading(true);
-    getExchangeOptions(orderId, itemId)
+    getExchangeOptions(orderId, itemId, reason)
       .then(setOpts)
       .catch(() => setOpts(null))
       .finally(() => setLoading(false));
-  }, [orderId, itemId, isExchange]);
+  }, [orderId, itemId, isExchange, reason]);
 
   const previews = value.files.map((f) => URL.createObjectURL(f));
   useEffect(() => () => previews.forEach((p) => URL.revokeObjectURL(p)));
@@ -54,6 +54,22 @@ export default function ExchangeExtras({
 
   return (
     <div className="space-y-4">
+      {isExchange && opts?.shipping && (
+        <div className={`text-xs rounded-xl border p-3 ${opts.shipping.payer === 'Customer' && opts.shipping.amount > 0 ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-green-200 bg-green-50 text-green-900'}`}>
+          {opts.shipping.payer === 'Customer' && opts.shipping.amount > 0 ? (
+            <>
+              <p className="font-bold text-sm">Delivery charge: ₹{opts.shipping.amount.toFixed(2)}</p>
+              <p className="mt-0.5">You pay this when the replacement is delivered, because you chose a different size or variant.</p>
+            </>
+          ) : (
+            <>
+              <p className="font-bold text-sm">No delivery charge for you</p>
+              <p className="mt-0.5">The seller bears it, because the exchange is due to a wrong or faulty item.</p>
+            </>
+          )}
+        </div>
+      )}
+
       {showVariant && (
         <div>
           <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">

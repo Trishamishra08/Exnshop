@@ -22,7 +22,7 @@ import { commitCouponUsage } from "../../../services/couponService";
 import { ensureOrderShipments } from "../../../services/shippingLabelService";
 import { resolveSellerChannel, CommerceChannel } from "../../../utils/commerceChannelHelper";
 import { computeItemGst, GstLineInput } from "../../../services/taxService";
-import { boughtVariationIndex, exchangeOptionsFor, needsPhotoProof } from "../../../services/exchangeService";
+import { boughtVariationIndex, exchangeOptionsFor, exchangeShippingFor, needsPhotoProof } from "../../../services/exchangeService";
 
 type ChannelOrderResult =
   | { success: true; order: any; walletAmountUsed: number }
@@ -1342,6 +1342,8 @@ export const getOrderById = async (req: Request, res: Response) => {
       // Include saved instructions / requests for read-only post-delivery display
       deliveryInstructions: orderObj.deliveryInstructions || (orderObj as any).instructions || "",
       specialRequests: orderObj.specialRequests || "",
+      // Replacement orders created for an exchange: what it is, who pays, and the note.
+      exchangeInfo: (orderObj as any).exchangeInfo || null,
       // Include customer's permanent delivery OTP (null if delivered)
       deliveryOtp,
       // Map deliveryBoy to deliveryPartner for frontend with phone/mobile fallback
@@ -1731,6 +1733,7 @@ export const requestItemReturn = async (req: Request, res: Response) => {
       : [];
     const condition = ["Unused", "Defective", "Used"].includes(req.body.condition) ? req.body.condition : undefined;
     let requestedVariation: { id: string; label: string } | undefined;
+    let exchangeShipping: { amount: number; payer: "Customer" | "Seller" } | undefined;
 
     if (requestType === "EXCHANGE") {
       if (needsPhotoProof(reason) && images.length === 0) {
@@ -1738,7 +1741,7 @@ export const requestItemReturn = async (req: Request, res: Response) => {
       }
       const opts = await exchangeOptionsFor(item);
       const wantedId = req.body.requestedVariationId ? String(req.body.requestedVariationId) : "";
-      if (/size|fit|colo/i.test(reason) && opts.canChooseVariant && !wantedId) {
+      if (/size|fit|colo/i.test(reason) && !/wrong/i.test(reason) && opts.canChooseVariant && !wantedId) {
         return res.status(400).json({ success: false, message: "Choose the size or variant you want instead." });
       }
       if (wantedId) {
@@ -1757,6 +1760,10 @@ export const requestItemReturn = async (req: Request, res: Response) => {
       }
     }
 
+    if (requestType === "EXCHANGE") {
+      exchangeShipping = await exchangeShippingFor(reason, productId, returnQty, (order as any).channel);
+    }
+
     // Many requests in a short time are flagged for the admin to look at (not blocked).
     const recent = await Return.countDocuments({ customer: userId, createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } });
     const flags = recent >= 3 ? ["REPEAT_REQUESTS"] : undefined;
@@ -1772,6 +1779,7 @@ export const requestItemReturn = async (req: Request, res: Response) => {
       images,
       condition,
       requestedVariation,
+      exchangeShipping,
       flags,
       status: "Pending",
     });

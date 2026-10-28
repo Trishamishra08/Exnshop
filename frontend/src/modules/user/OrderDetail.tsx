@@ -1318,9 +1318,22 @@ export default function OrderDetail() {
               </svg>
             )}
             title="Payment Method"
-            subtitle={`${order.paymentMethod || 'COD'}`}
+            subtitle={
+              order.exchangeInfo
+                ? order.exchangeInfo.payer === "Customer" && order.exchangeInfo.deliveryCharge > 0
+                  ? `Exchange order: pay ₹${Number(order.exchangeInfo.deliveryCharge).toFixed(2)} delivery charge on delivery (cash)`
+                  : "Exchange order: nothing to pay"
+                : `${order.paymentMethod || 'COD'}`
+            }
             showArrow={false}
           />
+          {order.exchangeInfo && (
+            <div className="mx-4 mb-3 p-3 rounded-xl border border-blue-200 bg-blue-50 text-xs text-blue-900 space-y-1">
+              <p className="font-bold text-sm">🔄 Exchange / Replacement</p>
+              <p>{order.exchangeInfo.note}</p>
+              {order.exchangeInfo.collectOldItem && <p className="font-semibold">Please keep the old item ready in its packaging. The delivery partner will take it when delivering this order.</p>}
+            </div>
+          )}
           {!["Delivered", "Completed", "Cancelled", "Returned"].includes(orderStatus) ? (
             <SectionItem
               icon={MessageSquareIcon}
@@ -2160,6 +2173,7 @@ export default function OrderDetail() {
                   {(returnRequestType === "Exchange"
                     ? [
                         "Size / fit issue - need replacement",
+                        "Wrong size / variant delivered - need replacement",
                         "Defective or damaged product - need replacement",
                         "Wrong product received - need replacement",
                         "Product quality issue",

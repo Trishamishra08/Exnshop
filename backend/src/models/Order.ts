@@ -125,6 +125,19 @@ export interface IOrder extends Document {
   // Notes
   adminNotes?: string;
   customerNotes?: string;
+  /** Set on a replacement order created for an exchange; shown to the customer, seller and rider. */
+  exchangeInfo?: {
+    returnId: mongoose.Types.ObjectId;
+    originalOrderId: mongoose.Types.ObjectId;
+    originalOrderNumber?: string;
+    /** Who bears the delivery charge for this exchange. */
+    payer: "Customer" | "Seller";
+    /** Delivery charge (₹). Customer-borne: collected on delivery; seller-borne: deducted from the seller. */
+    deliveryCharge: number;
+    /** The rider collects the old item when delivering this replacement. */
+    collectOldItem: boolean;
+    note: string;
+  };
   deliveryInstructions?: string;
   specialRequests?: string;
 
@@ -520,6 +533,21 @@ const OrderSchema = new Schema<IOrder>(
     adminNotes: {
       type: String,
       trim: true,
+    },
+    exchangeInfo: {
+      type: new Schema(
+        {
+          returnId: { type: Schema.Types.ObjectId, ref: "Return", required: true },
+          originalOrderId: { type: Schema.Types.ObjectId, ref: "Order", required: true },
+          originalOrderNumber: { type: String },
+          payer: { type: String, enum: ["Customer", "Seller"], required: true },
+          deliveryCharge: { type: Number, default: 0, min: 0 },
+          collectOldItem: { type: Boolean, default: false },
+          note: { type: String },
+        },
+        { _id: false }
+      ),
+      default: undefined,
     },
     customerNotes: {
       type: String,

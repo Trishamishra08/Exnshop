@@ -2,18 +2,21 @@ import { Request, Response } from "express";
 import Order from "../../../models/Order";
 import OrderItem from "../../../models/OrderItem";
 import Return from "../../../models/Return";
-import { exchangeOptionsFor } from "../../../services/exchangeService";
+import { exchangeOptionsFor, exchangeShippingFor } from "../../../services/exchangeService";
 import { sendNotification, sendBroadcastNotification } from "../../../services/notificationService";
 
 /** GET /customer/orders/:orderId/items/:itemId/exchange-options: variants the customer can switch an item to. */
 export const getExchangeOptions = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId;
-    const order = await Order.findOne({ _id: req.params.orderId, customer: userId }).select("_id items").lean();
+    const order = await Order.findOne({ _id: req.params.orderId, customer: userId }).select("_id items channel").lean();
     if (!order) return res.status(404).json({ success: false, message: "Order not found" });
     const item: any = await OrderItem.findOne({ _id: req.params.itemId, order: order._id }).lean();
     if (!item) return res.status(404).json({ success: false, message: "Item not found in this order" });
-    return res.status(200).json({ success: true, data: await exchangeOptionsFor(item) });
+    const options = await exchangeOptionsFor(item);
+    const reason = typeof req.query.reason === "string" ? req.query.reason : "";
+    const shipping = await exchangeShippingFor(reason, item.product, item.quantity, (order as any).channel);
+    return res.status(200).json({ success: true, data: { ...options, shipping } });
   } catch (error: any) {
     return res.status(500).json({ success: false, message: error.message || "Could not load exchange options" });
   }

@@ -9,9 +9,6 @@
 
 import { Request, Response } from "express";
 import { asyncHandler } from "../../../utils/asyncHandler";
-import { isSellerFaultReason } from "../../../services/exchangeService";
-import { returnPickupCharge } from "../../../services/shippingChargeService";
-import { chargeSellerShipping } from "../../../services/walletManagementService";
 import Return from "../../../models/Return";
 import OrderItem from "../../../models/OrderItem";
 import Order from "../../../models/Order";
@@ -289,6 +286,12 @@ export const updateReturnStatus = asyncHandler(
           ? " Courier pickup booked from the customer."
           : ` Courier pickup could not be booked yet (${booked.message}); Exnshop support will retry.`;
         updatedReturn = await Return.findById(id);
+      } else if (reqType === "EXCHANGE") {
+        // Quick: send the replacement now; the rider takes the old item back in the same trip.
+        const { startDoorstepSwap } = await import("../../../services/exchangeService");
+        const swap = await startDoorstepSwap(id, req.app.get("io"));
+        if (swap.started) courierNote = ` ${swap.message}`;
+        updatedReturn = await Return.findById(id);
       }
     }
 
@@ -394,7 +397,22 @@ export const confirmSellerReceipt = asyncHandler(
       returnReq.qc = { result: qcResult, note: qcNote, at: new Date(), by: String(sellerId) };
       await returnReq.save();
     }
-    if (isExchangeReq && qcResult === "Failed") {
+    // Doorstep swap: the replacement already reached the customer, so a failed check can't hold it.
+    // Record it, tell the admin, and let the exchange close normally.
+    if (isExchangeReq && qcResult === "Failed" && returnReq.replacementOrder) {
+      returnReq.flags = [...(returnReq.flags || []), "QC_FAILED_AFTER_SWAP"];
+      await returnReq.save();
+      try {
+        const { sendBroadcastNotification } = await import("../../../services/notificationService");
+        await sendBroadcastNotification("Admin", "Swapped item failed quality check", `The replacement was already delivered, but the seller reports the old item has a problem: ${qcNote}`, {
+          type: "Warning",
+          priority: "High",
+          link: "/admin/returns",
+        });
+      } catch (notifErr) {
+        console.error("Error notifying admin of failed swap QC:", notifErr);
+      }
+    } else if (isExchangeReq && qcResult === "Failed") {
       // The returned item doesn't match the claim: nothing is replaced until an admin decides.
       returnReq.exchangeState = "QCFailed";
       await returnReq.save();
@@ -446,27 +464,6 @@ export const confirmSellerReceipt = asyncHandler(
     // Exchange: send the replacement unit as a new ₹0 order.
     let replacementNote = "";
     if (reqType === "EXCHANGE") {
-      // Defective/wrong/quality complaints: the seller bears the courier pickup of the returned unit.
-      try {
-        const pickedUpByCourier = returnReq.shiprocketReturn?.shipmentId || returnReq.shiprocketReturn?.awbCode;
-        if (isSellerFaultReason(returnReq.reason) && pickedUpByCourier && !returnReq.returnShippingCharge) {
-          const orderItemDoc: any = returnReq.orderItem;
-          const charge = await returnPickupCharge(orderItemDoc?.product, returnReq.quantity);
-          if (charge > 0) {
-            const charged = await chargeSellerShipping(
-              String(sellerId),
-              charge,
-              `Exchange pickup shipping for order ${returnReq.order} (${returnReq.quantity}x ${orderItemDoc?.productName || "item"})`,
-              `RETSHIP-${id}`,
-              String(returnReq.order),
-            );
-            if (charged) await Return.updateOne({ _id: id }, { $set: { returnShippingCharge: charge } });
-          }
-        }
-      } catch (chargeErr) {
-        console.error("Error charging exchange pickup shipping:", chargeErr);
-      }
-
       const { createReplacementOrder } = await import("../../../services/replacementOrderService");
       const replacement = await createReplacementOrder(id, req.app.get("io"));
       if (replacement.success) {

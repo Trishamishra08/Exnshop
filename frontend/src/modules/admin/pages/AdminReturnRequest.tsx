@@ -745,6 +745,7 @@ export default function AdminReturnRequest() {
                       {request.requestType === "EXCHANGE" && (
                         <div className="mt-1 space-y-0.5">
                           <span className="inline-block px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold uppercase">Exchange</span>
+                          {request.exchangeShipping && request.exchangeShipping.amount > 0 && <div className="text-[11px] text-neutral-500">Delivery ₹{request.exchangeShipping.amount} paid by {request.exchangeShipping.payer}</div>}
                           {request.requestedVariation && <div className="text-[11px] text-neutral-500">wants {request.requestedVariation.label}</div>}
                         </div>
                       )}
@@ -828,6 +829,8 @@ export default function AdminReturnRequest() {
                               </button>
                             ))}
                           </div>
+                        ) : request.doorstepSwap && request.status === "Pickup Pending" ? (
+                          <span className="text-[11px] text-blue-700 font-semibold">Doorstep swap: the rider collects the old item with the replacement</span>
                         ) : request.status === "Pickup Pending" ? (
                           <button
                             id={`btn-assign-dp-${request._id}`}

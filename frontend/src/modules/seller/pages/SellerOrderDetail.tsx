@@ -9,6 +9,7 @@ import { getSellerShippingLabel, generateSellerAwb } from '../../../services/api
 import { getSellerTaxInvoice } from '../../../services/api/taxInvoiceService';
 import { getHandlingSettings, getPackingSlips, getShippingMethod, saveSelfShippingDetails } from '../../../services/api/shippingMethodService';
 import RefundOrderModal from '../components/RefundOrderModal';
+import ExchangeBanner from '../../../components/ExchangeBanner';
 
 // E-commerce orders are packed by the seller and shipped by courier, so they get
 // their own screen. Quick orders keep the original rider-delivery screen.
@@ -444,6 +445,7 @@ export default function SellerOrderDetail() {
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusBadgeClass(orderStatus)}`}>{statusLabel(orderStatus)}</span>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700">E-commerce · Courier</span>
             </div>
+            <div className="mt-2"><ExchangeBanner info={orderDetail.exchangeInfo} /></div>
             <p className="text-xs text-neutral-500 mt-1">
               Placed {formatDate(orderDetail.orderDate)} at {formatTime(orderDetail.orderDate)}
               {orderDetail.invoiceNumber && orderDetail.invoiceNumber !== orderRef ? ` · Invoice ${orderDetail.invoiceNumber}` : ''}

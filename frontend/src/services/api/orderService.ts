@@ -59,6 +59,7 @@ export interface OrderDetail {
   /** Quick = rider/seller delivers; ECommerce = shipped by courier. */
   channel?: 'Quick' | 'ECommerce';
   shippingMethod?: 'Self' | 'Company';
+  exchangeInfo?: { note: string; payer: 'Customer' | 'Seller'; deliveryCharge: number; collectOldItem: boolean; originalOrderNumber?: string } | null;
   shipDates?: { shipByDate: string; deliverByDate: string; shipState: 'late' | 'today' | 'tomorrow' | 'ok' | null } | null;
   shipment?: { awbCode: string; courierName: string; trackingUrl: string; status: string; provider?: 'Shiprocket' | 'Self' } | null;
   deliveryPreference?: 'Self' | 'Admin';

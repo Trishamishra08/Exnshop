@@ -250,6 +250,8 @@ export const getOrderDetails = asyncHandler(
       sellerPickups: (order as any).sellerPickups || [],
       items: mapOrderItems(order.items), // Real populated items
       totalAmount: order.total,
+      paymentMethod: order.paymentMethod,
+      exchangeInfo: (order as any).exchangeInfo || null,
       createdAt: order.createdAt,
       distance: null,
       deliveryEarning: commission ? commission.commissionAmount : 0,
@@ -282,6 +284,11 @@ export const updateOrderStatus = asyncHandler(
       return res
         .status(403)
         .json({ success: false, message: "This order is not assigned to you" });
+    }
+
+    // Exchange replacement: the rider must take the old item back before handing over the new one.
+    if (status === "Delivered" && (order as any).exchangeInfo?.collectOldItem && req.body?.oldItemCollected !== true) {
+      return res.status(400).json({ success: false, message: "This is an exchange. Collect the old item from the customer first, then confirm it to complete the delivery." });
     }
 
     // Save previous status before updating
@@ -327,6 +334,11 @@ export const updateOrderStatus = asyncHandler(
     }
 
     await order.save();
+
+    if (status === "Delivered" && previousStatus !== "Delivered" && (order as any).exchangeInfo?.collectOldItem) {
+      const { completeSwapOnDelivery } = await import("../../../services/exchangeService");
+      await completeSwapOnDelivery(id, String(deliveryId)).catch((err) => console.error("[Exchange] swap completion failed:", err));
+    }
 
     // Emit socket events for status changes
     const io = (req.app as any).get("io");
@@ -595,6 +607,10 @@ export const verifyDeliveryOtpController = asyncHandler(
         .json({ success: false, message: "This order is not assigned to you" });
     }
 
+    if ((order as any).exchangeInfo?.collectOldItem && req.body?.oldItemCollected !== true) {
+      return res.status(400).json({ success: false, message: "This is an exchange. Collect the old item from the customer first, then confirm it to complete the delivery." });
+    }
+
     try {
       const previousStatus = order.status;
       const result = await verifyDeliveryOtp(id, otp);
@@ -618,6 +634,16 @@ export const verifyDeliveryOtpController = asyncHandler(
           );
           // Continue even if transition fails - order is already marked as delivered
         }
+      }
+
+      if (
+        updatedOrder &&
+        updatedOrder.status === "Delivered" &&
+        previousStatus !== "Delivered" &&
+        (updatedOrder as any).exchangeInfo?.collectOldItem
+      ) {
+        const { completeSwapOnDelivery } = await import("../../../services/exchangeService");
+        await completeSwapOnDelivery(id, String(deliveryId)).catch((err) => console.error("[Exchange] swap completion failed:", err));
       }
 
       // Update delivery boy balance and cash collected (if COD)

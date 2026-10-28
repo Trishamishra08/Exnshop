@@ -6,6 +6,7 @@ import ConfirmationModal from '../../../components/ConfirmationModal';
 import { formatDeliveryAddress } from '../../../utils/addressUtils';
 import { getSellerTaxInvoice } from '../../../services/api/taxInvoiceService';
 import SellerAssignDeliveryBoyModal from '../components/SellerAssignDeliveryBoyModal';
+import ExchangeBanner from '../../../components/ExchangeBanner';
 
 // Quick-commerce order screen. The flow (accept popup, status dropdown, rider
 // assignment) is unchanged from the original; only the layout was refreshed.
@@ -254,6 +255,7 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
               Placed {formatDate(orderDetail.orderDate)} at {formatTime(orderDetail.orderDate)}
               {orderStatus === 'Delivered' && ` · Delivered ${formatDate(orderDetail.deliveryDate)}`}
             </p>
+            <div className="mt-2"><ExchangeBanner info={orderDetail.exchangeInfo} /></div>
           </div>
           <div className="flex gap-2 print:hidden">
             <button

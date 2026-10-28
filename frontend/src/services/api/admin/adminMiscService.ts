@@ -23,6 +23,8 @@ export interface MiscReturnRequest {
   _id: string;
   requestType?: "RETURN" | "EXCHANGE";
   exchangeState?: "OutOfStock" | "QCFailed" | "RefundInitiated";
+  doorstepSwap?: boolean;
+  exchangeShipping?: { amount: number; payer: "Customer" | "Seller" };
   requestedVariation?: { id: string; label: string };
   condition?: string;
   photos?: string[];

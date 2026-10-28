@@ -121,10 +121,11 @@ export interface ExchangeOptions {
     current: string | null;
     canChooseVariant: boolean;
     options: { id: string; label: string; stock: number }[];
+    shipping?: { payer: 'Customer' | 'Seller'; amount: number };
 }
 
-export const getExchangeOptions = async (orderId: string, itemId: string): Promise<ExchangeOptions> => {
-    const response = await api.get<{ success: boolean; data: ExchangeOptions }>(`/customer/orders/${orderId}/items/${itemId}/exchange-options`);
+export const getExchangeOptions = async (orderId: string, itemId: string, reason?: string): Promise<ExchangeOptions> => {
+    const response = await api.get<{ success: boolean; data: ExchangeOptions }>(`/customer/orders/${orderId}/items/${itemId}/exchange-options`, { params: { reason } });
     return response.data.data;
 };
 

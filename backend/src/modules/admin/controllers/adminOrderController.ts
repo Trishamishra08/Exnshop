@@ -742,6 +742,8 @@ export const getReturnRequests = asyncHandler(
       requestedAt: req.createdAt,
       processedAt: req.processedAt,
       requestType: req.requestType || "RETURN",
+      doorstepSwap: Boolean(req.doorstepSwap),
+      exchangeShipping: req.exchangeShipping,
       exchangeState: req.exchangeState,
       requestedVariation: req.requestedVariation,
       condition: req.condition,
@@ -874,6 +876,10 @@ export const processReturnRequest = asyncHandler(
       const { startCourierReturn } = await import("../../../services/courierReturnService");
       const booked = await startCourierReturn(id);
       courierNote = booked.success ? " Courier pickup booked." : ` Courier pickup not booked: ${booked.message}`;
+    } else if (status === "Approved" && (updatedReturn as any)?.requestType === "EXCHANGE") {
+      const { startDoorstepSwap } = await import("../../../services/exchangeService");
+      const swap = await startDoorstepSwap(id, req.app.get("io"));
+      if (swap.started) courierNote = ` ${swap.message}`;
     }
 
     return res.status(200).json({
