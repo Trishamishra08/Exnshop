@@ -119,6 +119,8 @@ export default function AdminManageSellerList() {
     const [error, setError] = useState<string>('');
     const [successMessage, setSuccessMessage] = useState<string>('');
     const [searchTerm, setSearchTerm] = useState('');
+    // Onboarding stage filter — "Draft" finds sellers who left signup half-way.
+    const [stageFilter, setStageFilter] = useState('All');
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [currentPage, setCurrentPage] = useState(1);
     const [sortColumn, setSortColumn] = useState<string | null>(null);
@@ -195,6 +197,7 @@ export default function AdminManageSellerList() {
     // Filter sellers
     let filteredSellers = sellers.filter(seller => {
         const q = String(searchTerm || "").toLowerCase();
+        if (stageFilter !== 'All' && (seller.onboardingStatus || '') !== stageFilter) return false;
         return (
             String(seller.name || "").toLowerCase().includes(q) ||
             String(seller.storeName || "").toLowerCase().includes(q) ||
@@ -660,7 +663,23 @@ export default function AdminManageSellerList() {
                     {/* Controls */}
                     <div className="p-4 border-b border-neutral-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div className="flex items-center gap-2">
-                            <span className="text-sm text-neutral-600">Show</span>
+                            <span className="text-sm text-neutral-600">Stage</span>
+                            <select
+                                value={stageFilter}
+                                onChange={(e) => {
+                                    setStageFilter(e.target.value);
+                                    setCurrentPage(1);
+                                }}
+                                className="bg-white border border-neutral-300 rounded py-1.5 px-3 text-sm focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer"
+                            >
+                                <option value="All">All sellers</option>
+                                {(Object.keys(STATUS_META) as OnboardingStatus[]).map((k) => (
+                                    <option key={k} value={k}>
+                                        {k === 'Draft' ? 'Draft (signup not finished)' : STATUS_META[k].label}
+                                    </option>
+                                ))}
+                            </select>
+                            <span className="text-sm text-neutral-600 ml-2">Show</span>
                             <select
                                 value={rowsPerPage}
                                 onChange={(e) => {

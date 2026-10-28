@@ -4,6 +4,7 @@ import {
   getProducts,
   getCategories,
   deleteProduct,
+  updateProduct,
   type Product,
   type Category,
 } from "../../../services/api/admin/adminProductService";
@@ -21,12 +22,34 @@ interface ProductVariation {
   image: string;
   variation: string;
   stock: number | "Unlimited";
-  status: "Published" | "Unpublished";
+  status: string;
+  /** Seller-side lifecycle (Draft / Pending / Active / Rejected / Inactive). */
+  lifecycle: string;
   category: string;
   categoryId: string;
 }
 
-const STATUS_OPTIONS = ["All Products", "Published", "Unpublished"];
+const STATUS_OPTIONS = ["All Products", "Published", "Unpublished", "Draft", "Pending approval", "Rejected", "Inactive"];
+
+/** One label per product that tells the admin where it stands. */
+const statusLabel = (lifecycle: string | undefined, publish: boolean) => {
+  switch (lifecycle) {
+    case "Draft": return "Draft";
+    case "Pending": return "Pending approval";
+    case "Rejected": return "Rejected";
+    case "Inactive": return "Inactive";
+    default: return publish ? "Published" : "Unpublished";
+  }
+};
+
+const STATUS_STYLE: Record<string, string> = {
+  Published: "bg-teal-100 text-teal-800",
+  Draft: "bg-amber-100 text-amber-800",
+  "Pending approval": "bg-blue-100 text-blue-800",
+  Rejected: "bg-red-100 text-red-800",
+  Inactive: "bg-gray-200 text-gray-700",
+  Unpublished: "bg-gray-100 text-gray-800",
+};
 const STOCK_OPTIONS = ["All Products", "In Stock", "Out of Stock", "Low on Stock", "Unlimited"];
 
 export default function AdminStockManagement() {
@@ -95,8 +118,14 @@ export default function AdminStockManagement() {
         params.category = filterCategory;
       }
 
-      if (filterStatus !== "All Products") {
+      if (filterStatus === "Published" || filterStatus === "Unpublished") {
         params.publish = filterStatus === "Published";
+      } else if (filterStatus === "Draft") {
+        params.status = "Draft";
+      } else if (filterStatus === "Pending approval") {
+        params.status = "Pending";
+      } else if (filterStatus === "Rejected" || filterStatus === "Inactive") {
+        params.status = filterStatus;
       }
 
       const response = await getProducts(params);
@@ -157,6 +186,21 @@ export default function AdminStockManagement() {
     }
   };
 
+  // Publishing from here also approves a Draft / Pending / Inactive product.
+  const handlePublish = async (productId: string) => {
+    try {
+      const response = await updateProduct(productId, { publish: true } as any);
+      if (response.success) {
+        showToast("Product is now live", "success");
+        fetchData();
+      } else {
+        showToast(response.message || "Could not publish this product", "error");
+      }
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || "Could not publish this product", "error");
+    }
+  };
+
   const handleEdit = (productId: string) => {
     navigate(`/admin/product/edit/${productId}`);
   };
@@ -201,7 +245,8 @@ export default function AdminStockManagement() {
               variation.stock !== undefined
                 ? variation.stock
                 : product.stock || 0,
-            status: product.publish ? "Published" : "Unpublished",
+            status: statusLabel(product.status, product.publish),
+            lifecycle: product.status || "Active",
             category: categoryName,
             categoryId: categoryId,
           });
@@ -217,7 +262,8 @@ export default function AdminStockManagement() {
           image: product.mainImage || product.galleryImages[0] || "",
           variation: "Default",
           stock: product.stock || 0,
-          status: product.publish ? "Published" : "Unpublished",
+          status: statusLabel(product.status, product.publish),
+          lifecycle: product.status || "Active",
           category: categoryName,
           categoryId: categoryId,
         });
@@ -650,15 +696,20 @@ export default function AdminStockManagement() {
                       </td>
                       <td className="p-4 align-middle">
                         <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${product.status === "Published"
-                            ? "bg-teal-100 text-teal-800"
-                            : "bg-gray-100 text-gray-800"
-                            }`}>
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[product.status] || "bg-gray-100 text-gray-800"}`}>
                           {product.status}
                         </span>
                       </td>
                       <td className="p-4 align-middle">
                         <div className="flex items-center gap-2">
+                          {product.status !== "Published" && product.status !== "Rejected" && (
+                            <button
+                              onClick={() => handlePublish(product.productId)}
+                              className="px-2 py-1 text-xs font-semibold text-teal-700 border border-teal-300 hover:bg-teal-50 rounded"
+                              title="Make this product live for customers">
+                              Publish
+                            </button>
+                          )}
                           <button
                             onClick={() => handleEdit(product.productId)}
                             className="p-1 text-blue-600 hover:bg-blue-50 rounded"
