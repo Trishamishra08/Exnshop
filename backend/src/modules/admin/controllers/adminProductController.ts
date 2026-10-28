@@ -16,6 +16,8 @@ import {
   configForProduct,
   generateSkuBase,
   listingProblems,
+  newListingContext,
+  describeProblems,
   notifySellerProductDecision,
 } from "../../../services/productListingService";
 
@@ -1034,12 +1036,16 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
   ]);
 
   // Reviewer-only fields are stripped from the default JSON; the admin list wants them.
-  const rows = products.map((p) => {
+  const draftCtx = newListingContext();
+  const rows: any[] = [];
+  for (const p of products) {
     const json: any = p.toJSON();
     json.qualityFlags = p.qualityFlags || [];
     json.reviewStartedByName = p.reviewStartedByName;
-    return json;
-  });
+    // A draft shows what is still missing, so the admin knows why it can't go to review yet.
+    if (p.status === "Draft") json.missingFields = await listingProblems(p.toObject(), draftCtx);
+    rows.push(json);
+  }
 
   return res.status(200).json({
     success: true,
@@ -1052,6 +1058,58 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
       pages: Math.ceil(total / parseInt(limit as string)),
     },
   });
+});
+
+/**
+ * GET /admin/products/review-counts?draftSince=ISO&pendingSince=ISO
+ * Sidebar badges: how many drafts / products awaiting review there are, and how
+ * many of them changed since the admin last opened that page.
+ */
+export const getReviewCounts = asyncHandler(async (req: Request, res: Response) => {
+  const since = (v: unknown) => {
+    const d = v ? new Date(String(v)) : null;
+    return d && !isNaN(d.getTime()) ? d : new Date(0);
+  };
+  const draftSince = since(req.query.draftSince);
+  const pendingSince = since(req.query.pendingSince);
+
+  const pendingFilter = { $or: [{ status: "Pending" }, { "pendingRevision.submittedAt": { $exists: true } }] };
+  const [draftTotal, draftNew, pendingTotal, pendingNew] = await Promise.all([
+    Product.countDocuments({ status: "Draft" }),
+    Product.countDocuments({ status: "Draft", updatedAt: { $gt: draftSince } }),
+    Product.countDocuments(pendingFilter),
+    Product.countDocuments({ $and: [pendingFilter, { updatedAt: { $gt: pendingSince } }] }),
+  ]);
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      serverTime: new Date().toISOString(),
+      draft: { total: draftTotal, new: draftNew },
+      pending: { total: pendingTotal, new: pendingNew },
+    },
+  });
+});
+
+/**
+ * POST /admin/products/:id/submit-draft
+ * Admin finishes a seller's abandoned draft: it must be complete, then it moves
+ * to Product Approvals like any submitted product.
+ */
+export const submitDraftForReview = asyncHandler(async (req: Request, res: Response) => {
+  const product = await Product.findById(req.params.id);
+  if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+  if (product.status !== "Draft") {
+    return res.status(409).json({ success: false, message: `This product is ${product.status}, not a draft.` });
+  }
+  const problems = await listingProblems(product.toObject());
+  if (problems.length) {
+    return res.status(400).json({ success: false, message: describeProblems(problems), data: { missing: problems } });
+  }
+  product.status = "Pending";
+  await product.save();
+  await auditProduct({ product, ...(await adminActor(req)), action: "DRAFT_SUBMITTED_BY_ADMIN" });
+  return res.status(200).json({ success: true, message: "Sent to Product Approvals for review." });
 });
 
 /**
@@ -1217,14 +1275,24 @@ export const updateProduct = asyncHandler(
       }
     }
 
-    // Customers only see products that are status "Active" AND published. An
-    // admin who publishes a Draft / Pending / Inactive product from the edit
-    // page is deciding it should go live, so it becomes Active too (a Rejected
-    // product still has to be fixed and resubmitted by the seller).
-    if (updateData.publish === true && ["Draft", "Pending", "Inactive"].includes(product.status as string)) {
-      product.status = "Active";
-      (product as any).approvedBy = (req as any).user?.userId;
-      (product as any).approvedAt = new Date();
+    // Customers only see products that are status "Active" AND published.
+    // - Inactive (seller paused it): publishing brings it back live.
+    // - Draft: it must be complete first, then it goes to Product Approvals for review
+    //   (it never skips the review queue).
+    let sentToReview = false;
+    if (updateData.publish === true) {
+      if (product.status === "Inactive") {
+        product.status = "Active";
+        (product as any).approvedBy = (req as any).user?.userId;
+        (product as any).approvedAt = new Date();
+      } else if (product.status === "Draft") {
+        const problems = await listingProblems(product.toObject());
+        if (problems.length) {
+          return res.status(400).json({ success: false, message: describeProblems(problems), data: { missing: problems } });
+        }
+        product.status = "Pending";
+        sentToReview = true;
+      }
     }
 
     await product.save();
@@ -1253,7 +1321,9 @@ export const updateProduct = asyncHandler(
 
     return res.status(200).json({
       success: true,
-      message: "Product updated successfully",
+      message: sentToReview
+        ? "Product is complete and has been sent to Product Approvals for review."
+        : "Product updated successfully",
       data: populatedProduct,
     });
   }

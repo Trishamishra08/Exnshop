@@ -485,6 +485,29 @@ export const getProducts = async (
   return response.data;
 };
 
+export interface ReviewCounts {
+  serverTime: string;
+  draft: { total: number; new: number };
+  pending: { total: number; new: number };
+}
+
+/** Sidebar badges: drafts / products awaiting review, and how many are new since the given times. */
+export const getReviewCounts = async (
+  draftSince?: string,
+  pendingSince?: string
+): Promise<ApiResponse<ReviewCounts>> => {
+  const response = await api.get<ApiResponse<ReviewCounts>>("/admin/products/review-counts", {
+    params: { draftSince: draftSince || undefined, pendingSince: pendingSince || undefined },
+  });
+  return response.data;
+};
+
+/** Move a complete draft to Product Approvals. */
+export const submitDraftForReview = async (id: string): Promise<ApiResponse<void>> => {
+  const response = await api.post<ApiResponse<void>>(`/admin/products/${id}/submit-draft`);
+  return response.data;
+};
+
 /**
  * Get product by ID
  */

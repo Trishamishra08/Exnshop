@@ -702,12 +702,28 @@ export default function AdminStockManagement() {
                       </td>
                       <td className="p-4 align-middle">
                         <div className="flex items-center gap-2">
-                          {product.status !== "Published" && product.status !== "Rejected" && (
+                          {(product.status === "Unpublished" || product.status === "Inactive") && (
                             <button
                               onClick={() => handlePublish(product.productId)}
                               className="px-2 py-1 text-xs font-semibold text-teal-700 border border-teal-300 hover:bg-teal-50 rounded"
                               title="Make this product live for customers">
                               Publish
+                            </button>
+                          )}
+                          {product.status === "Draft" && (
+                            <button
+                              onClick={() => navigate("/admin/product/drafts")}
+                              className="px-2 py-1 text-xs font-semibold text-amber-700 border border-amber-300 hover:bg-amber-50 rounded"
+                              title="Draft products are finished and sent to review from the Draft Products page">
+                              Review draft
+                            </button>
+                          )}
+                          {product.status === "Pending approval" && (
+                            <button
+                              onClick={() => navigate("/admin/product/approvals")}
+                              className="px-2 py-1 text-xs font-semibold text-blue-700 border border-blue-300 hover:bg-blue-50 rounded"
+                              title="Approve this product in Product Approvals">
+                              Review
                             </button>
                           )}
                           <button

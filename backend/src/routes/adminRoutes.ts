@@ -156,6 +156,8 @@ router.get("/products", productController.getProducts);
 // Product order functionality removed
 // router.put("/products/order", productController.updateProductOrder);
 router.get("/products/revisions", productController.getProductRevisions);
+router.get("/products/review-counts", productController.getReviewCounts);
+router.post("/products/:id/submit-draft", productController.submitDraftForReview);
 router.get("/products/:id/audit", productController.getProductAuditLog);
 router.get("/products/:id/review", listingController.getProductReviewDetails);
 router.post("/products/:id/start-review", listingController.startProductReview);

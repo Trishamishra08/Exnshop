@@ -237,6 +237,9 @@ const AdminStockManagement = lazyWithRetry(
 const AdminProductEdit = lazyWithRetry(
   () => import("./modules/admin/pages/AdminProductEdit"), "AdminProductEdit"
 );
+const AdminDraftProducts = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminDraftProducts"), "AdminDraftProducts"
+);
 const AdminProductApprovals = lazyWithRetry(
   () => import("./modules/admin/pages/AdminProductApprovals"), "AdminProductApprovals"
 );
@@ -856,6 +859,10 @@ function App() {
                                       <Route
                                         path="product/list"
                                         element={<AdminStockManagement />}
+                                      />
+                                      <Route
+                                        path="product/drafts"
+                                        element={<AdminDraftProducts />}
                                       />
                                       <Route
                                         path="product/approvals"
