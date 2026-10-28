@@ -103,6 +103,24 @@ export const getAllSellers = async (
   return response.data;
 };
 
+export interface DraftSellerRow {
+  _id: string;
+  sellerName: string;
+  storeName?: string;
+  mobile?: string;
+  email?: string;
+  onboardingStatus: "Draft" | "KYCPending";
+  createdAt: string;
+  updatedAt: string;
+  missing: { section: string; item: string }[];
+}
+
+/** Sellers who started signing up but have not submitted their application. */
+export const getDraftSellers = async (): Promise<ApiResponse<DraftSellerRow[]>> => {
+  const response = await api.get<ApiResponse<DraftSellerRow[]>>("/admin/sellers/drafts");
+  return response.data;
+};
+
 /**
  * Get seller by ID
  */

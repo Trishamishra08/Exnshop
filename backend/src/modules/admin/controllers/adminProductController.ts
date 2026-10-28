@@ -1072,13 +1072,17 @@ export const getReviewCounts = asyncHandler(async (req: Request, res: Response) 
   };
   const draftSince = since(req.query.draftSince);
   const pendingSince = since(req.query.pendingSince);
+  const sellerDraftSince = since(req.query.sellerDraftSince);
 
   const pendingFilter = { $or: [{ status: "Pending" }, { "pendingRevision.submittedAt": { $exists: true } }] };
-  const [draftTotal, draftNew, pendingTotal, pendingNew] = await Promise.all([
+  const sellerDraftFilter = { onboardingStatus: { $in: ["Draft", "KYCPending"] } };
+  const [draftTotal, draftNew, pendingTotal, pendingNew, sellerDraftTotal, sellerDraftNew] = await Promise.all([
     Product.countDocuments({ status: "Draft" }),
     Product.countDocuments({ status: "Draft", updatedAt: { $gt: draftSince } }),
     Product.countDocuments(pendingFilter),
     Product.countDocuments({ $and: [pendingFilter, { updatedAt: { $gt: pendingSince } }] }),
+    Seller.countDocuments(sellerDraftFilter),
+    Seller.countDocuments({ ...sellerDraftFilter, updatedAt: { $gt: sellerDraftSince } }),
   ]);
 
   return res.status(200).json({
@@ -1087,6 +1091,7 @@ export const getReviewCounts = asyncHandler(async (req: Request, res: Response) 
       serverTime: new Date().toISOString(),
       draft: { total: draftTotal, new: draftNew },
       pending: { total: pendingTotal, new: pendingNew },
+      sellerDraft: { total: sellerDraftTotal, new: sellerDraftNew },
     },
   });
 });

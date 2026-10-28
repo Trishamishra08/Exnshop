@@ -440,6 +440,24 @@ const getMenuSections = (mode: "Quick" | "ECommerce"): MenuSection[] => [
             ),
           },
           {
+            label: "Draft Sellers",
+            path: "/admin/manage-seller/drafts",
+            icon: (
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round">
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+              </svg>
+            ),
+          },
+          {
             label: "Seller Transaction",
             path: "/admin/manage-seller/transaction",
             icon: (
@@ -1218,8 +1236,8 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
       ? reviewCounts.draft
       : path === "/admin/product/approvals"
         ? reviewCounts.pending
-        : path === "/admin/product/list"
-          ? reviewCounts.draft + reviewCounts.pending
+        : path === "/admin/manage-seller/drafts"
+          ? reviewCounts.sellerDraft
           : 0;
   const CountBadge = ({ n }: { n: number }) =>
     n > 0 ? (
@@ -1476,6 +1494,9 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
                       {item.path === "/admin/product" && !expanded && (
                         <CountBadge n={reviewCounts.draft + reviewCounts.pending} />
                       )}
+                      {item.path === "/admin/manage-seller" && !expanded && (
+                        <CountBadge n={reviewCounts.sellerDraft} />
+                      )}
                       {item.hasSubmenu && (
                         <svg
                           width="16"
@@ -1516,7 +1537,7 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
                                       {getSidebarTranslation(subItem.label)}
                                     </span>
                                   </div>
-                                  {subItem.path !== "/admin/product/list" && <CountBadge n={badgeFor(subItem.path)} />}
+                                  <CountBadge n={badgeFor(subItem.path)} />
                                 </button>
                               </li>
                             );

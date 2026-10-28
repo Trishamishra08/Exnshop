@@ -343,6 +343,7 @@ router.delete("/policies/:id", policyController.deletePolicy);
 
 // ==================== Seller Routes ====================
 router.get("/sellers", sellerController.getAllSellers);
+router.get("/sellers/drafts", sellerController.getDraftSellers);
 
 // ==================== Courier/Logistics Routes ====================
 router.get("/shipping-method-requests", getShippingMethodRequests);

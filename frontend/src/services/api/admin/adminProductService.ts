@@ -489,15 +489,21 @@ export interface ReviewCounts {
   serverTime: string;
   draft: { total: number; new: number };
   pending: { total: number; new: number };
+  sellerDraft: { total: number; new: number };
 }
 
 /** Sidebar badges: drafts / products awaiting review, and how many are new since the given times. */
 export const getReviewCounts = async (
   draftSince?: string,
-  pendingSince?: string
+  pendingSince?: string,
+  sellerDraftSince?: string
 ): Promise<ApiResponse<ReviewCounts>> => {
   const response = await api.get<ApiResponse<ReviewCounts>>("/admin/products/review-counts", {
-    params: { draftSince: draftSince || undefined, pendingSince: pendingSince || undefined },
+    params: {
+      draftSince: draftSince || undefined,
+      pendingSince: pendingSince || undefined,
+      sellerDraftSince: sellerDraftSince || undefined,
+    },
   });
   return response.data;
 };

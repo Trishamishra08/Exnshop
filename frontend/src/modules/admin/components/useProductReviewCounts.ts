@@ -2,9 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { getReviewCounts } from "../../../services/api/admin/adminProductService";
 
-const SEEN_KEY = { draft: "admin_seen_draft_products", pending: "admin_seen_pending_products" } as const;
+const SEEN_KEY = {
+  draft: "admin_seen_draft_products",
+  pending: "admin_seen_pending_products",
+  sellerDraft: "admin_seen_draft_sellers",
+} as const;
 const DRAFT_PATH = "/admin/product/drafts";
 const APPROVAL_PATH = "/admin/product/approvals";
+const SELLER_DRAFT_PATH = "/admin/manage-seller/drafts";
 
 const readSeen = (key: string) => {
   try {
@@ -27,15 +32,15 @@ const writeSeen = (key: string, value: string) => {
  */
 export function useProductReviewCounts() {
   const location = useLocation();
-  const [counts, setCounts] = useState({ draft: 0, pending: 0 });
+  const [counts, setCounts] = useState({ draft: 0, pending: 0, sellerDraft: 0 });
   const serverTime = useRef("");
 
   const refresh = useCallback(async () => {
     try {
-      const res = await getReviewCounts(readSeen(SEEN_KEY.draft), readSeen(SEEN_KEY.pending));
+      const res = await getReviewCounts(readSeen(SEEN_KEY.draft), readSeen(SEEN_KEY.pending), readSeen(SEEN_KEY.sellerDraft));
       if (!res.success) return;
       serverTime.current = res.data.serverTime;
-      setCounts({ draft: res.data.draft.new, pending: res.data.pending.new });
+      setCounts({ draft: res.data.draft.new, pending: res.data.pending.new, sellerDraft: res.data.sellerDraft?.new ?? 0 });
     } catch {
       /* badges are optional — never block the sidebar */
     }
@@ -47,7 +52,9 @@ export function useProductReviewCounts() {
       ? "draft"
       : location.pathname.startsWith(APPROVAL_PATH)
         ? "pending"
-        : null;
+        : location.pathname.startsWith(SELLER_DRAFT_PATH)
+          ? "sellerDraft"
+          : null;
     (async () => {
       if (kind) {
         if (!serverTime.current) await refresh();
