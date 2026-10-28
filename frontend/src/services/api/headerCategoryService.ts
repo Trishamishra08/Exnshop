@@ -9,6 +9,8 @@ export interface HeaderCategory {
     slug: string; // Maps to theme key
     relatedCategory?: string;
     status: 'Published' | 'Unpublished';
+    /** Days after delivery customers can return/exchange products of this header category. Blank = default. */
+    returnWindowDays?: number;
     order?: number;
 }
 

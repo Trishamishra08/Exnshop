@@ -1,3 +1,4 @@
+import { returnWindowForProduct } from "../../../services/returnWindowService";
 import { Request, Response } from "express";
 import Order from "../../../models/Order";
 import Product from "../../../models/Product";
@@ -318,9 +319,8 @@ async function buildAndSaveChannelOrder(params: {
     const returnsEnabled = settings?.returnConfig?.returnsEnabled !== false;
     const productIsReturnable = product.isReturnable !== false;
     const isReturnableSnapshot = returnsEnabled && productIsReturnable;
-    const returnDaysSnapshot = product.maxReturnDays && product.maxReturnDays > 0
-      ? product.maxReturnDays
-      : settings?.returnConfig?.defaultReturnWindowDays ?? 7;
+    // The window is set by the admin per header category, never by the seller.
+    const returnDaysSnapshot = await returnWindowForProduct(product, settings);
 
     // Create OrderItem
     const newOrderItemData = {
@@ -1319,9 +1319,10 @@ export const getOrderById = async (req: Request, res: Response) => {
     const enrichedItems = await Promise.all(
       (orderObj.items || []).map(async (item: any) => {
         const prodId = item.product?._id || item.product;
-        const prod = prodId ? await Product.findById(prodId).select("isReturnable maxReturnDays") : null;
+        const prod = prodId ? await Product.findById(prodId).select("isReturnable headerCategoryId") : null;
         const isReturnable = prod?.isReturnable || false;
-        const maxReturnDays = prod?.maxReturnDays || 7;
+        // The window agreed when the order was placed; older items fall back to the category's current one.
+        const maxReturnDays = item.returnWindowDays > 0 ? item.returnWindowDays : await returnWindowForProduct(prod);
 
         const deliveryDate = orderObj.deliveredAt || orderObj.updatedAt || orderObj.createdAt;
         const expiryDate = new Date(deliveryDate);
@@ -1741,7 +1742,7 @@ export const requestItemReturn = async (req: Request, res: Response) => {
     }
 
     const deliveredAt = order.deliveredAt || order.updatedAt || order.createdAt;
-    const windowDays = product.maxReturnDays ?? 7;
+    const windowDays = item.returnWindowDays > 0 ? item.returnWindowDays : await returnWindowForProduct(product);
     const deadline = new Date(deliveredAt);
     deadline.setDate(deadline.getDate() + windowDays);
 

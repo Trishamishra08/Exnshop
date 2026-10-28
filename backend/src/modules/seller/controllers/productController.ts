@@ -252,9 +252,8 @@ export const createProduct = asyncHandler(
     } else {
       newProductData.isReturnable = true; // Default to returnable unless specified false
     }
-    if (productData.maxReturnDays !== undefined) {
-      newProductData.maxReturnDays = Number(productData.maxReturnDays) || 0;
-    }
+    // The return window is set by the admin per header category; a seller-sent value is ignored.
+    delete newProductData.maxReturnDays;
 
     if (!newProductData.popular) newProductData.popular = false;
     if (!newProductData.dealOfDay) newProductData.dealOfDay = false;
@@ -614,6 +613,7 @@ export const updateProduct = asyncHandler(
       });
     }
 
+    delete updateData.maxReturnDays; // admin-controlled, per header category
     const submitForReview = updateData.submitForReview === true;
     delete updateData.submitForReview;
     delete updateData.saveAsDraft;
@@ -1176,7 +1176,6 @@ export const bulkUploadProducts = asyncHandler(
         }
 
         const isReturnable = String(row.isReturnable).toLowerCase() !== "false";
-        const maxReturnDays = row.maxReturnDays ? Number(row.maxReturnDays) || 0 : 0;
         const variationTitle = (row.variationTitle || "Default").trim();
 
         const doc: any = {
@@ -1194,7 +1193,6 @@ export const bulkUploadProducts = asyncHandler(
           stock,
           sku: (row.sku || "").trim() || undefined,
           isReturnable,
-          maxReturnDays,
           variations: [
             {
               name: "Variation",

@@ -500,9 +500,6 @@ export default function SellerAddProduct() {
         madeIn: formData.madeIn || undefined,
         taxId: formData.tax || undefined,
         isReturnable: formData.isReturnable === "Yes",
-        maxReturnDays: formData.maxReturnDays
-          ? parseInt(formData.maxReturnDays)
-          : undefined,
         totalAllowedQuantity: parseInt(formData.totalAllowedQuantity || "10"),
         fssaiLicNo: formData.fssaiLicNo || undefined,
         mainImageUrl: mainImageUrl || undefined,
@@ -1144,16 +1141,11 @@ export default function SellerAddProduct() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-2">
-                    Max Return Days
+                    Return / replacement window
                   </label>
-                  <input
-                    type="number"
-                    name="maxReturnDays"
-                    value={formData.maxReturnDays}
-                    onChange={handleChange}
-                    placeholder="Enter Max Return Days"
-                    className="w-full px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                  />
+                  <p className="w-full px-4 py-2 border border-neutral-200 rounded-lg bg-neutral-50 text-sm text-neutral-600">
+                    Set by Exnshop for the product's header category. You don't need to enter it.
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-neutral-700 mb-2">

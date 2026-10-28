@@ -8,6 +8,8 @@ export interface IHeaderCategory extends Document {
     relatedCategory?: string; // Links to a product category
     order: number;
     status: 'Published' | 'Unpublished';
+    /** Days after delivery a customer can return/exchange products of this header category. Unset = marketplace default. */
+    returnWindowDays?: number;
     translations?: Record<string, Record<string, string>>;
     createdAt: Date;
     updatedAt: Date;
@@ -22,6 +24,7 @@ const HeaderCategorySchema: Schema = new Schema(
         relatedCategory: { type: String, required: false },
         order: { type: Number, default: 0 },
         status: { type: String, enum: ['Published', 'Unpublished'], default: 'Published' },
+        returnWindowDays: { type: Number, min: 0, max: 365 },
         translations: { type: Schema.Types.Mixed, default: {} },
     },
     { timestamps: true }

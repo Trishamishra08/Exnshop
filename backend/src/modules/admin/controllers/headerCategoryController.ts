@@ -43,6 +43,13 @@ export const getHeaderCategories = async (_req: Request, res: Response) => {
 };
 
 // @desc    Create a header category
+/** Blank = use the marketplace default; otherwise a whole number of days, 0-365. */
+const parseReturnWindow = (value: unknown): number | undefined | "invalid" => {
+  if (value === undefined || value === null || value === "") return undefined;
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 0 && n <= 365 ? n : "invalid";
+};
+
 // @route   POST /api/v1/header-categories
 // @access  Private/Admin
 export const createHeaderCategory = async (req: Request, res: Response) => {
@@ -55,10 +62,15 @@ export const createHeaderCategory = async (req: Request, res: Response) => {
       relatedCategory,
       status,
       order,
+      returnWindowDays,
     } = req.body;
 
     if (isReservedSlug(slug)) {
       return res.status(400).json({ message: RESERVED_SLUG_MESSAGE });
+    }
+    const windowDays = parseReturnWindow(returnWindowDays);
+    if (windowDays === "invalid") {
+      return res.status(400).json({ message: "Return window must be a whole number of days between 0 and 365" });
     }
 
     const categoryExists = await HeaderCategory.findOne({ slug });
@@ -76,6 +88,7 @@ export const createHeaderCategory = async (req: Request, res: Response) => {
       relatedCategory,
       status,
       order,
+      returnWindowDays: windowDays,
     });
 
     return res.status(201).json(category);
@@ -100,6 +113,7 @@ export const updateHeaderCategory = async (req: Request, res: Response) => {
       relatedCategory,
       status,
       order,
+      returnWindowDays,
     } = req.body;
     const category = await HeaderCategory.findById(req.params.id);
 
@@ -126,6 +140,13 @@ export const updateHeaderCategory = async (req: Request, res: Response) => {
       category.relatedCategory = relatedCategory; // Allow clearing it (undefined or null or empty string)
       category.status = status || category.status;
       category.order = order !== undefined ? order : category.order;
+      if (returnWindowDays !== undefined) {
+        const windowDays = parseReturnWindow(returnWindowDays);
+        if (windowDays === "invalid") {
+          return res.status(400).json({ message: "Return window must be a whole number of days between 0 and 365" });
+        }
+        category.returnWindowDays = windowDays;
+      }
 
       const updatedCategory = await category.save();
 

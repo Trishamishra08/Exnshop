@@ -9,6 +9,8 @@ import { attributeProblems, idOf, resolveListingConfig } from "./listingConfigSe
 
 /** Fields only the system / admins may set. Sellers can never write these. */
 export const PROTECTED_FIELDS = [
+  // The return window is set by the admin per header category, never by a seller.
+  "maxReturnDays",
   "_id",
   "id",
   "seller",

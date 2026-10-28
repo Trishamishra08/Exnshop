@@ -24,6 +24,7 @@ export default function AdminHeaderCategory() {
   const [selectedCategory, setSelectedCategory] = useState(''); // This maps to relatedCategory
   const [selectedTheme, setSelectedTheme] = useState(''); // This maps to slug
   const [selectedStatus, setSelectedStatus] = useState<'Published' | 'Unpublished'>('Published');
+  const [returnWindowDays, setReturnWindowDays] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Icon search state
@@ -114,6 +115,7 @@ export default function AdminHeaderCategory() {
     setSelectedCategory('');
     setSelectedTheme('');
     setSelectedStatus('Published');
+    setReturnWindowDays('');
     setEditingId(null);
     setIconSearchTerm('');
   };
@@ -131,6 +133,8 @@ export default function AdminHeaderCategory() {
         slug: selectedTheme, // Use theme as slug for color mapping
         relatedCategory: selectedCategory,
         status: selectedStatus,
+        // Blank = use the marketplace default window.
+        returnWindowDays: returnWindowDays.trim() === '' ? undefined : Number(returnWindowDays),
       };
 
       if (editingId) {
@@ -157,6 +161,7 @@ export default function AdminHeaderCategory() {
     setSelectedCategory(category.relatedCategory || '');
     setSelectedTheme(category.slug);
     setSelectedStatus(category.status);
+    setReturnWindowDays(category.returnWindowDays === undefined || category.returnWindowDays === null ? '' : String(category.returnWindowDays));
     setIconSearchTerm('');
   };
 
@@ -351,6 +356,26 @@ export default function AdminHeaderCategory() {
                 <option value="Published">Published</option>
                 <option value="Unpublished">Unpublished</option>
               </select>
+            </div>
+
+            {/* Return / replacement window — set here by the admin, not by sellers */}
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
+                Return / replacement window (days):
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={365}
+                step={1}
+                value={returnWindowDays}
+                onChange={(e) => setReturnWindowDays(e.target.value)}
+                placeholder="Leave blank to use the default"
+                className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-teal-500"
+              />
+              <p className="text-xs text-neutral-500 mt-1">
+                How many days after delivery a customer can return or exchange products in this header category. Sellers cannot change it.
+              </p>
             </div>
 
             {/* Buttons */}

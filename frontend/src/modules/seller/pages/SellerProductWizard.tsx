@@ -184,7 +184,6 @@ export default function SellerProductWizard() {
   const [dimW, setDimW] = useState('');
   const [dimH, setDimH] = useState('');
   const [isReturnable, setIsReturnable] = useState(true);
-  const [maxReturnDays, setMaxReturnDays] = useState('');
 
   // Compliance
   const [docs, setDocs] = useState<ComplianceDoc[]>([]);
@@ -252,7 +251,6 @@ export default function SellerProductWizard() {
     setDimW(p.dimensionsCm?.width ? String(p.dimensionsCm.width) : '');
     setDimH(p.dimensionsCm?.height ? String(p.dimensionsCm.height) : '');
     setIsReturnable(p.isReturnable !== false);
-    setMaxReturnDays(p.maxReturnDays ? String(p.maxReturnDays) : '');
     setDocs(p.complianceDocs || []);
     const variants = variantsFromProduct(p);
     setAxes(variants.axes);
@@ -545,7 +543,6 @@ export default function SellerProductWizard() {
         weightGrams,
         dimensionsCm: { length: dimL, width: dimW, height: dimH },
         isReturnable,
-        maxReturnDays: isReturnable && maxReturnDays ? parseInt(maxReturnDays, 10) : undefined,
       });
       applyServerMessage(res.message);
     });
@@ -1307,9 +1304,9 @@ export default function SellerProductWizard() {
               </div>
             </Field>
             {isReturnable && (
-              <Field label="Return window (days)">
-                <input type="number" min="0" className={`${inputCls} max-w-[160px]`} value={maxReturnDays} onChange={(e) => setMaxReturnDays(e.target.value)} />
-              </Field>
+              <p className="text-xs text-neutral-500">
+                The return / replacement window is set by Exnshop for this product's header category, so you don't need to enter it.
+              </p>
             )}
           </>
         )}
