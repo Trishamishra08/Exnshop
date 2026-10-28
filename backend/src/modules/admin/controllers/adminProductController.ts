@@ -1205,6 +1205,28 @@ export const updateProduct = asyncHandler(
       product.markModified("variations");
     }
 
+    // A product whose category was deleted is kept but hidden. It can only go
+    // live again once it has a category that still exists.
+    if (product.publish && !product.isShopByStoreOnly) {
+      const categoryExists = product.category ? await Category.exists({ _id: product.category }) : null;
+      if (!categoryExists) {
+        return res.status(400).json({
+          success: false,
+          message: "This product's category was deleted. Choose a new category for it, then publish.",
+        });
+      }
+    }
+
+    // Customers only see products that are status "Active" AND published. An
+    // admin who publishes a Draft / Pending / Inactive product from the edit
+    // page is deciding it should go live, so it becomes Active too (a Rejected
+    // product still has to be fixed and resubmitted by the seller).
+    if (updateData.publish === true && ["Draft", "Pending", "Inactive"].includes(product.status as string)) {
+      product.status = "Active";
+      (product as any).approvedBy = (req as any).user?.userId;
+      (product as any).approvedAt = new Date();
+    }
+
     await product.save();
 
     // Update inventory if stock changed
