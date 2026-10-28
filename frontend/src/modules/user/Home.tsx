@@ -318,7 +318,8 @@ export default function Home() {
             {/* Featured this week Section */}
             <FeaturedThisWeek />
 
-            {/* Shop by Store Section */}
+            {/* Shop by Store Section (hidden until there is at least one store) */}
+            {(homeData.shops || []).length > 0 && (
             <div className="mb-6 mt-6 md:mb-8 md:mt-8">
               <h2 className="text-lg md:text-2xl font-semibold text-neutral-900 mb-3 md:mb-6 px-4 md:px-6 lg:px-8 tracking-tight">
                 {t("home.shopByStore", "Shop by Store")}
@@ -351,12 +352,12 @@ export default function Home() {
                                   : "")
                               }
                               alt={storeName}
-                              className="w-full h-16 object-cover"
+                              className="w-full aspect-[4/3] object-cover"
                               loading="lazy"
                             />
                           ) : (
                             <div
-                              className={`w-full h-16 flex items-center justify-center text-3xl text-neutral-300 ${tile.bgColor || "bg-neutral-50"
+                              className={`w-full aspect-[4/3] flex items-center justify-center text-3xl text-neutral-300 ${tile.bgColor || "bg-neutral-50"
                                 }`}>
                               {storeName.charAt(0)}
                             </div>
@@ -375,6 +376,7 @@ export default function Home() {
                 </div>
               </div>
             </div>
+            )}
           </>
         )}
       </div>

@@ -30,6 +30,10 @@ const featuredCards: FeaturedCard[] = [
   },
 ];
 
+/** The product photo, whichever field the API used for it. */
+const productImage = (product: any): string =>
+  product?.imageUrl || product?.mainImage || product?.image || product?.images?.[0] || "";
+
 export default function FeaturedThisWeek() {
   const { t, getTranslatedField } = useTranslation();
   const { mode } = useCommerceMode();
@@ -72,14 +76,14 @@ export default function FeaturedThisWeek() {
   }, [newlyLaunchedProducts.length]);
 
   return (
-    <div className="mb-6 mt-6">
-      <h2 className="text-lg font-semibold text-neutral-900 mb-3 px-4 tracking-tight">
+    <div className="mb-6 mt-6 md:mb-8 md:mt-8">
+      <h2 className="text-lg md:text-2xl font-semibold text-neutral-900 mb-3 md:mb-4 px-4 md:px-6 lg:px-8 tracking-tight">
         {t("home.featuredThisWeek", "Featured this week")}
       </h2>
-      <div className="px-4">
-        <div className="flex gap-2.5 overflow-x-auto scrollbar-hide -mx-4 px-4 scroll-smooth">
-          <div className="flex-shrink-0 w-[110px]">
-            <div className="bg-gradient-to-br from-yellow-50 via-yellow-100 to-yellow-50 border-2 border-yellow-300 rounded-2xl overflow-hidden relative h-48 shadow-lg hover:shadow-xl transition-shadow">
+      <div className="px-4 md:px-6 lg:px-8">
+        <div className="flex gap-2.5 md:gap-4 overflow-x-auto scrollbar-hide scroll-smooth pb-1">
+          <div className="flex-shrink-0 w-[110px] md:w-[150px] lg:w-[170px]">
+            <div className="bg-gradient-to-br from-yellow-50 via-yellow-100 to-yellow-50 border-2 border-yellow-300 rounded-2xl overflow-hidden relative h-48 md:h-60 shadow-lg hover:shadow-xl transition-shadow">
               <div className="absolute top-0 left-0 right-0 z-20">
                 <div className="bg-gradient-to-r from-red-600 via-orange-500 to-red-600 rounded-b-3xl px-3 py-2 text-center shadow-lg relative overflow-hidden">
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer"></div>
@@ -91,16 +95,16 @@ export default function FeaturedThisWeek() {
               </div>
               <div className="absolute top-12 right-2 w-8 h-8 bg-yellow-200/30 rounded-full blur-sm"></div>
               <div className="absolute bottom-16 left-2 w-6 h-6 bg-orange-200/30 rounded-full blur-sm"></div>
-              <div className="relative h-32 mt-10 overflow-hidden bg-yellow-50">
+              <div className="relative h-32 md:h-44 mt-10 overflow-hidden bg-yellow-50">
                 {newlyLaunchedProducts.map((product, idx) => (
                   <div
                     key={`${product.id || idx}-${product.imageUrl || product.name}`}
                     className={`absolute inset-0 flex items-center justify-center transition-opacity duration-500 ${idx === currentProductIndex ? 'opacity-100' : 'opacity-0 pointer-events-none'
                       }`}
                   >
-                    {product.imageUrl ? (
+                    {productImage(product) ? (
                       <img
-                        src={product.imageUrl}
+                        src={productImage(product)}
                         alt={getTranslatedField(product, "name") || product.name || 'Product'}
                         className="w-full h-full object-contain p-2 drop-shadow-lg"
                         loading="lazy"
@@ -123,10 +127,10 @@ export default function FeaturedThisWeek() {
             </div>
           </div>
 
-          <div className="flex-shrink-0 w-[110px]">
+          <div className="flex-shrink-0 w-[110px] md:w-[150px] lg:w-[170px]">
             <Link
               to="/category/fruits-veg"
-              className="block bg-gradient-to-br from-green-600 via-green-500 to-green-600 border-2 border-green-400 rounded-2xl overflow-hidden relative h-48 shadow-lg hover:shadow-xl transition-shadow group"
+              className="block bg-gradient-to-br from-green-600 via-green-500 to-green-600 border-2 border-green-400 rounded-2xl overflow-hidden relative h-48 md:h-60 shadow-lg hover:shadow-xl transition-shadow group"
             >
               <div className="absolute inset-0 opacity-10">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,_white_2px,_transparent_2px)] bg-[length:30px_30px]"></div>
@@ -143,10 +147,10 @@ export default function FeaturedThisWeek() {
               </div>
               <div className="absolute top-14 right-2 w-8 h-8 bg-white/20 rounded-full blur-md"></div>
               <div className="absolute bottom-10 left-2 w-6 h-6 bg-yellow-300/30 rounded-full blur-md"></div>
-              <div className="flex items-center justify-center h-full pt-12 relative z-10 gap-1.5">
-                <div className="text-3xl transform group-hover:scale-110 transition-transform">🍎</div>
-                <div className="text-3xl transform group-hover:scale-110 transition-transform">🍌</div>
-                <div className="text-3xl transform group-hover:scale-110 transition-transform">🍊</div>
+              <div className="flex items-center justify-center h-full pt-12 relative z-10 gap-1 md:gap-2 px-1">
+                <div className="text-2xl md:text-3xl transform group-hover:scale-110 transition-transform">🍎</div>
+                <div className="text-2xl md:text-3xl transform group-hover:scale-110 transition-transform">🍌</div>
+                <div className="text-2xl md:text-3xl transform group-hover:scale-110 transition-transform">🍊</div>
               </div>
             </Link>
           </div>

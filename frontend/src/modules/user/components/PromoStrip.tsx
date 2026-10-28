@@ -146,7 +146,8 @@ const getCategoryIcons = (categoryId: string, categoryTitle: string = ""): strin
 };
 
 // Positions subcategory photos so they read as one overlapping collage (matches mockup)
-const getCollageLayout = (count: number, index: number) => {
+// (kept for reference; the Crazy Deals cards now use a simple row of equal tiles)
+export const getCollageLayout = (count: number, index: number) => {
   if (count <= 1) {
     return { size: "w-full h-full", pos: "inset-0", z: "z-10" };
   }
@@ -489,7 +490,7 @@ export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
       </div>
 
       {/* ============ CRAZY DEALS ============ */}
-      <div className="px-4 mt-4 md:px-6">
+      <div className="px-4 mt-4 md:px-6 lg:px-8">
         <div ref={containerRef} className="bg-white rounded-2xl shadow-sm border border-neutral-100 p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="flex items-center gap-1.5 text-lg md:text-xl font-black text-neutral-900 tracking-tight">
@@ -509,13 +510,13 @@ export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 md:gap-4">
               {[...Array(6)].map((_, i) => (
                 <div key={i} className="rounded-xl h-32 bg-neutral-100 animate-pulse" />
               ))}
             </div>
           ) : showCrazyDeals ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 md:gap-4">
               {categoryCards.map((card, index) => {
                 const subcategoryImages = subcategoryImagesMap[card.id] || card.subcategoryImages || [];
                 const hasSubcategoryImages = subcategoryImages.length > 0;
@@ -544,29 +545,29 @@ export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
                     </div>
 
                     {/* Product image collage + arrow */}
-                    <div className="relative mt-auto flex-1 min-h-[74px] px-2.5 pb-2.5">
+                    <div className="relative mt-auto px-2.5 pb-2.5 pt-2">
                       {hasSubcategoryImages ? (
-                        <div className="relative w-full h-full">
-                          {subcategoryImages.slice(0, 3).map((imageUrl, idx) => {
-                            const shown = subcategoryImages.slice(0, 3);
-                            const layout = getCollageLayout(shown.length, idx);
-                            return (
+                        <div className="flex gap-1.5 h-[76px] sm:h-24 md:h-28 pr-6">
+                          {subcategoryImages.slice(0, 3).map((imageUrl, idx, shown) => (
+                            <div
+                              key={idx}
+                              className={`relative h-full overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-white ${shown.length === 1 ? "flex-1" : "flex-1 min-w-0"}`}
+                            >
                               <img
-                                key={idx}
                                 src={imageUrl}
                                 alt=""
-                                className={`absolute object-cover rounded-lg shadow-md ring-2 ring-white ${layout.size} ${layout.pos} ${layout.z}`}
+                                className="absolute inset-0 w-full h-full object-cover"
                                 loading="lazy"
                                 decoding="async"
                                 onError={(e) => {
                                   (e.target as HTMLImageElement).style.visibility = "hidden";
                                 }}
                               />
-                            );
-                          })}
+                            </div>
+                          ))}
                         </div>
                       ) : (
-                        <div className="flex items-end justify-end h-full">
+                        <div className="flex items-end justify-end h-[76px] sm:h-24 md:h-28">
                           <span className="text-3xl opacity-70" aria-hidden="true">
                             {categoryIcons[0] || "✨"}
                           </span>
@@ -574,7 +575,7 @@ export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
                       )}
 
                       {/* Blue circular arrow overlapping the collage */}
-                      <div className="absolute bottom-2.5 right-2.5 z-40 w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                      <div className="absolute bottom-3.5 right-3.5 z-40 w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M5 12h14M13 6l6 6-6 6" />
                         </svg>
@@ -593,7 +594,7 @@ export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
       </div>
 
       {/* ============ FEATURES STRIP ============ */}
-      <div className="px-4 mt-3 md:px-6">
+      <div className="px-4 mt-3 md:px-6 lg:px-8">
         <div className="bg-white rounded-2xl shadow-sm border border-neutral-100 px-2 py-3.5">
           <div className="grid grid-cols-4">
             <FeatureItem
