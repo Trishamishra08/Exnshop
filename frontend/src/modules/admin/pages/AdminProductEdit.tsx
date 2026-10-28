@@ -30,6 +30,9 @@ interface VariationItem {
   stock: number;
   status: "Available" | "Sold out" | "In stock";
   sku?: string;
+  /** Set on products built with option types (wizard): this variant's value per option type. */
+  options?: { name: string; value: string }[];
+  images?: string[];
 }
 
 export default function AdminProductEdit() {
@@ -72,6 +75,14 @@ export default function AdminProductEdit() {
   });
 
   const [variations, setVariations] = useState<VariationItem[]>([]);
+  // Products made with option types in the seller wizard keep their own variants: they can't be edited by hand here.
+  const [hasOptionTypes, setHasOptionTypes] = useState(false);
+  // "Make combinations": e.g. RAM + Storage -> one variant per combination ("8 GB + 128 GB").
+  const [comboTypes, setComboTypes] = useState<{ name: string; values: string }[]>([
+    { name: "", values: "" },
+    { name: "", values: "" },
+  ]);
+  const [comboRows, setComboRows] = useState<{ title: string; price: string; discPrice: string; stock: string }[]>([]);
   const [variationForm, setVariationForm] = useState({
     title: "",
     price: "",
@@ -250,8 +261,11 @@ export default function AdminProductEdit() {
                 discPrice: Number(v.discPrice) || 0,
                 stock: Number(v.stock) || 0,
                 status: v.status || (v.stock > 0 ? "Available" : "Sold out"),
+                options: Array.isArray(v.options) && v.options.length > 0 ? v.options : undefined,
+                images: Array.isArray(v.images) && v.images.length > 0 ? v.images : undefined,
               }))
             );
+            setHasOptionTypes(Array.isArray(product.variantAxes) && product.variantAxes.length > 0);
           } else if (product.price !== undefined) {
             setVariations([
               {
@@ -532,6 +546,57 @@ export default function AdminProductEdit() {
     setUploadError("");
   };
 
+  const splitValues = (text: string) =>
+    Array.from(new Set(text.split(",").map((v) => v.trim()).filter(Boolean)));
+
+  const previewCombinations = () => {
+    const types = comboTypes.filter((t) => t.name.trim() || t.values.trim());
+    if (types.length < 2) return setUploadError("Add at least two option types to make combinations");
+    if (types.some((t) => !t.name.trim() || splitValues(t.values).length === 0)) {
+      return setUploadError("Every option type needs a name and at least one value (comma separated)");
+    }
+    let titles: string[] = [""];
+    for (const t of types) {
+      titles = titles.flatMap((prefix) => splitValues(t.values).map((v) => (prefix ? prefix + " + " + v : v)));
+    }
+    if (titles.length > 60) return setUploadError("That makes " + titles.length + " combinations — use at most 60");
+    setComboRows(
+      titles.map((title) => ({
+        title,
+        price: variationForm.price,
+        discPrice: variationForm.discPrice || "0",
+        stock: variationForm.stock || "0",
+      }))
+    );
+    setUploadError("");
+  };
+
+  const applyCombinations = () => {
+    if (comboRows.some((r) => !r.price || Number.isNaN(parseFloat(r.price)))) {
+      return setUploadError("Enter a price for every combination");
+    }
+    if (comboRows.some((r) => parseFloat(r.discPrice || "0") > parseFloat(r.price))) {
+      return setUploadError("A discounted price cannot be greater than the regular price");
+    }
+    const hasRealVariants = variations.some((v) => (v.title || v.value) !== "Default");
+    if (hasRealVariants && !window.confirm("This replaces the variations this product has now. Continue?")) return;
+    const typeNames = comboTypes.filter((t) => t.name.trim()).map((t) => t.name.trim());
+    setVariations(
+      comboRows.map((r) => ({
+        name: typeNames.join(" + "),
+        title: r.title,
+        value: r.title,
+        price: parseFloat(r.price),
+        discPrice: parseFloat(r.discPrice || "0") || 0,
+        stock: parseInt(r.stock || "0", 10) || 0,
+        status: "Available" as const,
+      }))
+    );
+    setFormData((prev) => ({ ...prev, variationType: typeNames.join(" + ") }));
+    setComboRows([]);
+    setUploadError("");
+  };
+
   const removeVariation = (index: number) => {
     setVariations((prev) => prev.filter((_, i) => i !== index));
   };
@@ -618,6 +683,8 @@ export default function AdminProductEdit() {
           discPrice: v.discPrice || 0,
           stock: v.stock || 0,
           status: v.status || "Available",
+          ...(v.options ? { options: v.options } : {}),
+          ...(v.images ? { images: v.images } : {}),
         })),
         variationType: formData.variationType || undefined,
         isShopByStoreOnly: formData.isShopByStoreOnly === "Yes",
@@ -908,20 +975,108 @@ export default function AdminProductEdit() {
               <label className="block text-sm font-medium text-neutral-700 mb-2">
                 Variation Type (e.g. Size, Weight, Color, Pack)
               </label>
-              <select
+              <input
                 name="variationType"
+                list="variation-type-options"
                 value={formData.variationType}
                 onChange={handleChange}
-                className="w-full md:w-1/3 px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white">
-                <option value="">Select Variation Type</option>
-                <option value="Weight">Weight (e.g. 500g, 1kg)</option>
-                <option value="Size">Size (e.g. S, M, L, XL)</option>
-                <option value="Color">Color (e.g. Red, Blue)</option>
-                <option value="Pack">Pack (e.g. Pack of 2, 500ml)</option>
-              </select>
+                disabled={hasOptionTypes}
+                placeholder="Pick one or type your own, e.g. RAM + Storage"
+                className="w-full md:w-1/3 px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white disabled:bg-neutral-100"
+              />
+              <datalist id="variation-type-options">
+                <option value="Weight" />
+                <option value="Size" />
+                <option value="Color" />
+                <option value="Pack" />
+                <option value="RAM + Storage" />
+                <option value="Size + Color" />
+                <option value="Weight + Pack" />
+              </datalist>
             </div>
 
+            {hasOptionTypes && (
+              <p className="text-sm rounded-lg border border-blue-200 bg-blue-50 text-blue-900 p-3">
+                This product was built with option types in the seller's product wizard (for example Colour and RAM). Its variants, photos and combinations are kept as they are. The seller changes them from their product wizard.
+              </p>
+            )}
+
+            {!hasOptionTypes && (
+              <div className="p-4 border border-neutral-200 rounded-lg space-y-3">
+                <div>
+                  <p className="text-sm font-semibold text-neutral-800">Make combinations (optional)</p>
+                  <p className="text-xs text-neutral-500">
+                    Customers pick one choice such as "8 GB + 128 GB". Enter the option types and their values, then preview, set each price and add.
+                  </p>
+                </div>
+                {comboTypes.map((t, i) => (
+                  <div key={i} className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <input
+                      value={t.name}
+                      onChange={(e) => setComboTypes((c) => c.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
+                      placeholder={i === 0 ? "Type 1, e.g. RAM" : i === 1 ? "Type 2, e.g. Storage" : "Type 3 (optional)"}
+                      className="px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+                    />
+                    <input
+                      value={t.values}
+                      onChange={(e) => setComboTypes((c) => c.map((x, j) => (j === i ? { ...x, values: e.target.value } : x)))}
+                      placeholder="Values, comma separated, e.g. 8 GB, 12 GB"
+                      className="md:col-span-2 px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+                    />
+                  </div>
+                ))}
+                <div className="flex flex-wrap gap-2">
+                  {comboTypes.length < 3 && (
+                    <button
+                      type="button"
+                      onClick={() => setComboTypes((c) => [...c, { name: "", values: "" }])}
+                      className="px-3 py-1.5 text-xs font-semibold border border-dashed border-teal-500 text-teal-700 rounded-lg">
+                      + Add another type
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={previewCombinations}
+                    className="px-3 py-1.5 text-xs font-semibold bg-teal-600 text-white rounded-lg">
+                    Preview combinations
+                  </button>
+                </div>
+                {comboRows.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="hidden md:grid grid-cols-5 gap-2 text-xs font-medium text-neutral-500">
+                      <span className="col-span-2">Combination</span>
+                      <span>Price (₹)</span>
+                      <span>Discount price (₹)</span>
+                      <span>Stock (0 = Unlimited)</span>
+                    </div>
+                    {comboRows.map((r, i) => (
+                      <div key={r.title} className="grid grid-cols-2 md:grid-cols-5 gap-2 items-center">
+                        <span className="col-span-2 text-sm font-medium text-neutral-800">{r.title}</span>
+                        {(["price", "discPrice", "stock"] as const).map((field) => (
+                          <input
+                            key={field}
+                            type="number"
+                            min="0"
+                            value={r[field]}
+                            onChange={(e) => setComboRows((rows) => rows.map((x, j) => (j === i ? { ...x, [field]: e.target.value } : x)))}
+                            className="px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+                          />
+                        ))}
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={applyCombinations}
+                      className="px-4 py-2 text-sm font-semibold bg-teal-700 text-white rounded-lg">
+                      Use these {comboRows.length} combinations
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Add Variation Inputs */}
+            {!hasOptionTypes && (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 p-4 bg-neutral-50 border border-neutral-200 rounded-lg">
               <div>
                 <label className="block text-xs font-medium text-neutral-700 mb-1">
@@ -985,6 +1140,7 @@ export default function AdminProductEdit() {
                 </button>
               </div>
             </div>
+            )}
 
             {/* List of Variations */}
             {variations.length > 0 ? (
@@ -1024,13 +1180,13 @@ export default function AdminProductEdit() {
                           }`}>
                           {variation.status}
                         </span>
-                        <button
+                        {!hasOptionTypes && (<button
                           type="button"
                           onClick={() => removeVariation(index)}
                           className="text-red-600 hover:text-red-800 font-medium transition-colors"
                           title="Remove Variation">
                           Remove
-                        </button>
+                        </button>)}
                       </div>
                     </div>
                   ))}
