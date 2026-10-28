@@ -861,6 +861,14 @@ export default function AdminProductEdit() {
               fallbackImage={mainImagePreview || formData.mainImageUrl}
               productName={formData.productName}
               onError={(m) => setUploadError(m)}
+              productInfo={{
+                name: formData.productName,
+                category: categories.find((c: any) => String(c._id) === String(formData.category))?.name,
+                subCategory: (subcategories as any[]).find((c: any) => String(c._id) === String(formData.subcategory))?.name ||
+                  (subcategories as any[]).find((c: any) => String(c._id) === String(formData.subcategory))?.subcategoryName,
+                brand: brands.find((b: any) => String(b._id) === String(formData.brand))?.name,
+                description: formData.smallDescription,
+              }}
             />
           </div>
         </div>

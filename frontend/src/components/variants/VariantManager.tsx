@@ -214,17 +214,20 @@ interface Props {
   skuPrefix?: string;
   uploadFolder?: string;
   onError?: (message: string) => void;
+  /** Read-only summary shown beside the attributes, as on the design. */
+  productInfo?: { name?: string; category?: string; subCategory?: string; brand?: string; description?: string };
 }
 
 export default function VariantManager({
   axes, rows, onChange, combinedAxes, onCombinedChange, suggestedAttributes = [], fallbackImage, productName, skuPrefix = '',
-  uploadFolder = 'exnshop/products/options', onError,
+  uploadFolder = 'exnshop/products/options', onError, productInfo,
 }: Props) {
   const fail = (m: string) => (onError ? onError(m) : window.alert(m));
   const [extraOptions, setExtraOptions] = useState<Record<string, string[]>>({});
   const [customAttrs, setCustomAttrs] = useState<string[]>([]);
   const [optionDraft, setOptionDraft] = useState<Record<string, string>>({});
-  const [newAttr, setNewAttr] = useState('');
+  const [newAttr, setNewAttr] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulk, setBulk] = useState<{ open: boolean; price: string; discPrice: string; stock: string; weightKg: string }>({
     open: false, price: '', discPrice: '', stock: '', weightKg: '',
@@ -283,11 +286,12 @@ export default function VariantManager({
     toggleOption(label, value);
   };
   const addCustomAttribute = () => {
+    if (newAttr === null) return setNewAttr('');
     const label = newAttr.trim();
-    if (!label) return;
+    if (!label) return setNewAttr(null);
     if (attributeList.some((a) => a.label.toLowerCase() === label.toLowerCase())) return fail(`${label} is already in the list.`);
     setCustomAttrs((c) => [...c, label]);
-    setNewAttr('');
+    setNewAttr(null);
   };
 
   // Rows follow the attributes only when the seller presses Generate.
@@ -413,242 +417,278 @@ export default function VariantManager({
   const previewOff = previewRow ? discountPct(previewRow) : 0;
   const combined = axes.filter((a) => combinedAxes.includes(a.label));
 
+  // Rows show their values as text; the pencil (or a missing MRP) opens them for editing, as on the design.
+  const isEditing = (r: VMRow) => editing.has(r.title) || !(Number(r.price) > 0);
+  const toggleEdit = (title: string) =>
+    setEditing((s) => { const n = new Set(s); if (n.has(title)) n.delete(title); else n.add(title); return n; });
+  const customLabels = new Set(customAttrs.map((l) => l.toLowerCase()));
+  const isCustom = (label: string) =>
+    customLabels.has(label.toLowerCase()) ||
+    (!PRESETS.some((p) => p.label.toLowerCase() === label.toLowerCase()) && !suggestedAttributes.some((p) => p.label.toLowerCase() === label.toLowerCase()));
+
+  const Icon = {
+    edit: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>,
+    trash: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /></svg>,
+    plus: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>,
+    grid: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>,
+    upload: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M17 8l-5-5-5 5" /><path d="M12 3v12" /></svg>,
+    download: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="M7 10l5 5 5-5" /><path d="M12 15V3" /></svg>,
+    camera: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>,
+    cart: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.7 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6" /></svg>,
+    edit2: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z" /></svg>,
+  };
+  const card = 'bg-white rounded-xl border border-neutral-200 shadow-sm';
+  const blueBtn = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold';
+  const outlineBtn = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 text-xs font-semibold bg-white';
+  const cellInput = 'w-full min-w-[60px] px-2 py-1 rounded-md border border-blue-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500';
+
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-      <div className="xl:col-span-2 space-y-4 min-w-0">
-        {/* Variant attributes */}
-        <section className={`${box} p-4`}>
-          <h3 className="text-sm font-bold text-neutral-900">Variant Attributes</h3>
-          <p className="text-xs text-neutral-500 mb-3">Tick up to {MAX_ATTRIBUTES} attributes and pick their options, then generate the variants.</p>
-          <div className="divide-y divide-neutral-100">
-            {attributeList.map((attr) => {
-              const axis = axisOf(attr.label);
-              const on = !!axis;
-              return (
-                <div key={attr.label} className="py-2.5 flex flex-col md:flex-row md:items-center gap-2">
-                  <label className="flex items-center gap-2 md:w-32 shrink-0 cursor-pointer">
-                    <input type="checkbox" checked={on} onChange={() => toggleAttribute(attr.label)} className="w-4 h-4 accent-teal-600" />
-                    <span className={`text-sm font-semibold ${on ? 'text-neutral-900' : 'text-neutral-500'}`}>{attr.label}</span>
-                  </label>
-                  <div className="flex flex-wrap items-center gap-1.5 flex-1">
-                    {attr.values.map((v) => {
-                      const picked = !!axis?.values.includes(v);
-                      const hex = isColourAxis(attr.label) ? swatch(v) : undefined;
-                      return hex ? (
-                        <button
-                          key={v}
-                          type="button"
-                          title={v}
-                          onClick={() => toggleOption(attr.label, v)}
-                          className={`w-7 h-7 rounded-full border ${picked ? 'ring-2 ring-offset-1 ring-teal-600 border-neutral-400' : 'border-neutral-300 opacity-60'}`}
-                          style={{ background: hex }}
-                          aria-label={v}
-                          aria-pressed={picked}
-                        />
-                      ) : (
-                        <button
-                          key={v}
-                          type="button"
-                          onClick={() => toggleOption(attr.label, v)}
-                          aria-pressed={picked}
-                          className={`px-2.5 py-1 rounded-lg border text-xs font-semibold ${picked ? 'bg-teal-50 border-teal-500 text-teal-800' : 'bg-white border-neutral-300 text-neutral-500'}`}
-                        >
-                          {v}
-                        </button>
-                      );
-                    })}
-                    <span className="inline-flex items-center gap-1">
-                      <input
-                        value={optionDraft[attr.label] || ''}
-                        onChange={(e) => setOptionDraft((d) => ({ ...d, [attr.label]: e.target.value }))}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addOption(attr.label); } }}
-                        placeholder={`+ Add ${attr.label.toLowerCase()}`}
-                        className="w-28 px-2 py-1 rounded-lg border border-dashed border-teal-400 text-xs focus:outline-none focus:ring-1 focus:ring-teal-500"
-                      />
-                      {(optionDraft[attr.label] || '').trim() && (
-                        <button type="button" onClick={() => addOption(attr.label)} className="text-xs font-semibold text-teal-700">Add</button>
-                      )}
-                    </span>
+    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-4">
+      <div className="space-y-4 min-w-0">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* Basic product information (read-only summary, edited in its own step) */}
+          {productInfo && (
+            <section className={`${card} p-4`}>
+              <h3 className="text-sm font-bold text-neutral-900 mb-3">Basic Product Information</h3>
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                {([['Product Name', productInfo.name], ['Category', productInfo.category], ['Brand', productInfo.brand], ['Sub Category', productInfo.subCategory]] as const).map(([label, value]) => (
+                  <div key={label}>
+                    <p className="font-semibold text-neutral-600 mb-1">{label}</p>
+                    <p className="px-2.5 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-800 truncate">{value || '—'}</p>
                   </div>
-                  {on && isColourAxis(attr.label) && axis!.values.length > 0 && (
-                    <span className="text-[11px] text-neutral-500 md:w-40 md:text-right">{axis!.values.join(', ')}</span>
-                  )}
+                ))}
+                <div className="col-span-2">
+                  <p className="font-semibold text-neutral-600 mb-1">Product Description</p>
+                  <p className="px-2.5 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-700 line-clamp-3 min-h-[52px]">{productInfo.description || '—'}</p>
                 </div>
-              );
-            })}
-          </div>
-          <div className="flex flex-wrap items-center gap-2 mt-3">
-            <input
-              value={newAttr}
-              onChange={(e) => setNewAttr(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomAttribute(); } }}
-              placeholder="Custom attribute, e.g. RAM, Flavour"
-              className="px-3 py-1.5 rounded-lg border border-neutral-300 text-xs w-56"
-            />
-            <button type="button" onClick={addCustomAttribute} className={`${btnOutline} border-teal-500 text-teal-700`}>+ Add Custom Attribute</button>
-          </div>
-          <div className="flex flex-wrap items-center gap-3 mt-4">
-            <button type="button" onClick={generate} className="px-4 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold">
-              Generate Variants
-            </button>
-            <span className="text-xs text-neutral-500">
-              {axes.length === 0 ? 'No attributes ticked — the product is sold in one form.' : 'Creates every combination; what you already entered is kept.'}
-            </span>
-          </div>
-          {outOfDate && rows.length > 0 && (
-            <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              Attributes changed. Press Generate Variants to update the matrix.
-            </p>
+              </div>
+            </section>
           )}
 
-          {axes.length >= 2 && (
-            <div className="mt-4 pt-3 border-t border-neutral-100">
-              <p className="text-xs font-semibold text-neutral-700">Show to customers as one choice (optional)</p>
-              <div className="flex flex-wrap gap-1.5 mt-1.5">
-                {axes.map((a) => {
-                  const on = combinedAxes.includes(a.label);
-                  return (
-                    <button
-                      key={a.label}
-                      type="button"
-                      onClick={() => onCombinedChange(on ? combinedAxes.filter((x) => x !== a.label) : [...combinedAxes, a.label])}
-                      className={`${btnOutline} ${on ? 'bg-teal-50 border-teal-500 text-teal-800' : 'bg-white border-neutral-300 text-neutral-600'}`}
-                    >
-                      {on ? '✓ ' : ''}{a.label}
+          {/* Variant attributes */}
+          <section className={`${card} p-4 ${productInfo ? '' : 'lg:col-span-2'}`}>
+            <h3 className="text-sm font-bold text-neutral-900">Variant Attributes</h3>
+            <p className="text-xs text-neutral-500 mb-2">Select attributes and add options to create product variants.</p>
+            <div className="divide-y divide-neutral-100">
+              {attributeList.map((attr) => {
+                const axis = axisOf(attr.label);
+                const on = !!axis;
+                const typing = optionDraft[attr.label] !== undefined;
+                return (
+                  <div key={attr.label} className="py-2 flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-2 w-28 shrink-0 cursor-pointer">
+                      <input type="checkbox" checked={on} onChange={() => toggleAttribute(attr.label)} className="w-4 h-4 accent-blue-600" />
+                      <span className="leading-tight">
+                        <span className={`block text-xs font-semibold ${on ? 'text-neutral-900' : 'text-neutral-600'}`}>{attr.label}</span>
+                        {isCustom(attr.label) && <span className="block text-[10px] text-neutral-400">(Custom Attribute)</span>}
+                      </span>
+                    </label>
+                    <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
+                      {attr.values.map((v) => {
+                        const picked = !!axis?.values.includes(v);
+                        const hex = isColourAxis(attr.label) ? swatch(v) : undefined;
+                        return hex ? (
+                          <button key={v} type="button" title={v} onClick={() => toggleOption(attr.label, v)}
+                            className={`w-6 h-6 rounded-full border ${picked ? 'ring-2 ring-offset-1 ring-blue-600 border-neutral-400' : 'border-neutral-300 opacity-50'}`}
+                            style={{ background: hex }} aria-label={v} aria-pressed={picked} />
+                        ) : (
+                          <button key={v} type="button" onClick={() => toggleOption(attr.label, v)} aria-pressed={picked}
+                            className={`min-w-[34px] px-2 py-1 rounded-md border text-[11px] font-semibold ${picked ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-neutral-200 text-neutral-500'}`}>
+                            {v}
+                          </button>
+                        );
+                      })}
+                      {typing && (
+                        <input
+                          autoFocus
+                          value={optionDraft[attr.label]}
+                          onChange={(e) => setOptionDraft((d) => ({ ...d, [attr.label]: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); addOption(attr.label); }
+                            if (e.key === 'Escape') setOptionDraft((d) => { const n = { ...d }; delete n[attr.label]; return n; });
+                          }}
+                          onBlur={() => { if ((optionDraft[attr.label] || '').trim()) addOption(attr.label); setOptionDraft((d) => { const n = { ...d }; delete n[attr.label]; return n; }); }}
+                          placeholder="Type and press Enter"
+                          className="w-28 px-2 py-1 rounded-md border border-blue-400 text-[11px] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                      )}
+                    </div>
+                    <button type="button" onClick={() => setOptionDraft((d) => ({ ...d, [attr.label]: d[attr.label] ?? '' }))}
+                      className={on ? outlineBtn : 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-200 text-neutral-400 text-xs font-semibold bg-white'}>
+                      {Icon.plus} Add {isColourAxis(attr.label) ? 'Color' : attr.label.length > 10 ? 'Option' : attr.label}
                     </button>
-                  );
-                })}
-              </div>
-              <p className="text-[11px] text-neutral-500 mt-1">
-                {combined.length >= 2
-                  ? `Customers see one picker: ${combined.map((a) => a.values[0] || a.label).join(' + ')}`
-                  : 'Tick two or more, e.g. RAM + Storage. Unticked attributes keep their own picker.'}
-              </p>
+                  </div>
+                );
+              })}
             </div>
-          )}
-        </section>
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              {newAttr !== null && (
+                <input
+                  value={newAttr}
+                  onChange={(e) => setNewAttr(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomAttribute(); } }}
+                  placeholder="e.g. RAM, Flavour"
+                  className="px-3 py-1.5 rounded-lg border border-neutral-300 text-xs w-40"
+                />
+              )}
+              <button type="button" onClick={addCustomAttribute} className={outlineBtn}>{Icon.plus} Add Custom Attribute</button>
+            </div>
+            <div className="flex flex-wrap items-center gap-3 mt-4">
+              <button type="button" onClick={generate} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold">
+                {Icon.grid} Generate Variants
+              </button>
+              <span className="text-[11px] text-neutral-500">
+                {axes.length === 0 ? '(No attribute ticked — sold in one form)' : '(Will create all possible combinations)'}
+              </span>
+            </div>
+            {outOfDate && rows.length > 0 && (
+              <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                Attributes changed — press Generate Variants to update the matrix. Values you entered are kept.
+              </p>
+            )}
+            {axes.length >= 2 && (
+              <div className="mt-3 pt-3 border-t border-neutral-100">
+                <p className="text-[11px] font-semibold text-neutral-700">Show to customers as one choice (optional)</p>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {axes.map((a) => {
+                    const on = combinedAxes.includes(a.label);
+                    return (
+                      <button key={a.label} type="button"
+                        onClick={() => onCombinedChange(on ? combinedAxes.filter((x) => x !== a.label) : [...combinedAxes, a.label])}
+                        className={`px-2.5 py-1 rounded-md border text-[11px] font-semibold ${on ? 'bg-blue-50 border-blue-500 text-blue-700' : 'bg-white border-neutral-200 text-neutral-500'}`}>
+                        {on ? '✓ ' : ''}{a.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-neutral-500 mt-1">
+                  {combined.length >= 2 ? `One picker: ${combined.map((a) => a.values[0] || a.label).join(' + ')}` : 'e.g. RAM + Storage as "8 GB + 128 GB". Others keep their own picker.'}
+                </p>
+              </div>
+            )}
+          </section>
+        </div>
 
         {/* Variant matrix */}
-        <section className={`${box}`}>
-          <div className="p-4 pb-2 flex flex-wrap items-center justify-between gap-2">
+        <section className={card}>
+          <div className="p-4 pb-3 flex flex-wrap items-start justify-between gap-3">
             <div>
               <h3 className="text-sm font-bold text-neutral-900">Variant Matrix</h3>
-              <p className="text-xs text-neutral-500">MRP is the printed price; selling price is what the customer pays. Stock 0 = unlimited.</p>
+              <p className="text-xs text-neutral-500">Manage price, stock, SKU and other details for each variant.</p>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              <button type="button" onClick={() => setBulk((b) => ({ ...b, open: !b.open }))} className={`${btnOutline} border-neutral-300 text-neutral-700`}>Bulk Edit</button>
-              <button type="button" onClick={() => onChange(axes, autoSkus(rows, skuPrefix))} className={`${btnOutline} border-neutral-300 text-neutral-700`}>Auto SKU</button>
-              <button type="button" onClick={downloadCsv} className={`${btnOutline} border-neutral-300 text-neutral-700`}>Download CSV</button>
-              <button type="button" onClick={() => csvRef.current?.click()} className={`${btnOutline} border-neutral-300 text-neutral-700`}>Upload CSV</button>
+              <button type="button" onClick={() => setBulk((b) => ({ ...b, open: !b.open }))} className={outlineBtn}>{Icon.edit2} Bulk Edit</button>
+              <button type="button" onClick={() => csvRef.current?.click()} className={outlineBtn}>{Icon.upload} Upload CSV</button>
+              <button type="button" onClick={downloadCsv} className={outlineBtn}>{Icon.download} CSV</button>
+              <button type="button" onClick={() => onChange(axes, autoSkus(rows, skuPrefix))} className={outlineBtn}>Auto SKU</button>
               <input ref={csvRef} type="file" accept=".csv,text/csv" className="hidden" onChange={uploadCsv} />
-              {axes.length > 0 && (
-                <button type="button" onClick={() => setAdding(adding ? null : {})} className={`${btnOutline} bg-teal-600 border-teal-600 text-white`}>+ Add Variant</button>
-              )}
+              {axes.length > 0 && <button type="button" onClick={() => setAdding(adding ? null : {})} className={blueBtn}>{Icon.plus} Add Variant</button>}
             </div>
           </div>
 
           {bulk.open && (
-            <div className="mx-4 mb-3 p-3 rounded-lg bg-neutral-50 border border-neutral-200 grid grid-cols-2 md:grid-cols-6 gap-2 items-end">
-              {([['price', 'MRP (₹)'], ['discPrice', 'Selling price (₹)'], ['stock', 'Stock'], ['weightKg', 'Weight (kg)']] as const).map(([k, label]) => (
+            <div className="mx-4 mb-3 p-3 rounded-lg bg-blue-50/50 border border-blue-100 grid grid-cols-2 md:grid-cols-6 gap-2 items-end">
+              {([['price', 'MRP (₹)'], ['discPrice', 'Selling Price (₹)'], ['stock', 'Stock'], ['weightKg', 'Weight (kg)']] as const).map(([k, label]) => (
                 <label key={k} className="text-[11px] font-semibold text-neutral-600">
                   {label}
-                  <input type="number" min="0" step="any" value={bulk[k]} onChange={(e) => setBulk((b) => ({ ...b, [k]: e.target.value }))} className={smallInput} />
+                  <input type="number" min="0" step="any" value={bulk[k]} onChange={(e) => setBulk((b) => ({ ...b, [k]: e.target.value }))} className={cellInput} />
                 </label>
               ))}
-              <button type="button" onClick={() => applyBulk(true)} className={`${btnOutline} border-teal-500 text-teal-700`}>Apply to selected ({selected.size})</button>
-              <button type="button" onClick={() => applyBulk(false)} className={`${btnOutline} bg-teal-600 border-teal-600 text-white`}>Apply to all</button>
+              <button type="button" onClick={() => applyBulk(true)} className={outlineBtn}>Apply to selected ({selected.size})</button>
+              <button type="button" onClick={() => applyBulk(false)} className={blueBtn}>Apply to all</button>
             </div>
           )}
 
           {adding && (
-            <div className="mx-4 mb-3 p-3 rounded-lg bg-neutral-50 border border-neutral-200 flex flex-wrap items-end gap-2">
+            <div className="mx-4 mb-3 p-3 rounded-lg bg-blue-50/50 border border-blue-100 flex flex-wrap items-end gap-2">
               {axes.map((a) => (
                 <label key={a.label} className="text-[11px] font-semibold text-neutral-600">
                   {a.label}
-                  <input
-                    list={`vm-${a.label}`}
-                    value={adding[a.label] || ''}
-                    onChange={(e) => setAdding((d) => ({ ...(d || {}), [a.label]: e.target.value }))}
-                    className={`${smallInput} w-32`}
-                  />
+                  <input list={`vm-${a.label}`} value={adding[a.label] || ''} onChange={(e) => setAdding((d) => ({ ...(d || {}), [a.label]: e.target.value }))} className={`${cellInput} w-32`} />
                   <datalist id={`vm-${a.label}`}>{a.values.map((v) => <option key={v} value={v} />)}</datalist>
                 </label>
               ))}
-              <button type="button" onClick={addVariant} className={`${btnOutline} bg-teal-600 border-teal-600 text-white`}>Add</button>
+              <button type="button" onClick={addVariant} className={blueBtn}>Add</button>
+              <button type="button" onClick={() => setAdding(null)} className="text-xs text-neutral-500">Cancel</button>
             </div>
           )}
 
           {selected.size > 0 && (
-            <div className="mx-4 mb-2 flex flex-wrap items-center gap-2 text-xs">
+            <div className="mx-4 mb-2 flex flex-wrap items-center gap-3 text-xs">
               <span className="font-semibold text-neutral-700">{selected.size} selected</span>
-              <button type="button" onClick={() => setActiveFor(true)} className="text-teal-700 font-semibold hover:underline">Switch on</button>
+              <button type="button" onClick={() => setActiveFor(true)} className="text-green-700 font-semibold hover:underline">Switch on</button>
               <button type="button" onClick={() => setActiveFor(false)} className="text-neutral-600 font-semibold hover:underline">Switch off</button>
               <button type="button" onClick={() => { onChange(axes, rows.filter((r) => !selected.has(r.title))); setSelected(new Set()); }} className="text-red-600 font-semibold hover:underline">Delete</button>
             </div>
           )}
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto border-t border-neutral-100">
             <table className="w-full text-xs">
-              <thead className="bg-neutral-50 text-neutral-600">
-                <tr>
-                  <th className="p-2 w-8">
-                    <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.title)))} className="accent-teal-600" aria-label="Select all" />
+              <thead className="text-neutral-600">
+                <tr className="border-b border-neutral-100">
+                  <th className="p-2.5 w-8">
+                    <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.title)))} className="accent-blue-600" aria-label="Select all" />
                   </th>
-                  {axes.map((a) => <th key={a.label} className="p-2 text-left font-semibold">{a.label}</th>)}
-                  {axes.length === 0 && <th className="p-2 text-left font-semibold">Variant</th>}
-                  <th className="p-2 text-left font-semibold">SKU</th>
-                  <th className="p-2 text-left font-semibold">MRP (₹)</th>
-                  <th className="p-2 text-left font-semibold">Selling (₹)</th>
-                  <th className="p-2 text-left font-semibold">Discount</th>
-                  <th className="p-2 text-left font-semibold">Stock</th>
-                  <th className="p-2 text-left font-semibold">Weight (kg)</th>
-                  <th className="p-2 text-left font-semibold">Images</th>
-                  <th className="p-2 text-left font-semibold">Status</th>
-                  <th className="p-2" />
+                  {axes.map((a) => <th key={a.label} className="p-2.5 text-left font-semibold">{a.label}</th>)}
+                  {axes.length === 0 && <th className="p-2.5 text-left font-semibold">Variant</th>}
+                  <th className="p-2.5 text-left font-semibold">SKU</th>
+                  <th className="p-2.5 text-left font-semibold">MRP (₹)</th>
+                  <th className="p-2.5 text-left font-semibold">Selling Price (₹)</th>
+                  <th className="p-2.5 text-left font-semibold">Discount</th>
+                  <th className="p-2.5 text-left font-semibold">Stock</th>
+                  <th className="p-2.5 text-left font-semibold">Weight (kg)</th>
+                  <th className="p-2.5 text-left font-semibold">Images</th>
+                  <th className="p-2.5 text-left font-semibold">Status</th>
+                  <th className="p-2.5 text-left font-semibold">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 && (
-                  <tr><td colSpan={12} className="p-6 text-center text-neutral-500">Tick attributes and press Generate Variants.</td></tr>
+                  <tr><td colSpan={13} className="p-8 text-center text-neutral-500">Tick attributes and press Generate Variants.</td></tr>
                 )}
                 {rows.map((r) => {
                   const pct = discountPct(r);
+                  const edit = isEditing(r);
+                  const field = (k: 'sku' | 'price' | 'discPrice' | 'stock' | 'weightKg', text: string) =>
+                    edit ? (
+                      <input type={k === 'sku' ? 'text' : 'number'} min="0" step={k === 'weightKg' ? '0.01' : undefined} value={r[k]}
+                        placeholder={k === 'sku' ? 'Auto' : ''} onChange={(e) => updateRow(r.title, { [k]: e.target.value } as Partial<VMRow>)}
+                        className={`${cellInput} ${k === 'sku' ? 'w-28' : ''}`} />
+                    ) : (
+                      <span className="text-neutral-800">{text || '—'}</span>
+                    );
                   return (
-                    <tr key={r.title} className={`border-t border-neutral-100 ${r.isActive ? '' : 'bg-neutral-50 text-neutral-400'}`}>
-                      <td className="p-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={selected.has(r.title)}
+                    <tr key={r.title} className={`border-b border-neutral-100 ${r.isActive ? 'hover:bg-blue-50/30' : 'bg-neutral-50 text-neutral-400'}`}>
+                      <td className="p-2.5 text-center">
+                        <input type="checkbox" checked={selected.has(r.title)}
                           onChange={() => setSelected((s) => { const n = new Set(s); if (n.has(r.title)) n.delete(r.title); else n.add(r.title); return n; })}
-                          className="accent-teal-600"
-                          aria-label={`Select ${r.title}`}
-                        />
+                          className="accent-blue-600" aria-label={`Select ${r.title}`} />
                       </td>
                       {axes.map((a) => {
                         const v = r.options.find((o) => o.name === a.label)?.value || '';
                         const hex = isColourAxis(a.label) ? swatch(v) : undefined;
                         return (
-                          <td key={a.label} className="p-2 whitespace-nowrap font-medium text-neutral-800">
-                            <span className="inline-flex items-center gap-1.5">
-                              {hex && <span className="w-3.5 h-3.5 rounded-full border border-neutral-300" style={{ background: hex }} />}
+                          <td key={a.label} className="p-2.5 whitespace-nowrap text-neutral-800">
+                            <span className="inline-flex items-center gap-2">
+                              {hex && <span className="w-4 h-4 rounded-full border border-neutral-300" style={{ background: hex }} />}
                               {v}
                             </span>
                           </td>
                         );
                       })}
-                      {axes.length === 0 && <td className="p-2 font-medium text-neutral-800">Standard</td>}
-                      <td className="p-2"><input value={r.sku} onChange={(e) => updateRow(r.title, { sku: e.target.value })} placeholder="Auto" className={`${smallInput} w-28`} /></td>
-                      <td className="p-2"><input type="number" min="0" value={r.price} onChange={(e) => updateRow(r.title, { price: e.target.value })} className={smallInput} /></td>
-                      <td className="p-2"><input type="number" min="0" value={r.discPrice} onChange={(e) => updateRow(r.title, { discPrice: e.target.value })} className={smallInput} /></td>
-                      <td className="p-2 whitespace-nowrap">{pct > 0 ? <span className="font-semibold text-green-700">{pct}%</span> : '—'}</td>
-                      <td className="p-2"><input type="number" min="0" value={r.stock} onChange={(e) => updateRow(r.title, { stock: e.target.value })} className={smallInput} /></td>
-                      <td className="p-2"><input type="number" min="0" step="0.01" value={r.weightKg} onChange={(e) => updateRow(r.title, { weightKg: e.target.value })} className={smallInput} /></td>
-                      <td className="p-2">
-                        <div className="flex items-center gap-1">
+                      {axes.length === 0 && <td className="p-2.5 text-neutral-800">Standard</td>}
+                      <td className="p-2.5 whitespace-nowrap font-mono">{field('sku', r.sku)}</td>
+                      <td className="p-2.5">{field('price', r.price)}</td>
+                      <td className="p-2.5">{field('discPrice', r.discPrice || r.price)}</td>
+                      <td className="p-2.5 whitespace-nowrap">{pct > 0 ? <span className="text-neutral-800">{pct}%</span> : '—'}</td>
+                      <td className="p-2.5">{field('stock', r.stock === '0' ? 'Unlimited' : r.stock)}</td>
+                      <td className="p-2.5">{field('weightKg', r.weightKg)}</td>
+                      <td className="p-2.5">
+                        <div className="flex items-center gap-0.5">
                           {r.images.slice(0, 3).map((src) => <img key={src} src={src} alt="" className="w-7 h-7 rounded object-cover border border-neutral-200" />)}
-                          {r.images.length > 3 && <span className="text-[10px] text-neutral-500">+{r.images.length - 3}</span>}
+                          {r.images.length > 3 && <span className="text-[10px] text-neutral-500 ml-0.5">+{r.images.length - 3}</span>}
                           {!colourAxis && axes.length > 0 && r.images.length < MAX_ROW_PHOTOS && (
-                            <label className="w-7 h-7 rounded border border-dashed border-neutral-300 flex items-center justify-center text-neutral-400 cursor-pointer" title="Add photos">
+                            <label className="w-7 h-7 rounded border border-dashed border-blue-300 flex items-center justify-center text-blue-500 cursor-pointer" title="Add photos">
                               {uploading === r.title ? '…' : '+'}
                               <input type="file" accept="image/*" multiple className="hidden" disabled={uploading !== null}
                                 onChange={(e) => { const files = Array.from(e.target.files || []); e.target.value = ''; upload(r.title, files, r.images, (images) => updateRow(r.title, { images })); }} />
@@ -657,22 +697,25 @@ export default function VariantManager({
                           {r.images.length === 0 && (colourAxis || axes.length === 0) && <span className="text-neutral-400">—</span>}
                         </div>
                       </td>
-                      <td className="p-2">
-                        <button
-                          type="button"
-                          role="switch"
-                          aria-checked={r.isActive}
-                          onClick={() => updateRow(r.title, { isActive: !r.isActive })}
+                      <td className="p-2.5">
+                        <button type="button" role="switch" aria-checked={r.isActive} onClick={() => updateRow(r.title, { isActive: !r.isActive })}
                           className={`relative w-9 h-5 rounded-full transition-colors ${r.isActive ? 'bg-green-500' : 'bg-neutral-300'}`}
-                          title={r.isActive ? 'On sale — click to switch off' : 'Switched off — hidden from customers'}
-                        >
+                          title={r.isActive ? 'On sale — click to switch off' : 'Switched off — hidden from customers'}>
                           <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${r.isActive ? 'left-[18px]' : 'left-0.5'}`} />
                         </button>
                       </td>
-                      <td className="p-2">
-                        {axes.length > 0 && (
-                          <button type="button" onClick={() => removeRow(r.title)} className="text-red-500 hover:text-red-700" aria-label={`Delete ${r.title}`}>✕</button>
-                        )}
+                      <td className="p-2.5">
+                        <div className="flex items-center gap-2">
+                          <button type="button" onClick={() => toggleEdit(r.title)} className={edit ? 'text-green-600' : 'text-blue-600 hover:text-blue-800'}
+                            aria-label={edit ? `Done editing ${r.title}` : `Edit ${r.title}`} title={edit ? 'Done' : 'Edit'}>
+                            {edit ? '✓' : Icon.edit}
+                          </button>
+                          {axes.length > 0 && (
+                            <button type="button" onClick={() => removeRow(r.title)} className="text-red-500 hover:text-red-700" aria-label={`Delete ${r.title}`} title="Delete">
+                              {Icon.trash}
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -686,86 +729,102 @@ export default function VariantManager({
       <div className="space-y-4 min-w-0">
         {/* Variant-wise images */}
         {axes.length > 0 && (
-          <section className={`${box} p-4`}>
+          <section className={`${card} p-4`}>
             <h3 className="text-sm font-bold text-neutral-900">Variant-wise Images</h3>
             <p className="text-xs text-neutral-500 mb-3">
-              {colourAxis ? `Upload photos once per ${colourAxis.label.toLowerCase()}; every size/option of that colour uses them.` : 'Add photos per variant from the Images column.'}
+              {colourAxis ? 'Upload different images for each color/variant.' : 'Add photos per variant from the Images column of the matrix.'}
             </p>
             {colourAxis ? (
-              <div className="space-y-3">
+              <div className="divide-y divide-neutral-100">
                 {colourAxis.values.map((colour) => {
                   const imgs = colourImages(colour);
-                  const hex = swatch(colour);
+                  const inputId = `vm-img-${colour}`;
                   return (
-                    <div key={colour}>
-                      <p className="text-xs font-semibold text-neutral-800 mb-1.5 flex items-center gap-1.5">
-                        {hex && <span className="w-3 h-3 rounded-full border border-neutral-300" style={{ background: hex }} />}
-                        {colour} <span className="font-normal text-neutral-500">({imgs.length} images)</span>
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
+                    <div key={colour} className="py-3 first:pt-0">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-neutral-800">
+                          {colour} <span className="font-normal text-neutral-500">({imgs.length} images)</span>
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <label htmlFor={inputId} className="text-blue-600 hover:text-blue-800 cursor-pointer" title="Add photos">{Icon.edit}</label>
+                          {imgs.length > 0 && (
+                            <button type="button" onClick={() => setColourImages(colour, [])} className="text-red-500 hover:text-red-700" title="Remove all photos" aria-label={`Remove all ${colour} photos`}>{Icon.trash}</button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1.5">
                         {imgs.map((src) => (
-                          <div key={src} className="relative w-14 h-14 rounded-lg overflow-hidden border border-neutral-200">
+                          <div key={src} className="relative aspect-square rounded-lg overflow-hidden border border-neutral-200 group">
                             <img src={src} alt="" className="w-full h-full object-cover" />
                             <button type="button" onClick={() => setColourImages(colour, imgs.filter((x) => x !== src))}
-                              className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 text-white text-[10px] leading-none" aria-label="Remove photo">×</button>
+                              className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-black/60 text-white text-[10px] leading-none opacity-0 group-hover:opacity-100" aria-label="Remove photo">×</button>
                           </div>
                         ))}
                         {imgs.length < MAX_ROW_PHOTOS && (
-                          <label className="w-14 h-14 rounded-lg border-2 border-dashed border-neutral-300 flex flex-col items-center justify-center text-neutral-400 text-[10px] cursor-pointer hover:bg-neutral-50">
-                            {uploading === colour ? '…' : <><span className="text-lg leading-none">+</span>Upload</>}
-                            <input type="file" accept="image/*" multiple className="hidden" disabled={uploading !== null}
-                              onChange={(e) => { const files = Array.from(e.target.files || []); e.target.value = ''; upload(colour, files, imgs, (images) => setColourImages(colour, images)); }} />
+                          <label htmlFor={inputId} className="aspect-square rounded-lg border-2 border-dashed border-blue-200 flex flex-col items-center justify-center text-blue-500 text-[10px] cursor-pointer hover:bg-blue-50">
+                            {uploading === colour ? '…' : <>{Icon.camera}<span className="mt-0.5">Upload More</span></>}
                           </label>
                         )}
+                        <input id={inputId} type="file" accept="image/*" multiple className="hidden" disabled={uploading !== null}
+                          onChange={(e) => { const files = Array.from(e.target.files || []); e.target.value = ''; upload(colour, files, imgs, (images) => setColourImages(colour, images)); }} />
                       </div>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <p className="text-xs text-neutral-500">No colour attribute — photos are added per row in the matrix.</p>
+              <p className="text-xs text-neutral-500">No colour attribute ticked.</p>
             )}
           </section>
         )}
 
         {/* Preview */}
-        <section className={`${box} p-4`}>
-          <h3 className="text-sm font-bold text-neutral-900 mb-3">Preview <span className="font-normal text-neutral-500 text-xs">(what customers see)</span></h3>
-          <div className="aspect-square w-full max-w-[220px] mx-auto rounded-xl bg-neutral-50 border border-neutral-100 overflow-hidden flex items-center justify-center">
-            {previewImage ? <img src={previewImage} alt="" className="w-full h-full object-contain" /> : <span className="text-4xl">🛍️</span>}
-          </div>
-          {productName && <p className="mt-3 text-sm font-semibold text-neutral-900 line-clamp-2">{productName}</p>}
-          {axes.map((a) => (
-            <div key={a.label} className="mt-3">
-              <p className="text-xs font-semibold text-neutral-600 mb-1.5">{a.label}: <span className="text-neutral-900">{pick(a.label)}</span></p>
-              <div className="flex flex-wrap gap-1.5">
-                {a.values.map((v) => {
-                  const hex = isColourAxis(a.label) ? swatch(v) : undefined;
-                  const active = pick(a.label) === v;
-                  return hex ? (
-                    <button key={v} type="button" title={v} onClick={() => setPreview((p) => ({ ...p, [a.label]: v }))}
-                      className={`w-7 h-7 rounded-full border ${active ? 'ring-2 ring-offset-1 ring-teal-600' : 'border-neutral-300'}`} style={{ background: hex }} aria-label={v} />
-                  ) : (
-                    <button key={v} type="button" onClick={() => setPreview((p) => ({ ...p, [a.label]: v }))}
-                      className={`min-w-[36px] px-2 py-1 rounded-lg border text-xs font-semibold ${active ? 'border-teal-600 text-teal-800 bg-teal-50' : 'border-neutral-300 text-neutral-700'}`}>
-                      {v}
-                    </button>
-                  );
-                })}
-              </div>
+        <section className={`${card} p-4`}>
+          <h3 className="text-sm font-bold text-neutral-900 mb-3">
+            Preview <span className="font-normal text-neutral-500 text-xs">({axes.length ? axes.map((a) => a.label).join(' & ') + ' Selection' : 'what customers see'})</span>
+          </h3>
+          <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-3">
+            <div className="aspect-square rounded-xl bg-neutral-50 border border-neutral-100 overflow-hidden flex items-center justify-center">
+              {previewImage ? <img src={previewImage} alt="" className="w-full h-full object-contain" /> : <span className="text-3xl">🛍️</span>}
             </div>
-          ))}
+            <div className="min-w-0 space-y-2.5">
+              {productName && <p className="text-xs font-semibold text-neutral-900 line-clamp-2">{productName}</p>}
+              {axes.map((a) => (
+                <div key={a.label}>
+                  <p className="text-[11px] font-semibold text-neutral-600 mb-1">{a.label}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {a.values.map((v) => {
+                      const hex = isColourAxis(a.label) ? swatch(v) : undefined;
+                      const active = pick(a.label) === v;
+                      return hex ? (
+                        <button key={v} type="button" title={v} onClick={() => setPreview((p) => ({ ...p, [a.label]: v }))}
+                          className={`w-6 h-6 rounded-full border ${active ? 'ring-2 ring-offset-1 ring-neutral-900' : 'border-neutral-300'}`} style={{ background: hex }} aria-label={v} />
+                      ) : (
+                        <button key={v} type="button" onClick={() => setPreview((p) => ({ ...p, [a.label]: v }))}
+                          className={`min-w-[32px] px-2 py-1 rounded-md border text-[11px] font-semibold ${active ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-neutral-300 text-neutral-700'}`}>
+                          {v}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
           {previewRow && Number(previewRow.price) > 0 && (
-            <div className="mt-3 flex items-baseline gap-2 flex-wrap">
-              <span className="text-xl font-bold text-neutral-900">₹{previewSelling}</span>
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              <span className="text-2xl font-bold text-neutral-900">₹{previewSelling}</span>
               {previewOff > 0 && <span className="text-xs text-neutral-400 line-through">₹{previewRow.price}</span>}
-              {previewOff > 0 && <span className="text-[11px] font-bold text-green-700 bg-green-50 px-1.5 py-0.5 rounded">{previewOff}% OFF</span>}
+              {previewOff > 0 && <span className="text-[11px] font-bold text-green-700 bg-green-100 px-2 py-0.5 rounded">{previewOff}% OFF</span>}
             </div>
           )}
           {previewRow && !previewRow.isActive && <p className="mt-2 text-xs font-semibold text-red-600">This combination is switched off — customers won't see it.</p>}
-          {previewRow && axes.length > 0 && !rows.some((r) => r.options.every((o) => pick(o.name) === o.value)) && (
+          {axes.length > 0 && !rows.some((r) => r.options.every((o) => pick(o.name) === o.value)) && (
             <p className="mt-2 text-xs text-amber-700">This combination isn't in the matrix.</p>
           )}
+          <button type="button" disabled className="mt-3 w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold opacity-90 cursor-default">
+            {Icon.cart} Add to Cart
+          </button>
         </section>
       </div>
     </div>

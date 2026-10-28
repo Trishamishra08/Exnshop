@@ -912,6 +912,13 @@ export default function SellerProductWizard() {
               fallbackImage={mainPreview}
               productName={productName}
               onError={setError}
+              productInfo={{
+                name: productName,
+                category: allCategories.find((c: any) => String(c._id) === String(category))?.name,
+                subCategory: subcategories.find((c: any) => String(c._id) === String(subcategory))?.name || subcategories.find((c: any) => String(c._id) === String(subcategory))?.subcategoryName,
+                brand: brands.find((b: any) => String(b._id) === String(brand))?.name,
+                description: smallDescription,
+              }}
             />
           </>
         )}
