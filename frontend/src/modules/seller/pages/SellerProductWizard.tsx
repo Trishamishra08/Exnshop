@@ -1113,7 +1113,7 @@ export default function SellerProductWizard() {
               <div className="rounded-xl border border-neutral-200 p-3 space-y-2">
                 <p className="text-sm font-bold text-neutral-900">Show option types together (optional)</p>
                 <p className="text-xs text-neutral-500">
-                  Tick two or more to show customers one combined choice, e.g. RAM + Storage as "8 GB + 128 GB". Types you leave unticked stay as separate pickers.
+                  Tick two or more to show customers one combined choice, e.g. {axes[0].label} + {axes[1].label} as "{axes[0].values[0] || axes[0].label} + {axes[1].values[0] || axes[1].label}". Types you leave unticked stay as separate pickers.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {axes.map((a) => {
