@@ -130,70 +130,79 @@ const calculateDeliveryStuff = async (total: number, items: any[], userLat: numb
             }
         }
 
+        // Every store in the cart gets its own order and its own rider, so the
+        // delivery fee is worked out per store and added up — the same rule the
+        // checkout applies when it splits the cart into one order per store.
+        const storeSubtotals = new Map<string, number>();
+        for (const item of items) {
+            const sid = item.product?.seller?.toString();
+            if (!sid) continue;
+            storeSubtotals.set(sid, (storeSubtotals.get(sid) || 0) + calculateItemPrice(item.product, item.variation) * item.quantity);
+        }
+
         if (channel === 'ECommerce') {
             // No rider fee for E-commerce — ships via courier separately.
             estimatedDeliveryFee = 0;
         }
-        // Standard Delivery: Always Fixed Price, waived above the free-delivery
-        // threshold. This waiver is Standard-only — Instant is a premium,
-        // rider-dispatched service and always carries its own distance-based
-        // fee below, regardless of cart value.
+        // Standard Delivery: Always Fixed Price per store, waived for a store whose
+        // own items reach the free-delivery threshold. This waiver is Standard-only —
+        // Instant is a premium, rider-dispatched service and always carries its own
+        // distance-based fee below, regardless of cart value.
         else if (deliveryOption === 'Standard') {
-            estimatedDeliveryFee = (freeDeliveryThreshold > 0 && total >= freeDeliveryThreshold)
-                ? 0
-                : (settings?.deliveryCharges ?? 0);
+            const storeTotals = storeSubtotals.size > 0 ? Array.from(storeSubtotals.values()) : [total];
+            estimatedDeliveryFee = storeTotals.reduce((sum, storeTotal) => sum + (
+                (freeDeliveryThreshold > 0 && storeTotal >= freeDeliveryThreshold)
+                    ? 0
+                    : (settings?.deliveryCharges ?? 0)
+            ), 0);
         }
-        // Instant Delivery: Distance Based (if config exists)
+        // Instant Delivery: Distance Based per store (if config exists)
         else if (deliveryOption === 'Instant' && settings?.deliveryConfig) {
             const config = settings.deliveryConfig;
-            // Default to base charge
-            estimatedDeliveryFee = config.baseCharge || 0;
+            // Default to base charge for each store
+            estimatedDeliveryFee = (config.baseCharge || 0) * Math.max(1, storeSubtotals.size);
 
-            if (userLat && userLng) {
-                // Get all sellers involved in the cart
-                const sellerIds = new Set<string>();
-                items.forEach((item: any) => {
-                    if (item.product?.seller) {
-                        sellerIds.add(item.product.seller.toString());
+            if (userLat && userLng && storeSubtotals.size > 0) {
+                const uniqueSellerIds = Array.from(storeSubtotals.keys()).map(id => new mongoose.Types.ObjectId(id));
+                const sellers = await Seller.find({ _id: { $in: uniqueSellerIds } }).select('location latitude longitude');
+
+                let feeSum = 0;
+                let farthestKm = 0;
+                let priced = 0;
+                for (const seller of sellers) {
+                    let lat, lng;
+                    if (seller.location?.coordinates?.length === 2) {
+                        lng = seller.location.coordinates[0];
+                        lat = seller.location.coordinates[1];
+                    } else if (seller.latitude && seller.longitude) {
+                        lat = parseFloat(seller.latitude);
+                        lng = parseFloat(seller.longitude);
                     }
-                });
+                    if (!lat || !lng) continue;
 
-                if (sellerIds.size > 0) {
-                    const uniqueSellerIds = Array.from(sellerIds).map(id => new mongoose.Types.ObjectId(id));
-                    const sellers = await Seller.find({ _id: { $in: uniqueSellerIds } }).select('location latitude longitude');
+                    const distances = await getRoadDistances(
+                        [{ lat, lng }],
+                        { lat: userLat, lng: userLng },
+                        config.googleMapsKey
+                    );
+                    if (!distances || distances.length === 0) continue;
 
-                    const sellerLocations: { lat: number; lng: number }[] = [];
-                    sellers.forEach(seller => {
-                        let lat, lng;
-                        if (seller.location?.coordinates?.length === 2) {
-                            lng = seller.location.coordinates[0];
-                            lat = seller.location.coordinates[1];
-                        } else if (seller.latitude && seller.longitude) {
-                            lat = parseFloat(seller.latitude);
-                            lng = parseFloat(seller.longitude);
-                        }
-                        if (lat && lng) sellerLocations.push({ lat, lng });
-                    });
+                    const km = Math.max(...distances);
+                    farthestKm = Math.max(farthestKm, km);
+                    const extraKm = Math.max(0, km - config.baseDistance);
+                    feeSum += Math.ceil(config.baseCharge + (extraKm * config.kmRate));
+                    priced += 1;
+                }
 
-                    if (sellerLocations.length > 0) {
-                        const distances = await getRoadDistances(
-                            sellerLocations,
-                            { lat: userLat, lng: userLng },
-                            config.googleMapsKey
-                        );
-
-                        if (distances && distances.length > 0) {
-                            const maxDistance = Math.max(...distances);
-                            estimatedDistanceKm = Number(maxDistance.toFixed(1));
-                            const extraKm = Math.max(0, maxDistance - config.baseDistance);
-                            estimatedDeliveryFee = Math.ceil(config.baseCharge + (extraKm * config.kmRate));
-                        }
-                    }
+                if (priced > 0) {
+                    estimatedDistanceKm = Number(farthestKm.toFixed(1));
+                    // Stores we could not locate still pay the base charge.
+                    estimatedDeliveryFee = feeSum + (config.baseCharge || 0) * (storeSubtotals.size - priced);
                 }
             }
         } else {
             // Fallback for unknown options
-            estimatedDeliveryFee = settings?.deliveryCharges ?? 40;
+            estimatedDeliveryFee = (settings?.deliveryCharges ?? 40) * Math.max(1, storeSubtotals.size);
         }
     } catch (err) {
         console.error("Error calculating delivery stuff:", err);
@@ -291,12 +300,30 @@ const buildCartResponseData = async (
         }
     }
 
+    // Tell the client which shop each item belongs to: a cart with several shops
+    // is delivered as one order (and one rider / parcel) per shop.
+    const shopIds = Array.from(new Set(
+        filteredItems.map((item: any) => item.product?.seller?.toString()).filter(Boolean)
+    ));
+    const shopDocs = shopIds.length > 0
+        ? await Seller.find({ _id: { $in: shopIds } }).select('storeName')
+        : [];
+    const storeNameById = new Map(shopDocs.map((s: any) => [String(s._id), s.storeName as string]));
+    const itemsWithShop = filteredItems.map((item: any) => {
+        const plain = item.toObject ? item.toObject() : item;
+        const sellerId = plain.product?.seller?.toString();
+        return sellerId
+            ? { ...plain, product: { ...plain.product, sellerId, storeName: storeNameById.get(sellerId) || '' } }
+            : plain;
+    });
+
     return {
         ...cart.toObject(),
-        items: filteredItems,
+        items: itemsWithShop,
         unavailableItems,
         total,
         instantDeliveryAvailable,
+        shopCount: shopIds.length,
         ...fees
     };
 };
@@ -447,23 +474,9 @@ export const addToCart = async (req: Request, res: Response) => {
             cart = await Cart.create({ customer: userId, channel, items: [], total: 0 });
         }
 
-        // One shop per cart: every order goes to one seller (one shop, one rider/parcel).
-        // Adding another shop's product asks the customer to replace the cart first.
-        const sellerId = String(seller?._id || seller);
-        const cartItems = await CartItem.find({ cart: cart._id }).populate('product', 'seller');
-        const otherShopItem = cartItems.find(
-            (ci: any) => ci.product?.seller && String(ci.product.seller) !== sellerId
-        );
-        if (otherShopItem) {
-            if (req.body.replaceCart !== true) {
-                const otherShop = await Seller.findById((otherShopItem.product as any).seller).select('storeName');
-                return res.status(409).json({
-                    success: false,
-                    code: 'CART_HAS_OTHER_SHOP',
-                    message: `Your cart has items from ${otherShop?.storeName || 'another shop'}. You can order from one shop at a time.`,
-                    data: { currentShop: otherShop?.storeName || '', newShop: seller?.storeName || '' },
-                });
-            }
+        // A cart can hold items from many shops: checkout splits it into one order
+        // per shop (each with its own rider / courier parcel and its own payout).
+        if (req.body.replaceCart === true) {
             await CartItem.deleteMany({ cart: cart._id });
             cart.items = [];
         }

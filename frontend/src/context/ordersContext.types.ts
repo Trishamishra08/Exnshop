@@ -3,7 +3,8 @@ import { Order } from '../types/order';
 
 export interface OrdersContextType {
   orders: Order[];
-  addOrder: (order: Order) => Promise<string | undefined>;
+  /** `id` is the first order; `orderIds` has every order the checkout created (one per shop). */
+  addOrder: (order: Order) => Promise<{ id: string; orderIds: string[] } | undefined>;
   getOrderById: (id: string) => Order | undefined;
   fetchOrderById: (id: string) => Promise<Order | undefined>;
   updateOrderStatus: (id: string, status: Order["status"]) => void;

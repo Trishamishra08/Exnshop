@@ -20,6 +20,13 @@ const getRazorpayInstance = () => {
 };
 
 /**
+ * What still has to be paid online for an order: its total minus whatever the
+ * customer wallet already covered at checkout (0 for a fully wallet-paid order).
+ */
+export const onlinePayableOf = (order: { total?: number; walletAmountUsed?: number; paymentStatus?: string }) =>
+    order.paymentStatus === 'Paid' ? 0 : Number(Math.max(0, (order.total || 0) - (order.walletAmountUsed || 0)).toFixed(2));
+
+/**
  * Create a Razorpay order. Pass a single order id for an ordinary checkout,
  * or multiple (a mixed Quick + E-commerce checkout) to have ONE Razorpay
  * charge cover several linked orders — their ids are recorded in `notes` so
@@ -217,7 +224,7 @@ const captureForOneOrder = async (
                     razorpayOrderId,
                     razorpayPaymentId,
                     razorpaySignature,
-                    amount: order.total,
+                    amount: onlinePayableOf(order),
                     currency: 'INR',
                     status: 'Completed',
                     paidAt: new Date(),
@@ -236,7 +243,7 @@ const captureForOneOrder = async (
             // Update order payment status and allocation fields
             order.paymentStatus = 'Paid';
             order.paymentId = razorpayPaymentId;
-            order.onlineAmountPaid = order.total;
+            order.onlineAmountPaid = onlinePayableOf(order);
             order.codAmountPending = 0;
             if (order.status === 'Pending') {
                 order.status = 'Received';
@@ -435,7 +442,7 @@ export const capturePaymentForOrders = async (
 
     // Sanity check: the combined charge must equal the sum of what these
     // orders actually owe — defends against a tampered/mismatched orderIds list.
-    const combinedTotal = Number(orders.reduce((sum, o) => sum + (o.total || 0), 0).toFixed(2));
+    const combinedTotal = Number(orders.reduce((sum, o) => sum + onlinePayableOf(o), 0).toFixed(2));
 
     // Capture the full combined amount on Razorpay's side once.
     if (razorpayPaymentId && !razorpayPaymentId.startsWith('pay_mock_')) {

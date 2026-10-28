@@ -56,6 +56,8 @@ async function buildAndSaveChannelOrder(params: {
   deliveryOption: string;
   settings: any;
   coupon: any | null;
+  /** Money still available from the coupon across this checkout's orders; spent down as orders use it. */
+  couponBudget?: { remaining: number };
   isSharedFeeOwner: boolean;
   tipAmount: any;
   giftPackaging: any;
@@ -76,6 +78,7 @@ async function buildAndSaveChannelOrder(params: {
     deliveryOption,
     settings,
     coupon,
+    couponBudget,
     isSharedFeeOwner,
     tipAmount,
     giftPackaging,
@@ -360,8 +363,10 @@ async function buildAndSaveChannelOrder(params: {
   }
 
   // Enforce minimum order value against THIS group's own item subtotal.
+  // (For a multi-order checkout the minimum is checked on the whole cart instead,
+  // after all orders are built — see createOrder.)
   const minimumOrderValue = Number(settings?.minimumOrderValue) || 0;
-  if (minimumOrderValue > 0 && calculatedSubtotal < minimumOrderValue) {
+  if (!checkoutGroupId && minimumOrderValue > 0 && calculatedSubtotal < minimumOrderValue) {
     const shortfall = Number((minimumOrderValue - calculatedSubtotal).toFixed(2));
     return {
       success: false,
@@ -568,6 +573,11 @@ async function buildAndSaveChannelOrder(params: {
               );
             }
 
+            if (couponBudget) {
+              discountAmount = Math.min(discountAmount, couponBudget.remaining);
+              couponBudget.remaining -= discountAmount;
+            }
+
             newOrder.couponCode = coupon.code;
             newOrder.discount = Number(discountAmount.toFixed(2));
 
@@ -603,10 +613,9 @@ Gift Packaging Fee: ₹${giftPackagingFee}`);
 
   // GST is category-driven: each item is taxed at its own category's tax
   // rate (set by admin on the category), not one flat marketplace-wide rate.
-  // Like the other shared fees, it's only charged on the order that owns
-  // them for this checkout (delivery fees, platform fees, tips, and gift
-  // packaging are not taxed).
-  const gstEnabledForOrder = isSharedFeeOwner && !!settings?.gstEnabled;
+  // Every order is taxed on its own items (delivery fees, platform fees, tips,
+  // and gift packaging are not taxed).
+  const gstEnabledForOrder = !!settings?.gstEnabled;
   const { lines: gstLines, totalGst: gstAmount } = await computeItemGst(
     gstLineInputs,
     productSubtotalForCoupon,
@@ -859,9 +868,10 @@ export const createOrder = async (req: Request, res: Response) => {
     // two linked orders — one per channel — when the cart has both, while a
     // single-channel cart (the common case) takes the exact same path it
     // always has.
-    const itemsByChannel: Record<CommerceChannel, any[]> = { Quick: [], ECommerce: [] };
-    // One order = one shop: each channel's items must all come from the same seller.
-    const shopsByChannel: Record<CommerceChannel, Set<string>> = { Quick: new Set(), ECommerce: new Set() };
+    // One order = one shop: the cart is split into one order per (channel, shop),
+    // so every shop gets its own order, its own rider / courier parcel and its
+    // own payout, while the customer still pays once.
+    const itemGroups = new Map<string, { channel: CommerceChannel; items: any[] }>();
     for (const item of items) {
       if (!item.product || !item.product.id) {
         if (session) await session.abortTransaction();
@@ -880,25 +890,18 @@ export const createOrder = async (req: Request, res: Response) => {
       // ECommerce cart — skipping Shiprocket, which only fires for ECommerce
       // orders. Honor the checkout request's declared channel for those.
       const itemChannel = resolveSellerChannel((productSeller?.seller as any)?.channels, requestedChannel);
-      itemsByChannel[itemChannel].push(item);
-      const itemSellerId = (productSeller?.seller as any)?._id;
-      if (itemSellerId) shopsByChannel[itemChannel].add(String(itemSellerId));
+      const itemSellerId = String((productSeller?.seller as any)?._id || "unknown");
+      const groupKey = `${itemChannel}:${itemSellerId}`;
+      const group = itemGroups.get(groupKey) || { channel: itemChannel, items: [] };
+      group.items.push(item);
+      itemGroups.set(groupKey, group);
     }
 
-    if (shopsByChannel.Quick.size > 1 || shopsByChannel.ECommerce.size > 1) {
-      if (session) await session.abortTransaction();
-      return res.status(400).json({
-        success: false,
-        code: "CART_HAS_MULTIPLE_SHOPS",
-        message: "You can order from one shop at a time. Please keep items from only one shop in your cart.",
-      });
-    }
-
-    const channelGroupsPresent = (["Quick", "ECommerce"] as CommerceChannel[]).filter(
-      (ch) => itemsByChannel[ch].length > 0
+    // Quick orders first, so the shared fees land on the Quick order when there is one.
+    const orderGroups = Array.from(itemGroups.values()).sort(
+      (a, b) => (a.channel === b.channel ? 0 : a.channel === "Quick" ? -1 : 1)
     );
-    const isMixedCheckout = channelGroupsPresent.length === 2;
-    const checkoutGroupId = isMixedCheckout ? new mongoose.Types.ObjectId().toString() : undefined;
+    const checkoutGroupId = orderGroups.length > 1 ? new mongoose.Types.ObjectId().toString() : undefined;
 
     // Resolve the coupon ONCE for the whole checkout — its own admin-set
     // applicableChannel determines which channel-group(s) it discounts. The
@@ -920,19 +923,27 @@ export const createOrder = async (req: Request, res: Response) => {
         resolvedCoupon.applicableChannel === "Both" ||
         resolvedCoupon.applicableChannel === ch);
 
-    // Shared fees (platform fee, GST, packaging fee, tip) are attributed
-    // entirely to the "shared fee owner" group — Quick if present, else
-    // E-commerce — per the confirmed design.
-    const sharedFeeOwnerChannel: CommerceChannel = channelGroupsPresent.includes("Quick")
-      ? "Quick"
-      : "ECommerce";
+    // A coupon's money cap is shared by all the orders of this checkout, so a
+    // flat ₹100 coupon is ₹100 in total — not ₹100 on every store's order.
+    const couponBudget = { remaining: Infinity };
+    if (resolvedCoupon) {
+      if (resolvedCoupon.discountType === "Percentage") {
+        if (resolvedCoupon.maximumDiscount) couponBudget.remaining = Number(resolvedCoupon.maximumDiscount);
+      } else {
+        couponBudget.remaining = Number(resolvedCoupon.discountValue) || 0;
+      }
+    }
 
     let walletRemaining = useWallet ? (customer.walletAmount || 0) : 0;
     const builtOrders: any[] = [];
     let anyOrderUsedCoupon: any = null;
 
-    for (const ch of channelGroupsPresent) {
-      const isSharedFeeOwner = ch === sharedFeeOwnerChannel;
+    // Shared fees (platform fee, packaging fee, tip) are charged once per
+    // checkout, on the first order. Delivery fee, items, GST and the coupon
+    // are each order's own.
+    for (const [groupIndex, group] of orderGroups.entries()) {
+      const ch = group.channel;
+      const isSharedFeeOwner = groupIndex === 0;
       const result = await buildAndSaveChannelOrder({
         req,
         session,
@@ -941,13 +952,14 @@ export const createOrder = async (req: Request, res: Response) => {
         address,
         deliveryLat,
         deliveryLng,
-        items: itemsByChannel[ch],
+        items: group.items,
         channel: ch,
         paymentMethod,
         fees,
         deliveryOption,
         settings,
         coupon: couponAppliesToChannel(ch) ? resolvedCoupon : null,
+        couponBudget,
         isSharedFeeOwner,
         tipAmount,
         giftPackaging,
@@ -968,6 +980,21 @@ export const createOrder = async (req: Request, res: Response) => {
       builtOrders.push(result.order);
       if (result.order.couponCode && !anyOrderUsedCoupon) {
         anyOrderUsedCoupon = result.order;
+      }
+    }
+
+    // Minimum order value counts the whole cart, not each store's share of it.
+    const minimumOrderValue = Number(settings?.minimumOrderValue) || 0;
+    if (checkoutGroupId && minimumOrderValue > 0) {
+      const cartSubtotal = builtOrders.reduce((sum, o) => sum + (Number(o.subtotal) || 0), 0);
+      if (cartSubtotal < minimumOrderValue) {
+        if (session) await session.abortTransaction();
+        const shortfall = Number((minimumOrderValue - cartSubtotal).toFixed(2));
+        return res.status(400).json({
+          success: false,
+          message: `Minimum order value is ₹${minimumOrderValue}. Please add ₹${shortfall} more to place your order.`,
+          data: { minimumOrderValue, currentSubtotal: Number(cartSubtotal.toFixed(2)), shortfall },
+        });
       }
     }
 
@@ -1143,11 +1170,13 @@ export const getMyOrders = async (req: Request, res: Response) => {
     // Transform orders to match frontend Order type
     const transformedOrders = orders.map((order) => {
       const orderObj = order.toObject();
-      const linkedOrder = orderObj.checkoutGroupId
-        ? (siblingsByGroup.get(orderObj.checkoutGroupId) || []).find(
+      // A checkout with several shops makes one order per shop — list all the others.
+      const siblings = orderObj.checkoutGroupId
+        ? (siblingsByGroup.get(orderObj.checkoutGroupId) || []).filter(
           (sib: any) => sib._id.toString() !== orderObj._id.toString()
         )
-        : undefined;
+        : [];
+      const linkedOrder = siblings[0];
       return {
         ...orderObj,
         id: orderObj._id.toString(),
@@ -1170,6 +1199,13 @@ export const getMyOrders = async (req: Request, res: Response) => {
             total: linkedOrder.total,
           }
           : undefined,
+        linkedOrders: siblings.map((sib: any) => ({
+          id: sib._id.toString(),
+          orderNumber: sib.orderNumber,
+          channel: sib.channel,
+          status: sib.status,
+          total: sib.total,
+        })),
       };
     });
 
@@ -1257,20 +1293,20 @@ export const getOrderById = async (req: Request, res: Response) => {
     // If this order is part of a mixed (Quick + E-commerce) checkout, find
     // its sibling order for display linking.
     let linkedOrder: any = undefined;
+    let linkedOrders: any[] = [];
     if ((orderObj as any).checkoutGroupId) {
-      const sibling = await Order.findOne({
+      const siblings = await Order.find({
         checkoutGroupId: (orderObj as any).checkoutGroupId,
         _id: { $ne: orderObj._id },
       }).select("orderNumber channel status total");
-      if (sibling) {
-        linkedOrder = {
-          id: sibling._id.toString(),
-          orderNumber: sibling.orderNumber,
-          channel: sibling.channel,
-          status: sibling.status,
-          total: sibling.total,
-        };
-      }
+      linkedOrders = siblings.map((sibling) => ({
+        id: sibling._id.toString(),
+        orderNumber: sibling.orderNumber,
+        channel: sibling.channel,
+        status: sibling.status,
+        total: sibling.total,
+      }));
+      linkedOrder = linkedOrders[0];
     }
 
     // Fetch existing return requests for items in this order
@@ -1355,6 +1391,7 @@ export const getOrderById = async (req: Request, res: Response) => {
           }
         : undefined,
       linkedOrder,
+      linkedOrders,
     };
 
     console.log(`\n[CUSTOMER ORDER RESPONSE]\nOrder ID: ${transformedOrder.id}\nstatus: ${transformedOrder.status}\npaymentStatus: ${transformedOrder.paymentStatus}\npaymentId: ${transformedOrder.paymentId || 'N/A'}`);

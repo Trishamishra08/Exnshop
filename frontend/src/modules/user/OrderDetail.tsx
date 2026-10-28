@@ -1454,6 +1454,21 @@ export default function OrderDetail() {
                 )}
                 <p>Order number {order.orderNumber || order.id}</p>
                 {sellers.length > 0 && <p>Sold by: {sellers.join(", ")}</p>}
+                {Array.isArray((order as any).linkedOrders) && (order as any).linkedOrders.length > 0 && (
+                  <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-2.5 text-xs text-blue-900">
+                    <p className="font-semibold">Part of one checkout with other shops. Their orders are delivered separately:</p>
+                    <ul className="mt-1 space-y-0.5">
+                      {(order as any).linkedOrders.map((sib: { id: string; orderNumber: string; status: string }) => (
+                        <li key={sib.id}>
+                          <Link to={`/orders/${sib.id}`} className="underline font-medium">
+                            #{sib.orderNumber}
+                          </Link>{" "}
+                          — {sib.status}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
               <div className="mt-3 space-y-1 text-sm text-gray-800">
                 {rows.map(([label, value]) => (

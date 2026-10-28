@@ -156,6 +156,9 @@ export default function Checkout() {
 
   // Razorpay Payment State
   const [pendingOrderId, setPendingOrderId] = useState<string | null>(null);
+  // Every order of the checkout (one per shop) that the single online payment covers.
+  const [pendingOrderIds, setPendingOrderIds] = useState<string[]>([]);
+  const [placedOrderCount, setPlacedOrderCount] = useState(1);
   const [showRazorpayCheckout, setShowRazorpayCheckout] = useState(false);
 
   // Which online gateway the customer picked — only relevant when paymentMethod === "Online"
@@ -639,9 +642,13 @@ export default function Checkout() {
     setIsProcessingOrder(true);
     try {
       // Create the order
-      const placedId = await addOrder(order);
-      if (placedId) {
-        if (paymentMethod === "COD") {
+      const placed = await addOrder(order);
+      if (placed) {
+        const placedId = placed.id;
+        setPlacedOrderCount(placed.orderIds.length);
+        // Fully wallet-paid orders need no gateway; the rest go to one payment.
+        const walletOnly = walletDeduction === grandTotal;
+        if (paymentMethod === "COD" || walletOnly) {
           // For COD, proceed directly to success
           setPlacedOrderId(placedId);
           clearCart();
@@ -650,6 +657,7 @@ export default function Checkout() {
         } else {
           // For Online, trigger Razorpay payment
           setPendingOrderId(placedId);
+          setPendingOrderIds(placed.orderIds);
           setShowRazorpayCheckout(true);
         }
         // Note: For Online payment, the cart will be cleared and success shown only after successful payment
@@ -669,7 +677,7 @@ export default function Checkout() {
   };
 
   const handleGoToOrders = () => {
-    if (placedOrderId) {
+    if (placedOrderId && placedOrderCount <= 1) {
       navigate(`/orders/${placedOrderId}`);
     } else {
       navigate("/orders");
@@ -2509,6 +2517,7 @@ export default function Checkout() {
         selectedGateway === "cashfree" ? (
           <CashfreeCheckout
             orderId={pendingOrderId}
+            orderIds={pendingOrderIds}
             amount={grandTotal}
             customerDetails={{
               name: user.name || "Customer",
@@ -2519,6 +2528,7 @@ export default function Checkout() {
               setShowRazorpayCheckout(false);
               setPlacedOrderId(pendingOrderId);
               setPendingOrderId(null);
+              setPendingOrderIds([]);
               clearCart();
               setShowOrderSuccess(true);
               showGlobalToast("Payment successful!", "success");
@@ -2526,6 +2536,7 @@ export default function Checkout() {
             onFailure={(error) => {
               setShowRazorpayCheckout(false);
               setPendingOrderId(null);
+              setPendingOrderIds([]);
               showGlobalToast(
                 error || "Payment failed. Please try again.",
                 "error",
@@ -2535,6 +2546,7 @@ export default function Checkout() {
         ) : (
           <RazorpayCheckout
             orderId={pendingOrderId}
+            orderIds={pendingOrderIds}
             amount={grandTotal}
             customerDetails={{
               name: user.name || "Customer",
@@ -2545,6 +2557,7 @@ export default function Checkout() {
               setShowRazorpayCheckout(false);
               setPlacedOrderId(pendingOrderId);
               setPendingOrderId(null);
+              setPendingOrderIds([]);
               clearCart();
               setShowOrderSuccess(true);
               showGlobalToast("Payment successful!", "success");
@@ -2552,6 +2565,7 @@ export default function Checkout() {
             onFailure={(error) => {
               setShowRazorpayCheckout(false);
               setPendingOrderId(null);
+              setPendingOrderIds([]);
               showGlobalToast(
                 error || "Payment failed. Please try again.",
                 "error",

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { Fragment, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -10,6 +10,9 @@ export default function Cart() {
   const { cart, updateQuantity, removeFromCart, clearCart } = useCart();
   const { t } = useTranslation();
   const navigate = useNavigate();
+  // Group the items by shop, so each shop's order reads together.
+  const itemsByShop = [...cart.items].sort((a, b) => (a.product.sellerId || '').localeCompare(b.product.sellerId || ''));
+  const shopCount = new Set(cart.items.map((i) => i.product.sellerId).filter(Boolean)).size;
 
   useEffect(() => {
     if (cart.items.length > 0) {
@@ -66,11 +69,20 @@ export default function Cart() {
 
       {/* Cart Items */}
       <div className="px-4 md:px-6 lg:px-8 space-y-4 md:space-y-6 mb-4 md:mb-6">
-        {cart.items.map((item) => {
+        {shopCount > 1 && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs md:text-sm text-blue-900">
+            Your cart has items from {shopCount} shops. Each shop packs and delivers its own order, so you will get {shopCount} separate deliveries — you pay once.
+          </div>
+        )}
+        {itemsByShop.map((item, index) => {
           const { displayPrice, mrp, hasDiscount } = calculateProductPrice(item.product, item.variant);
+          const showShopHeading = shopCount > 1 && (index === 0 || itemsByShop[index - 1].product.sellerId !== item.product.sellerId);
           return (
+            <Fragment key={item.product.id}>
+              {showShopHeading && (
+                <p className="pt-2 text-sm font-bold text-neutral-800">Sold by {item.product.storeName || 'Shop'}</p>
+              )}
             <div
-              key={item.product.id}
               className="bg-white rounded-lg border border-neutral-200 p-4 md:p-6 hover:shadow-md transition-shadow"
             >
               <div className="flex gap-4 md:gap-6">
@@ -145,6 +157,7 @@ export default function Cart() {
                 </button>
               </div>
             </div>
+            </Fragment>
           );
         })}
       </div>

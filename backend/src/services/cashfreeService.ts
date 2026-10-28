@@ -1,6 +1,7 @@
 import { Cashfree, CFEnvironment } from "cashfree-pg";
 import Payment from "../models/Payment";
 import Order from "../models/Order";
+import { onlinePayableOf } from "./paymentService";
 import mongoose from "mongoose";
 
 const getCashfreeInstance = () => {
@@ -187,7 +188,7 @@ export const captureCashfreeOrderForOrders = async (
         paymentGateway: "Cashfree",
         cashfreeOrderId: cfOrderId,
         cashfreePaymentId: verification.cfPaymentId || undefined,
-        amount: order.total,
+        amount: onlinePayableOf(order),
         currency: "INR",
         status: "Completed",
         paidAt: new Date(),

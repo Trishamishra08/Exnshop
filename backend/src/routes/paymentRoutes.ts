@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authenticate, requireUserType } from '../middleware/auth';
 import { Request, Response } from 'express';
-import { createRazorpayOrder, capturePayment, capturePaymentForOrders, handleWebhook } from '../services/paymentService';
+import { createRazorpayOrder, capturePayment, capturePaymentForOrders, handleWebhook, onlinePayableOf } from '../services/paymentService';
 import { createCashfreeOrder, captureCashfreeOrderForOrders, handleCashfreeWebhook } from '../services/cashfreeService';
 import Order from '../models/Order';
 import Customer from '../models/Customer';
@@ -44,7 +44,7 @@ router.post('/create-order', authenticate, requireUserType('Customer'), async (r
             });
         }
 
-        const combinedAmount = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+        const combinedAmount = orders.reduce((sum, o) => sum + onlinePayableOf(o), 0);
         const result = await createRazorpayOrder(orderIds, combinedAmount);
 
         if (!result.success) {
@@ -191,7 +191,7 @@ router.post('/cashfree/create-order', authenticate, requireUserType('Customer'),
             return res.status(404).json({ success: false, message: 'Customer not found' });
         }
 
-        const combinedAmount = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+        const combinedAmount = orders.reduce((sum, o) => sum + onlinePayableOf(o), 0);
         const result = await createCashfreeOrder(orderIds, combinedAmount, {
             customerId: customer._id.toString(),
             customerPhone: customer.phone,
