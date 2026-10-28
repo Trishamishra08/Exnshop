@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Request, Response } from "express";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import Category from "../../../models/Category";
@@ -400,9 +401,19 @@ export const deleteCategory = asyncHandler(
     // Check if category has products
     const productCount = await Product.countDocuments({ category: id });
     if (productCount > 0) {
+      // Say how many and in what state: drafts / pending / rejected products
+      // also count, and the admin's product list may not show them by default.
+      const byStatus = await Product.aggregate([
+        { $match: { category: new mongoose.Types.ObjectId(String(id)) } },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]);
+      const breakdown = byStatus
+        .map((s: any) => `${s.count} ${s._id || "No status"}`)
+        .join(", ");
       return res.status(400).json({
         success: false,
-        message: "Cannot delete category with products",
+        message: `Cannot delete this category: it still has ${productCount} product(s) (${breakdown}). Move or delete those products first.`,
+        data: { productCount, byStatus },
       });
     }
 
