@@ -1277,25 +1277,35 @@ export const updateProduct = asyncHandler(
 
     // Customers only see products that are status "Active" AND published.
     // - Inactive (seller paused it): publishing brings it back live.
-    // - Draft: it must be complete first, then it goes to Product Approvals for review
-    //   (it never skips the review queue).
-    let sentToReview = false;
+    // - Draft: nothing goes live until every required detail is filled in. The
+    //   admin can help the seller finish it; once complete, publishing makes it live.
+    let wentLive = false;
     if (updateData.publish === true) {
-      if (product.status === "Inactive") {
+      if (product.status === "Draft") {
+        const problems = await listingProblems(product.toObject());
+        if (problems.length) {
+          return res.status(400).json({
+            success: false,
+            message: `Can't publish yet — the seller's details are incomplete. ${describeProblems(problems)}`,
+            data: { missing: problems },
+          });
+        }
+      }
+      if (product.status === "Draft" || product.status === "Inactive") {
         product.status = "Active";
         (product as any).approvedBy = (req as any).user?.userId;
         (product as any).approvedAt = new Date();
-      } else if (product.status === "Draft") {
-        const problems = await listingProblems(product.toObject());
-        if (problems.length) {
-          return res.status(400).json({ success: false, message: describeProblems(problems), data: { missing: problems } });
-        }
-        product.status = "Pending";
-        sentToReview = true;
+        wentLive = true;
       }
     }
 
     await product.save();
+
+    // A product that just went live (or was hidden) must show up for customers
+    // right away, not after their cached lists expire.
+    if (wentLive || updateData.publish !== undefined) {
+      cache.invalidatePattern(/^customer-/);
+    }
 
     // Update inventory if stock changed
     if (product.stock !== undefined) {
@@ -1321,9 +1331,7 @@ export const updateProduct = asyncHandler(
 
     return res.status(200).json({
       success: true,
-      message: sentToReview
-        ? "Product is complete and has been sent to Product Approvals for review."
-        : "Product updated successfully",
+      message: wentLive ? "Product is published and now live for customers." : "Product updated successfully",
       data: populatedProduct,
     });
   }

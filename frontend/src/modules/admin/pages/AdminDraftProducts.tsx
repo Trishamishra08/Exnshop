@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getProducts, submitDraftForReview } from "../../../services/api/admin/adminProductService";
+import { getProducts, submitDraftForReview, updateProduct } from "../../../services/api/admin/adminProductService";
 import { useToast } from "../../../context/ToastContext";
 import { useAdminMode } from "../context/AdminModeContext";
 
@@ -45,6 +45,19 @@ export default function AdminDraftProducts() {
     load();
   }, [load]);
 
+  const publishNow = async (id: string) => {
+    setBusyId(id);
+    try {
+      const res = await updateProduct(id, { publish: true } as any);
+      showToast(res.message || "Product is live", "success");
+      await load();
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || "Could not publish this product", "error");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const sendToReview = async (id: string) => {
     setBusyId(id);
     try {
@@ -64,7 +77,7 @@ export default function AdminDraftProducts() {
         <div className="bg-teal-700 px-6 py-4">
           <h1 className="text-xl font-semibold text-white">Draft Products</h1>
           <p className="text-sm text-teal-100 mt-1">
-            Products sellers started but have not submitted. Finish the missing details, then send them to Product Approvals.
+            Products sellers started but have not submitted. A draft can be published only after every required detail is filled in. Open one to help the seller finish it.
           </p>
         </div>
 
@@ -128,11 +141,18 @@ export default function AdminDraftProducts() {
                             {complete ? "Edit" : "Complete details"}
                           </button>
                           <button
+                            onClick={() => publishNow(p._id)}
+                            disabled={!complete || busyId === p._id}
+                            title={complete ? "Make this product live for customers" : "Complete the missing details first"}
+                            className="px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded disabled:opacity-40 disabled:cursor-not-allowed">
+                            {busyId === p._id ? "Publishing…" : "Publish"}
+                          </button>
+                          <button
                             onClick={() => sendToReview(p._id)}
                             disabled={!complete || busyId === p._id}
-                            title={complete ? "Send to Product Approvals" : "Complete the missing details first"}
-                            className="px-3 py-1.5 text-xs font-semibold text-white bg-teal-600 hover:bg-teal-700 rounded disabled:opacity-40 disabled:cursor-not-allowed">
-                            {busyId === p._id ? "Sending…" : "Send to review"}
+                            title={complete ? "Send to Product Approvals for a second check" : "Complete the missing details first"}
+                            className="px-3 py-1.5 text-xs font-semibold text-neutral-700 border border-neutral-300 hover:bg-neutral-50 rounded disabled:opacity-40 disabled:cursor-not-allowed">
+                            Send to review
                           </button>
                         </div>
                       </td>

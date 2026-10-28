@@ -187,7 +187,9 @@ export default function AdminStockManagement() {
   };
 
   // Publishing from here also approves a Draft / Pending / Inactive product.
+  const [publishingId, setPublishingId] = useState<string | null>(null);
   const handlePublish = async (productId: string) => {
+    setPublishingId(productId);
     try {
       const response = await updateProduct(productId, { publish: true } as any);
       if (response.success) {
@@ -198,6 +200,8 @@ export default function AdminStockManagement() {
       }
     } catch (err: any) {
       showToast(err?.response?.data?.message || "Could not publish this product", "error");
+    } finally {
+      setPublishingId(null);
     }
   };
 
@@ -702,21 +706,23 @@ export default function AdminStockManagement() {
                       </td>
                       <td className="p-4 align-middle">
                         <div className="flex items-center gap-2">
-                          {(product.status === "Unpublished" || product.status === "Inactive") && (
+                          {product.status === "Published" ? (
                             <button
-                              onClick={() => handlePublish(product.productId)}
-                              className="px-2 py-1 text-xs font-semibold text-teal-700 border border-teal-300 hover:bg-teal-50 rounded"
-                              title="Make this product live for customers">
-                              Publish
+                              disabled
+                              className="px-2 py-1 text-xs font-semibold text-white bg-teal-600 rounded opacity-90 cursor-default"
+                              title="Live for customers">
+                              Published ✓
                             </button>
-                          )}
-                          {product.status === "Draft" && (
-                            <button
-                              onClick={() => navigate("/admin/product/drafts")}
-                              className="px-2 py-1 text-xs font-semibold text-amber-700 border border-amber-300 hover:bg-amber-50 rounded"
-                              title="Draft products are finished and sent to review from the Draft Products page">
-                              Review draft
-                            </button>
+                          ) : (
+                            (product.status === "Unpublished" || product.status === "Inactive" || product.status === "Draft") && (
+                              <button
+                                onClick={() => handlePublish(product.productId)}
+                                disabled={publishingId === product.productId}
+                                className="px-2 py-1 text-xs font-semibold text-teal-700 border border-teal-300 hover:bg-teal-50 rounded disabled:opacity-50"
+                                title={product.status === "Draft" ? "Publishes only once every required detail is filled in" : "Make this product live for customers"}>
+                                {publishingId === product.productId ? "Publishing…" : "Publish"}
+                              </button>
+                            )
                           )}
                           {product.status === "Pending approval" && (
                             <button
