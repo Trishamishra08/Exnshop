@@ -554,7 +554,12 @@ export const updateProduct = asyncHandler(
         status: v.status || "Available",
         images: cleanOptionImages(v.images),
         options: axes ? cleanVariationOptions(v.options, axes) : undefined,
+        weightGrams: Number(v.weightGrams) > 0 ? Number(v.weightGrams) : undefined,
+        isActive: v.isActive !== false,
       }));
+      if (!updateData.variations.some((v: any) => v.isActive)) {
+        return res.status(400).json({ success: false, message: "Keep at least one variant switched on" });
+      }
 
       // Multi-option products: every combination names a value for each option
       // type, and no two combinations are the same.

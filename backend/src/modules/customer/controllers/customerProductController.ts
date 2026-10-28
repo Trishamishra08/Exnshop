@@ -443,6 +443,10 @@ export const getProductById = async (req: Request, res: Response) => {
       delete (prodObj.seller as any).address;
     }
 
+    // Variants the seller/admin switched off are not shown.
+    const onSale = ((prodObj as any).variations || []).filter((v: any) => v.isActive !== false);
+    if (onSale.length > 0) (prodObj as any).variations = onSale;
+
     return res.status(200).json({
       success: true,
       data: {

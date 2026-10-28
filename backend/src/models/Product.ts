@@ -44,6 +44,10 @@ export interface IProduct extends Document {
     stock?: number;
     sku?: string;
     status?: string;
+    /** Shipping weight of this variant in grams (falls back to the product's weight). */
+    weightGrams?: number;
+    /** Off = hidden from customers and can't be ordered, without deleting the variant. */
+    isActive?: boolean;
     images?: string[];
     /** This combination's value for each axis, e.g. [{ name: "Color", value: "Black" }]. */
     options?: Array<{ name: string; value: string }>;
@@ -261,6 +265,8 @@ const ProductSchema = new Schema<IProduct>(
             default: "Available",
           },
           sku: String,
+          weightGrams: { type: Number, min: 0 },
+          isActive: { type: Boolean, default: true },
           // Photos for this option (e.g. the Red colour). The product page shows them
           // when the option is selected; without them the product's own photos are used.
           images: {

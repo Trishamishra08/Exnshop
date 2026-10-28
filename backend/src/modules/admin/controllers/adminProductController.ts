@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import { normalizeVariants } from "../../../services/variantService";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import Category from "../../../models/Category";
 import SubCategory from "../../../models/SubCategory";
@@ -16,6 +17,7 @@ import {
   configForProduct,
   generateSkuBase,
   listingProblems,
+  findSkuProblem,
   newListingContext,
   describeProblems,
   notifySellerProductDecision,
@@ -1058,6 +1060,48 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
       pages: Math.ceil(total / parseInt(limit as string)),
     },
   });
+});
+
+/**
+ * PUT /admin/products/:id/variants
+ * Admin variant manager: replaces the product's attributes and variant combinations
+ * (SKU, MRP, selling price, stock, weight, photos, on/off) in one go.
+ */
+export const updateProductVariants = asyncHandler(async (req: Request, res: Response) => {
+  const product = await Product.findById(req.params.id);
+  if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+
+  const result = normalizeVariants(req.body || {});
+  if ("error" in result) return res.status(400).json({ success: false, message: result.error });
+  const v = result.data;
+
+  // SKUs must not clash with this seller's other products.
+  const skuProblem = await findSkuProblem(String(product.seller), { variations: v.variations }, String(product._id));
+  if (skuProblem) return res.status(400).json({ success: false, message: skuProblem });
+
+  const before = (product.variations || []).length;
+  product.set({
+    variantAxes: v.variantAxes,
+    combinedAxes: v.combinedAxes,
+    variationType: v.variationType,
+    variations: v.variations,
+    price: v.price,
+    discPrice: v.discPrice,
+    stock: v.stock,
+  });
+  product.markModified("variations");
+  await product.save();
+
+  await Inventory.findOneAndUpdate({ product: product._id }, { currentStock: product.stock, lastUpdated: new Date() }).catch(() => undefined);
+  await auditProduct({
+    product,
+    ...(await adminActor(req)),
+    action: "VARIANTS_UPDATED",
+    changes: [{ field: "variations", from: before, to: v.variations.length }],
+  });
+  cache.invalidatePattern(/^customer-/);
+
+  return res.status(200).json({ success: true, message: "Variants saved", data: product });
 });
 
 /**

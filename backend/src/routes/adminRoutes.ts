@@ -158,6 +158,7 @@ router.get("/products", productController.getProducts);
 router.get("/products/revisions", productController.getProductRevisions);
 router.get("/products/review-counts", productController.getReviewCounts);
 router.post("/products/:id/submit-draft", productController.submitDraftForReview);
+router.put("/products/:id/variants", productController.updateProductVariants);
 router.get("/products/:id/audit", productController.getProductAuditLog);
 router.get("/products/:id/review", listingController.getProductReviewDetails);
 router.post("/products/:id/start-review", listingController.startProductReview);

@@ -19,6 +19,14 @@ import { getSubcategories, getSubSubCategories, type SubCategory, type SubSubCat
 import { getTaxes, type Tax } from "../../../services/api/admin/adminTaxService";
 import { getShopByStores, type ShopByStore } from "../../../services/api/admin/adminMiscService";
 import { useToast } from "../../../context/ToastContext";
+import VariantManager, {
+  variantsFromProduct,
+  variantsPayload,
+  variantProblems,
+  type VMAxis,
+  type VMRow,
+} from "../../../components/variants/VariantManager";
+import { updateProductVariants } from "../../../services/api/admin/adminProductService";
 
 interface VariationItem {
   _id?: string;
@@ -74,22 +82,10 @@ export default function AdminProductEdit() {
     shopId: "",
   });
 
-  const [variations, setVariations] = useState<VariationItem[]>([]);
-  // Products made with option types in the seller wizard keep their own variants: they can't be edited by hand here.
-  const [hasOptionTypes, setHasOptionTypes] = useState(false);
-  // "Make combinations": e.g. RAM + Storage -> one variant per combination ("8 GB + 128 GB").
-  const [comboTypes, setComboTypes] = useState<{ name: string; values: string }[]>([
-    { name: "", values: "" },
-    { name: "", values: "" },
-  ]);
-  const [comboRows, setComboRows] = useState<{ title: string; price: string; discPrice: string; stock: string }[]>([]);
-  const [variationForm, setVariationForm] = useState({
-    title: "",
-    price: "",
-    discPrice: "0",
-    stock: "0",
-    status: "Available" as "Available" | "Sold out",
-  });
+  // Variants: attributes (Color, Size, …) and one row per combination.
+  const [vmAxes, setVmAxes] = useState<VMAxis[]>([]);
+  const [vmRows, setVmRows] = useState<VMRow[]>([]);
+  const [vmCombined, setVmCombined] = useState<string[]>([]);
 
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
   const [mainImagePreview, setMainImagePreview] = useState<string>("");
@@ -250,34 +246,11 @@ export default function AdminProductEdit() {
             setGalleryImagePreviews(product.galleryImages || product.galleryImageUrls || []);
           }
 
-          // Preload variations
-          if (Array.isArray(product.variations) && product.variations.length > 0) {
-            setVariations(
-              product.variations.map((v: any) => ({
-                _id: v._id,
-                title: v.value || v.name || v.title || "Default",
-                value: v.value || v.name || v.title || "Default",
-                price: Number(v.price) || 0,
-                discPrice: Number(v.discPrice) || 0,
-                stock: Number(v.stock) || 0,
-                status: v.status || (v.stock > 0 ? "Available" : "Sold out"),
-                options: Array.isArray(v.options) && v.options.length > 0 ? v.options : undefined,
-                images: Array.isArray(v.images) && v.images.length > 0 ? v.images : undefined,
-              }))
-            );
-            setHasOptionTypes(Array.isArray(product.variantAxes) && product.variantAxes.length > 0);
-          } else if (product.price !== undefined) {
-            setVariations([
-              {
-                title: "Default",
-                value: "Default",
-                price: Number(product.price) || 0,
-                discPrice: Number(product.discPrice) || 0,
-                stock: Number(product.stock) || 0,
-                status: "Available",
-              },
-            ]);
-          }
+          // Preload variants into the variant manager
+          const loaded = variantsFromProduct(product);
+          setVmAxes(loaded.axes);
+          setVmRows(loaded.rows);
+          setVmCombined(Array.isArray(product.combinedAxes) ? product.combinedAxes : []);
 
           // Load subcategories for the product's category
           if (categoryId) {
@@ -511,96 +484,6 @@ export default function AdminProductEdit() {
     setGalleryImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const addVariation = () => {
-    if (!variationForm.title || !variationForm.price) {
-      setUploadError("Please fill in variation title and price");
-      return;
-    }
-
-    const price = parseFloat(variationForm.price);
-    const discPrice = parseFloat(variationForm.discPrice || "0");
-    const stock = parseInt(variationForm.stock || "0", 10);
-
-    if (discPrice > price) {
-      setUploadError("Discounted price cannot be greater than regular price");
-      return;
-    }
-
-    const newVariation: VariationItem = {
-      title: variationForm.title,
-      value: variationForm.title,
-      price,
-      discPrice,
-      stock,
-      status: variationForm.status,
-    };
-
-    setVariations((prev) => [...prev, newVariation]);
-    setVariationForm({
-      title: "",
-      price: "",
-      discPrice: "0",
-      stock: "0",
-      status: "Available",
-    });
-    setUploadError("");
-  };
-
-  const splitValues = (text: string) =>
-    Array.from(new Set(text.split(",").map((v) => v.trim()).filter(Boolean)));
-
-  const previewCombinations = () => {
-    const types = comboTypes.filter((t) => t.name.trim() || t.values.trim());
-    if (types.length < 2) return setUploadError("Add at least two option types to make combinations");
-    if (types.some((t) => !t.name.trim() || splitValues(t.values).length === 0)) {
-      return setUploadError("Every option type needs a name and at least one value (comma separated)");
-    }
-    let titles: string[] = [""];
-    for (const t of types) {
-      titles = titles.flatMap((prefix) => splitValues(t.values).map((v) => (prefix ? prefix + " + " + v : v)));
-    }
-    if (titles.length > 60) return setUploadError("That makes " + titles.length + " combinations — use at most 60");
-    setComboRows(
-      titles.map((title) => ({
-        title,
-        price: variationForm.price,
-        discPrice: variationForm.discPrice || "0",
-        stock: variationForm.stock || "0",
-      }))
-    );
-    setUploadError("");
-  };
-
-  const applyCombinations = () => {
-    if (comboRows.some((r) => !r.price || Number.isNaN(parseFloat(r.price)))) {
-      return setUploadError("Enter a price for every combination");
-    }
-    if (comboRows.some((r) => parseFloat(r.discPrice || "0") > parseFloat(r.price))) {
-      return setUploadError("A discounted price cannot be greater than the regular price");
-    }
-    const hasRealVariants = variations.some((v) => (v.title || v.value) !== "Default");
-    if (hasRealVariants && !window.confirm("This replaces the variations this product has now. Continue?")) return;
-    const typeNames = comboTypes.filter((t) => t.name.trim()).map((t) => t.name.trim());
-    setVariations(
-      comboRows.map((r) => ({
-        name: typeNames.join(" + "),
-        title: r.title,
-        value: r.title,
-        price: parseFloat(r.price),
-        discPrice: parseFloat(r.discPrice || "0") || 0,
-        stock: parseInt(r.stock || "0", 10) || 0,
-        status: "Available" as const,
-      }))
-    );
-    setFormData((prev) => ({ ...prev, variationType: typeNames.join(" + ") }));
-    setComboRows([]);
-    setUploadError("");
-  };
-
-  const removeVariation = (index: number) => {
-    setVariations((prev) => prev.filter((_, i) => i !== index));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
@@ -623,8 +506,9 @@ export default function AdminProductEdit() {
       }
     }
 
-    if (variations.length === 0) {
-      setUploadError("Please add at least one product variation with a price.");
+    const problems = variantProblems(vmAxes, vmRows);
+    if (problems.length) {
+      setUploadError(`Variants: fix ${problems.join(", ")}.`);
       return;
     }
 
@@ -675,22 +559,16 @@ export default function AdminProductEdit() {
         fssaiLicNo: formData.fssaiLicNo || "",
         mainImageUrl: mainImageUrl || undefined,
         galleryImageUrls: galleryImageUrls,
-        variations: variations.map((v) => ({
-          name: v.name || "Variation",
-          value: v.value || v.title || "Default",
-          title: v.title || v.value || "Default",
-          price: v.price,
-          discPrice: v.discPrice || 0,
-          stock: v.stock || 0,
-          status: v.status || "Available",
-          ...(v.options ? { options: v.options } : {}),
-          ...(v.images ? { images: v.images } : {}),
-        })),
-        variationType: formData.variationType || undefined,
         isShopByStoreOnly: formData.isShopByStoreOnly === "Yes",
         shopId: formData.isShopByStoreOnly === "Yes" && formData.shopId ? formData.shopId : null,
       };
 
+      // Variants are saved through the variant manager's own endpoint (validated on the server).
+      const variantRes = await updateProductVariants(id, variantsPayload(vmAxes, vmRows, vmCombined));
+      if (!variantRes.success) {
+        setUploadError(variantRes.message || "Could not save the variants");
+        return;
+      }
       const res = await updateProduct(id, productPayload);
 
       if (res.success) {
@@ -968,235 +846,22 @@ export default function AdminProductEdit() {
         {/* Product Variations */}
         <div className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
           <div className="bg-teal-600 text-white px-4 sm:px-6 py-3">
-            <h2 className="text-base sm:text-lg font-semibold">Product Variations & Pricing</h2>
+            <h2 className="text-base sm:text-lg font-semibold">Variants & Pricing</h2>
           </div>
-          <div className="p-4 sm:p-6 space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-2">
-                Variation Type (e.g. Size, Weight, Color, Pack)
-              </label>
-              <input
-                name="variationType"
-                list="variation-type-options"
-                value={formData.variationType}
-                onChange={handleChange}
-                disabled={hasOptionTypes}
-                placeholder="Pick one or type your own, e.g. RAM + Storage"
-                className="w-full md:w-1/3 px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white disabled:bg-neutral-100"
-              />
-              <datalist id="variation-type-options">
-                <option value="Weight" />
-                <option value="Size" />
-                <option value="Color" />
-                <option value="Pack" />
-                <option value="RAM + Storage" />
-                <option value="Size + Color" />
-                <option value="Weight + Pack" />
-              </datalist>
-            </div>
-
-            {hasOptionTypes && (
-              <p className="text-sm rounded-lg border border-blue-200 bg-blue-50 text-blue-900 p-3">
-                This product was built with option types in the seller's product wizard (for example Colour and RAM). Its variants, photos and combinations are kept as they are. The seller changes them from their product wizard.
-              </p>
-            )}
-
-            {!hasOptionTypes && (
-              <div className="p-4 border border-neutral-200 rounded-lg space-y-3">
-                <div>
-                  <p className="text-sm font-semibold text-neutral-800">Make combinations (optional)</p>
-                  <p className="text-xs text-neutral-500">
-                    Customers pick one choice such as "8 GB + 128 GB". Enter the option types and their values, then preview, set each price and add.
-                  </p>
-                </div>
-                {comboTypes.map((t, i) => (
-                  <div key={i} className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <input
-                      value={t.name}
-                      onChange={(e) => setComboTypes((c) => c.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
-                      placeholder={i === 0 ? "Type 1, e.g. RAM" : i === 1 ? "Type 2, e.g. Storage" : "Type 3 (optional)"}
-                      className="px-3 py-2 border border-neutral-300 rounded-lg text-sm"
-                    />
-                    <input
-                      value={t.values}
-                      onChange={(e) => setComboTypes((c) => c.map((x, j) => (j === i ? { ...x, values: e.target.value } : x)))}
-                      placeholder="Values, comma separated, e.g. 8 GB, 12 GB"
-                      className="md:col-span-2 px-3 py-2 border border-neutral-300 rounded-lg text-sm"
-                    />
-                  </div>
-                ))}
-                <div className="flex flex-wrap gap-2">
-                  {comboTypes.length < 3 && (
-                    <button
-                      type="button"
-                      onClick={() => setComboTypes((c) => [...c, { name: "", values: "" }])}
-                      className="px-3 py-1.5 text-xs font-semibold border border-dashed border-teal-500 text-teal-700 rounded-lg">
-                      + Add another type
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={previewCombinations}
-                    className="px-3 py-1.5 text-xs font-semibold bg-teal-600 text-white rounded-lg">
-                    Preview combinations
-                  </button>
-                </div>
-                {comboRows.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="hidden md:grid grid-cols-5 gap-2 text-xs font-medium text-neutral-500">
-                      <span className="col-span-2">Combination</span>
-                      <span>Price (₹)</span>
-                      <span>Discount price (₹)</span>
-                      <span>Stock (0 = Unlimited)</span>
-                    </div>
-                    {comboRows.map((r, i) => (
-                      <div key={r.title} className="grid grid-cols-2 md:grid-cols-5 gap-2 items-center">
-                        <span className="col-span-2 text-sm font-medium text-neutral-800">{r.title}</span>
-                        {(["price", "discPrice", "stock"] as const).map((field) => (
-                          <input
-                            key={field}
-                            type="number"
-                            min="0"
-                            value={r[field]}
-                            onChange={(e) => setComboRows((rows) => rows.map((x, j) => (j === i ? { ...x, [field]: e.target.value } : x)))}
-                            className="px-3 py-2 border border-neutral-300 rounded-lg text-sm"
-                          />
-                        ))}
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={applyCombinations}
-                      className="px-4 py-2 text-sm font-semibold bg-teal-700 text-white rounded-lg">
-                      Use these {comboRows.length} combinations
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Add Variation Inputs */}
-            {!hasOptionTypes && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 p-4 bg-neutral-50 border border-neutral-200 rounded-lg">
-              <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
-                  Title (e.g., 500g, Large) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={variationForm.title}
-                  onChange={(e) => setVariationForm({ ...variationForm, title: e.target.value })}
-                  placeholder="500g"
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
-                  Price (₹) <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={variationForm.price}
-                  onChange={(e) => setVariationForm({ ...variationForm, price: e.target.value })}
-                  placeholder="100"
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
-                  Discount Price (₹)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={variationForm.discPrice}
-                  onChange={(e) => setVariationForm({ ...variationForm, discPrice: e.target.value })}
-                  placeholder="80"
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-neutral-700 mb-1">
-                  Stock (0 = Unlimited)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={variationForm.stock}
-                  onChange={(e) => setVariationForm({ ...variationForm, stock: e.target.value })}
-                  placeholder="0"
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
-              </div>
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  onClick={addVariation}
-                  className="w-full px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg font-medium text-sm transition-colors">
-                  Add Variation
-                </button>
-              </div>
-            </div>
-            )}
-
-            {/* List of Variations */}
-            {variations.length > 0 ? (
-              <div className="mt-4 space-y-2">
-                <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider">
-                  Active Variations ({variations.length})
-                </h3>
-                <div className="divide-y divide-neutral-200 border border-neutral-200 rounded-lg bg-white overflow-hidden">
-                  {variations.map((variation, index) => (
-                    <div
-                      key={index}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between p-3 gap-2 hover:bg-neutral-50 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <span className="w-6 h-6 rounded-full bg-teal-100 text-teal-800 text-xs flex items-center justify-center font-bold">
-                          {index + 1}
-                        </span>
-                        <div>
-                          <span className="font-semibold text-neutral-800 text-sm">{variation.title || variation.value}</span>
-                          <span className="text-neutral-500 text-xs ml-2">₹{variation.price}</span>
-                          {variation.discPrice > 0 && (
-                            <span className="text-teal-600 text-xs ml-1.5 font-medium">
-                              (Disc: ₹{variation.discPrice})
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4 text-xs text-neutral-600">
-                        <span>
-                          Stock:{" "}
-                          <strong>{variation.stock === 0 ? "Unlimited" : variation.stock}</strong>
-                        </span>
-                        <span
-                          className={`px-2 py-0.5 rounded-full ${
-                            variation.status === "Available" || variation.status === "In stock"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800"
-                          }`}>
-                          {variation.status}
-                        </span>
-                        {!hasOptionTypes && (<button
-                          type="button"
-                          onClick={() => removeVariation(index)}
-                          className="text-red-600 hover:text-red-800 font-medium transition-colors"
-                          title="Remove Variation">
-                          Remove
-                        </button>)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 p-3 rounded-lg">
-                ⚠️ At least one variation with price and stock is required.
-              </p>
-            )}
+          <div className="p-3 sm:p-4 bg-neutral-50">
+            <VariantManager
+              axes={vmAxes}
+              rows={vmRows}
+              onChange={(axes, rows) => {
+                setVmAxes(axes);
+                setVmRows(rows);
+              }}
+              combinedAxes={vmCombined}
+              onCombinedChange={setVmCombined}
+              fallbackImage={mainImagePreview || formData.mainImageUrl}
+              productName={formData.productName}
+              onError={(m) => setUploadError(m)}
+            />
           </div>
         </div>
 

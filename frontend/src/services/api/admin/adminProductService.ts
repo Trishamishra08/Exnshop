@@ -514,6 +514,12 @@ export const submitDraftForReview = async (id: string): Promise<ApiResponse<void
   return response.data;
 };
 
+/** Admin variant manager: save a product's attributes and variant combinations. */
+export const updateProductVariants = async (id: string, data: Record<string, any>): Promise<ApiResponse<Product>> => {
+  const response = await api.put<ApiResponse<Product>>(`/admin/products/${id}/variants`, data);
+  return response.data;
+};
+
 /**
  * Get product by ID
  */

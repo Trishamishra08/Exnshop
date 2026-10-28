@@ -157,6 +157,9 @@ async function buildAndSaveChannelOrder(params: {
         );
 
         if (matchedVariant) {
+          if (matchedVariant.isActive === false) {
+            throw new Error(`Variant "${matchedVariant.title || matchedVariant.value}" is no longer available`);
+          }
           if (matchedVariant.status === "Sold out") {
             throw new Error(`Variant "${matchedVariant.title || matchedVariant.value}" is sold out`);
           }
