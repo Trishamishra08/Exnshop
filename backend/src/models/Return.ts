@@ -67,6 +67,16 @@ export interface IReturn extends Document {
   // Refund (applicable only to RETURN, ₹0 for EXCHANGE)
   refundAmount?: number;
   refundId?: mongoose.Types.ObjectId;
+  /** Exchange: the variant (size/colour) the customer wants instead; unset means the same variant. */
+  requestedVariation?: { id: string; label: string };
+  /** What the customer says the item is like: Unused / Defective / Used. */
+  condition?: "Unused" | "Defective" | "Used";
+  /** Exchange stuck waiting on a decision: no stock for the replacement, or the seller's quality check failed. */
+  exchangeState?: "OutOfStock" | "QCFailed" | "RefundInitiated";
+  /** The seller's check of the item that came back. */
+  qc?: { result: "Passed" | "Failed"; note?: string; at: Date; by?: string };
+  /** Automatic review flags, e.g. REPEAT_REQUESTS when a customer files many requests in a short time. */
+  flags?: string[];
   /** "Seller" when the seller refunded the item with no pickup; otherwise the customer asked for the return. */
   initiatedBy?: "Customer" | "Seller";
   /** Courier pickup cost billed to the seller when the customer sent the item back after receiving it. */
@@ -225,6 +235,17 @@ const ReturnSchema = new Schema<IReturn>(
     },
     replacementOrder: { type: Schema.Types.ObjectId, ref: "Order" },
     initiatedBy: { type: String, enum: ["Customer", "Seller"], default: "Customer" },
+    requestedVariation: { type: new Schema({ id: { type: String }, label: { type: String } }, { _id: false }), default: undefined },
+    condition: { type: String, enum: ["Unused", "Defective", "Used"] },
+    exchangeState: { type: String, enum: ["OutOfStock", "QCFailed", "RefundInitiated"] },
+    qc: {
+      type: new Schema(
+        { result: { type: String, enum: ["Passed", "Failed"], required: true }, note: { type: String, trim: true }, at: { type: Date, default: Date.now }, by: { type: String } },
+        { _id: false }
+      ),
+      default: undefined,
+    },
+    flags: { type: [String], default: undefined },
     returnShippingCharge: { type: Number, min: 0 },
     shiprocketReturn: {
       channelOrderId: { type: String },

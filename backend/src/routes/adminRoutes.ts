@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticate, requireUserType } from "../middleware/auth";
+import { decideExchangeAfterQc } from "../modules/admin/controllers/adminExchangeController";
 import { getRefundRequests, decideRefund } from "../modules/admin/controllers/adminRefundRequestController";
 import { getShippingMethodRequests, decideShippingMethod, setSellerShippingMethod, getRates as getShippingRatesAdmin, updateRates as updateShippingRatesAdmin } from "../modules/admin/controllers/adminShippingMethodController";
 
@@ -206,6 +207,7 @@ router.patch("/returns/:id/process", orderController.processReturnRequest);
 
 // Return management routes (extended lifecycle, DP assignment)
 router.get("/returns", returnController.getAdminReturns);
+router.post("/returns/:id/exchange-decision", decideExchangeAfterQc);
 router.get("/returns/:id/detail", returnController.getAdminReturnById);
 router.post("/return-requests/:id/assign-delivery", returnController.assignDeliveryPartnerToReturn);
 router.get("/delivery/available-for-return", returnController.getAvailableDeliveryPartnersForReturn);

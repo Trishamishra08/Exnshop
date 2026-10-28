@@ -232,3 +232,47 @@ export const EXNSHOP_RETURN_REFUND_SUMMARY = `Refund & Cancellation Policy (summ
 
 Full policy: /refund-policy
 Contact: support@exnshop.in | 6399376602`;
+
+export const EXNSHOP_EXCHANGE_POLICY = `PRODUCT EXCHANGE & REPLACEMENT POLICY
+
+EXNSHOP TECHNOLOGY PRIVATE LIMITED
+
+1. Scope
+EXNSHOP operates a multi-vendor marketplace connecting customers with independent sellers. Exchange and replacement requests are subject to the product's category policy, the eligibility conditions below and applicable law.
+
+2. Exchange Eligibility
+You can ask for an exchange within the period shown on the product page and in your order details, where exchange is available. Eligibility can depend on the product category, stock, the condition of the item and the reason for the exchange.
+
+3. How an Exchange Works
+- Your order is delivered.
+- Open the order, choose Exchange, give the reason, choose the size or variant you want, and add photos where asked.
+- We check the request against the exchange period and the product's policy.
+- A courier or delivery partner collects the original item.
+- The seller checks the item that comes back and confirms the replacement is in stock.
+- The replacement is dispatched and you get its order reference and tracking details.
+
+4. Same Seller, Same Product
+Your replacement is sent by the same seller you bought from. For a size or colour change you can choose another variant of the same product that is in stock and priced the same. We do not silently substitute a different product or a different seller.
+
+5. If the Replacement Is Not Available
+If the replacement is out of stock, you will be told and can choose to wait for it to come back in stock or to receive a refund where applicable.
+
+6. Pickup and Inspection
+The original item is collected through an authorised logistics partner and may be inspected for identity, condition, accessories and packaging. If the item does not match your request, the exchange is reviewed by our team before anything is sent, and you will be told the outcome.
+
+7. Shipping Charges
+Reverse-pickup and forward-shipping charges, if any, will be shown before you submit a request. Where the item is defective, damaged, wrong or not as described, the cost is borne by the seller or EXNSHOP and not by you.
+
+8. Defective, Wrong or Misdescribed Products
+Complaints about defective, damaged, incorrect, counterfeit or materially misdescribed products are handled under applicable consumer-protection law. Nothing in this policy limits any right to return, replacement or refund that the law gives you.
+
+9. Fraud Prevention
+We may review repeated requests, mismatched returned items and suspected misuse using order, logistics and inspection records. You and sellers have access to a support and grievance process.
+
+10. Updates
+The exchange period, eligible categories, exclusions, charges and refund arrangements are shown on the platform. Changes are made in line with applicable law.
+
+11. Contact
+Customer support: [add support email and phone]
+Grievance Officer: [add name, email and phone]
+`;

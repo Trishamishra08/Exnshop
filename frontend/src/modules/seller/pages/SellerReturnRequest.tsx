@@ -37,6 +37,8 @@ export default function SellerReturnRequest() {
   const [showAcceptModal, setShowAcceptModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showConfirmReceiptModal, setShowConfirmReceiptModal] = useState(false);
+  const [qcResult, setQcResult] = useState<'' | 'Passed' | 'Failed'>('');
+  const [qcNote, setQcNote] = useState('');
 
   const [rejectionReasonInput, setRejectionReasonInput] = useState('');
   const [submittingAction, setSubmittingAction] = useState(false);
@@ -221,11 +223,22 @@ export default function SellerReturnRequest() {
   // Handle Confirm Receipt Action
   const handleConfirmReceipt = async () => {
     if (!selectedReturn) return;
+    const isExchange = selectedReturn.requestType === 'EXCHANGE';
+    if (isExchange && !qcResult) {
+      showToast('Record whether the returned item passed the quality check', 'error');
+      return;
+    }
+    if (qcResult === 'Failed' && !qcNote.trim()) {
+      showToast('Describe what is wrong with the returned item', 'error');
+      return;
+    }
     setSubmittingAction(true);
     try {
-      const res = await confirmSellerReceipt(selectedReturn.id);
+      const res = await confirmSellerReceipt(selectedReturn.id, qcResult ? { qcResult, qcNote: qcNote.trim() || undefined } : undefined);
       if (res.success) {
-        showToast('✅ Receipt confirmed! Return marked Completed and customer refund processed.', 'success');
+        showToast(isExchange ? res.message || 'Receipt recorded' : '✅ Receipt confirmed! Return marked Completed and customer refund processed.', 'success');
+        setQcResult('');
+        setQcNote('');
         setShowConfirmReceiptModal(false);
         setShowDetailModal(false);
         fetchReturnRequests();
@@ -753,6 +766,37 @@ export default function SellerReturnRequest() {
                           "{fullDetail.reasonDescription}"
                         </p>
                       )}
+                      {(() => {
+                        const d: any = fullDetail || {};
+                        const variant = d.requestedVariation || selectedReturn.requestedVariation;
+                        const condition = d.condition || selectedReturn.condition;
+                        const photos: string[] = d.photos || selectedReturn.photos || [];
+                        const flags: string[] = d.flags || selectedReturn.flags || [];
+                        const qc = d.qc || selectedReturn.qc;
+                        return (
+                          <>
+                            {variant && <p className="text-xs text-neutral-700">Wants: <b>{variant.label}</b></p>}
+                            {condition && <p className="text-xs text-neutral-700">Customer says item is: <b>{condition}</b></p>}
+                            {flags.includes('REPEAT_REQUESTS') && (
+                              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">This customer has made several return/exchange requests recently.</p>
+                            )}
+                            {photos.length > 0 && (
+                              <div className="flex flex-wrap gap-2 pt-1">
+                                {photos.map((p, i) => (
+                                  <a key={i} href={p} target="_blank" rel="noreferrer">
+                                    <img src={p} alt={`Evidence ${i + 1}`} className="w-14 h-14 object-cover rounded-lg border border-neutral-200" />
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                            {qc && (
+                              <p className={`text-xs rounded-lg p-2 border ${qc.result === 'Passed' ? 'text-emerald-800 bg-emerald-50 border-emerald-200' : 'text-red-800 bg-red-50 border-red-200'}`}>
+                                Quality check: <b>{qc.result}</b>{qc.note ? ` · ${qc.note}` : ''}
+                              </p>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
 
                     <div className="p-4 border border-neutral-200 rounded-xl space-y-1 bg-neutral-50/50">
@@ -934,8 +978,35 @@ export default function SellerReturnRequest() {
               <p className="font-bold text-sm">Product: {selectedReturn.product || 'Product'}</p>
               <p>Refund Amount: <span className="font-bold">₹{Number(selectedReturn.total || (selectedReturn as any).amount || 0).toFixed(2)}</span></p>
               <p className="mt-2 text-neutral-700">
-                Confirming receipt indicates that you have physically received and inspected the returned product. This will mark the return as <span className="font-bold">Completed</span> and release the customer's refund.
+                {selectedReturn.requestType === 'EXCHANGE'
+                  ? 'Check the item that came back, then record the result. If it passes, the replacement is sent. If it fails, an admin reviews the exchange before anything is sent.'
+                  : <>Confirming receipt indicates that you have physically received and inspected the returned product. This will mark the return as <span className="font-bold">Completed</span> and release the customer's refund.</>}
               </p>
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-neutral-700 uppercase tracking-wider">Quality check {selectedReturn.requestType === 'EXCHANGE' ? '' : '(optional)'}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {(['Passed', 'Failed'] as const).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setQcResult(qcResult === r ? '' : r)}
+                    className={`py-2 rounded-xl border text-xs font-semibold ${qcResult === r ? (r === 'Passed' ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-red-600 bg-red-50 text-red-800') : 'border-neutral-300 text-neutral-600 hover:bg-neutral-50'}`}
+                  >
+                    {r === 'Passed' ? 'Item is as expected' : 'Item has a problem'}
+                  </button>
+                ))}
+              </div>
+              {qcResult === 'Failed' && (
+                <textarea
+                  value={qcNote}
+                  onChange={(e) => setQcNote(e.target.value)}
+                  rows={2}
+                  maxLength={500}
+                  placeholder="What is wrong? (wrong item, used, missing parts…)"
+                  className="w-full border border-neutral-300 rounded-xl p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-red-500"
+                />
+              )}
             </div>
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
@@ -952,7 +1023,7 @@ export default function SellerReturnRequest() {
                 onClick={handleConfirmReceipt}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-2"
               >
-                {submittingAction ? 'Processing...' : 'Confirm & Issue Refund'}
+                {submittingAction ? 'Processing...' : selectedReturn.requestType === 'EXCHANGE' ? 'Record check & continue' : 'Confirm & Issue Refund'}
               </button>
             </div>
           </div>

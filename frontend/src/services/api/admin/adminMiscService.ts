@@ -21,6 +21,13 @@ export interface User {
 
 export interface MiscReturnRequest {
   _id: string;
+  requestType?: "RETURN" | "EXCHANGE";
+  exchangeState?: "OutOfStock" | "QCFailed" | "RefundInitiated";
+  requestedVariation?: { id: string; label: string };
+  condition?: string;
+  photos?: string[];
+  qc?: { result: "Passed" | "Failed"; note?: string };
+  flags?: string[];
   orderId: string;
   orderItemId: string;
   userId: string;
@@ -194,6 +201,15 @@ export const getReturnRequests = async (
     "/admin/return-requests",
     { params }
   );
+  return response.data;
+};
+
+export const decideExchangeAfterQc = async (
+  id: string,
+  decision: "Replace" | "Refund" | "Reject",
+  note?: string
+): Promise<ApiResponse<unknown>> => {
+  const response = await api.post<ApiResponse<unknown>>(`/admin/returns/${id}/exchange-decision`, { decision, note });
   return response.data;
 };
 

@@ -3,6 +3,14 @@ import Return from "../models/Return";
 import Order from "../models/Order";
 import OrderItem from "../models/OrderItem";
 import Product from "../models/Product";
+import { boughtVariationIndex } from "./exchangeService";
+
+/** Write the new variant's reference the same way the original order stored its own (id, value or title). */
+const sameFormatRef = (target: any, bought: any, boughtRef?: string): string => {
+  if (bought && String(bought._id) === String(boughtRef)) return String(target._id);
+  if (bought && bought.title && bought.title === boughtRef) return target.title || target.value;
+  return target.value || String(target._id);
+};
 
 /**
  * Exchange: once the seller has the returned unit back, a ₹0 replacement order
@@ -29,9 +37,12 @@ export const createReplacementOrder = async (
   // Reserve the unit first: no stock, no replacement.
   const product: any = await Product.findById(item.product).select("variations stock");
   if (!product) return { success: false, message: "The product no longer exists" };
-  const vIndex = (product.variations || []).findIndex(
-    (v: any) => item.variation && (String(v._id) === String(item.variation) || v.value === item.variation || v.title === item.variation)
-  );
+  const boughtIndex = boughtVariationIndex(product, item.variation);
+  // The customer may have asked for another variant (e.g. a different size) of the same product.
+  const requestedId = ret.requestedVariation?.id;
+  const requestedIndex = requestedId ? (product.variations || []).findIndex((v: any) => String(v._id) === String(requestedId)) : -1;
+  if (requestedId && requestedIndex < 0) return { success: false, message: "The variant the customer asked for no longer exists. Contact the customer or issue a refund." };
+  const vIndex = requestedIndex >= 0 ? requestedIndex : boughtIndex;
   const reserved =
     vIndex >= 0
       ? await Product.updateOne(
@@ -77,8 +88,8 @@ export const createReplacementOrder = async (
     quantity: qty,
     total: 0,
     subtotal: 0,
-    variation: item.variation,
-    variantTitle: item.variantTitle,
+    variation: requestedIndex >= 0 ? sameFormatRef(product.variations[requestedIndex], product.variations[boughtIndex], item.variation) : item.variation,
+    variantTitle: requestedIndex >= 0 ? ret.requestedVariation?.label || item.variantTitle : item.variantTitle,
     status: "Pending",
     sellerStatus: "Pending",
     commissionRate: 0,

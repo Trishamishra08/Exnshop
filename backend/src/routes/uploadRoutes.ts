@@ -91,6 +91,28 @@ router.post(
 );
 
 /**
+ * POST /api/v1/upload/return-images
+ * Photos a customer attaches to a return or exchange request (up to 5).
+ */
+router.post(
+  "/return-images",
+  authenticate,
+  requireUserType("Customer"),
+  uploadMultipleImages.array("images", 5),
+  handleUploadError,
+  asyncHandler(async (req: Request, res: Response) => {
+    const files = (req as any).files as any[] | undefined;
+    if (!files || files.length === 0) {
+      return res.status(400).json({ success: false, message: "No image files provided" });
+    }
+    const results = await Promise.all(
+      files.map((file) => uploadImageFromBuffer(file.buffer, { folder: CLOUDINARY_FOLDERS.RETURNS, resourceType: "image" }))
+    );
+    return res.status(200).json({ success: true, data: results });
+  })
+);
+
+/**
  * POST /api/v1/upload/videos
  * Upload multiple videos (e.g. claim evidence)
  */

@@ -741,6 +741,13 @@ export const getReturnRequests = asyncHandler(
       status: req.status,
       requestedAt: req.createdAt,
       processedAt: req.processedAt,
+      requestType: req.requestType || "RETURN",
+      exchangeState: req.exchangeState,
+      requestedVariation: req.requestedVariation,
+      condition: req.condition,
+      photos: req.images || [],
+      qc: req.qc,
+      flags: req.flags,
     }));
 
     return res.status(200).json({

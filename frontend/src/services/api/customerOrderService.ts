@@ -111,8 +111,35 @@ export const updateOrderNotes = async (id: string, data: { deliveryInstructions?
  */
 export const requestCustomerReturn = async (
     orderId: string,
-    data: { orderItemId: string; reason: string; description?: string; quantity?: number; requestType?: 'RETURN' | 'EXCHANGE' }
+    data: { orderItemId: string; reason: string; description?: string; quantity?: number; requestType?: 'RETURN' | 'EXCHANGE'; images?: string[]; condition?: 'Unused' | 'Defective' | 'Used'; requestedVariationId?: string }
 ): Promise<OrderResponse> => {
     const response = await api.post<OrderResponse>(`/customer/orders/${orderId}/return`, data);
+    return response.data;
+};
+
+export interface ExchangeOptions {
+    current: string | null;
+    canChooseVariant: boolean;
+    options: { id: string; label: string; stock: number }[];
+}
+
+export const getExchangeOptions = async (orderId: string, itemId: string): Promise<ExchangeOptions> => {
+    const response = await api.get<{ success: boolean; data: ExchangeOptions }>(`/customer/orders/${orderId}/items/${itemId}/exchange-options`);
+    return response.data.data;
+};
+
+/** Photos for a return/exchange request; returns their https links. */
+export const uploadReturnImages = async (files: File[]): Promise<string[]> => {
+    const form = new FormData();
+    files.forEach((f) => form.append('images', f));
+    const response = await api.post<{ success: boolean; data: { secureUrl: string }[] }>('/upload/return-images', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data.data.map((r) => r.secureUrl);
+};
+
+/** After a replacement turned out to be out of stock: ask for a refund, or keep waiting. */
+export const chooseExchangeOutcome = async (returnId: string, choice: 'refund' | 'wait'): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post<{ success: boolean; message: string }>(`/customer/returns/${returnId}/exchange-choice`, { choice });
     return response.data;
 };

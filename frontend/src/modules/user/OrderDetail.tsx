@@ -19,6 +19,8 @@ import { useToast } from "../../context/ToastContext";
 import { formatDeliveryAddress } from "../../utils/addressUtils";
 import SupportModal from "../../components/SupportModal";
 import InvoiceDocumentsPicker from "../../components/InvoiceDocumentsPicker";
+import ExchangeExtras, { EMPTY_EXTRAS, reasonNeedsPhoto, reasonNeedsVariant, type ExchangeExtrasValue } from "../../components/ExchangeExtras";
+import { uploadReturnImages, chooseExchangeOutcome } from "../../services/api/customerOrderService";
 
 // Icon Components
 const ArrowLeftIcon = ({ className }: { className?: string }) => (
@@ -509,6 +511,7 @@ export default function OrderDetail() {
   const [selectedReturnItem, setSelectedReturnItem] = useState<any>(null);
   const [returnReason, setReturnReason] = useState<string>("Damaged product");
   const [customReturnReason, setCustomReturnReason] = useState<string>("");
+  const [returnExtras, setReturnExtras] = useState<ExchangeExtrasValue>(EMPTY_EXTRAS);
   const [submittingReturn, setSubmittingReturn] = useState(false);
   const [returnError, setReturnError] = useState<string | null>(null);
 
@@ -1670,6 +1673,48 @@ export default function OrderDetail() {
                           <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
                             {item.activeReturnType === 'EXCHANGE' ? 'Exchange' : 'Return'}: {activeReturnStatus}
                           </span>
+                          {item.activeReturnRequestedVariant && (
+                            <p className="text-xs text-gray-600">Replacement variant: <b>{item.activeReturnRequestedVariant}</b></p>
+                          )}
+                          {item.activeReturnExchangeState === 'QCFailed' && (
+                            <p className="text-xs text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200">
+                              We are checking the item you sent back. We will update you soon.
+                            </p>
+                          )}
+                          {item.activeReturnExchangeState === 'OutOfStock' && (
+                            <div className="text-xs text-amber-900 bg-amber-50 p-2.5 rounded-lg border border-amber-200 space-y-2">
+                              <p>Your replacement is out of stock right now. What would you like to do?</p>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      const r = await chooseExchangeOutcome(item.activeReturnId, 'refund');
+                                      showToast(r.message, 'success');
+                                      handleRefresh();
+                                    } catch (e: any) {
+                                      showToast(e.response?.data?.message || 'Could not start the refund', 'error');
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg bg-neutral-900 text-white font-semibold">
+                                  Refund me
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      const r = await chooseExchangeOutcome(item.activeReturnId, 'wait');
+                                      showToast(r.message, 'success');
+                                    } catch (e: any) {
+                                      showToast(e.response?.data?.message || 'Could not save your choice', 'error');
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg border border-amber-400 text-amber-900 font-semibold">
+                                  Wait for restock
+                                </button>
+                              </div>
+                            </div>
+                          )}
                           {item.activeReturnCourier && (
                             <p className="text-xs text-indigo-800 bg-indigo-50 p-2 rounded-lg border border-indigo-200">
                               🚚 Pickup by {item.activeReturnCourier.courierName || 'courier'} · AWB {item.activeReturnCourier.awbCode}
@@ -2161,6 +2206,15 @@ export default function OrderDetail() {
                 </div>
               )}
 
+              <ExchangeExtras
+                orderId={id!}
+                itemId={selectedReturnItem._id || selectedReturnItem.id}
+                reason={returnReason}
+                isExchange={returnRequestType === "Exchange"}
+                value={returnExtras}
+                onChange={setReturnExtras}
+              />
+
               {/* Refund / Replacement Summary Preview */}
               {returnRequestType === "Exchange" ? (
                 <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 text-xs text-blue-900 space-y-1">
@@ -2169,6 +2223,9 @@ export default function OrderDetail() {
                   </p>
                   <p className="text-blue-800">
                     A fresh replacement item will be arranged with the seller upon pickup verification of the existing item.
+                  </p>
+                  <p className="text-blue-800">
+                    <Link to="/exchange-policy" className="underline font-semibold">Read the exchange policy</Link>
                   </p>
                 </div>
               ) : (
@@ -2211,19 +2268,29 @@ export default function OrderDetail() {
                       setReturnError("Please specify the details in the text field");
                       return;
                     }
+                    const isExchangeReq = returnRequestType === "Exchange";
+                    if (isExchangeReq && reasonNeedsPhoto(returnReason) && returnExtras.files.length === 0) {
+                      setReturnError("Please add at least one photo showing the problem");
+                      return;
+                    }
                     try {
                       setSubmittingReturn(true);
                       setReturnError(null);
                       const rawReason = isOther ? customReturnReason.trim() : returnReason;
+                      const images = returnExtras.files.length ? await uploadReturnImages(returnExtras.files) : [];
                       const res = await requestCustomerReturn(id!, {
                         orderItemId: selectedReturnItem._id || selectedReturnItem.id,
-                        requestType: returnRequestType === "Exchange" ? "EXCHANGE" : "RETURN",
+                        requestType: isExchangeReq ? "EXCHANGE" : "RETURN",
                         reason: rawReason,
                         description: customReturnReason,
                         quantity: selectedReturnItem.quantity || 1,
+                        images,
+                        condition: returnExtras.condition || undefined,
+                        requestedVariationId: isExchangeReq && returnExtras.variationId ? returnExtras.variationId : undefined,
                       });
 
                       if (res.success) {
+                        setReturnExtras(EMPTY_EXTRAS);
                         setShowReturnModal(false);
                         handleRefresh();
                       } else {

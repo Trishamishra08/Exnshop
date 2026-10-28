@@ -9,6 +9,9 @@
 
 import { Request, Response } from "express";
 import { asyncHandler } from "../../../utils/asyncHandler";
+import { isSellerFaultReason } from "../../../services/exchangeService";
+import { returnPickupCharge } from "../../../services/shippingChargeService";
+import { chargeSellerShipping } from "../../../services/walletManagementService";
 import Return from "../../../models/Return";
 import OrderItem from "../../../models/OrderItem";
 import Order from "../../../models/Order";
@@ -83,6 +86,12 @@ export const getReturnRequests = asyncHandler(
         productName: item?.productName || "Unknown Product",
         variant: item?.sku || "Standard",
         requestType: ret.requestType || "RETURN",
+        requestedVariation: ret.requestedVariation,
+        condition: ret.condition,
+        photos: ret.images || [],
+        exchangeState: ret.exchangeState,
+        qc: ret.qc,
+        flags: ret.flags,
         price,
         discPrice: price,
         quantity,
@@ -155,6 +164,12 @@ export const getReturnRequestById = asyncHandler(
       orderId: orderDoc?.orderNumber,
       status: fullReturn.status,
       requestType: fullReturn.requestType || "RETURN",
+      requestedVariation: (fullReturn as any).requestedVariation,
+      condition: (fullReturn as any).condition,
+      photos: (fullReturn as any).images || [],
+      exchangeState: (fullReturn as any).exchangeState,
+      qc: (fullReturn as any).qc,
+      flags: (fullReturn as any).flags,
       // E-commerce: courier reverse pickup; exchange: the replacement order
       shiprocketReturn: (fullReturn as any).shiprocketReturn,
       replacementOrderId: (fullReturn as any).replacementOrder,
@@ -362,6 +377,48 @@ export const confirmSellerReceipt = asyncHandler(
       });
     }
 
+    // Quality check of what came back. An exchange needs it; a return may carry it.
+    const isExchangeReq = returnReq.requestType === "EXCHANGE";
+    const qcResult = req.body?.qcResult;
+    const qcNote = typeof req.body?.qcNote === "string" ? req.body.qcNote.trim().slice(0, 500) : undefined;
+    if (isExchangeReq && !["Passed", "Failed"].includes(qcResult)) {
+      return res.status(400).json({
+        success: false,
+        message: "Check the item you received and record whether it passed or failed the quality check.",
+      });
+    }
+    if (["Passed", "Failed"].includes(qcResult)) {
+      if (qcResult === "Failed" && !qcNote) {
+        return res.status(400).json({ success: false, message: "Describe what is wrong with the returned item." });
+      }
+      returnReq.qc = { result: qcResult, note: qcNote, at: new Date(), by: String(sellerId) };
+      await returnReq.save();
+    }
+    if (isExchangeReq && qcResult === "Failed") {
+      // The returned item doesn't match the claim: nothing is replaced until an admin decides.
+      returnReq.exchangeState = "QCFailed";
+      await returnReq.save();
+      try {
+        const { sendBroadcastNotification, sendNotification } = await import("../../../services/notificationService");
+        await sendBroadcastNotification("Admin", "Exchange needs review", `The seller reported the returned item failed the quality check: ${qcNote}`, {
+          type: "Warning",
+          priority: "High",
+          link: "/admin/returns",
+        });
+        await sendNotification("Customer", returnReq.customer.toString(), "Your exchange is under review", "The returned item is being checked by our team. We'll update you soon.", {
+          type: "Info",
+          priority: "Medium",
+        });
+      } catch (notifErr) {
+        console.error("Error notifying about failed exchange QC:", notifErr);
+      }
+      return res.status(200).json({
+        success: true,
+        message: "Quality check recorded as failed. The exchange is held for admin review.",
+        data: { return: returnReq },
+      });
+    }
+
     // *** TRIGGER FINANCIAL SETTLEMENT & COMPLETE RETURN ATOMICALLY ***
     // This is the ONLY place settlement is triggered in the return lifecycle.
     let settlementResult: any = null;
@@ -389,8 +446,47 @@ export const confirmSellerReceipt = asyncHandler(
     // Exchange: send the replacement unit as a new ₹0 order.
     let replacementNote = "";
     if (reqType === "EXCHANGE") {
+      // Defective/wrong/quality complaints: the seller bears the courier pickup of the returned unit.
+      try {
+        const pickedUpByCourier = returnReq.shiprocketReturn?.shipmentId || returnReq.shiprocketReturn?.awbCode;
+        if (isSellerFaultReason(returnReq.reason) && pickedUpByCourier && !returnReq.returnShippingCharge) {
+          const orderItemDoc: any = returnReq.orderItem;
+          const charge = await returnPickupCharge(orderItemDoc?.product, returnReq.quantity);
+          if (charge > 0) {
+            const charged = await chargeSellerShipping(
+              String(sellerId),
+              charge,
+              `Exchange pickup shipping for order ${returnReq.order} (${returnReq.quantity}x ${orderItemDoc?.productName || "item"})`,
+              `RETSHIP-${id}`,
+              String(returnReq.order),
+            );
+            if (charged) await Return.updateOne({ _id: id }, { $set: { returnShippingCharge: charge } });
+          }
+        }
+      } catch (chargeErr) {
+        console.error("Error charging exchange pickup shipping:", chargeErr);
+      }
+
       const { createReplacementOrder } = await import("../../../services/replacementOrderService");
       const replacement = await createReplacementOrder(id, req.app.get("io"));
+      if (replacement.success) {
+        await Return.updateOne({ _id: id }, { $unset: { exchangeState: "" } });
+      } else if (/out of stock/i.test(replacement.message || "")) {
+        // No unit to send: the customer decides between a refund and waiting for stock.
+        await Return.updateOne({ _id: id }, { $set: { exchangeState: "OutOfStock" } });
+        try {
+          const { sendNotification } = await import("../../../services/notificationService");
+          await sendNotification(
+            "Customer",
+            returnReq.customer.toString(),
+            "Your replacement is out of stock",
+            "We received your item, but the replacement is out of stock. Open your order to choose a refund or wait for the seller to restock.",
+            { type: "Warning", priority: "High" },
+          );
+        } catch (notifErr) {
+          console.error("Error notifying customer about out-of-stock replacement:", notifErr);
+        }
+      }
       replacementNote = replacement.success
         ? ` Replacement order #${replacement.orderNumber} created — accept it to send the new unit.`
         : ` Replacement not created yet: ${replacement.message}`;
@@ -457,6 +553,7 @@ export const retryReplacementOrder = asyncHandler(async (req: Request, res: Resp
   }
   const { createReplacementOrder } = await import("../../../services/replacementOrderService");
   const result = await createReplacementOrder(req.params.id, req.app.get("io"));
+  if (result.success) await Return.updateOne({ _id: req.params.id }, { $unset: { exchangeState: "" } });
   return res.status(result.success ? 200 : 400).json({
     success: result.success,
     message: result.success ? `Replacement order #${result.orderNumber} created.` : result.message,

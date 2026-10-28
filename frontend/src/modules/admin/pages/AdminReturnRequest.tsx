@@ -3,6 +3,7 @@ import {
   getReturnRequests,
   updateReturnRequest,
   assignDeliveryPartnerToReturn,
+  decideExchangeAfterQc,
   getAvailableDeliveryPartnersForReturn,
   type MiscReturnRequest as ReturnRequest,
 } from "../../../services/api/admin/adminMiscService";
@@ -25,6 +26,7 @@ export default function AdminReturnRequest() {
   const [returnRequests, setReturnRequests] = useState<ReturnRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   // ── Reject modal state ──
@@ -89,6 +91,7 @@ export default function AdminReturnRequest() {
     entriesPerPage,
     selectedStatus,
     searchTerm,
+    reloadKey,
   ]);
 
   const handleSort = (column: string) => {
@@ -739,6 +742,21 @@ export default function AdminReturnRequest() {
                     </td>
                     <td className="px-4 sm:px-6 py-3 text-sm text-neutral-600">
                       {request.variant || "-"}
+                      {request.requestType === "EXCHANGE" && (
+                        <div className="mt-1 space-y-0.5">
+                          <span className="inline-block px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold uppercase">Exchange</span>
+                          {request.requestedVariation && <div className="text-[11px] text-neutral-500">wants {request.requestedVariation.label}</div>}
+                        </div>
+                      )}
+                      {request.condition && <div className="text-[11px] text-neutral-500">Item: {request.condition}</div>}
+                      {request.flags?.includes("REPEAT_REQUESTS") && <div className="text-[11px] font-semibold text-amber-700">Repeat requester</div>}
+                      {request.photos && request.photos.length > 0 && (
+                        <div className="flex gap-1 mt-1">
+                          {request.photos.slice(0, 3).map((p, i) => (
+                            <a key={i} href={p} target="_blank" rel="noreferrer"><img src={p} alt="Evidence" className="w-8 h-8 rounded object-cover border border-neutral-200" /></a>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 sm:px-6 py-3 text-sm text-neutral-900">
                       ₹{request.price.toFixed(2)}
@@ -784,6 +802,32 @@ export default function AdminReturnRequest() {
                               </svg>
                             </button>
                           </>
+                        ) : request.requestType === "EXCHANGE" && request.exchangeState === "QCFailed" ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[11px] text-red-700 font-semibold">QC failed{request.qc?.note ? `: ${request.qc.note}` : ""}</span>
+                            {([["Replace", "Send replacement", "bg-green-600 hover:bg-green-700"], ["Refund", "Refund customer", "bg-neutral-800 hover:bg-neutral-900"], ["Reject", "Reject exchange", "bg-red-600 hover:bg-red-700"]] as const).map(([d, label, cls]) => (
+                              <button
+                                key={d}
+                                disabled={updating === request._id}
+                                onClick={async () => {
+                                  const note = d === "Reject" ? window.prompt("Note for the customer (required):") || "" : undefined;
+                                  if (d === "Reject" && !(note || "").trim()) return;
+                                  setUpdating(request._id);
+                                  try {
+                                    const res = await decideExchangeAfterQc(request._id, d, note);
+                                    showToast(res.message || "Saved", res.success ? "success" : "error");
+                                    setReloadKey((k) => k + 1);
+                                  } catch (e: any) {
+                                    showToast(e.response?.data?.message || "Could not save", "error");
+                                  } finally {
+                                    setUpdating(null);
+                                  }
+                                }}
+                                className={`px-2 py-1 text-white rounded text-[11px] font-medium whitespace-nowrap ${cls}`}>
+                                {label}
+                              </button>
+                            ))}
+                          </div>
                         ) : request.status === "Pickup Pending" ? (
                           <button
                             id={`btn-assign-dp-${request._id}`}

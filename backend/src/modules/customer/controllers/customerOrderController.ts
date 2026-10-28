@@ -22,6 +22,7 @@ import { commitCouponUsage } from "../../../services/couponService";
 import { ensureOrderShipments } from "../../../services/shippingLabelService";
 import { resolveSellerChannel, CommerceChannel } from "../../../utils/commerceChannelHelper";
 import { computeItemGst, GstLineInput } from "../../../services/taxService";
+import { boughtVariationIndex, exchangeOptionsFor, needsPhotoProof } from "../../../services/exchangeService";
 
 type ChannelOrderResult =
   | { success: true; order: any; walletAmountUsed: number }
@@ -1303,6 +1304,8 @@ export const getOrderById = async (req: Request, res: Response) => {
           activeReturnId: activeReturn ? activeReturn._id : null,
           activeReturnRejectionReason: activeReturn?.rejectionReason || null,
           activeReturnType: activeReturn?.requestType || null,
+          activeReturnExchangeState: activeReturn?.exchangeState || null,
+          activeReturnRequestedVariant: activeReturn?.requestedVariation?.label || null,
           // E-commerce return: the courier picking it up from the customer
           activeReturnCourier: activeReturn?.shiprocketReturn?.awbCode
             ? {
@@ -1722,6 +1725,42 @@ export const requestItemReturn = async (req: Request, res: Response) => {
 
     const returnQty = quantity && quantity > 0 ? Math.min(quantity, item.quantity) : item.quantity;
 
+    // Photos (https links only), the item's condition, and for an exchange the variant wanted.
+    const images: string[] = Array.isArray(req.body.images)
+      ? req.body.images.filter((u: unknown) => typeof u === "string" && /^https:\/\/\S+$/.test(u)).slice(0, 5)
+      : [];
+    const condition = ["Unused", "Defective", "Used"].includes(req.body.condition) ? req.body.condition : undefined;
+    let requestedVariation: { id: string; label: string } | undefined;
+
+    if (requestType === "EXCHANGE") {
+      if (needsPhotoProof(reason) && images.length === 0) {
+        return res.status(400).json({ success: false, message: "Please add at least one photo showing the problem." });
+      }
+      const opts = await exchangeOptionsFor(item);
+      const wantedId = req.body.requestedVariationId ? String(req.body.requestedVariationId) : "";
+      if (/size|fit|colo/i.test(reason) && opts.canChooseVariant && !wantedId) {
+        return res.status(400).json({ success: false, message: "Choose the size or variant you want instead." });
+      }
+      if (wantedId) {
+        const opt = opts.options.find((o) => o.id === wantedId);
+        if (!opt) return res.status(400).json({ success: false, message: "That variant isn't available for exchange. It may be out of stock or priced differently." });
+        if (opt.stock < returnQty) return res.status(400).json({ success: false, message: `Only ${opt.stock} of that variant are in stock.` });
+        requestedVariation = { id: opt.id, label: opt.label };
+      } else {
+        // Same variant again (e.g. a defective unit): there must be one to send.
+        const p: any = await Product.findById(productId).select("variations stock").lean();
+        const bi = boughtVariationIndex(p, item.variation);
+        const available = bi >= 0 ? Number(p.variations[bi].stock) || 0 : Number(p?.stock) || 0;
+        if (available < returnQty) {
+          return res.status(400).json({ success: false, message: "This item is out of stock right now, so it can't be exchanged for the same one. Choose a different variant, or request a return for a refund." });
+        }
+      }
+    }
+
+    // Many requests in a short time are flagged for the admin to look at (not blocked).
+    const recent = await Return.countDocuments({ customer: userId, createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } });
+    const flags = recent >= 3 ? ["REPEAT_REQUESTS"] : undefined;
+
     const newReturn = await Return.create({
       order: order._id,
       orderItem: item._id,
@@ -1730,6 +1769,10 @@ export const requestItemReturn = async (req: Request, res: Response) => {
       reason,
       description: description || "",
       quantity: returnQty,
+      images,
+      condition,
+      requestedVariation,
+      flags,
       status: "Pending",
     });
 

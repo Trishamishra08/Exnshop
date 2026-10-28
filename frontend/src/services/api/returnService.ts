@@ -25,6 +25,12 @@ export interface ReturnRequest {
   returnReason?: string;
   reason?: string;
   rejectionReason?: string;
+  requestedVariation?: { id: string; label: string };
+  condition?: string;
+  photos?: string[];
+  exchangeState?: 'OutOfStock' | 'QCFailed' | 'RefundInitiated';
+  qc?: { result: 'Passed' | 'Failed'; note?: string; at: string };
+  flags?: string[];
 }
 
 export interface ReturnRequestDetail {
@@ -143,11 +149,12 @@ export const retryReplacementOrder = async (returnId: string) => {
  * Return status must be 'Handed To Seller' for this to succeed.
  */
 export const confirmSellerReceipt = async (
-  returnId: string
+  returnId: string,
+  qc?: { qcResult: 'Passed' | 'Failed'; qcNote?: string }
 ): Promise<ApiResponse<{ id: string; status: string; financialSettlementStatus: string }>> => {
   const response = await api.post<ApiResponse<{ id: string; status: string; financialSettlementStatus: string }>>(
     `/returns/${returnId}/confirm-receipt`,
-    {}
+    qc || {}
   );
   return response.data;
 };

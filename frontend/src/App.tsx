@@ -50,6 +50,7 @@ const LanguageSelection = lazyWithRetry(() => import("./modules/user/pages/Langu
 const AboutUs = lazyWithRetry(() => import("./modules/user/AboutUs"), "AboutUs");
 const CustomerPolicy = lazyWithRetry(() => import("./modules/user/CustomerPolicy"), "CustomerPolicy");
 const RefundPolicy = lazyWithRetry(() => import("./modules/user/RefundPolicy"), "RefundPolicy");
+const ExchangePolicy = lazyWithRetry(() => import("./modules/user/ExchangePolicy"), "ExchangePolicy");
 const FAQ = lazyWithRetry(() => import("./modules/user/FAQ"), "FAQ");
 const Wishlist = lazyWithRetry(() => import("./modules/user/Wishlist"), "Wishlist");
 const Addresses = lazyWithRetry(() => import("./modules/user/Addresses"), "Addresses");
@@ -1139,6 +1140,10 @@ function App() {
                                     <Route
                                       path="/refund-policy"
                                       element={<RefundPolicy />}
+                                    />
+                                    <Route
+                                      path="/exchange-policy"
+                                      element={<ExchangePolicy />}
                                     />
                                     <Route
                                       path="/customer-policy"

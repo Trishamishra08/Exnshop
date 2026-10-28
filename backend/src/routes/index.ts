@@ -14,6 +14,7 @@ import sellerRoutes from "./sellerRoutes";
 import claimRoutes from "./claimRoutes";
 import supportTicketRoutes from "./supportTicketRoutes";
 import refundRequestRoutes from "./refundRequestRoutes";
+import { getExchangeOptions, chooseExchangeOutcome } from "../modules/customer/controllers/customerExchangeController";
 import campaignRoutes from "./campaignRoutes";
 import rtoRoutes from "./rtoRoutes";
 import uploadRoutes from "./uploadRoutes";
@@ -150,6 +151,8 @@ router.get("/customer/orders/:id", authenticate, requireUserType("Customer"), ge
 router.get("/customer/orders/:id/invoice", authenticate, requireUserType("Customer"), getOrderInvoice);
 router.post("/customer/orders/:id/cancel", authenticate, requireUserType("Customer"), cancelOrder);
 router.post("/customer/orders/:id/return", authenticate, requireUserType("Customer"), requestCustomerReturn);
+router.get("/customer/orders/:orderId/items/:itemId/exchange-options", authenticate, requireUserType("Customer"), getExchangeOptions);
+router.post("/customer/returns/:id/exchange-choice", authenticate, requireUserType("Customer"), chooseExchangeOutcome);
 router.patch("/customer/orders/:id/notes", authenticate, requireUserType("Customer"), updateOrderNotes);
 router.post("/customer/orders/:id/refresh-otp", authenticate, requireUserType("Customer"), refreshDeliveryOtp);
 
