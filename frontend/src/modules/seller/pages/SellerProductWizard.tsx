@@ -172,6 +172,8 @@ export default function SellerProductWizard() {
 
   // Variants / price
   const [axes, setAxes] = useState<VariantAxis[]>([]); // empty = no variants
+  // Option types shown to customers as one combined choice (e.g. RAM + Storage).
+  const [combinedAxes, setCombinedAxes] = useState<string[]>([]);
   const [rows, setRows] = useState<VariationRow[]>([emptyRow('Default')]);
   const [axisDrafts, setAxisDrafts] = useState<Record<number, string>>({}); // typed values for own option types
   const [newAxisName, setNewAxisName] = useState('');
@@ -255,6 +257,7 @@ export default function SellerProductWizard() {
     setDocs(p.complianceDocs || []);
     const variants = variantsFromProduct(p);
     setAxes(variants.axes);
+    setCombinedAxes(Array.isArray(p.combinedAxes) ? p.combinedAxes : []);
     setRows(variants.rows);
   }, []);
 
@@ -505,6 +508,9 @@ export default function SellerProductWizard() {
       const res = await saveListing(productId, {
         variationType: axes.map((a) => a.label).join(' / '),
         variantAxes: axes.map((a) => ({ name: a.label, values: a.values })),
+        combinedAxes: axes.map((a) => a.label).filter((n) => combinedAxes.includes(n)).length >= 2
+          ? axes.map((a) => a.label).filter((n) => combinedAxes.includes(n))
+          : [],
         variations: rows.map((r) => ({
           title: hasVariants ? r.title : 'Default',
           ...(hasVariants ? { name: axes.map((a) => a.label).join(' / '), options: r.options } : {}),
@@ -531,6 +537,7 @@ export default function SellerProductWizard() {
     if (!(p.variations || []).length) return;
     const variants = variantsFromProduct(p);
     setAxes(variants.axes);
+    setCombinedAxes(Array.isArray(p.combinedAxes) ? p.combinedAxes : []);
     setRows(variants.rows);
   };
 
@@ -1101,6 +1108,38 @@ export default function SellerProductWizard() {
                 );
               })}
             </div>
+
+            {axes.length >= 2 && (
+              <div className="rounded-xl border border-neutral-200 p-3 space-y-2">
+                <p className="text-sm font-bold text-neutral-900">Show option types together (optional)</p>
+                <p className="text-xs text-neutral-500">
+                  Tick two or more to show customers one combined choice, e.g. RAM + Storage as "8 GB + 128 GB". Types you leave unticked stay as separate pickers.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {axes.map((a) => {
+                    const on = combinedAxes.includes(a.label);
+                    return (
+                      <button
+                        key={a.label}
+                        type="button"
+                        onClick={() => setCombinedAxes((c) => (on ? c.filter((x) => x !== a.label) : [...c, a.label]))}
+                        className={on ? 'px-3 py-1.5 rounded-full border text-xs font-semibold bg-teal-50 border-teal-500 text-teal-800' : 'px-3 py-1.5 rounded-full border text-xs font-semibold bg-white border-neutral-300 text-neutral-600'}
+                      >
+                        {on ? '✓ ' : ''}{a.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {axes.filter((a) => combinedAxes.includes(a.label)).length === 1 && (
+                  <p className="text-xs text-amber-700">Pick at least two types to combine them.</p>
+                )}
+                {axes.filter((a) => combinedAxes.includes(a.label)).length >= 2 && (
+                  <p className="text-xs text-neutral-600">
+                    Customers will see: <span className="font-semibold">{axes.filter((a) => combinedAxes.includes(a.label)).map((a) => a.values[0] || a.label).join(' + ')}</span>
+                  </p>
+                )}
+              </div>
+            )}
 
             {axes.length < MAX_VARIANT_AXES && (
               <Field label={axes.length === 0 ? 'Does this product come in different options? Add an option type' : 'Add another option type'}>

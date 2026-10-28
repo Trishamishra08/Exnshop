@@ -547,7 +547,7 @@ export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
                     {/* Product image collage + arrow */}
                     <div className="relative mt-auto px-2.5 pb-2.5 pt-2">
                       {hasSubcategoryImages ? (
-                        <div className="flex gap-1.5 h-[76px] sm:h-24 md:h-28 pr-6">
+                        <div className="flex gap-1.5 h-[88px] sm:h-28 md:h-32">
                           {subcategoryImages.slice(0, 3).map((imageUrl, idx, shown) => (
                             <div
                               key={idx}

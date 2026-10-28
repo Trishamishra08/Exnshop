@@ -209,6 +209,33 @@ export default function ProductDetail() {
     const exact = variations.findIndex((v) => variantAxes.every((a, i) => optionOf(v, a.name) === wanted[i]));
     return exact >= 0 ? exact : variations.findIndex((v) => optionOf(v, axisName) === value);
   };
+  // Option types the seller chose to show together as one choice (e.g. RAM + Storage).
+  const combinedNames: string[] = (Array.isArray(product?.combinedAxes) ? product.combinedAxes : []).filter((n: string) =>
+    variantAxes.some((a) => a.name === n)
+  );
+  const hasCombined = combinedNames.length >= 2;
+  const combinedAxesList = variantAxes.filter((a) => combinedNames.includes(a.name));
+  const separateAxes = hasCombined ? variantAxes.filter((a) => !combinedNames.includes(a.name)) : variantAxes;
+  // Every combination of those types that is actually sold, in the order the seller listed them.
+  const combinedChoices: { label: string; values: string[] }[] = [];
+  if (hasCombined) {
+    const seen = new Set<string>();
+    ((product?.variations as any[]) || []).forEach((v) => {
+      const values = combinedAxesList.map((a) => optionOf(v, a.name) || "");
+      if (values.some((x) => !x)) return;
+      const key = values.join("\u0000");
+      if (seen.has(key)) return;
+      seen.add(key);
+      combinedChoices.push({ label: values.join(" + "), values });
+    });
+  }
+  // The variant for a combined choice, keeping the other (separate) option types as they are when possible.
+  const variantIndexForCombo = (values: string[]): number => {
+    const variations: any[] = product?.variations || [];
+    const isCombo = (v: any) => combinedAxesList.every((a, i) => optionOf(v, a.name) === values[i]);
+    const exact = variations.findIndex((v) => isCombo(v) && separateAxes.every((a) => optionOf(v, a.name) === optionOf(selectedVariant, a.name)));
+    return exact >= 0 ? exact : variations.findIndex(isCombo);
+  };
   const pickOption = (axisName: string, value: string) => {
     const index = variantIndexFor(axisName, value);
     if (index >= 0) {
@@ -721,7 +748,47 @@ export default function ProductDetail() {
           {/* Variant Selection - one picker per option type (RAM/Storage, Color, …) */}
           {variantAxes.length > 0 && product.variations && product.variations.length > 1 && (
             <div className="mb-2 space-y-2.5">
-              {variantAxes.map((axis) => (
+              {hasCombined && (
+                <div>
+                  <label className="block text-xs md:text-sm font-medium text-neutral-700 mb-1.5">
+                    {combinedNames.join(" + ")}:{" "}
+                    <span className="font-semibold text-neutral-900">
+                      {combinedAxesList.map((a) => optionOf(selectedVariant, a.name) || "—").join(" + ")}
+                    </span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {combinedChoices.map((choice) => {
+                      const index = variantIndexForCombo(choice.values);
+                      const target = (product.variations as any[])[index];
+                      const isSelected = combinedAxesList.every((a, i) => optionOf(selectedVariant, a.name) === choice.values[i]);
+                      const unavailable = !target || isVariantSoldOut(target);
+                      const price = target ? (Number(target.discPrice) > 0 ? target.discPrice : target.price) : null;
+                      return (
+                        <button
+                          key={choice.label}
+                          onClick={() => {
+                            if (index >= 0) {
+                              setSelectedVariantIndex(index);
+                              setSelectedImageIndex(0);
+                            }
+                          }}
+                          disabled={!target}
+                          className={
+                            isSelected
+                              ? "px-3 py-1.5 rounded-lg text-sm font-medium transition-all border-2 border-green-600 bg-green-50 text-green-700 text-left"
+                              : unavailable
+                                ? "px-3 py-1.5 rounded-lg text-sm font-medium transition-all border-2 border-neutral-200 bg-neutral-100 text-neutral-400 line-through text-left"
+                                : "px-3 py-1.5 rounded-lg text-sm font-medium transition-all border-2 border-neutral-300 bg-white text-neutral-700 hover:border-green-500 hover:bg-green-50 text-left"
+                          }>
+                          {choice.label}
+                          {price ? <span className="block text-[11px] font-normal text-neutral-500 no-underline">₹{price}</span> : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {separateAxes.map((axis) => (
                 <div key={axis.name}>
                   <label className="block text-xs md:text-sm font-medium text-neutral-700 mb-1.5">
                     {axis.name}: <span className="font-semibold text-neutral-900">{optionOf(selectedVariant, axis.name) || "—"}</span>

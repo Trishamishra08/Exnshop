@@ -96,6 +96,9 @@ export default function FeaturedThisWeek() {
               <div className="absolute top-12 right-2 w-8 h-8 bg-yellow-200/30 rounded-full blur-sm"></div>
               <div className="absolute bottom-16 left-2 w-6 h-6 bg-orange-200/30 rounded-full blur-sm"></div>
               <div className="relative h-32 md:h-44 mt-10 overflow-hidden bg-yellow-50">
+                {newlyLaunchedProducts.length === 0 && (
+                  <div className="absolute inset-0 flex items-center justify-center text-5xl opacity-80" aria-hidden="true">🛍️</div>
+                )}
                 {newlyLaunchedProducts.map((product, idx) => (
                   <div
                     key={`${product.id || idx}-${product.imageUrl || product.name}`}

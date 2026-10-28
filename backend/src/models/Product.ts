@@ -33,6 +33,9 @@ export interface IProduct extends Document {
   /** The option types a product varies by, in display order (e.g. RAM/Storage, Color).
    *  Absent for single-type and legacy products. */
   variantAxes?: Array<{ name: string; values: string[] }>;
+  /** Option types (names from variantAxes) the seller wants shown to customers as ONE choice,
+   *  e.g. ["RAM", "Storage"] → "8 GB + 128 GB". Empty/absent = every option type is its own picker. */
+  combinedAxes?: string[];
   variations?: Array<{
     name: string;
     value: string;
@@ -238,6 +241,10 @@ const ProductSchema = new Schema<IProduct>(
     },
     variantAxes: {
       type: [{ _id: false, name: { type: String, trim: true }, values: [String] }],
+      default: undefined,
+    },
+    combinedAxes: {
+      type: [String],
       default: undefined,
     },
     variations: {

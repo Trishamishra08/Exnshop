@@ -50,6 +50,13 @@ const cleanVariantAxes = (axes: unknown): { axes?: Array<{ name: string; values:
   if (new Set(clean.map((a) => a.name.toLowerCase())).size !== clean.length) return { error: "Each option type can be used only once" };
   return { axes: clean };
 };
+// Which option types the seller shows together as one choice: only real option types, at least two, in axis order.
+const cleanCombinedAxes = (raw: unknown, axes: Array<{ name: string; values: string[] }> | undefined): string[] => {
+  if (!axes || !Array.isArray(raw)) return [];
+  const wanted = new Set(raw.map((n) => String(n).trim()));
+  const names = axes.map((a) => a.name).filter((n) => wanted.has(n));
+  return names.length >= 2 ? names : [];
+};
 // A combination's own value for every axis, in axis order; null when one is missing or not offered.
 const cleanVariationOptions = (options: unknown, axes: Array<{ name: string; values: string[] }>) => {
   const given = Array.isArray(options) ? options : [];
@@ -561,6 +568,13 @@ export const updateProduct = asyncHandler(
         }
       }
       updateData.variantAxes = axes;
+      // Forms that don't send it leave the saved choice alone (only dropped types are removed).
+      if ("combinedAxes" in req.body) {
+        updateData.combinedAxes = cleanCombinedAxes(updateData.combinedAxes, axes);
+      } else {
+        const savedCombined: any = await Product.findOne({ _id: id, seller: sellerId }).select("combinedAxes").lean();
+        updateData.combinedAxes = cleanCombinedAxes(savedCombined?.combinedAxes, axes);
+      }
 
       for (const variation of updateData.variations) {
         if (Number(variation.discPrice) > Number(variation.price)) {
@@ -582,6 +596,7 @@ export const updateProduct = asyncHandler(
     } else {
       // Option types only change together with the variants they describe.
       delete updateData.variantAxes;
+      delete updateData.combinedAxes;
     }
 
     // Handle Shop by Store fields

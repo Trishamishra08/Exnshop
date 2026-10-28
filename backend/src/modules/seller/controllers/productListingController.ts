@@ -128,7 +128,7 @@ export const duplicateProduct = asyncHandler(async (req: Request, res: Response)
 
   const copyFields = [
     "smallDescription", "description", "category", "subcategory", "subSubCategory", "headerCategoryId", "brand",
-    "mainImage", "galleryImages", "price", "discPrice", "compareAtPrice", "stock", "variationType", "variantAxes", "manufacturer",
+    "mainImage", "galleryImages", "price", "discPrice", "compareAtPrice", "stock", "variationType", "variantAxes", "combinedAxes", "manufacturer",
     "madeIn", "tax", "fssaiLicNo", "totalAllowedQuantity", "isReturnable", "maxReturnDays", "returnPolicyText",
     "seoTitle", "seoKeywords", "seoDescription", "seoImageAlt", "pack", "shelfLife", "marketer", "tags", "condition",
     "modelNumber", "hsnCode", "attributes", "handlingTimeDays", "weightGrams", "dimensionsCm", "isShopByStoreOnly", "shopId",
