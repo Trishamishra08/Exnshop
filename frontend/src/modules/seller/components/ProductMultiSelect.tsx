@@ -15,7 +15,7 @@ interface ProductMultiSelectProps {
 
 function getCategoryId(product?: Product): string | undefined {
     if (!product || !product.category) return undefined;
-    return typeof product.category === 'string' ? product.category : product.category._id;
+    return typeof product.category === 'string' ? product.category : product.category?._id;
 }
 
 export default function ProductMultiSelect({ products, selected, onChange }: ProductMultiSelectProps) {

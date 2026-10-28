@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import { Request, Response } from "express";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import Category from "../../../models/Category";
@@ -398,25 +397,6 @@ export const deleteCategory = asyncHandler(
       });
     }
 
-    // Check if category has products
-    const productCount = await Product.countDocuments({ category: id });
-    if (productCount > 0) {
-      // Say how many and in what state: drafts / pending / rejected products
-      // also count, and the admin's product list may not show them by default.
-      const byStatus = await Product.aggregate([
-        { $match: { category: new mongoose.Types.ObjectId(String(id)) } },
-        { $group: { _id: "$status", count: { $sum: 1 } } },
-      ]);
-      const breakdown = byStatus
-        .map((s: any) => `${s.count} ${s._id || "No status"}`)
-        .join(", ");
-      return res.status(400).json({
-        success: false,
-        message: `Cannot delete this category: it still has ${productCount} product(s) (${breakdown}). Move or delete those products first.`,
-        data: { productCount, byStatus },
-      });
-    }
-
     const category = await Category.findByIdAndDelete(id);
 
     if (!category) {
@@ -426,6 +406,11 @@ export const deleteCategory = asyncHandler(
       });
     }
 
+    // Products are never deleted with their category. They stay in the sellers'
+    // product lists but are hidden from customers until the seller picks a new
+    // category for them.
+    const hidden = await Product.updateMany({ category: id }, { $set: { publish: false } });
+
     // Invalidate category caches
     cache.delete("customer-categories-list-v3");
     cache.delete("customer-categories-tree");
@@ -433,7 +418,10 @@ export const deleteCategory = asyncHandler(
 
     return res.status(200).json({
       success: true,
-      message: "Category deleted successfully",
+      message:
+        hidden.modifiedCount > 0
+          ? `Category deleted. ${hidden.modifiedCount} product(s) were kept and hidden from customers until the seller assigns a new category.`
+          : "Category deleted successfully",
     });
   }
 );
