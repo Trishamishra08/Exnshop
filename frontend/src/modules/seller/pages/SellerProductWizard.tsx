@@ -145,6 +145,7 @@ export default function SellerProductWizard() {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [taxes, setTaxes] = useState<any[]>([]);
   const [headerCategory, setHeaderCategory] = useState('');
+  const returnWindowDays: number | undefined = headerCategories.find((h) => String(h._id) === headerCategory)?.effectiveReturnWindowDays;
   const [category, setCategory] = useState('');
   const [subcategory, setSubcategory] = useState('');
   const [subSubCategory, setSubSubCategory] = useState('');
@@ -1304,9 +1305,12 @@ export default function SellerProductWizard() {
               </div>
             </Field>
             {isReturnable && (
-              <p className="text-xs text-neutral-500">
-                The return / replacement window is set by Exnshop for this product's header category, so you don't need to enter it.
-              </p>
+              <Field label="Return / replacement window">
+                <p className="text-sm text-neutral-800 font-semibold">
+                  {returnWindowDays !== undefined ? `${returnWindowDays} days after delivery` : 'Select a header category to see it'}
+                </p>
+                <p className="text-xs text-neutral-500 mt-1">Set by Exnshop for this header category. You can't change it.</p>
+              </Field>
             )}
           </>
         )}

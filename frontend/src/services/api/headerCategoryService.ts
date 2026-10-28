@@ -11,6 +11,8 @@ export interface HeaderCategory {
     status: 'Published' | 'Unpublished';
     /** Days after delivery customers can return/exchange products of this header category. Blank = default. */
     returnWindowDays?: number;
+    /** Seller side: the real window in days (the category's own value, or the marketplace default). */
+    effectiveReturnWindowDays?: number;
     order?: number;
 }
 

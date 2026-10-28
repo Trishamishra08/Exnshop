@@ -7,6 +7,7 @@ import SubCategory from "../../../models/SubCategory";
 import Shop from "../../../models/Shop";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import { resolveSellerAllowedHeaderCategories, sellerDepartmentError } from "../../../services/sellerCategoryService";
+import AppSettings from "../../../models/AppSettings";
 import OrderItem from "../../../models/OrderItem";
 import {
   MATERIAL_FIELDS,
@@ -1290,10 +1291,18 @@ export const getAllowedHeaderCategories = asyncHandler(
 
     const headerCategories = await resolveSellerAllowedHeaderCategories(seller.categories);
 
+    // The return window is set by the admin per header category. Sellers only see it.
+    const settings = await AppSettings.getSettings();
+    const defaultWindow = settings?.returnConfig?.defaultReturnWindowDays ?? 7;
+    const data = (headerCategories as any[]).map((h) => ({
+      ...(h.toObject ? h.toObject() : h),
+      effectiveReturnWindowDays: typeof h.returnWindowDays === "number" ? h.returnWindowDays : defaultWindow,
+    }));
+
     return res.status(200).json({
       success: true,
       message: "Allowed header categories fetched successfully",
-      data: headerCategories,
+      data,
     });
   }
 );

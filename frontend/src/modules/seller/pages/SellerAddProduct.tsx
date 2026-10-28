@@ -1143,8 +1143,12 @@ export default function SellerAddProduct() {
                   <label className="block text-sm font-medium text-neutral-700 mb-2">
                     Return / replacement window
                   </label>
-                  <p className="w-full px-4 py-2 border border-neutral-200 rounded-lg bg-neutral-50 text-sm text-neutral-600">
-                    Set by Exnshop for the product's header category. You don't need to enter it.
+                  <p className="w-full px-4 py-2 border border-neutral-200 rounded-lg bg-neutral-50 text-sm text-neutral-700">
+                    {(() => {
+                      const days = headerCategories.find((h) => String(h._id) === String(formData.headerCategory))?.effectiveReturnWindowDays;
+                      return days !== undefined ? `${days} days after delivery` : "Select a header category to see it";
+                    })()}
+                    <span className="block text-xs text-neutral-500 mt-0.5">Set by Exnshop for this header category. You can't change it.</span>
                   </p>
                 </div>
                 <div>
