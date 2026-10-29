@@ -720,9 +720,6 @@ export default function AdminListingSetup() {
                 <label className="flex items-center gap-2">
                   <input type="checkbox" checked={form.isFilterable} onChange={(e) => setForm({ ...form, isFilterable: e.target.checked })} /> Filterable
                 </label>
-                <label className={`flex items-center gap-2 ${form.type === 'select' ? '' : 'opacity-40'}`}>
-                  <input type="checkbox" disabled={form.type !== 'select'} checked={form.isVariantAttribute} onChange={(e) => setForm({ ...form, isVariantAttribute: e.target.checked })} /> Variant option
-                </label>
                 <label className="flex items-center gap-2">
                   <input type="checkbox" checked={form.isSearchable} onChange={(e) => setForm({ ...form, isSearchable: e.target.checked })} /> Searchable
                 </label>
