@@ -489,7 +489,7 @@ export default function VariantManager({
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-4">
       <div className="space-y-4 min-w-0">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className={`grid grid-cols-1 ${sellerMode ? '' : 'lg:grid-cols-2'} gap-4`}>
           {/* Basic product information (read-only summary, edited in its own step) */}
           {productInfo && (
             <section className={`${card} p-4`}>
@@ -506,42 +506,6 @@ export default function VariantManager({
                   <p className="px-2.5 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-700 line-clamp-3 min-h-[52px]">{productInfo.description || '—'}</p>
                 </div>
               </div>
-            </section>
-          )}
-
-          {sellerMode && (
-            <section className={`${card} p-4 ${productInfo ? '' : 'lg:col-span-2'}`}>
-              <h3 className="text-sm font-bold text-neutral-900">Variant Options</h3>
-              <p className="text-xs text-neutral-500 mb-2">Set by Exnshop for this category. Pick from these when you add a variant.</p>
-              {sellerAttrs.length === 0 ? (
-                <p className="text-xs text-neutral-600 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2.5">
-                  No variant options are set up for this category, so this product is sold as a single item. Enter its price and stock in the table below.
-                </p>
-              ) : (
-                <div className="divide-y divide-neutral-100">
-                  {sellerAttrs.map((a) => (
-                    <div key={a.label} className="py-2 flex flex-wrap items-center gap-2">
-                      <span className="w-28 shrink-0 text-xs font-semibold text-neutral-800">{a.label}</span>
-                      <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
-                        {a.values.map((v) => {
-                          const hex = isColourAxis(a.label) ? swatch(v) : undefined;
-                          return hex ? (
-                            <span key={v} title={v} className="w-5 h-5 rounded-full border border-neutral-300" style={{ background: hex }} />
-                          ) : (
-                            <span key={v} className="px-2 py-0.5 rounded-md border border-neutral-200 bg-neutral-50 text-[11px] font-semibold text-neutral-600">{v}</span>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {sellerAttrs.length > 0 && (
-                <div className="flex flex-wrap items-center gap-3 mt-3">
-                  <button type="button" onClick={() => setAdding(adding ? null : {})} className={blueBtn}>{Icon.plus} Add Variant</button>
-                  <button type="button" onClick={addAllCombinations} className={outlineBtn}>{Icon.grid} Add all combinations</button>
-                </div>
-              )}
             </section>
           )}
 
@@ -670,6 +634,7 @@ export default function VariantManager({
               <button type="button" onClick={() => onChange(axes, autoSkus(rows, skuPrefix))} className={outlineBtn}>Auto SKU</button>
               <input ref={csvRef} type="file" accept=".csv,text/csv" className="hidden" onChange={uploadCsv} />
               {formAxes.length > 0 && <button type="button" onClick={() => setAdding(adding ? null : {})} className={blueBtn}>{Icon.plus} Add Variant</button>}
+              {sellerMode && formAxes.length > 0 && <button type="button" onClick={addAllCombinations} className={outlineBtn}>{Icon.grid} Add all combinations</button>}
             </div>
           </div>
 
@@ -718,6 +683,11 @@ export default function VariantManager({
             </div>
           )}
 
+          {sellerMode && formAxes.length === 0 && (
+            <p className="mx-4 mb-3 text-xs text-neutral-600 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2.5">
+              No variants are set up for this category, so this product is sold as a single item. Enter its price and stock below.
+            </p>
+          )}
           <div className="overflow-x-auto border-t border-neutral-100">
             <table className="w-full text-xs">
               <thead className="text-neutral-600">

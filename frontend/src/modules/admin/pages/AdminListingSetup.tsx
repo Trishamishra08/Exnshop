@@ -196,6 +196,30 @@ export default function AdminListingSetup() {
     }
   };
 
+  const [optDraft, setOptDraft] = useState<Record<string, string>>({});
+  const saveOptions = async (a: AdminAttribute, values: string[]) => {
+    try {
+      await updateAttribute(a._id, {
+        key: a.key, label: a.label, type: a.type, isRequired: a.isRequired, isVariantAttribute: a.isVariantAttribute,
+        isFilterable: a.isFilterable, isSearchable: a.isSearchable, allowedValues: values, unit: a.unit || '',
+        helpText: a.helpText || '', group: a.group || '', keySpec: a.keySpec === true, keySpecFormat: a.keySpecFormat || '',
+        displayOrder: a.displayOrder ?? 0,
+        validation: { min: a.validation?.min, max: a.validation?.max, pattern: a.validation?.pattern || '' } as any,
+      });
+      load();
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || 'Could not update the options', 'error');
+    }
+  };
+  const addOptionTo = (a: AdminAttribute) => {
+    const v = (optDraft[a._id] || '').trim();
+    setOptDraft((d) => { const n = { ...d }; delete n[a._id]; return n; });
+    if (!v) return;
+    const have = a.allowedValues || [];
+    if (have.some((x) => x.toLowerCase() === v.toLowerCase())) return;
+    saveOptions(a, [...have, v]);
+  };
+
   const removeAttribute = async (a: AdminAttribute) => {
     if (!window.confirm(`Delete "${a.label}"? Existing products keep their saved value, but it will no longer be asked for.`)) return;
     try {
@@ -318,43 +342,46 @@ export default function AdminListingSetup() {
             ) : attributes.filter((a) => a.isVariantAttribute).length === 0 ? (
               <div className="p-8 text-center text-neutral-400 text-sm">No variant attributes at this level yet. Pick a category or sub-category above, or add one.</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead>
-                    <tr className="bg-neutral-50 text-xs font-bold text-neutral-700 border-b border-neutral-200">
-                      <th className="p-3">Attribute</th>
-                      <th className="p-3">Options</th>
-                      <th className="p-3 w-32">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {attributes.filter((a) => a.isVariantAttribute).map((a) => (
-                      <tr key={a._id} className="border-b border-neutral-100">
-                        <td className="p-3 font-medium text-neutral-800">{a.label}</td>
-                        <td className="p-3">
-                          <div className="flex flex-wrap gap-1.5">
-                            {(a.allowedValues || []).map((v) => {
-                              const css = v.trim().toLowerCase().replace(/\s+/g, '');
-                              const isColour = /colou?r/i.test(a.label) && typeof CSS !== 'undefined' && CSS.supports?.('color', css);
-                              return isColour ? (
-                                <span key={v} title={v} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-neutral-200 text-xs text-neutral-700">
-                                  <span className="w-3 h-3 rounded-full border border-neutral-300" style={{ background: css }} />{v}
-                                </span>
-                              ) : (
-                                <span key={v} className="px-2 py-0.5 rounded-md border border-neutral-200 bg-neutral-50 text-xs text-neutral-700">{v}</span>
-                              );
-                            })}
-                            {(a.allowedValues || []).length === 0 && <span className="text-xs text-neutral-400">No options yet — Edit to add</span>}
-                          </div>
-                        </td>
-                        <td className="p-3">
-                          <button onClick={() => openEdit(a)} className="text-teal-700 text-xs font-semibold mr-3 hover:underline">Edit</button>
-                          <button onClick={() => removeAttribute(a)} className="text-red-600 text-xs font-semibold hover:underline">Delete</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="divide-y divide-neutral-100">
+                {attributes.filter((a) => a.isVariantAttribute).map((a) => (
+                  <div key={a._id} className="px-6 py-3 flex flex-wrap items-center gap-3">
+                    <span className="w-40 shrink-0 text-sm font-semibold text-neutral-800">{a.label}</span>
+                    <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
+                      {(a.allowedValues || []).map((v) => {
+                        const css = v.trim().toLowerCase().replace(/\s+/g, '');
+                        const isColour = /colou?r/i.test(a.label) && typeof CSS !== 'undefined' && CSS.supports?.('color', css);
+                        return (
+                          <span key={v} className="group inline-flex items-center gap-1.5 pl-2 pr-1 py-0.5 rounded-md border border-neutral-200 bg-neutral-50 text-xs text-neutral-700">
+                            {isColour && <span className="w-3.5 h-3.5 rounded-full border border-neutral-300" style={{ background: css }} />}
+                            {v}
+                            <button type="button" title={'Remove ' + v} aria-label={'Remove ' + v} onClick={() => saveOptions(a, (a.allowedValues || []).filter((x) => x !== v))}
+                              className="w-4 h-4 rounded text-neutral-400 hover:text-red-600 leading-none">×</button>
+                          </span>
+                        );
+                      })}
+                      {optDraft[a._id] !== undefined && (
+                        <input
+                          autoFocus
+                          value={optDraft[a._id]}
+                          onChange={(e) => setOptDraft((d) => ({ ...d, [a._id]: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); addOptionTo(a); }
+                            if (e.key === 'Escape') setOptDraft((d) => { const n = { ...d }; delete n[a._id]; return n; });
+                          }}
+                          onBlur={() => addOptionTo(a)}
+                          placeholder="Type and press Enter"
+                          className="w-36 px-2 py-1 rounded-md border border-teal-400 text-xs focus:outline-none focus:ring-1 focus:ring-teal-500"
+                        />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setOptDraft((d) => ({ ...d, [a._id]: d[a._id] ?? '' }))}
+                        className="px-3 py-1.5 rounded-lg border border-teal-200 text-teal-700 hover:bg-teal-50 text-xs font-semibold">+ Add {/colou?r/i.test(a.label) ? 'Color' : 'Option'}</button>
+                      <button onClick={() => openEdit(a)} className="text-teal-700 text-xs font-semibold hover:underline">Edit</button>
+                      <button onClick={() => removeAttribute(a)} className="text-red-600 text-xs font-semibold hover:underline">Delete</button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
