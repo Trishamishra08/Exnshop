@@ -300,6 +300,68 @@ export default function AdminListingSetup() {
           <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
             <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between gap-3">
               <div>
+                <h3 className="text-base font-semibold text-neutral-800">Variant Attributes</h3>
+                <p className="text-xs text-neutral-500">Attributes (Color, Size, RAM…) and their options. Sellers pick from these when they add variants — they cannot add their own. Applies to: {scopeLabel()}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setFormError('');
+                  setForm({ ...emptyForm(), type: 'select', isVariantAttribute: true });
+                }}
+                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg shrink-0"
+              >
+                Add variant attribute
+              </button>
+            </div>
+            {loading ? (
+              <div className="p-8 text-center text-neutral-500 text-sm">Loading…</div>
+            ) : attributes.filter((a) => a.isVariantAttribute).length === 0 ? (
+              <div className="p-8 text-center text-neutral-400 text-sm">No variant attributes at this level yet. Pick a category or sub-category above, or add one.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="bg-neutral-50 text-xs font-bold text-neutral-700 border-b border-neutral-200">
+                      <th className="p-3">Attribute</th>
+                      <th className="p-3">Options</th>
+                      <th className="p-3 w-32">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attributes.filter((a) => a.isVariantAttribute).map((a) => (
+                      <tr key={a._id} className="border-b border-neutral-100">
+                        <td className="p-3 font-medium text-neutral-800">{a.label}</td>
+                        <td className="p-3">
+                          <div className="flex flex-wrap gap-1.5">
+                            {(a.allowedValues || []).map((v) => {
+                              const css = v.trim().toLowerCase().replace(/\s+/g, '');
+                              const isColour = /colou?r/i.test(a.label) && typeof CSS !== 'undefined' && CSS.supports?.('color', css);
+                              return isColour ? (
+                                <span key={v} title={v} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-neutral-200 text-xs text-neutral-700">
+                                  <span className="w-3 h-3 rounded-full border border-neutral-300" style={{ background: css }} />{v}
+                                </span>
+                              ) : (
+                                <span key={v} className="px-2 py-0.5 rounded-md border border-neutral-200 bg-neutral-50 text-xs text-neutral-700">{v}</span>
+                              );
+                            })}
+                            {(a.allowedValues || []).length === 0 && <span className="text-xs text-neutral-400">No options yet — Edit to add</span>}
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <button onClick={() => openEdit(a)} className="text-teal-700 text-xs font-semibold mr-3 hover:underline">Edit</button>
+                          <button onClick={() => removeAttribute(a)} className="text-red-600 text-xs font-semibold hover:underline">Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
+            <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between gap-3">
+              <div>
                 <h3 className="text-base font-semibold text-neutral-800">Attributes</h3>
                 <p className="text-xs text-neutral-500">Applies to: {scopeLabel()}</p>
               </div>
@@ -315,7 +377,7 @@ export default function AdminListingSetup() {
             </div>
             {loading ? (
               <div className="p-8 text-center text-neutral-500 text-sm">Loading…</div>
-            ) : attributes.length === 0 ? (
+            ) : attributes.filter((a) => !a.isVariantAttribute).length === 0 ? (
               <div className="p-8 text-center text-neutral-400 text-sm">No attributes set at this level yet.</div>
             ) : (
               <div className="overflow-x-auto">
@@ -332,7 +394,7 @@ export default function AdminListingSetup() {
                     </tr>
                   </thead>
                   <tbody>
-                    {attributes.map((a) => (
+                    {attributes.filter((a) => !a.isVariantAttribute).map((a) => (
                       <tr key={a._id} className="border-b border-neutral-100">
                         <td className="p-3 font-medium text-neutral-800">
                           {a.label}
