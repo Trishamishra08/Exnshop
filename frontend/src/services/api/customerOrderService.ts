@@ -111,7 +111,7 @@ export const updateOrderNotes = async (id: string, data: { deliveryInstructions?
  */
 export const requestCustomerReturn = async (
     orderId: string,
-    data: { orderItemId: string; reason: string; description?: string; quantity?: number; requestType?: 'RETURN' | 'EXCHANGE'; images?: string[]; condition?: 'Unused' | 'Defective' | 'Used'; requestedVariationId?: string }
+    data: { orderItemId: string; reason: string; description?: string; quantity?: number; requestType?: 'RETURN' | 'EXCHANGE'; images?: string[]; condition?: 'Unused' | 'Defective' | 'Used'; requestedVariationId?: string; codRefundTo?: 'WALLET' | 'BANK' }
 ): Promise<OrderResponse> => {
     const response = await api.post<OrderResponse>(`/customer/orders/${orderId}/return`, data);
     return response.data;

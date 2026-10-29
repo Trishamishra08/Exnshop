@@ -23,6 +23,9 @@ export default function AdminBillingSettings() {
     // Seller Settlement Approval Mode
     const [settlementApprovalMode, setSettlementApprovalMode] = useState<'auto' | 'manual'>('auto');
 
+    // Days a seller has to accept an E-commerce order before it is auto-cancelled
+    const [ecommerceSellerAcceptDays, setEcommerceSellerAcceptDays] = useState<number>(3);
+
     // Seller Category Visibility
     const [sellerCategoryVisibility, setSellerCategoryVisibility] = useState<'all' | 'assigned'>('assigned');
 
@@ -58,6 +61,7 @@ export default function AdminBillingSettings() {
                 setGstEnabled(data.gstEnabled || false);
                 setGstRate(data.gstRate || 0);
                 setSettlementApprovalMode(data.settlementApprovalMode === 'manual' ? 'manual' : 'auto');
+                setEcommerceSellerAcceptDays(Number(data.ecommerceSellerAcceptDays) >= 1 ? Number(data.ecommerceSellerAcceptDays) : 3);
                 setSellerCategoryVisibility(data.sellerCategoryVisibility === 'all' ? 'all' : 'assigned');
 
                 if (data.deliveryConfig) {
@@ -97,6 +101,7 @@ export default function AdminBillingSettings() {
                 gstEnabled,
                 gstRate,
                 settlementApprovalMode,
+                ecommerceSellerAcceptDays,
                 sellerCategoryVisibility,
                 deliveryConfig: {
                     isDistanceBased,
@@ -462,6 +467,27 @@ export default function AdminBillingSettings() {
                             ? 'Held seller earnings release to their wallet automatically once the return window expires.'
                             : 'Held seller earnings wait for your approval even after the return window expires — review and release them from Wallet & Finance → Seller Settlements.'}
                     </p>
+                </div>
+
+                {/* E-commerce order acceptance window */}
+                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-2">E-commerce Order Acceptance</h2>
+                    <p className="text-sm text-gray-500 mb-4">
+                        How long a seller has to accept a new E-commerce (courier) order. If they don't accept it in time,
+                        it is cancelled automatically and the customer is refunded. Quick orders keep their short response time.
+                    </p>
+                    <label className="flex items-center gap-3 text-sm text-gray-700">
+                        Seller must accept within
+                        <input
+                            type="number"
+                            min={1}
+                            max={30}
+                            value={ecommerceSellerAcceptDays}
+                            onChange={(e) => setEcommerceSellerAcceptDays(Math.min(30, Math.max(1, Math.round(Number(e.target.value) || 1))))}
+                            className="w-20 px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        />
+                        days
+                    </label>
                 </div>
 
                 {/* Seller Category Visibility Section */}

@@ -512,6 +512,8 @@ export default function OrderDetail() {
   const [returnReason, setReturnReason] = useState<string>("Damaged product");
   const [customReturnReason, setCustomReturnReason] = useState<string>("");
   const [returnExtras, setReturnExtras] = useState<ExchangeExtrasValue>(EMPTY_EXTRAS);
+  // COD returns: refund to the wallet (instant) or to the saved bank account.
+  const [codRefundTo, setCodRefundTo] = useState<"WALLET" | "BANK">("WALLET");
   const [submittingReturn, setSubmittingReturn] = useState(false);
   const [returnError, setReturnError] = useState<string | null>(null);
 
@@ -886,13 +888,14 @@ export default function OrderDetail() {
   // ECommerce orders ship via courier (Shiprocket) — no live rider location
   // or minute-level ETA exists for them, unlike Quick orders.
   const isECommerce = (order as any)?.channel === "ECommerce";
+  const isCodOrder = !/online|razorpay|cashfree|upi|card/i.test(String((order as any)?.paymentMethod || "COD"));
 
   const statusConfig: Record<
     string,
     { title: string; subtitle: string; color: string }
   > = {
     Received: {
-      title: "Order received",
+      title: "Order placed",
       subtitle: isECommerce ? "We're preparing your order for shipment" : "Order will reach you shortly",
       color: "bg-emerald-700",
     },
@@ -2268,6 +2271,29 @@ export default function OrderDetail() {
                 </div>
               )}
 
+              {returnRequestType !== "Exchange" && isCodOrder && (
+                <div className="space-y-2">
+                  <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">Refund to</p>
+                  {([
+                    ["WALLET", "Exnshop wallet", "Instant after pickup. Use it on your next order or transfer it to your bank."],
+                    ["BANK", "Bank account / UPI", "Sent to the bank details saved in your profile."],
+                  ] as const).map(([key, title, note]) => (
+                    <label key={key} className={`flex items-start gap-3 p-3 rounded-xl border text-sm cursor-pointer ${codRefundTo === key ? "border-neutral-900 bg-neutral-50" : "border-gray-200"}`}>
+                      <input type="radio" name="codRefundTo" checked={codRefundTo === key} onChange={() => setCodRefundTo(key)} className="mt-0.5 w-4 h-4 accent-neutral-900" />
+                      <span>
+                        <span className="block font-medium text-gray-900">{title}</span>
+                        <span className="block text-xs text-gray-500">{note}</span>
+                      </span>
+                    </label>
+                  ))}
+                  {codRefundTo === "BANK" && (
+                    <p className="text-xs text-gray-600">
+                      No bank details yet? <Link to="/account/bank-details" className="font-semibold underline">Add them here</Link>.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Error Banner */}
               {returnError && (
                 <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs">
@@ -2316,6 +2342,7 @@ export default function OrderDetail() {
                         images,
                         condition: returnExtras.condition || undefined,
                         requestedVariationId: isExchangeReq && returnExtras.variationId ? returnExtras.variationId : undefined,
+                        codRefundTo: !isExchangeReq && isCodOrder ? codRefundTo : undefined,
                       });
 
                       if (res.success) {

@@ -1809,11 +1809,21 @@ export const requestItemReturn = async (req: Request, res: Response) => {
     const recent = await Return.countDocuments({ customer: userId, createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } });
     const flags = recent >= 3 ? ["REPEAT_REQUESTS"] : undefined;
 
+    // A COD refund to the bank needs the customer's bank (or UPI) details on file.
+    if (req.body.codRefundTo === "BANK") {
+      const c: any = await Customer.findById(userId).select("bankDetails").lean();
+      const b = c?.bankDetails || {};
+      if (!((b.accountNumber && b.ifscCode) || b.upiId)) {
+        return res.status(400).json({ success: false, message: "Add your bank account or UPI ID in Profile → Bank Details first, or choose a wallet refund." });
+      }
+    }
+
     const newReturn = await Return.create({
       order: order._id,
       orderItem: item._id,
       customer: userId,
       requestType,
+      codRefundTo: req.body.codRefundTo === "BANK" ? "BANK" : "WALLET",
       reason,
       description: description || "",
       quantity: returnQty,

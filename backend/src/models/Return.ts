@@ -8,6 +8,9 @@ export interface IReturn extends Document {
   // Request Type: Distinction between return for refund vs exchange for replacement
   requestType: "RETURN" | "EXCHANGE";
 
+  /** COD orders: where the customer wants the refund paid — their wallet, or their saved bank account. */
+  codRefundTo?: "WALLET" | "BANK";
+
   // Return / Exchange Info
   reason: string;
   description?: string;
@@ -130,6 +133,12 @@ const ReturnSchema = new Schema<IReturn>(
       enum: ["RETURN", "EXCHANGE"],
       default: "RETURN",
       required: true,
+    },
+
+    codRefundTo: {
+      type: String,
+      enum: ["WALLET", "BANK"],
+      default: "WALLET",
     },
 
     // Return Info

@@ -169,9 +169,9 @@ export default function AdminWithdrawals() {
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <h3 className="font-semibold text-lg">
-                                            {withdrawal.userType === 'SELLER' ? 'Seller' : 'Delivery Boy'} Withdrawal
+                                            {withdrawal.userType === 'SELLER' ? 'Seller Withdrawal' : withdrawal.userType === 'CUSTOMER' ? 'Customer Refund / Wallet Transfer' : 'Delivery Boy Withdrawal'}
                                         </h3>
-                                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${withdrawal.userType === 'SELLER' ? 'bg-purple-100 text-purple-700' : 'bg-orange-100 text-orange-700'
+                                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${withdrawal.userType === 'SELLER' ? 'bg-purple-100 text-purple-700' : withdrawal.userType === 'CUSTOMER' ? 'bg-teal-100 text-teal-700' : 'bg-orange-100 text-orange-700'
                                             }`}>
                                             {withdrawal.userType}
                                         </span>
@@ -246,12 +246,17 @@ export default function AdminWithdrawals() {
                                 )}
                             </div>
 
-                            {withdrawal.remarks && (
+                            {withdrawal.remarks && (withdrawal.status === 'Rejected' ? (
                                 <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-lg">
                                     <p className="text-xs text-red-600 uppercase tracking-wide mb-1">Rejection Reason</p>
                                     <p className="text-sm text-red-800">{withdrawal.remarks}</p>
                                 </div>
-                            )}
+                            ) : (
+                                <div className="mb-4 p-3 bg-neutral-50 border border-neutral-200 rounded-lg">
+                                    <p className="text-xs text-neutral-500 uppercase tracking-wide mb-1">Note</p>
+                                    <p className="text-sm text-neutral-800">{withdrawal.remarks}</p>
+                                </div>
+                            ))}
 
                             {/* Actions */}
                             {withdrawal.status === 'Pending' && (

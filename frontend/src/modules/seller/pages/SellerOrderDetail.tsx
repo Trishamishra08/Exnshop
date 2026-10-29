@@ -466,6 +466,11 @@ export default function SellerOrderDetail() {
                 </span>
               </p>
             )}
+            {isPending && (orderDetail as any).acceptBy && (
+              <p className="mt-1.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                Accept by <b>{new Date((orderDetail as any).acceptBy).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</b>, or it is cancelled automatically
+              </p>
+            )}
           </div>
           <div className="flex flex-wrap gap-2 print:hidden">
             <button

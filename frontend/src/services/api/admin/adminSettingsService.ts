@@ -90,6 +90,8 @@ export interface AppSettings {
   gstEnabled: boolean;
   gstRate?: number;
   settlementApprovalMode?: 'auto' | 'manual';
+  /** Days a seller has to accept an E-commerce order before it is auto-cancelled (default 3). */
+  ecommerceSellerAcceptDays?: number;
   sellerCategoryVisibility?: 'all' | 'assigned';
   privacyPolicy?: string;
   termsOfService?: string;

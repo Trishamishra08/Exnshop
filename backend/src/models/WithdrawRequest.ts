@@ -2,7 +2,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IWithdrawRequest extends Document {
     userId: mongoose.Types.ObjectId; // Generic user reference (seller or delivery boy)
-    userType: 'SELLER' | 'DELIVERY_BOY'; // Type of user
+    userType: 'SELLER' | 'DELIVERY_BOY' | 'CUSTOMER'; // Type of user (customers withdraw wallet refunds to their bank)
     amount: number;
     status: 'Pending' | 'Approved' | 'Processing' | 'Rejected' | 'Completed';
     razorpayPayoutId?: string; // RazorpayX payout id once a payout has been created
@@ -28,7 +28,7 @@ const WithdrawRequestSchema = new Schema<IWithdrawRequest>(
         },
         userType: {
             type: String,
-            enum: ['SELLER', 'DELIVERY_BOY'],
+            enum: ['SELLER', 'DELIVERY_BOY', 'CUSTOMER'],
             required: [true, 'User type is required'],
         },
         amount: {

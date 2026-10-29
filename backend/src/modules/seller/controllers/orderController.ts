@@ -14,6 +14,7 @@ import { getSellerPendingOrderAlerts } from "../../../services/orderAlertService
 import { buildShippingLabels, ensureSellerAwb } from "../../../services/shippingLabelService";
 import { buildTaxInvoices } from "../../../services/taxInvoiceService";
 import { getHandlingSettings, shipDatesFor } from "../../../services/shipByService";
+import { acceptDeadlineFor, getEcommerceAcceptDays } from "../../../services/sellerOrderTimeoutService";
 import {
   applySelfShipmentStatus,
   getSellerShippingMethod,
@@ -450,6 +451,8 @@ export const getOrderById = asyncHandler(
       channel: order.channel || "Quick",
       shippingMethod,
       shipDates,
+      // E-commerce: the seller must accept by this time or the order is auto-cancelled.
+      acceptBy: order.channel === "ECommerce" ? acceptDeadlineFor(order as any, await getEcommerceAcceptDays()).toISOString() : null,
       exchangeInfo: (order as any).exchangeInfo || null,
       shipment: myShipment
         ? {

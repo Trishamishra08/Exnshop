@@ -13,6 +13,15 @@ export interface ICustomer extends Document {
   totalOrders: number;
   totalSpent: number;
   walletAmount: number;
+  /** Where refunds of COD returns and wallet withdrawals are paid. */
+  bankDetails?: {
+    accountHolderName?: string;
+    accountNumber?: string;
+    ifscCode?: string;
+    bankName?: string;
+    upiId?: string;
+    updatedAt?: Date;
+  };
   // Location fields
   latitude?: number;
   longitude?: number;
@@ -118,6 +127,14 @@ const CustomerSchema = new Schema<ICustomer>(
       type: Number,
       default: 0,
       min: [0, 'Wallet amount cannot be negative'],
+    },
+    bankDetails: {
+      accountHolderName: { type: String, trim: true },
+      accountNumber: { type: String, trim: true },
+      ifscCode: { type: String, trim: true, uppercase: true },
+      bankName: { type: String, trim: true },
+      upiId: { type: String, trim: true },
+      updatedAt: { type: Date },
     },
     // Location fields
     latitude: {

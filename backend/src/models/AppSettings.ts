@@ -89,6 +89,10 @@ export interface IAppSettings extends Document {
    *  after the window expires. */
   settlementApprovalMode: "auto" | "manual";
 
+  /** Days a seller has to accept an E-commerce (courier) order before it is
+   *  auto-cancelled. Quick orders keep their minutes-long response timeout. */
+  ecommerceSellerAcceptDays: number;
+
   // Seller Category Visibility
   /** "assigned" = a seller's "Select Header Category" picker only shows the categories
    *  granted to them (picked at signup, or set later via Admin > Manage Seller List).
@@ -373,6 +377,13 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       type: String,
       enum: ["auto", "manual"],
       default: "auto",
+    },
+
+    ecommerceSellerAcceptDays: {
+      type: Number,
+      default: 3,
+      min: [1, "Sellers need at least 1 day to accept an E-commerce order"],
+      max: [30, "Accept window can be at most 30 days"],
     },
 
     // Seller Category Visibility

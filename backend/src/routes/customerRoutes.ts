@@ -102,6 +102,11 @@ import * as supportController from "../modules/customer/controllers/customerSupp
 // Customer Wallet routes (protected)
 router.get("/wallet/balance", authenticate, walletController.getCustomerWalletBalance);
 router.get("/wallet/transactions", authenticate, walletController.getCustomerWalletTransactions);
+router.post("/wallet/withdraw", authenticate, walletController.requestCustomerWithdrawal);
+router.get("/wallet/withdrawals", authenticate, walletController.getCustomerWithdrawals);
+router.get("/bank-details", authenticate, walletController.getCustomerBankDetails);
+router.put("/bank-details", authenticate, walletController.saveCustomerBankDetails);
+router.get("/statement", authenticate, walletController.getCustomerStatement);
 
 // Customer Support Contact route (optional authentication)
 const optionalAuthenticate = (req: any, res: any, next: any) => {

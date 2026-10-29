@@ -6,6 +6,7 @@ import Commission from "../models/Commission";
 import Return from "../models/Return";
 import Customer from "../models/Customer";
 import Refund from "../models/Refund";
+import WithdrawRequest from "../models/WithdrawRequest";
 import { processRefund } from "./paymentService";
 import { processCashfreeRefundForPayment } from "./cashfreeService";
 import { debitWallet, creditWallet, chargeSellerShipping } from "./walletManagementService";
@@ -545,6 +546,32 @@ export const executeReturnRefundAndReversal = async (
           }
           console.log(`[RETURN REFUND] Wallet Credit Successful. Transaction ID: ${custWalletRes.data?.transactionId}`);
           refundDetails.codWalletRefundAmount = walletRemainder;
+
+          // The customer asked for this COD refund in their bank: queue a payout of it from the
+          // wallet (admin pays it from Withdrawals; the wallet is debited when it is paid).
+          if ((returnReq as any).codRefundTo === "BANK") {
+            const cust: any = await Customer.findById(targetCustomerId).select("bankDetails").session(session).lean();
+            const b = cust?.bankDetails || {};
+            const useUpi = !(b.accountNumber && b.ifscCode) && !!b.upiId;
+            if ((b.accountNumber && b.ifscCode) || b.upiId) {
+              await WithdrawRequest.create(
+                [{
+                  userId: targetCustomerId,
+                  userType: "CUSTOMER",
+                  amount: walletRemainder,
+                  status: "Pending",
+                  paymentMethod: useUpi ? "UPI" : "Bank Transfer",
+                  accountDetails: useUpi
+                    ? `UPI ${b.upiId}`
+                    : `${b.accountHolderName || ""} · A/C ${b.accountNumber} · IFSC ${b.ifscCode}${b.bankName ? ` · ${b.bankName}` : ""}`,
+                  upiId: b.upiId || undefined,
+                  remarks: `COD return refund to bank for order #${order.orderNumber}`,
+                }],
+                { session }
+              );
+              refundDetails.codBankPayoutQueued = walletRemainder;
+            }
+          }
         }
       }
 

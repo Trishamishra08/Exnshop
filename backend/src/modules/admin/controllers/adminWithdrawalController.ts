@@ -20,7 +20,7 @@ export const getAllWithdrawals = async (req: Request, res: Response) => {
         const skip = (Number(page) - 1) * Number(limit);
 
         const requests = await WithdrawRequest.find(query)
-            .populate('userId', 'sellerName storeName name email mobile accountNumber bankName ifsc ifscCode upiId')
+            .populate('userId', 'sellerName storeName name email mobile phone accountNumber bankName ifsc ifscCode upiId bankDetails')
             .populate('processedBy', 'name email')
             .sort({ createdAt: -1 })
             .skip(skip)
@@ -110,7 +110,7 @@ export const approveWithdrawal = async (req: Request, res: Response) => {
 
             if (!existingNotif) {
                 const { sendNotification } = await import('../../../services/notificationService');
-                const recipientType = request.userType === 'SELLER' ? 'Seller' : 'Delivery';
+                const recipientType = request.userType === 'SELLER' ? 'Seller' : request.userType === 'CUSTOMER' ? 'Customer' : 'Delivery';
                 const formattedAmount = `₹${request.amount.toLocaleString('en-IN')}`;
 
                 await sendNotification(
@@ -120,7 +120,7 @@ export const approveWithdrawal = async (req: Request, res: Response) => {
                     `Your withdrawal request of ${formattedAmount} has been approved and is being processed.`,
                     {
                         type: 'Success',
-                        link: recipientType === 'Seller' ? '/seller/wallet' : '/delivery/wallet',
+                        link: recipientType === 'Seller' ? '/seller/wallet' : recipientType === 'Customer' ? '/account/wallet' : '/delivery/wallet',
                         priority: 'High',
                         broadcastBatchId: batchKey,
                         data: {
@@ -188,7 +188,7 @@ export const rejectWithdrawal = async (req: Request, res: Response) => {
 
             if (!existingNotif) {
                 const { sendNotification } = await import('../../../services/notificationService');
-                const recipientType = request.userType === 'SELLER' ? 'Seller' : 'Delivery';
+                const recipientType = request.userType === 'SELLER' ? 'Seller' : request.userType === 'CUSTOMER' ? 'Customer' : 'Delivery';
                 const formattedAmount = `₹${request.amount.toLocaleString('en-IN')}`;
                 let message = `Your withdrawal request of ${formattedAmount} has been rejected.`;
                 if (remarks && remarks.trim()) {
@@ -202,7 +202,7 @@ export const rejectWithdrawal = async (req: Request, res: Response) => {
                     message,
                     {
                         type: 'Warning',
-                        link: recipientType === 'Seller' ? '/seller/wallet' : '/delivery/wallet',
+                        link: recipientType === 'Seller' ? '/seller/wallet' : recipientType === 'Customer' ? '/account/wallet' : '/delivery/wallet',
                         priority: 'High',
                         broadcastBatchId: batchKey,
                         data: {
@@ -290,7 +290,7 @@ export const completeWithdrawal = async (req: Request, res: Response) => {
         // Also update the aggregate counters to keep them in sync if used
         if (request.userType === 'SELLER') {
             platformWallet.sellerPendingPayouts = Math.max(0, platformWallet.sellerPendingPayouts - request.amount);
-        } else {
+        } else if (request.userType === 'DELIVERY_BOY') {
             platformWallet.deliveryBoyPendingPayouts = Math.max(0, platformWallet.deliveryBoyPendingPayouts - request.amount);
         }
         await platformWallet.save({ session });
@@ -312,7 +312,7 @@ export const completeWithdrawal = async (req: Request, res: Response) => {
 
             if (!existingNotif) {
                 const { sendNotification } = await import('../../../services/notificationService');
-                const recipientType = request.userType === 'SELLER' ? 'Seller' : 'Delivery';
+                const recipientType = request.userType === 'SELLER' ? 'Seller' : request.userType === 'CUSTOMER' ? 'Customer' : 'Delivery';
                 const formattedAmount = `₹${request.amount.toLocaleString('en-IN')}`;
 
                 let destinationText = 'your bank account.';
@@ -332,7 +332,7 @@ export const completeWithdrawal = async (req: Request, res: Response) => {
                     message,
                     {
                         type: 'Success',
-                        link: recipientType === 'Seller' ? '/seller/wallet' : '/delivery/wallet',
+                        link: recipientType === 'Seller' ? '/seller/wallet' : recipientType === 'Customer' ? '/account/wallet' : '/delivery/wallet',
                         priority: 'High',
                         broadcastBatchId: batchKey,
                         data: {

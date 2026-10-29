@@ -66,6 +66,8 @@ const ToyStore = lazyWithRetry(() => import("./modules/user/ToyStore"), "ToyStor
 const HobbyStore = lazyWithRetry(() => import("./modules/user/HobbyStore"), "HobbyStore");
 const StorePage = lazyWithRetry(() => import("./modules/user/StorePage"), "StorePage");
 const CustomerWallet = lazyWithRetry(() => import("./modules/Customer/pages/CustomerWallet"), "CustomerWallet");
+const AccountStatement = lazyWithRetry(() => import("./modules/Customer/pages/AccountStatement"), "AccountStatement");
+const BankDetails = lazyWithRetry(() => import("./modules/Customer/pages/BankDetails"), "BankDetails");
 
 // Lazy load delivery routes
 const DeliveryLayout = lazyWithRetry(
@@ -1135,6 +1137,8 @@ function App() {
                                       path="/account/wallet"
                                       element={<CustomerWallet />}
                                     />
+                                    <Route path="/account/statement" element={<AccountStatement />} />
+                                    <Route path="/account/bank-details" element={<BankDetails />} />
                                     <Route
                                       path="/notifications"
                                       element={<UserNotifications />}

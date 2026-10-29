@@ -1,6 +1,7 @@
 import axios from "axios";
 import mongoose from "mongoose";
 import WithdrawRequest from "../models/WithdrawRequest";
+import Customer from "../models/Customer";
 import Seller from "../models/Seller";
 import Delivery from "../models/Delivery";
 import PlatformWallet from "../models/PlatformWallet";
@@ -67,7 +68,7 @@ export const payWithdrawalViaRazorpay = async (
     return { success: false, message: "Only an approved withdrawal that hasn't been paid yet can be paid." };
   }
 
-  const Model: any = request.userType === "SELLER" ? Seller : Delivery;
+  const Model: any = request.userType === "SELLER" ? Seller : request.userType === "CUSTOMER" ? Customer : Delivery;
   const user = await Model.findById(request.userId);
   if (!user) {
     await markRetryable(requestId, "User not found");
@@ -75,10 +76,11 @@ export const payWithdrawalViaRazorpay = async (
   }
 
   const isUpi = request.paymentMethod === "UPI";
-  const upiId = (request.upiId || user.upiId || "").trim();
-  const accountNumber = String(user.accountNumber || "").trim();
-  const ifsc = String(user.ifsc || user.ifscCode || "").trim().toUpperCase();
-  const holderName = String(user.accountName || user.sellerName || user.name || "Account holder").trim();
+  const bank = user.bankDetails || {}; // customers keep their bank/UPI under bankDetails
+  const upiId = (request.upiId || user.upiId || bank.upiId || "").trim();
+  const accountNumber = String(user.accountNumber || bank.accountNumber || "").trim();
+  const ifsc = String(user.ifsc || user.ifscCode || bank.ifscCode || "").trim().toUpperCase();
+  const holderName = String(user.accountName || bank.accountHolderName || user.sellerName || user.name || "Account holder").trim();
   if (isUpi ? !upiId : !accountNumber || !ifsc) {
     const reason = isUpi ? "UPI ID missing on the profile" : "Bank account number or IFSC missing on the profile";
     await markRetryable(requestId, reason);
@@ -106,7 +108,7 @@ export const payWithdrawalViaRazorpay = async (
       name: holderName.slice(0, 50),
       email: user.email || undefined,
       contact: user.mobile || user.phone || undefined,
-      type: request.userType === "SELLER" ? "vendor" : "employee",
+      type: request.userType === "SELLER" ? "vendor" : request.userType === "CUSTOMER" ? "customer" : "employee",
       reference_id: `${request.userType}-${request.userId}`.slice(0, 40),
     });
 
@@ -170,7 +172,7 @@ export const finalizePayout = async (requestId: string, utr?: string) => {
     platformWallet.currentPlatformBalance = Math.max(0, platformWallet.currentPlatformBalance - request.amount);
     if (request.userType === "SELLER") {
       platformWallet.sellerPendingPayouts = Math.max(0, platformWallet.sellerPendingPayouts - request.amount);
-    } else {
+    } else if (request.userType === "DELIVERY_BOY") {
       platformWallet.deliveryBoyPendingPayouts = Math.max(0, platformWallet.deliveryBoyPendingPayouts - request.amount);
     }
     await platformWallet.save();
@@ -181,11 +183,11 @@ export const finalizePayout = async (requestId: string, utr?: string) => {
   try {
     const { sendNotification } = await import("./notificationService");
     await sendNotification(
-      request.userType === "SELLER" ? "Seller" : "Delivery",
+      request.userType === "SELLER" ? "Seller" : request.userType === "CUSTOMER" ? "Customer" : "Delivery",
       request.userId.toString(),
       "Withdrawal Completed",
       `₹${request.amount.toLocaleString("en-IN")} has been sent to your ${request.paymentMethod === "UPI" ? "UPI" : "bank account"}.${utr ? ` Reference: ${utr}` : ""}`,
-      { type: "Success", priority: "High", link: request.userType === "SELLER" ? "/seller/wallet" : "/delivery/wallet" },
+      { type: "Success", priority: "High", link: request.userType === "SELLER" ? "/seller/wallet" : request.userType === "CUSTOMER" ? "/account/wallet" : "/delivery/wallet" },
     );
   } catch (err) {
     console.error("[RazorpayX] Completion notification failed:", err);
