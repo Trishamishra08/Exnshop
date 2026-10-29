@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getOrders, Order, GetOrdersParams } from '../../../services/api/orderService';
-import { getPackingSlips } from '../../../services/api/shippingMethodService';
+import { getPackingSlips, getShippingMethod, type ShippingMethodState } from '../../../services/api/shippingMethodService';
 import { useToast } from '../../../context/ToastContext';
 
 const fmtShipBy = (ymd?: string) => (ymd ? new Date(`${ymd}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '');
@@ -33,6 +33,11 @@ export default function SellerOrders() {
   const [shipFilter, setShipFilter] = useState<'' | 'today' | 'tomorrow' | 'late'>('');
   const [serverPages, setServerPages] = useState(1);
   const [slipBusy, setSlipBusy] = useState(false);
+  // How this seller's E-commerce orders ship: by the company (Easy Ship) or by themselves.
+  const [shipping, setShipping] = useState<ShippingMethodState | null>(null);
+  useEffect(() => {
+    getShippingMethod().then(setShipping).catch(() => setShipping(null));
+  }, []);
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
@@ -202,6 +207,35 @@ export default function SellerOrders() {
           </div>
         </div>
       </div>
+
+      {/* Shipping method (E-commerce) */}
+      {shipping?.shipsEcommerce && (
+        <div className="mx-3 sm:mx-4 md:mx-6 rounded-lg border border-neutral-200 bg-white px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-xs font-semibold text-neutral-500">E-commerce shipping:</span>
+            <div className="inline-flex rounded-lg border border-neutral-200 p-0.5 bg-neutral-50">
+              {([['Company', 'Easy Ship (By Company)'], ['Self', 'Self Ship']] as const).map(([m, text]) => (
+                <span key={m} className={`px-3 py-1 rounded-md text-xs font-semibold ${shipping.method === m ? 'bg-white shadow-sm text-teal-700' : 'text-neutral-400'}`}>{text}</span>
+              ))}
+            </div>
+            <span className="text-xs text-neutral-500">
+              {!shipping.method
+                ? 'Not chosen yet — choose one to start shipping E-commerce orders.'
+                : shipping.method === 'Company'
+                  ? 'We book the courier and pickup; download the label from each order.'
+                  : 'You ship with your own courier and add the tracking number on each order.'}
+            </span>
+            {shipping.request?.status === 'Pending' && (
+              <span className="px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-semibold">
+                Change to {shipping.request.requestedMethod === 'Self' ? 'Self Ship' : 'Easy Ship'} waiting for admin approval
+              </span>
+            )}
+          </div>
+          <Link to="/seller/account-settings?tab=shipping" className="text-xs font-semibold text-blue-600 hover:text-blue-700">
+            {shipping.method ? 'Change method' : 'Choose method'} →
+          </Link>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="px-3 sm:px-4 md:px-6">

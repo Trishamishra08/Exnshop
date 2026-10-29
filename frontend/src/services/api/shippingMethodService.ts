@@ -168,3 +168,19 @@ export const getAllRefundRequests = async (status = "Pending"): Promise<RefundRe
 
 export const decideRefundRequest = async (id: string, decision: "Approved" | "Rejected", note?: string) =>
   (await api.post<Wrapped<RefundRequestRow>>(`/admin/refund-requests/${id}/decide`, { decision, note })).data;
+
+export interface AdminSellerShippingRow {
+  sellerId: string;
+  sellerName: string;
+  storeName: string;
+  mobile?: string;
+  email?: string;
+  status?: string;
+  method: ShippingMethod | null;
+  chosenAt: string | null;
+  pendingRequest: ShippingMethodRequest | null;
+}
+
+/** Every E-commerce seller with their shipping method (admin). */
+export const listSellerShippingMethods = async (params?: { search?: string; method?: string }): Promise<AdminSellerShippingRow[]> =>
+  (await api.get<Wrapped<AdminSellerShippingRow[]>>("/admin/sellers/shipping-methods", { params })).data.data;

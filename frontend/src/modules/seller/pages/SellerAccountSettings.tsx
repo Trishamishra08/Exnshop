@@ -26,7 +26,8 @@ const BUSINESS_TYPES = [
 
 const SellerAccountSettings = () => {
     const { user, updateUser } = useAuth();
-    const [activeTab, setActiveTab] = useState('profile');
+    // ?tab=shipping (e.g. from the Orders page) opens that tab directly.
+    const [activeTab, setActiveTab] = useState(() => new URLSearchParams(window.location.search).get('tab') || 'profile');
     // Shipping method only matters to sellers who sell via E-commerce (courier shipping).
     const [shipsEcommerce, setShipsEcommerce] = useState(false);
     useEffect(() => {

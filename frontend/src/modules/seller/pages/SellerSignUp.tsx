@@ -29,6 +29,8 @@ export default function SellerSignUp() {
     longitude: '',
     serviceRadiusKm: '10',
     channels: ['Quick'] as ('Quick' | 'ECommerce')[],
+    // E-commerce orders: shipped by the company (courier booked for the seller) or by the seller.
+    shippingMethod: '' as '' | 'Self' | 'Company',
   });
 
   const [showOTP, setShowOTP] = useState(false);
@@ -91,6 +93,7 @@ export default function SellerSignUp() {
     if (!formData.storeName) { setError('Please enter your store name'); return; }
     if (formData.categories.length === 0) { setError('Select at least one category'); return; }
     if (formData.channels.length === 0) { setError('Select at least one commerce channel'); return; }
+    if (formData.channels.includes('ECommerce') && !formData.shippingMethod) { setError('Choose a shipping method for E-Commerce orders'); return; }
     if (!formData.searchLocation || !formData.latitude || !formData.longitude) { setError('Please select your store location'); return; }
     if (!formData.city) { setError('Please enter your city'); return; }
     const radius = parseFloat(formData.serviceRadiusKm);
@@ -113,6 +116,7 @@ export default function SellerSignUp() {
         longitude: formData.longitude,
         serviceRadiusKm: formData.serviceRadiusKm,
         channels: formData.channels,
+        shippingMethod: formData.channels.includes('ECommerce') && formData.shippingMethod ? formData.shippingMethod : undefined,
       });
       if (response.success) {
         removeAuthToken('seller');
@@ -318,6 +322,29 @@ export default function SellerSignUp() {
                     <p className="text-[10px] text-red-500 mt-0.5">Select at least one channel</p>
                   )}
                 </div>
+
+                {/* Shipping method for E-commerce orders */}
+                {formData.channels.includes('ECommerce') && (
+                  <div className="mb-3">
+                    <label className={labelCls}>Shipping Method <span className="text-red-500">*</span> <span className="text-slate-400 font-normal">(for E-Commerce orders)</span></label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {([
+                        { key: 'Company' as const, label: 'Ship by Company', sub: 'We book the courier & pickup (Easy Ship)' },
+                        { key: 'Self' as const, label: 'Self Shipping', sub: 'You ship with your own courier' },
+                      ]).map((m) => (
+                        <button key={m.key} type="button" onClick={() => setFormData((p) => ({ ...p, shippingMethod: m.key }))} disabled={loading}
+                          className={`flex flex-col items-start gap-0.5 px-3 py-2 rounded-xl border text-left transition-all ${formData.shippingMethod === m.key ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
+                          <span className={`text-xs font-bold ${formData.shippingMethod === m.key ? 'text-blue-800' : 'text-slate-800'}`}>{m.label}</span>
+                          <span className={`text-[10px] ${formData.shippingMethod === m.key ? 'text-blue-600' : 'text-slate-400'}`}>{m.sub}</span>
+                        </button>
+                      ))}
+                    </div>
+                    {!formData.shippingMethod && (
+                      <p className="text-[10px] text-red-500 mt-0.5">Choose how your E-Commerce orders will be shipped</p>
+                    )}
+                    <p className="text-[10px] text-slate-400 mt-0.5">Can be changed later with admin approval.</p>
+                  </div>
+                )}
 
                 {/* Store Location */}
                 <div className="mb-3">

@@ -20,7 +20,42 @@ export const getShippingMethodRequests = asyncHandler(async (req: Request, res: 
   run(res, () => listShippingMethodRequests(req.query.status as string | undefined)),
 );
 
-export const decideShippingMethod = asyncHandler(async (req: Request, res: Response) =>
+/**
+ * GET /admin/sellers/shipping-methods?search=&method=Self|Company|none
+ * Every E-commerce seller with their shipping method, so the admin can change any of them.
+ */
+export const listSellerShippingMethods = asyncHandler(async (req: Request, res: Response) =>
+  run(res, async () => {
+    const Seller = (await import("../../../models/Seller")).default;
+    const query: any = { channels: "ECommerce" };
+    const method = String(req.query.method || "");
+    if (method === "Self" || method === "Company") query.shippingMethod = method;
+    if (method === "none") query.shippingMethod = { $exists: false };
+    const search = String(req.query.search || "").trim();
+    if (search) {
+      const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      query.$or = [{ sellerName: rx }, { storeName: rx }, { mobile: rx }, { email: rx }];
+    }
+    const sellers = await Seller.find(query)
+      .select("sellerName storeName mobile email status shippingMethod shippingMethodChosenAt shippingMethodRequest")
+      .sort({ storeName: 1 })
+      .limit(500)
+      .lean();
+    return sellers.map((s: any) => ({
+      sellerId: String(s._id),
+      sellerName: s.sellerName,
+      storeName: s.storeName,
+      mobile: s.mobile,
+      email: s.email,
+      status: s.status,
+      method: s.shippingMethod || null,
+      chosenAt: s.shippingMethodChosenAt || null,
+      pendingRequest: s.shippingMethodRequest?.status === "Pending" ? s.shippingMethodRequest : null,
+    }));
+  }),
+);
+
+export const decideShippingMethod =asyncHandler(async (req: Request, res: Response) =>
   run(
     res,
     async () => {

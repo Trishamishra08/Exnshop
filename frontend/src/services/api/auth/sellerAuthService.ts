@@ -39,6 +39,8 @@ export interface RegisterData {
   longitude?: string;
   serviceRadiusKm?: string | number;
   channels: ('Quick' | 'ECommerce')[]; // commerce channel(s) this seller sells through
+  /** E-commerce sellers: 'Company' (courier booked for them) or 'Self' (they ship themselves). */
+  shippingMethod?: 'Self' | 'Company';
 }
 
 export interface RegisterResponse {

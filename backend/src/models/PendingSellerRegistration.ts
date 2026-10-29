@@ -26,6 +26,8 @@ export interface IPendingSellerRegistration extends Document {
   };
   serviceRadiusKm: number;
   channels: ("Quick" | "ECommerce")[];
+  /** E-commerce sellers: ship themselves (Self) or let the company book the courier (Company). */
+  shippingMethod?: "Self" | "Company";
   createdAt: Date;
 }
 
@@ -48,6 +50,7 @@ const PendingSellerRegistrationSchema = new Schema<IPendingSellerRegistration>({
   },
   serviceRadiusKm: { type: Number, default: 10 },
   channels: { type: [String], enum: ["Quick", "ECommerce"], default: [] },
+  shippingMethod: { type: String, enum: ["Self", "Company"] },
   createdAt: { type: Date, default: Date.now, expires: 1800 }, // 30 minutes
 });
 

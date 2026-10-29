@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '../../../context/ToastContext';
+import SellerShippingMethodsTable from '../components/SellerShippingMethodsTable';
 import {
   decideShippingMethodRequest,
   getShippingMethodRequests,
@@ -23,6 +24,8 @@ export default function AdminShippingMethodRequests() {
   const [target, setTarget] = useState<AdminShippingRequestRow | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  // Bumped after a request is decided so the all-sellers table shows the new method.
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const load = async () => {
     try {
@@ -50,6 +53,7 @@ export default function AdminShippingMethodRequests() {
       setTarget(null);
       setNote('');
       load();
+      setRefreshKey((k) => k + 1);
     } catch (err: any) {
       showToast(err.response?.data?.message || 'Could not update', 'error');
     } finally {
@@ -59,10 +63,11 @@ export default function AdminShippingMethodRequests() {
 
   return (
     <div className="p-4 sm:p-6">
+      <SellerShippingMethodsTable refreshKey={refreshKey} />
       <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
         <div className="bg-teal-600 text-white px-6 py-4 rounded-t-lg flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h2 className="text-lg font-semibold">Shipping Method Requests</h2>
+            <h2 className="text-lg font-semibold">Shipping Method Change Requests</h2>
             <p className="text-sm text-teal-100 mt-1">Sellers choose Self shipping or By Company once. Later changes come here for approval.</p>
           </div>
           <select value={status} onChange={(e) => setStatus(e.target.value)} className="px-3 py-1.5 rounded text-sm bg-white text-neutral-800">

@@ -194,6 +194,7 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
         balance: 0,
         categories: pending.categories,
         channels: pending.channels,
+        ...(pending.shippingMethod && { shippingMethod: pending.shippingMethod, shippingMethodChosenAt: new Date() }),
       });
 
       await PendingSellerRegistration.deleteOne({ _id: pending._id });
@@ -250,6 +251,7 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
         balance: 0,
         categories: pending.categories,
         channels: pending.channels,
+        ...(pending.shippingMethod && { shippingMethod: pending.shippingMethod, shippingMethodChosenAt: new Date() }),
       });
 
       await PendingSellerRegistration.deleteOne({ _id: pending._id });
@@ -333,6 +335,12 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
       success: false,
       message: "Please select at least one commerce channel (Quick Commerce or E-Commerce)",
     });
+  }
+
+  // E-commerce sellers choose how their parcels ship: by the company (courier booked for them) or themselves.
+  const shippingMethod: "Self" | "Company" | undefined = ["Self", "Company"].includes(req.body.shippingMethod) ? req.body.shippingMethod : undefined;
+  if (channels.includes("ECommerce") && !shippingMethod) {
+    return res.status(400).json({ success: false, message: "Choose a shipping method for E-commerce orders: By Company or Self shipping" });
   }
 
   // Validate location is provided. Treat 0,0 as "not provided" — it's never a
@@ -429,6 +437,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
         ? req.body.categories
         : [category],
     channels,
+    shippingMethod: channels.includes("ECommerce") ? shippingMethod : undefined,
   };
 
   await PendingSellerRegistration.findOneAndUpdate(

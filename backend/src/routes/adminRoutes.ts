@@ -2,7 +2,7 @@ import { Router } from "express";
 import { authenticate, requireUserType } from "../middleware/auth";
 import { decideExchangeAfterQc } from "../modules/admin/controllers/adminExchangeController";
 import { getRefundRequests, decideRefund } from "../modules/admin/controllers/adminRefundRequestController";
-import { getShippingMethodRequests, decideShippingMethod, setSellerShippingMethod, getRates as getShippingRatesAdmin, updateRates as updateShippingRatesAdmin } from "../modules/admin/controllers/adminShippingMethodController";
+import { getShippingMethodRequests, decideShippingMethod, setSellerShippingMethod, listSellerShippingMethods, getRates as getShippingRatesAdmin, updateRates as updateShippingRatesAdmin } from "../modules/admin/controllers/adminShippingMethodController";
 
 // Dashboard Controllers
 import * as dashboardController from "../modules/admin/controllers/adminDashboardController";
@@ -351,6 +351,7 @@ router.get("/sellers/drafts", sellerController.getDraftSellers);
 
 // ==================== Courier/Logistics Routes ====================
 router.get("/shipping-method-requests", getShippingMethodRequests);
+router.get("/sellers/shipping-methods", listSellerShippingMethods);
 router.post("/sellers/:sellerId/shipping-method/decision", decideShippingMethod);
 router.put("/sellers/:sellerId/shipping-method", setSellerShippingMethod);
 router.get("/refund-requests", getRefundRequests);
