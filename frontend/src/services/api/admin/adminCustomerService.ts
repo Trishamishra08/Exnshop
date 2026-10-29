@@ -103,3 +103,29 @@ export const getCustomerOrders = async (
   return response.data;
 };
 
+
+export interface CustomerPayoutInfo {
+  customer: { _id: string; name: string; email?: string; phone?: string };
+  walletBalance: number;
+  pendingTotal: number;
+  availableToPay: number;
+  bankDetails: {
+    accountHolderName: string;
+    accountNumber: string;
+    ifscCode: string;
+    bankName: string;
+    upiId: string;
+    updatedAt?: string | null;
+    hasBank: boolean;
+    hasUpi: boolean;
+  };
+  payouts: any[];
+}
+
+/** The customer's bank / UPI, wallet balance and payout requests. */
+export const getCustomerPayoutInfo = async (id: string): Promise<ApiResponse<CustomerPayoutInfo>> =>
+  (await api.get<ApiResponse<CustomerPayoutInfo>>(`/admin/customers/${id}/payouts`)).data;
+
+/** Start paying the customer from their wallet balance to their bank / UPI. */
+export const createCustomerPayout = async (id: string, body: { amount: number; method: 'Bank Transfer' | 'UPI'; note?: string }): Promise<ApiResponse<any>> =>
+  (await api.post<ApiResponse<any>>(`/admin/customers/${id}/payouts`, body)).data;

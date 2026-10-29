@@ -4,6 +4,7 @@ import {
   type Customer,
 } from "../../../services/api/admin/adminCustomerService";
 import { useAuth } from "../../../context/AuthContext";
+import CustomerPayoutModal from "../components/CustomerPayoutModal";
 
 type SortField =
   | "id"
@@ -19,6 +20,8 @@ type SortDirection = "asc" | "desc";
 export default function AdminManageCustomer() {
   const { isAuthenticated, token } = useAuth();
   const [customers, setCustomers] = useState<Customer[]>([]);
+  // Customer whose bank details & payouts are open
+  const [payoutFor, setPayoutFor] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState("");
   const [statusFilter, setStatusFilter] = useState<"Active" | "Inactive" | undefined>(
     undefined
@@ -467,6 +470,13 @@ export default function AdminManageCustomer() {
                       <td className="p-4 border border-neutral-200">
                         <div className="flex items-center gap-2">
                           <button
+                            onClick={() => setPayoutFor(customer._id)}
+                            className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold whitespace-nowrap transition-colors"
+                            title="Bank details & pay customer">
+                            ₹ Bank & Pay
+                          </button>
+                          <button
+                            onClick={() => setPayoutFor(customer._id)}
                             className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
                             title="View Details">
                             <svg
@@ -554,6 +564,7 @@ export default function AdminManageCustomer() {
           </div>
         </div>
       </div>
+      {payoutFor && <CustomerPayoutModal customerId={payoutFor} onClose={() => setPayoutFor(null)} />}
     </div>
   );
 }

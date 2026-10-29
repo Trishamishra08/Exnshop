@@ -221,6 +221,8 @@ router.get("/customers", customerController.getAllCustomers);
 router.get("/customers/:id", customerController.getCustomerById);
 router.patch("/customers/:id/status", customerController.updateCustomerStatus);
 router.get("/customers/:id/orders", customerController.getCustomerOrders);
+router.get("/customers/:id/payouts", customerController.getCustomerPayoutInfo);
+router.post("/customers/:id/payouts", customerController.createCustomerPayout);
 
 // ==================== Delivery Routes ====================
 router.post("/delivery", deliveryController.createDeliveryBoy);
