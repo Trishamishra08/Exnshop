@@ -223,11 +223,13 @@ interface Props {
   defaults?: { price?: string; discPrice?: string; stock?: string; weightKg?: string };
   /** Read-only summary shown beside the attributes, as on the design. */
   productInfo?: { name?: string; category?: string; subCategory?: string; brand?: string; description?: string };
+  /** Shown under the matrix table (e.g. the seller's Additional Details: HSN, GST, weight, size, SKU). */
+  footer?: React.ReactNode;
 }
 
 export default function VariantManager({
   axes, rows, onChange, combinedAxes, onCombinedChange, suggestedAttributes = [], fallbackImage, productName, skuPrefix = '',
-  uploadFolder = 'exnshop/products/options', onError, productInfo, mode = 'admin', defaults,
+  uploadFolder = 'exnshop/products/options', onError, productInfo, mode = 'admin', defaults, footer,
 }: Props) {
   const sellerMode = mode === 'seller';
   const fail = (m: string) => (onError ? onError(m) : window.alert(m));
@@ -364,20 +366,11 @@ export default function VariantManager({
     if (rows.some((r) => r.title === title)) return fail(`${title} is already in the list.`);
     const base: VMAxis[] = axes.length > 0 ? axes : formAxes.map((a) => ({ label: a.label, values: [] }));
     const nextAxes = base.map((a, i) => (a.values.includes(values[i]) ? a : { ...a, values: [...a.values, values[i]] }));
-    onChange(nextAxes, [...rows.filter((r) => r.options.length > 0), seeded(title, options)]);
+    const nextRows = [...rows.filter((r) => r.options.length > 0), seeded(title, options)];
+    onChange(nextAxes, sellerMode ? autoSkus(nextRows, skuPrefix) : nextRows);
     setEditing((s) => new Set(s).add(title));
+    setPreview(Object.fromEntries(options.map((o) => [o.name, o.value])));
     setAdding(null);
-  };
-  // Seller mode: one row for every combination of the admin's options.
-  const addAllCombinations = () => {
-    if (formAxes.length === 0 || formAxes.some((a) => a.values.length === 0)) return fail('No options are available to combine for this category.');
-    const full = formAxes.map((a) => ({ label: a.label, values: a.values }));
-    const next = buildRows(full, rows.filter((r) => r.options.length > 0));
-    if (next.length > 100) return fail(`That makes ${next.length} variants — a product can have at most 100. Add the variants you need one by one.`);
-    const made = next.map((r) => (Number(r.price) > 0 ? r : { ...seeded(r.title, r.options), ...(r._id ? { _id: r._id } : {}) }));
-    onChange(full, made);
-    setEditing((s) => new Set([...s, ...made.map((r) => r.title)]));
-    setSelected(new Set());
   };
   const setDiscountPct = (title: string, mrp: string, pct: string) => {
     const m = Number(mrp);
@@ -405,20 +398,26 @@ export default function VariantManager({
     if (!file) return;
     const table = parseCsv(await file.text());
     if (table.length < 2) return fail('The CSV has no rows.');
+    // Seller mode: the columns are the admin's attributes, and only their options are accepted.
+    const csvAxes = sellerMode ? formAxes : axes;
     const head = table[0].map((h) => h.toLowerCase());
     const col = (...names: string[]) => head.findIndex((h) => names.includes(h));
-    const axisCols = axes.map((a) => head.indexOf(a.label.toLowerCase()));
-    if (axes.length && axisCols.some((c) => c < 0)) {
-      return fail(`The CSV needs a column for each attribute: ${axes.map((a) => a.label).join(', ')}. Download the template to start.`);
+    const axisCols = csvAxes.map((a) => head.indexOf(a.label.toLowerCase()));
+    if (csvAxes.length && axisCols.some((c) => c < 0)) {
+      return fail(`The CSV needs these columns: ${csvColumns.join(', ')}.`);
     }
     const c = { sku: col('sku'), mrp: col('mrp', 'price'), sell: col('selling price', 'selling', 'sale price'), stock: col('stock'), w: col('weight (kg)', 'weight'), st: col('status') };
-    let nextAxes = axes;
-    let nextRows = [...rows];
+    let nextAxes: VMAxis[] = axes.length > 0 ? axes : csvAxes.map((a) => ({ label: a.label, values: [] }));
+    let nextRows = csvAxes.length ? rows.filter((r) => r.options.length > 0) : [...rows];
+    let skipped = 0;
     for (const line of table.slice(1)) {
-      const options = axes.map((a, i) => ({ name: a.label, value: line[axisCols[i]] || '' }));
-      if (options.some((o) => !o.value)) continue;
+      const options = csvAxes.map((a, i) => {
+        const raw = line[axisCols[i]] || '';
+        return { name: a.label, value: (sellerMode ? a.values.find((v) => v.toLowerCase() === raw.toLowerCase()) : raw) || '' };
+      });
+      if (options.some((o) => !o.value)) { skipped++; continue; }
       nextAxes = nextAxes.map((a, i) => (a.values.includes(options[i].value) ? a : { ...a, values: [...a.values, options[i].value] }));
-      const title = axes.length ? comboTitle(options) : 'Default';
+      const title = csvAxes.length ? comboTitle(options) : 'Default';
       const patch: Partial<VMRow> = {};
       if (c.sku >= 0) patch.sku = line[c.sku] || '';
       if (c.mrp >= 0) patch.price = line[c.mrp] || '';
@@ -428,13 +427,18 @@ export default function VariantManager({
       if (c.st >= 0) patch.isActive = !/^(inactive|off|no|0|false)$/i.test(line[c.st] || '');
       const at = nextRows.findIndex((r) => r.title === title);
       if (at >= 0) nextRows[at] = { ...nextRows[at], ...patch };
-      else nextRows.push({ ...emptyRow(title, axes.length ? options : []), ...patch });
+      else nextRows.push({ ...seeded(title, csvAxes.length ? options : []), ...patch });
     }
-    onChange(nextAxes, nextRows);
+    if (nextRows.length === 0) return fail('No row in the CSV matches the available options.');
+    if (nextRows.length > 100) return fail(`That makes ${nextRows.length} variants — a product can have at most 100.`);
+    onChange(nextAxes, sellerMode ? autoSkus(nextRows, skuPrefix) : nextRows);
+    if (skipped) fail(`${skipped} CSV row${skipped > 1 ? 's were' : ' was'} skipped: each attribute needs one of its listed options.`);
   };
+  const csvColumns = [...(sellerMode ? formAxes : axes).map((a) => a.label), 'SKU', 'MRP', 'Selling Price', 'Stock', 'Weight (kg)', 'Status'];
 
   // ── Photos ──
-  const colourAxis = axes.find((a) => isColourAxis(a.label));
+  // Photos are uploaded per colour and shared by that colour's rows; a seller product without a colour groups them by its first attribute.
+  const colourAxis = axes.find((a) => isColourAxis(a.label)) || (sellerMode ? axes[0] : undefined);
   const upload = async (key: string, files: File[], current: string[], apply: (urls: string[]) => void) => {
     if (!files.length) return;
     if (files.some((f) => !validateImageFile(f).valid)) return fail('Some photos are invalid. Check the file types and sizes.');
@@ -466,8 +470,12 @@ export default function VariantManager({
 
   // Rows show their values as text; the pencil (or a missing MRP) opens them for editing, as on the design.
   const isEditing = (r: VMRow) => editing.has(r.title) || !(Number(r.price) > 0);
-  const toggleEdit = (title: string) =>
+  // Opening a row also shows that variant in the preview.
+  const toggleEdit = (title: string) => {
+    const row = rows.find((r) => r.title === title);
+    if (row && !editing.has(title) && row.options.length) setPreview(Object.fromEntries(row.options.map((o) => [o.name, o.value])));
     setEditing((s) => { const n = new Set(s); if (n.has(title)) n.delete(title); else n.add(title); return n; });
+  };
   const isCustom = (label: string) => !suggestedAttributes.some((p) => p.label.toLowerCase() === label.toLowerCase());
 
   const Icon = {
@@ -482,9 +490,9 @@ export default function VariantManager({
     edit2: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z" /></svg>,
   };
   const card = 'bg-white rounded-xl border border-neutral-200 shadow-sm';
-  const blueBtn = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold';
-  const outlineBtn = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 text-xs font-semibold bg-white';
-  const cellInput = 'w-full min-w-[60px] px-2 py-1 rounded-md border border-blue-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500';
+  const blueBtn = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold shadow-sm';
+  const outlineBtn = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-neutral-300 text-blue-700 hover:bg-blue-50 text-[11px] font-semibold bg-white';
+  const cellInput = 'w-full min-w-[52px] max-w-[96px] h-7 px-2 rounded border border-neutral-300 text-[11px] bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-4">
@@ -622,20 +630,17 @@ export default function VariantManager({
 
         {/* Variant matrix */}
         <section className={card}>
-          <div className="p-4 pb-3 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-bold text-neutral-900">Variant Matrix</h3>
-              <p className="text-xs text-neutral-500">Manage price, stock, SKU and other details for each variant.</p>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <button type="button" onClick={() => setBulk((b) => ({ ...b, open: !b.open }))} className={outlineBtn}>{Icon.edit2} Bulk Edit</button>
-              <button type="button" onClick={() => csvRef.current?.click()} className={outlineBtn}>{Icon.upload} Upload CSV</button>
-              <button type="button" onClick={downloadCsv} className={outlineBtn}>{Icon.download} CSV</button>
-              <button type="button" onClick={() => onChange(axes, autoSkus(rows, skuPrefix))} className={outlineBtn}>Auto SKU</button>
-              <input ref={csvRef} type="file" accept=".csv,text/csv" className="hidden" onChange={uploadCsv} />
-              {formAxes.length > 0 && <button type="button" onClick={() => setAdding(adding ? null : {})} className={blueBtn}>{Icon.plus} Add Variant</button>}
-              {sellerMode && formAxes.length > 0 && <button type="button" onClick={addAllCombinations} className={outlineBtn}>{Icon.grid} Add all combinations</button>}
-            </div>
+          <div className="p-4 pb-0">
+            <h3 className="text-sm font-bold text-neutral-900">Variant Matrix</h3>
+            <p className="text-xs text-neutral-500">Manage price, stock, SKU and other details for each variant.</p>
+          </div>
+          <div className="px-4 py-3 flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={() => setBulk((b) => ({ ...b, open: !b.open }))} className={outlineBtn}>{Icon.edit2} Bulk Edit</button>
+            <button type="button" onClick={() => csvRef.current?.click()} className={outlineBtn} title={`Columns: ${csvColumns.join(', ')}`}>{Icon.upload} Upload CSV</button>
+            {!sellerMode && <button type="button" onClick={downloadCsv} className={outlineBtn}>{Icon.download} CSV</button>}
+            {!sellerMode && <button type="button" onClick={() => onChange(axes, autoSkus(rows, skuPrefix))} className={outlineBtn}>Auto SKU</button>}
+            <input ref={csvRef} type="file" accept=".csv,text/csv" className="hidden" onChange={uploadCsv} />
+            {formAxes.length > 0 && <button type="button" onClick={() => setAdding(adding ? null : {})} className={blueBtn}>{Icon.plus} Add Variant</button>}
           </div>
 
           {bulk.open && (
@@ -688,24 +693,24 @@ export default function VariantManager({
               No variants are set up for this category, so this product is sold as a single item. Enter its price and stock below.
             </p>
           )}
-          <div className="overflow-x-auto border-t border-neutral-100">
-            <table className="w-full text-xs">
-              <thead className="text-neutral-600">
-                <tr className="border-b border-neutral-100">
-                  <th className="p-2.5 w-8">
+          <div className="mx-4 mb-4 overflow-x-auto rounded-lg border border-neutral-200">
+            <table className="w-full text-[11px]">
+              <thead className="text-neutral-700 bg-neutral-50/70">
+                <tr className="border-b border-neutral-200 divide-x divide-neutral-100 [&>th]:whitespace-nowrap [&>th]:font-semibold">
+                  <th className="px-3 py-2 w-8">
                     <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.title)))} className="accent-blue-600" aria-label="Select all" />
                   </th>
-                  {axes.map((a) => <th key={a.label} className="p-2.5 text-left font-semibold">{a.label}</th>)}
-                  {axes.length === 0 && <th className="p-2.5 text-left font-semibold">Variant</th>}
-                  <th className="p-2.5 text-left font-semibold">SKU</th>
-                  <th className="p-2.5 text-left font-semibold">MRP (₹)</th>
-                  <th className="p-2.5 text-left font-semibold">Selling Price (₹)</th>
-                  <th className="p-2.5 text-left font-semibold">Discount (%)</th>
-                  <th className="p-2.5 text-left font-semibold">Stock</th>
-                  <th className="p-2.5 text-left font-semibold">Weight (kg)</th>
-                  <th className="p-2.5 text-left font-semibold">Images</th>
-                  <th className="p-2.5 text-left font-semibold">Status</th>
-                  <th className="p-2.5 text-left font-semibold">Action</th>
+                  {axes.map((a) => <th key={a.label} className="px-3 py-2 text-left font-semibold">{a.label}</th>)}
+                  {axes.length === 0 && <th className="px-3 py-2 text-left font-semibold">Variant</th>}
+                  <th className="px-3 py-2 text-left font-semibold">SKU</th>
+                  <th className="px-3 py-2 text-left font-semibold">MRP (₹)</th>
+                  <th className="px-3 py-2 text-left font-semibold">Selling Price (₹)</th>
+                  <th className="px-3 py-2 text-left font-semibold">Discount</th>
+                  <th className="px-3 py-2 text-left font-semibold">Stock</th>
+                  <th className="px-3 py-2 text-left font-semibold">Weight (kg)</th>
+                  <th className="px-3 py-2 text-left font-semibold">Images</th>
+                  <th className="px-3 py-2 text-left font-semibold">Status</th>
+                  <th className="px-3 py-2 text-left font-semibold">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -724,8 +729,8 @@ export default function VariantManager({
                       <span className="text-neutral-800">{text || '—'}</span>
                     );
                   return (
-                    <tr key={r.title} className={`border-b border-neutral-100 ${r.isActive ? 'hover:bg-blue-50/30' : 'bg-neutral-50 text-neutral-400'}`}>
-                      <td className="p-2.5 text-center">
+                    <tr key={r.title} className={`border-b last:border-b-0 border-neutral-100 divide-x divide-neutral-100 ${r.isActive ? 'hover:bg-blue-50/30' : 'bg-neutral-50 text-neutral-400'}`}>
+                      <td className="px-3 py-2 text-center">
                         <input type="checkbox" checked={selected.has(r.title)}
                           onChange={() => setSelected((s) => { const n = new Set(s); if (n.has(r.title)) n.delete(r.title); else n.add(r.title); return n; })}
                           className="accent-blue-600" aria-label={`Select ${r.title}`} />
@@ -734,7 +739,7 @@ export default function VariantManager({
                         const v = r.options.find((o) => o.name === a.label)?.value || '';
                         const hex = isColourAxis(a.label) ? swatch(v) : undefined;
                         return (
-                          <td key={a.label} className="p-2.5 whitespace-nowrap text-neutral-800">
+                          <td key={a.label} className="px-3 py-2 whitespace-nowrap text-neutral-800">
                             <span className="inline-flex items-center gap-2">
                               {hex && <span className="w-4 h-4 rounded-full border border-neutral-300" style={{ background: hex }} />}
                               {v}
@@ -742,20 +747,20 @@ export default function VariantManager({
                           </td>
                         );
                       })}
-                      {axes.length === 0 && <td className="p-2.5 text-neutral-800">Standard</td>}
-                      <td className="p-2.5 whitespace-nowrap font-mono">{field('sku', r.sku)}</td>
-                      <td className="p-2.5">{field('price', r.price)}</td>
-                      <td className="p-2.5">{field('discPrice', r.discPrice || r.price)}</td>
-                      <td className="p-2.5 whitespace-nowrap">
+                      {axes.length === 0 && <td className="px-3 py-2 text-neutral-800">Standard</td>}
+                      <td className="px-3 py-2 whitespace-nowrap font-mono">{field('sku', r.sku)}</td>
+                      <td className="px-3 py-2">{field('price', r.price)}</td>
+                      <td className="px-3 py-2">{field('discPrice', r.discPrice || r.price)}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">
                         {edit ? (
                           <span className="inline-flex items-center gap-1">
-                            <input type="number" min="0" max="99" value={pct || ''} placeholder="0" onChange={(e) => setDiscountPct(r.title, r.price, e.target.value)} className={`${cellInput} w-16`} />%
+                            <input type="number" min="0" max="99" value={pct || ''} placeholder="0" onChange={(e) => setDiscountPct(r.title, r.price, e.target.value)} className={`${cellInput} !w-12 !min-w-0`} /><span className="text-neutral-500">%</span>
                           </span>
                         ) : pct > 0 ? <span className="text-neutral-800">{pct}%</span> : '—'}
                       </td>
-                      <td className="p-2.5">{field('stock', r.stock === '0' ? 'Unlimited' : r.stock)}</td>
-                      <td className="p-2.5">{field('weightKg', r.weightKg)}</td>
-                      <td className="p-2.5">
+                      <td className="px-3 py-2">{field('stock', r.stock === '0' ? 'Unlimited' : r.stock)}</td>
+                      <td className="px-3 py-2">{field('weightKg', r.weightKg)}</td>
+                      <td className="px-3 py-2">
                         <div className="flex items-center gap-0.5">
                           {r.images.slice(0, 3).map((src) => <img key={src} src={src} alt="" className="w-7 h-7 rounded object-cover border border-neutral-200" />)}
                           {r.images.length > 3 && <span className="text-[10px] text-neutral-500 ml-0.5">+{r.images.length - 3}</span>}
@@ -769,24 +774,29 @@ export default function VariantManager({
                           {r.images.length === 0 && (colourAxis || axes.length === 0) && <span className="text-neutral-400">—</span>}
                         </div>
                       </td>
-                      <td className="p-2.5">
+                      <td className="px-3 py-2">
                         <button type="button" role="switch" aria-checked={r.isActive} onClick={() => updateRow(r.title, { isActive: !r.isActive })}
-                          className={`relative w-9 h-5 rounded-full transition-colors ${r.isActive ? 'bg-green-500' : 'bg-neutral-300'}`}
+                          className={`relative w-8 h-[18px] rounded-full transition-colors ${r.isActive ? 'bg-green-500' : 'bg-neutral-300'}`}
                           title={r.isActive ? 'On sale — click to switch off' : 'Switched off — hidden from customers'}>
-                          <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${r.isActive ? 'left-[18px]' : 'left-0.5'}`} />
+                          <span className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white shadow transition-all ${r.isActive ? 'left-4' : 'left-0.5'}`} />
                         </button>
                       </td>
-                      <td className="p-2.5">
-                        <div className="flex items-center gap-2">
-                          <button type="button" onClick={() => toggleEdit(r.title)} className={edit ? 'text-green-600' : 'text-blue-600 hover:text-blue-800'}
-                            aria-label={edit ? `Done editing ${r.title}` : `Edit ${r.title}`} title={edit ? 'Done' : 'Edit'}>
-                            {edit ? '✓' : Icon.edit}
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1">
+                          <button type="button" onClick={() => toggleEdit(r.title)}
+                            className={`p-1 rounded ${edit ? 'bg-blue-50 text-blue-700' : 'text-neutral-600 hover:text-blue-700 hover:bg-blue-50'}`}
+                            aria-label={edit ? `Done editing ${r.title}` : `Edit ${r.title}`} title={edit ? 'Editing — click to finish' : 'Edit'}>
+                            {Icon.edit}
                           </button>
-                          {axes.length > 0 && (
-                            <button type="button" onClick={() => removeRow(r.title)} className="text-red-500 hover:text-red-700" aria-label={`Delete ${r.title}`} title="Delete">
-                              {Icon.trash}
-                            </button>
-                          )}
+                          <button type="button"
+                            onClick={() => {
+                              // The single "Standard" row can't be removed; its values are cleared instead.
+                              if (axes.length > 0) return removeRow(r.title);
+                              if (window.confirm('Clear the price, stock, SKU and weight of this item?')) updateRow(r.title, { price: '', discPrice: '', stock: '0', sku: '', weightKg: '' });
+                            }}
+                            className="p-1 rounded text-red-500 hover:text-red-700 hover:bg-red-50" aria-label={`Delete ${r.title}`} title={axes.length > 0 ? 'Delete' : 'Clear values'}>
+                            {Icon.trash}
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -795,6 +805,7 @@ export default function VariantManager({
               </tbody>
             </table>
           </div>
+          {footer && <div className="px-4 pb-4">{footer}</div>}
         </section>
       </div>
 
@@ -804,7 +815,7 @@ export default function VariantManager({
           <section className={`${card} p-4`}>
             <h3 className="text-sm font-bold text-neutral-900">Variant-wise Images</h3>
             <p className="text-xs text-neutral-500 mb-3">
-              {colourAxis ? 'Upload different images for each color/variant.' : 'Add photos per variant from the Images column of the matrix.'}
+              {colourAxis ? `Upload different images for each ${isColourAxis(colourAxis.label) ? 'color' : colourAxis.label.toLowerCase()}/variant.` :'Add photos per variant from the Images column of the matrix.'}
             </p>
             {colourAxis ? (
               <div className="divide-y divide-neutral-100">

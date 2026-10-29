@@ -221,6 +221,33 @@ export default function AdminListingSetup() {
     saveOptions(a, [...have, v], a.isActive !== false);
   };
 
+  // Inline "Add Custom Attribute": a variant attribute (single-choice list) with its first options.
+  const [customAttr, setCustomAttr] = useState<{ label: string; options: string } | null>(null);
+  const addCustomAttribute = async () => {
+    if (!customAttr || !scope) return;
+    const label = customAttr.label.trim();
+    const values = [...new Set(customAttr.options.split(',').map((v) => v.trim()).filter(Boolean))];
+    if (!label) return showToast('Enter the attribute name', 'error');
+    if (values.length === 0) return showToast(`Add at least one ${label} option`, 'error');
+    if (attributes.some((a) => a.label.toLowerCase() === label.toLowerCase())) return showToast(`${label} is already in the list`, 'error');
+    const key = /^[a-z]/.test(slug(label)) ? slug(label) : `attr_${slug(label)}`;
+    setSaving(true);
+    try {
+      await createAttribute(scope.type, scope.id, {
+        key, label, type: 'select', isRequired: false, isVariantAttribute: true, isFilterable: true, isSearchable: false,
+        allowedValues: values, unit: '', helpText: '', group: '', keySpec: false, keySpecFormat: '',
+        displayOrder: attributes.length, isActive: true, validation: {} as any,
+      });
+      setCustomAttr(null);
+      showToast(`${label} added`, 'success');
+      load();
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || 'Could not add the attribute', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const removeAttribute = async (a: AdminAttribute) => {
     if (!window.confirm(`Delete "${a.label}"? Existing products keep their saved value, but it will no longer be asked for.`)) return;
     try {
@@ -322,9 +349,9 @@ export default function AdminListingSetup() {
         <div className="bg-white rounded-lg border border-neutral-200 p-10 text-center text-neutral-400 text-sm">Pick a department to set up its listing form.</div>
       ) : (
         <>
-          <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-5">
-            <h3 className="text-base font-bold text-neutral-900">Variant Attributes</h3>
-            <p className="text-xs text-neutral-500 mb-2">Select attributes and add options to create product variants. Sellers can only pick from these. Applies to: {scopeLabel()}</p>
+          <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-4 max-w-3xl">
+            <h3 className="text-sm font-bold text-neutral-900">Variant Attributes</h3>
+            <p className="text-[11px] text-neutral-500 mb-1">Select attributes and add options to create product variants. Applies to: {scopeLabel()}</p>
             {loading ? (
               <div className="p-6 text-center text-neutral-500 text-sm">Loading…</div>
             ) : attributes.filter((a) => a.isVariantAttribute).length === 0 ? (
@@ -335,23 +362,21 @@ export default function AdminListingSetup() {
                   const on = a.isActive !== false;
                   const colourAttr = /colou?r/i.test(a.label);
                   return (
-                    <div key={a._id} className="py-3 flex flex-wrap items-center gap-3">
-                      <label className="flex items-center gap-2.5 w-36 shrink-0 cursor-pointer">
-                        <input type="checkbox" checked={on} onChange={() => saveOptions(a, a.allowedValues || [], !on)} className="w-4 h-4 accent-blue-600" />
-                        <span className="leading-tight">
-                          <span className={`block text-sm font-semibold ${on ? 'text-neutral-900' : 'text-neutral-600'}`}>{a.label}</span>
-                        </span>
+                    <div key={a._id} className="py-2.5 grid grid-cols-[120px_minmax(0,1fr)_auto] items-center gap-3">
+                      <label className="flex items-center gap-2.5 cursor-pointer min-w-0">
+                        <input type="checkbox" checked={on} onChange={() => saveOptions(a, a.allowedValues || [], !on)} className="w-4 h-4 shrink-0 accent-blue-600" />
+                        <span className={`text-xs font-semibold truncate ${on ? 'text-neutral-900' : 'text-neutral-600'}`} title={a.label}>{a.label}</span>
                       </label>
-                      <div className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 min-w-0">
                         {(a.allowedValues || []).map((v) => {
                           const css = v.trim().toLowerCase().replace(/\s+/g, '');
                           const isColour = colourAttr && typeof CSS !== 'undefined' && CSS.supports?.('color', css);
                           return (
                             <span key={v} className="relative group">
                               {isColour ? (
-                                <span title={v} className="block w-7 h-7 rounded-full border border-neutral-300" style={{ background: css }} />
+                                <span title={v} className="block w-6 h-6 rounded-full border border-neutral-300" style={{ background: css }} />
                               ) : (
-                                <span className="block min-w-[40px] text-center px-3 py-1 rounded-lg border border-neutral-300 bg-white text-xs font-semibold text-neutral-700">{v}</span>
+                                <span className="block min-w-[38px] text-center px-2.5 py-1 rounded-md border border-neutral-300 bg-white text-[11px] font-medium text-neutral-700">{v}</span>
                               )}
                               <button type="button" title={'Remove ' + v} aria-label={'Remove ' + v}
                                 onClick={() => saveOptions(a, (a.allowedValues || []).filter((x) => x !== v), on)}
@@ -369,35 +394,66 @@ export default function AdminListingSetup() {
                               if (e.key === 'Escape') setOptDraft((d) => { const n = { ...d }; delete n[a._id]; return n; });
                             }}
                             onBlur={() => addOptionTo(a)}
-                            placeholder={colourAttr ? 'Colour name, e.g. Maroon' : 'Type and press Enter'}
-                            className="w-40 px-2 py-1.5 rounded-lg border border-blue-400 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            placeholder={colourAttr ? 'e.g. Maroon' : 'Type, press Enter'}
+                            className="w-28 h-7 px-2 rounded-md border border-blue-400 text-[11px] focus:outline-none focus:ring-1 focus:ring-blue-500"
                           />
                         )}
                       </div>
-                      <div className="flex items-center gap-3 shrink-0">
+                      <div className="flex items-center gap-1 justify-end">
                         <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setOptDraft((d) => ({ ...d, [a._id]: d[a._id] ?? '' }))}
-                          className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg border text-xs font-semibold min-w-[110px] justify-center ${on ? 'border-blue-300 text-blue-700 hover:bg-blue-50' : 'border-neutral-200 text-neutral-400'}`}>
-                          + Add {colourAttr ? 'Color' : a.label.length > 10 ? 'Option' : a.label}
+                          className={`inline-flex items-center justify-center gap-1 w-[104px] h-7 rounded-md border text-[11px] font-semibold bg-white ${on ? 'border-blue-300 text-blue-700 hover:bg-blue-50' : 'border-neutral-200 text-neutral-400'}`}>
+                          <span className="text-sm leading-none">+</span> Add {colourAttr ? 'Color' : a.label.length > 8 ? 'Option' : a.label}
                         </button>
-                        <button onClick={() => openEdit(a)} className="text-blue-700 text-xs font-semibold hover:underline">Edit</button>
-                        <button onClick={() => removeAttribute(a)} className="text-red-600 text-xs font-semibold hover:underline">Delete</button>
+                        <button type="button" onClick={() => openEdit(a)} title={`Edit ${a.label}`} aria-label={`Edit ${a.label}`}
+                          className="p-1 rounded text-neutral-400 hover:text-blue-700 hover:bg-blue-50">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                        </button>
+                        <button type="button" onClick={() => removeAttribute(a)} title={`Delete ${a.label}`} aria-label={`Delete ${a.label}`}
+                          className="p-1 rounded text-neutral-400 hover:text-red-600 hover:bg-red-50">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /></svg>
+                        </button>
                       </div>
                     </div>
                   );
                 })}
               </div>
             )}
-            <div className="mt-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setFormError('');
-                  setForm({ ...emptyForm(), type: 'select', isVariantAttribute: true });
-                }}
-                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg border border-blue-300 text-blue-700 hover:bg-blue-50 text-xs font-semibold bg-white"
-              >
-                + Add Custom Attribute
-              </button>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {customAttr && (
+                <>
+                  <input
+                    autoFocus
+                    value={customAttr.label}
+                    onChange={(e) => setCustomAttr({ ...customAttr, label: e.target.value })}
+                    onKeyDown={(e) => { if (e.key === 'Escape') setCustomAttr(null); }}
+                    placeholder="Attribute, e.g. Storage"
+                    className="w-40 h-7 px-2.5 rounded-md border border-blue-400 text-[11px] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  <input
+                    value={customAttr.options}
+                    onChange={(e) => setCustomAttr({ ...customAttr, options: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); addCustomAttribute(); }
+                      if (e.key === 'Escape') setCustomAttr(null);
+                    }}
+                    placeholder="Options, comma separated: 64 GB, 128 GB"
+                    className="w-60 h-7 px-2.5 rounded-md border border-blue-400 text-[11px] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  <button type="button" onClick={addCustomAttribute} disabled={saving} className="h-7 px-3 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold disabled:opacity-50">
+                    Save
+                  </button>
+                  <button type="button" onClick={() => setCustomAttr(null)} className="text-[11px] text-neutral-500 hover:underline">Cancel</button>
+                </>
+              )}
+              {!customAttr && (
+                <button
+                  type="button"
+                  onClick={() => setCustomAttr({ label: '', options: '' })}
+                  className="inline-flex items-center gap-1 h-7 px-3 rounded-md border border-blue-300 text-blue-700 hover:bg-blue-50 text-[11px] font-semibold bg-white"
+                >
+                  <span className="text-sm leading-none">+</span> Add Custom Attribute
+                </button>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-3 mt-4">
               <button
@@ -407,8 +463,9 @@ export default function AdminListingSetup() {
                   const n = live.reduce((t, a) => t * (a.allowedValues || []).length, 1);
                   showToast(live.length ? `Sellers can create up to ${n} combinations (${live.map((a) => a.label).join(' × ')}) on the product page.` : 'Tick at least one attribute that has options.', live.length ? 'success' : 'error');
                 }}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm"
               >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
                 Generate Variants
               </button>
               <span className="text-[11px] text-neutral-500">(Will create all possible combinations)</span>

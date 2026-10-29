@@ -56,6 +56,10 @@ const BRAND_AUTH_DOC = {
 const inputCls =
   'w-full px-3.5 py-2.5 rounded-xl border border-neutral-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent disabled:bg-neutral-50';
 const labelCls = 'block text-xs font-semibold text-neutral-700 mb-1';
+// Small fields for the Additional Details row under the variant matrix.
+const compactLabel = 'block text-[11px] font-semibold text-neutral-700';
+const compactInput =
+  'mt-1 w-full h-8 px-2.5 rounded-md border border-neutral-300 text-[11px] font-normal bg-white text-neutral-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500';
 
 function Field({ label, hint, required, children }: { label: string; hint?: string; required?: boolean; children: React.ReactNode }) {
   return (
@@ -66,6 +70,39 @@ function Field({ label, hint, required, children }: { label: string; hint?: stri
       {children}
       {hint && <p className="text-[11px] text-neutral-500 mt-1">{hint}</p>}
     </div>
+  );
+}
+
+/** Package weight typed in kg, stored in grams. Keeps what is being typed (e.g. "0.") until it is a number. */
+function KgInput({ grams, onGrams }: { grams: string; onGrams: (g: string) => void }) {
+  const toKg = (g: string) => (Number(g) > 0 ? String(Number(g) / 1000) : '');
+  const [text, setText] = useState(toKg(grams));
+  useEffect(() => {
+    if (Math.round(Number(text) * 1000) !== Math.round(Number(grams) || 0)) setText(toKg(grams));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grams]);
+  return (
+    <input type="number" min="0" step="0.01" placeholder="0.25" className={compactInput} value={text}
+      onChange={(e) => { setText(e.target.value); onGrams(Number(e.target.value) > 0 ? String(Math.round(Number(e.target.value) * 1000)) : ''); }} />
+  );
+}
+
+/** Package size typed as one value, "20 x 15 x 5", split into length, width and height. */
+function DimsInput({ l, w, h, onChange }: { l: string; w: string; h: string; onChange: (l: string, w: string, h: string) => void }) {
+  const join = (a: string, b: string, c: string) => ([a, b, c].some(Boolean) ? [a, b, c].join(' x ') : '');
+  const [text, setText] = useState(join(l, w, h));
+  useEffect(() => {
+    const parts = text.split(/\s*[x×*,]\s*/i).map((p) => p.trim());
+    if ((parts[0] || '') !== l || (parts[1] || '') !== w || (parts[2] || '') !== h) setText(join(l, w, h));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [l, w, h]);
+  return (
+    <input className={compactInput} placeholder="20 x 15 x 5" value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        const [a = '', b = '', c = ''] = e.target.value.split(/\s*[x×*,]\s*/i).map((p) => p.trim().replace(/[^\d.]/g, ''));
+        onChange(a, b, c);
+      }} />
   );
 }
 
@@ -104,6 +141,7 @@ export default function SellerProductWizard() {
   const [brand, setBrand] = useState('');
   const [condition, setCondition] = useState<'New' | 'Used' | 'Refurbished'>('New');
   const [modelNumber, setModelNumber] = useState('');
+  const [sku, setSku] = useState(''); // product-level seller SKU (optional; generated when blank)
   const [barcode, setBarcode] = useState('');
   const [smallDescription, setSmallDescription] = useState('');
   const [manufacturer, setManufacturer] = useState('');
@@ -184,6 +222,7 @@ export default function SellerProductWizard() {
     setBrand(idOf(p.brand));
     setCondition(p.condition || 'New');
     setModelNumber(p.modelNumber || '');
+    setSku(p.sku || '');
     setBarcode(p.barcode || '');
     setSmallDescription(p.smallDescription || '');
     setManufacturer(p.manufacturer || '');
@@ -444,7 +483,25 @@ export default function SellerProductWizard() {
   const onNextVariants = async () => {
     const problems = variantProblems(axes, rows);
     if (problems.length) return setError(`Fix: ${problems.join(', ')}.`);
-    next();
+    if (!productId) return next();
+    // Saves the matrix and the Additional Details entered under it.
+    const ok = await run(async () => {
+      const res = await saveListing(productId, {
+        ...variantsPayload(axes, rows, combinedAxes),
+        taxId: taxId || undefined,
+        hsnCode,
+        sku: sku.trim(),
+        weightGrams,
+        dimensionsCm: { length: dimL, width: dimW, height: dimH },
+      });
+      applyServerMessage(res.message);
+      const fresh = await getProductById(productId);
+      if (fresh.success && fresh.data) {
+        setRowsFromServer(fresh.data);
+        setSku((fresh.data as any).sku || '');
+      }
+    });
+    if (ok) next();
   };
 
   const onNextPrice = async () => {
@@ -896,7 +953,7 @@ export default function SellerProductWizard() {
           <>
             <h2 className="text-base font-bold text-neutral-900">Variants & pricing</h2>
             <p className="text-xs text-neutral-500">
-              Tick the attributes this product comes in (Color, Size, Storage…), press Generate Variants, then fill SKU, MRP, selling price, stock and photos for each combination.
+              Press Add Variant and choose the options this product comes in (set up by the admin for this category), then fill MRP, selling price, stock and photos for each variant.
             </p>
             <VariantManager
               axes={axes}
@@ -921,6 +978,41 @@ export default function SellerProductWizard() {
                 brand: brands.find((b: any) => String(b._id) === String(brand))?.name,
                 description: smallDescription,
               }}
+              footer={
+                <>
+                  <h4 className="text-xs font-bold text-neutral-900 mb-2">Additional Details</h4>
+                  <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                    <label className={compactLabel}>
+                      HSN Code{needsHsn && <span className="text-red-500"> *</span>}
+                      <input className={compactInput} inputMode="numeric" maxLength={8} placeholder="Enter HSN Code" value={hsnCode} onChange={(e) => setHsnCode(e.target.value.replace(/\D/g, ''))} />
+                    </label>
+                    <label className={compactLabel}>
+                      GST Rate
+                      <select className={compactInput} value={taxId} onChange={(e) => setTaxId(e.target.value)}>
+                        <option value="">Select GST Rate</option>
+                        {taxes.map((t) => (
+                          <option key={t._id} value={t._id}>
+                            {t.name}
+                            {t.percentage !== undefined ? ` (${t.percentage}%)` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className={compactLabel}>
+                      Weight (kg){requiresShipping && <span className="text-red-500"> *</span>}
+                      <KgInput grams={weightGrams} onGrams={setWeightGrams} />
+                    </label>
+                    <label className={compactLabel}>
+                      Dimensions <span className="font-normal text-neutral-500">(L x W x H cm)</span>{requiresShipping && <span className="text-red-500"> *</span>}
+                      <DimsInput l={dimL} w={dimW} h={dimH} onChange={(l, w, h) => { setDimL(l); setDimW(w); setDimH(h); }} />
+                    </label>
+                    <label className={compactLabel}>
+                      Seller SKU <span className="font-normal text-neutral-500">(Optional)</span>
+                      <input className={compactInput} maxLength={60} placeholder="Enter Seller SKU" value={sku} onChange={(e) => setSku(e.target.value)} />
+                    </label>
+                  </div>
+                </>
+              }
             />
           </>
         )}
@@ -1140,7 +1232,7 @@ export default function SellerProductWizard() {
             )}
             {step === 'variants' && (
               <button type="button" onClick={onNextVariants} disabled={saving} className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-teal-600 hover:bg-teal-700 disabled:opacity-50">
-                Next
+                {saving ? 'Saving…' : 'Save & next'}
               </button>
             )}
             {step === 'price' && (
