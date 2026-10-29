@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { normalizeVariants } from "../../../services/variantService";
+import { resolveListingConfig } from "../../../services/listingConfigService";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import Category from "../../../models/Category";
 import SubCategory from "../../../models/SubCategory";
@@ -1060,6 +1061,26 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
       pages: Math.ceil(total / parseInt(limit as string)),
     },
   });
+});
+
+/**
+ * GET /admin/products/:id/variant-attributes
+ * The variant attributes (Color, Size, …) and options set up in Listing Setup for this
+ * product's header category / category / sub-category — the same list a seller sees.
+ */
+export const getProductVariantAttributes = asyncHandler(async (req: Request, res: Response) => {
+  const product: any = await Product.findById(req.params.id).select("headerCategoryId category subcategory subSubCategory").lean();
+  if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+  const config = await resolveListingConfig({
+    headerCategoryId: product.headerCategoryId ? String(product.headerCategoryId) : undefined,
+    category: product.category ? String(product.category) : undefined,
+    subcategory: product.subcategory ? String(product.subcategory) : undefined,
+    subSubCategory: product.subSubCategory ? String(product.subSubCategory) : undefined,
+  });
+  const attributes = config.attributes
+    .filter((a) => a.isVariantAttribute)
+    .map((a) => ({ label: a.label, values: a.allowedValues || [] }));
+  return res.status(200).json({ success: true, data: attributes });
 });
 
 /**

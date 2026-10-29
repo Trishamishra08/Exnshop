@@ -26,7 +26,7 @@ import VariantManager, {
   type VMAxis,
   type VMRow,
 } from "../../../components/variants/VariantManager";
-import { updateProductVariants } from "../../../services/api/admin/adminProductService";
+import { updateProductVariants, getProductVariantAttributes } from "../../../services/api/admin/adminProductService";
 
 interface VariationItem {
   _id?: string;
@@ -86,6 +86,14 @@ export default function AdminProductEdit() {
   const [vmAxes, setVmAxes] = useState<VMAxis[]>([]);
   const [vmRows, setVmRows] = useState<VMRow[]>([]);
   const [vmCombined, setVmCombined] = useState<string[]>([]);
+  // Attributes set up in Listing Setup for this product's category (the same list a seller gets).
+  const [vmSuggested, setVmSuggested] = useState<VMAxis[]>([]);
+  useEffect(() => {
+    if (!id) return;
+    getProductVariantAttributes(id)
+      .then((res) => setVmSuggested(res.success ? res.data : []))
+      .catch(() => setVmSuggested([]));
+  }, [id]);
 
   const [mainImageFile, setMainImageFile] = useState<File | null>(null);
   const [mainImagePreview, setMainImagePreview] = useState<string>("");
@@ -858,6 +866,7 @@ export default function AdminProductEdit() {
               }}
               combinedAxes={vmCombined}
               onCombinedChange={setVmCombined}
+              suggestedAttributes={vmSuggested}
               fallbackImage={mainImagePreview || formData.mainImageUrl}
               productName={formData.productName}
               onError={(m) => setUploadError(m)}

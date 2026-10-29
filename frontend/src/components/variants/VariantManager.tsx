@@ -37,21 +37,20 @@ export interface VMRow {
 export const MAX_ATTRIBUTES = 3;
 const MAX_ROW_PHOTOS = 8;
 
-const PRESETS: VMAxis[] = [
-  { label: 'Color', values: ['Black', 'White', 'Red', 'Blue', 'Green', 'Yellow', 'Purple'] },
-  { label: 'Size', values: ['S', 'M', 'L', 'XL', 'XXL'] },
-  { label: 'Material', values: ['Cotton', 'Polyester', 'Linen'] },
-  { label: 'Pattern', values: ['Solid', 'Printed', 'Striped'] },
-  { label: 'Storage', values: ['64 GB', '128 GB', '256 GB'] },
-];
-
 const COLOR_HEX: Record<string, string> = {
   black: '#111111', white: '#ffffff', red: '#e53935', blue: '#1e88e5', green: '#43a047', yellow: '#fbc02d',
   purple: '#8e24aa', orange: '#fb8c00', pink: '#ec407a', grey: '#9e9e9e', gray: '#9e9e9e', brown: '#795548',
   navy: '#1a237e', maroon: '#880e4f', beige: '#d7ccc8', gold: '#c9a227', silver: '#bdbdbd', cream: '#fff3d6',
 };
 export const isColourAxis = (label: string) => /colou?r/i.test(label);
-const swatch = (value: string) => COLOR_HEX[value.trim().toLowerCase()];
+/** A colour dot for any option that is a colour: a known name, a #hex code, or any CSS colour name the browser understands. */
+const swatch = (value: string): string | undefined => {
+  const v = value.trim().toLowerCase();
+  if (COLOR_HEX[v]) return COLOR_HEX[v];
+  if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/.test(v)) return v;
+  const css = v.replace(/\s+/g, '');
+  return typeof CSS !== 'undefined' && CSS.supports?.('color', css) ? css : undefined;
+};
 
 export const emptyRow = (title = 'Default', options: VMOption[] = []): VMRow => ({
   title, options, price: '', discPrice: '', stock: '0', sku: '', images: [], weightKg: '', isActive: true,
@@ -247,7 +246,6 @@ export default function VariantManager({
       byLabel.set(key, set);
     };
     suggestedAttributes.forEach((a) => add(a.label, a.values));
-    PRESETS.forEach((a) => add(a.label, a.values));
     customAttrs.forEach((l) => add(l, []));
     axes.forEach((a) => add(a.label, a.values));
     Object.entries(extraOptions).forEach(([l, vs]) => add(l, vs));
@@ -421,10 +419,7 @@ export default function VariantManager({
   const isEditing = (r: VMRow) => editing.has(r.title) || !(Number(r.price) > 0);
   const toggleEdit = (title: string) =>
     setEditing((s) => { const n = new Set(s); if (n.has(title)) n.delete(title); else n.add(title); return n; });
-  const customLabels = new Set(customAttrs.map((l) => l.toLowerCase()));
-  const isCustom = (label: string) =>
-    customLabels.has(label.toLowerCase()) ||
-    (!PRESETS.some((p) => p.label.toLowerCase() === label.toLowerCase()) && !suggestedAttributes.some((p) => p.label.toLowerCase() === label.toLowerCase()));
+  const isCustom = (label: string) => !suggestedAttributes.some((p) => p.label.toLowerCase() === label.toLowerCase());
 
   const Icon = {
     edit: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>,
@@ -469,6 +464,11 @@ export default function VariantManager({
           <section className={`${card} p-4 ${productInfo ? '' : 'lg:col-span-2'}`}>
             <h3 className="text-sm font-bold text-neutral-900">Variant Attributes</h3>
             <p className="text-xs text-neutral-500 mb-2">Select attributes and add options to create product variants.</p>
+            {attributeList.length === 0 && (
+              <p className="text-xs text-neutral-600 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2.5 mb-2">
+                No variant attributes are set up for this category yet. Add your own below (for example Color, Size, RAM), or ask the admin to add them in Listing Setup so every seller gets the same list.
+              </p>
+            )}
             <div className="divide-y divide-neutral-100">
               {attributeList.map((attr) => {
                 const axis = axisOf(attr.label);

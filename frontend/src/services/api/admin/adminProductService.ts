@@ -514,6 +514,12 @@ export const submitDraftForReview = async (id: string): Promise<ApiResponse<void
   return response.data;
 };
 
+/** Variant attributes (and options) set up in Listing Setup for this product's category. */
+export const getProductVariantAttributes = async (id: string): Promise<ApiResponse<{ label: string; values: string[] }[]>> => {
+  const response = await api.get<ApiResponse<{ label: string; values: string[] }[]>>(`/admin/products/${id}/variant-attributes`);
+  return response.data;
+};
+
 /** Admin variant manager: save a product's attributes and variant combinations. */
 export const updateProductVariants = async (id: string, data: Record<string, any>): Promise<ApiResponse<Product>> => {
   const response = await api.put<ApiResponse<Product>>(`/admin/products/${id}/variants`, data);
