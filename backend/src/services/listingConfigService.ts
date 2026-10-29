@@ -210,5 +210,14 @@ export const buildSpecGroups = (defs: ResolvedAttribute[], values: any): SpecGro
   return [...groups.values()];
 };
 
-export const attributeProblems = (defs: ResolvedAttribute[], values: any): string[] =>
-  defs.filter((d) => d.isRequired && isEmpty(values?.[d.key])).map((d) => d.label);
+/**
+ * Required attributes still missing. Variant attributes (Size, Colour…) are not filled in the
+ * attribute form but chosen per variant, so a required one counts as filled when the product's
+ * variants use it (variantAxes holds the attribute names the variants are made of).
+ */
+export const attributeProblems = (defs: ResolvedAttribute[], values: any, variantAxes: string[] = []): string[] => {
+  const axes = variantAxes.map((n) => String(n).toLowerCase());
+  return defs
+    .filter((d) => d.isRequired && (d.isVariantAttribute ? !axes.includes(d.label.toLowerCase()) : isEmpty(values?.[d.key])))
+    .map((d) => d.label);
+};

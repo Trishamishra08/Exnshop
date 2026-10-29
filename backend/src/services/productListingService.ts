@@ -279,7 +279,11 @@ export const listingProblems = async (p: any, ctx?: ListingContext): Promise<str
   }
   const config = await configForProduct(p, ctx);
 
-  const missingAttrs = attributeProblems(config.attributes, p.attributes);
+  const missingAttrs = attributeProblems(
+    config.attributes,
+    p.attributes,
+    (p.variantAxes || []).filter((a: any) => (a?.values || []).length > 0).map((a: any) => a.name)
+  );
   missingAttrs.forEach((label) => problems.push(`Attribute: ${label}`));
 
   if (seller?.gstRegistered === true && !p.hsnCode) problems.push("HSN code");

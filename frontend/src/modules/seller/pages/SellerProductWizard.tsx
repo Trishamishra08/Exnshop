@@ -331,6 +331,13 @@ export default function SellerProductWizard() {
     if (!category) missing.push({ label: 'Category', step: 'category' });
     if (!mainImageUrl && !mainImageFile) missing.push({ label: 'Main product image', step: 'basic' });
     (config?.attributes || []).forEach((a) => {
+      // Variant attributes (Size, Colour…) are chosen per variant in the matrix, not in the Attributes step.
+      if (a.isVariantAttribute) {
+        if (a.isRequired && !axes.some((x) => x.label.toLowerCase() === a.label.toLowerCase() && x.values.length > 0)) {
+          missing.push({ label: `Variants: add ${a.label} options (e.g. ${(a.allowedValues || []).slice(0, 3).join(', ') || a.label})`, step: 'variants' });
+        }
+        return;
+      }
       const v = attributes[a.key];
       if (a.isRequired && (v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0))) {
         missing.push({ label: `Attribute: ${a.label}`, step: 'attributes' });
@@ -349,7 +356,7 @@ export default function SellerProductWizard() {
     });
     return missing;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productName, category, mainImageUrl, mainImageFile, config, attributes, rows, needsHsn, hsnCode, requiresShipping, weightGrams, dimL, dimW, dimH, docs, requiredDocs]);
+  }, [productName, category, mainImageUrl, mainImageFile, config, attributes, axes, rows, needsHsn, hsnCode, requiresShipping, weightGrams, dimL, dimW, dimH, docs, requiredDocs]);
 
   const stepDone = (key: StepKey): boolean => {
     switch (key) {
