@@ -1,21 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useOrders } from '../../hooks/useOrders';
 import { useTranslation } from '../../hooks/useTranslation';
-
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case 'Delivered':
-      return 'bg-green-100 text-green-700';
-    case 'On the way':
-      return 'bg-blue-100 text-blue-700';
-    case 'Accepted':
-      return 'bg-yellow-100 text-yellow-700';
-    case 'Received':
-      return 'bg-neutral-100 text-neutral-700';
-    default:
-      return 'bg-neutral-100 text-neutral-700';
-  }
-};
+import { customerOrderStatus } from '../../utils/orderStatus';
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
@@ -82,11 +68,10 @@ export default function Orders() {
                   </div>
                 </div>
                 <span
-                  className={`flex-shrink-0 whitespace-nowrap px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                    order.status
-                  )}`}
+                  className={`flex-shrink-0 inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1 rounded-full border text-xs font-semibold ${customerOrderStatus(order.status).pill}`}
                 >
-                  {t(`status.${order.status.toLowerCase().replace(/\s+/g, '')}`, order.status)}
+                  <span className={`w-1.5 h-1.5 rounded-full ${customerOrderStatus(order.status).dot}`} />
+                  {customerOrderStatus(order.status).label}
                 </span>
               </div>
               <div className="flex items-center justify-between">

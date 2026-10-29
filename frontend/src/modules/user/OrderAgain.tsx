@@ -9,6 +9,7 @@ import WishlistButton from '../../components/WishlistButton';
 import { calculateProductPrice } from '../../utils/priceUtils';
 import { useCommerceMode } from '../../context/CommerceModeContext';
 import { useUnavailableSellers } from '../../hooks/useUnavailableSellers';
+import { customerOrderStatus } from '../../utils/orderStatus';
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
@@ -19,21 +20,6 @@ const formatDate = (dateString: string) => {
     hour: '2-digit',
     minute: '2-digit',
   });
-};
-
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case 'Delivered':
-      return 'bg-green-100 text-green-700';
-    case 'On the way':
-      return 'bg-blue-100 text-blue-700';
-    case 'Accepted':
-      return 'bg-yellow-100 text-yellow-700';
-    case 'Received':
-      return 'bg-neutral-100 text-neutral-700';
-    default:
-      return 'bg-neutral-100 text-neutral-700';
-  }
 };
 
 export default function OrderAgain() {
@@ -165,11 +151,10 @@ export default function OrderAgain() {
                           {t("common.order", "Order")} #{shortId}
                         </div>
                         <span
-                          className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium flex-shrink-0 ${getStatusColor(
-                            order.status
-                          )}`}
+                          className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[10px] font-semibold flex-shrink-0 ${customerOrderStatus(order.status).pill}`}
                         >
-                          {t(`status.${order.status.toLowerCase().replace(/\s+/g, '')}`, order.status)}
+                          <span className={`w-1.5 h-1.5 rounded-full ${customerOrderStatus(order.status).dot}`} />
+                          {customerOrderStatus(order.status).label}
                         </span>
                       </div>
                       <div className="text-[10px] text-neutral-500 mb-1">{formatDate(order.createdAt)}</div>

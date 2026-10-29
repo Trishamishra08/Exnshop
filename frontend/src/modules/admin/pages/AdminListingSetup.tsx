@@ -213,12 +213,13 @@ export default function AdminListingSetup() {
     }
   };
   const addOptionTo = (a: AdminAttribute) => {
-    const v = (optDraft[a._id] || '').trim();
+    // "Blue, Green, Red" adds three separate options (sellers combine them per variant, e.g. "Blue + Red").
+    const typed = (optDraft[a._id] || '').split(/[,+]/).map((x) => x.trim()).filter(Boolean);
     setOptDraft((d) => { const n = { ...d }; delete n[a._id]; return n; });
-    if (!v) return;
     const have = a.allowedValues || [];
-    if (have.some((x) => x.toLowerCase() === v.toLowerCase())) return;
-    saveOptions(a, [...have, v], a.isActive !== false);
+    const fresh = typed.filter((v, i) => !have.some((x) => x.toLowerCase() === v.toLowerCase()) && typed.findIndex((y) => y.toLowerCase() === v.toLowerCase()) === i);
+    if (fresh.length === 0) return;
+    saveOptions(a, [...have, ...fresh], a.isActive !== false);
   };
 
   // Inline "Add Custom Attribute": a variant attribute (single-choice list) with its first options.

@@ -44,7 +44,17 @@ const COLOR_HEX: Record<string, string> = {
 };
 export const isColourAxis = (label: string) => /colou?r/i.test(label);
 /** A colour dot for any option that is a colour: a known name, a #hex code, or any CSS colour name the browser understands. */
+/** Separator for a colour combination such as "Blue + Red". */
+export const COLOUR_JOIN = ' + ';
 const swatch = (value: string): string | undefined => {
+  // A combination is drawn as a split circle, one slice per colour.
+  const parts = value.split('+').map((p) => p.trim()).filter(Boolean);
+  if (parts.length > 1) {
+    const cols = parts.map(swatch);
+    if (cols.some((c) => !c)) return undefined;
+    const step = 100 / cols.length;
+    return `linear-gradient(135deg, ${cols.map((c, i) => `${c} ${i * step}% ${(i + 1) * step}%`).join(', ')})`;
+  }
   const v = value.trim().toLowerCase();
   if (COLOR_HEX[v]) return COLOR_HEX[v];
   if (/^#([0-9a-f]{3}|[0-9a-f]{6})$/.test(v)) return v;
@@ -413,7 +423,11 @@ export default function VariantManager({
     for (const line of table.slice(1)) {
       const options = csvAxes.map((a, i) => {
         const raw = line[axisCols[i]] || '';
-        return { name: a.label, value: (sellerMode ? a.values.find((v) => v.toLowerCase() === raw.toLowerCase()) : raw) || '' };
+        const known = (x: string) => a.values.find((v) => v.toLowerCase() === x.trim().toLowerCase());
+        if (!sellerMode) return { name: a.label, value: raw };
+        // A colour combination ("Blue + Red") is fine when each colour is one of the options.
+        const parts = isColourAxis(a.label) ? raw.split('+').map(known) : [known(raw)];
+        return { name: a.label, value: parts.every(Boolean) ? parts.join(COLOUR_JOIN) : '' };
       });
       if (options.some((o) => !o.value)) { skipped++; continue; }
       nextAxes = nextAxes.map((a, i) => (a.values.includes(options[i].value) ? a : { ...a, values: [...a.values, options[i].value] }));
@@ -658,7 +672,33 @@ export default function VariantManager({
 
           {adding && (
             <div className="mx-4 mb-3 p-3 rounded-lg bg-blue-50/50 border border-blue-100 flex flex-wrap items-end gap-2">
-              {formAxes.map((a) => (
+              {formAxes.map((a) => sellerMode && isColourAxis(a.label) ? (
+                // Colours: pick one, or several for a combination like "Blue + Red".
+                <div key={a.label} className="text-[11px] font-semibold text-neutral-600">
+                  {a.label} <span className="font-normal text-neutral-500">(pick one, or more for a combination)</span>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    {a.values.filter((v) => !v.includes('+')).map((v) => {
+                      const picked = (adding[a.label] || '').split('+').map((p) => p.trim()).filter(Boolean);
+                      const on = picked.includes(v);
+                      const bg = swatch(v);
+                      return (
+                        <button key={v} type="button" aria-pressed={on}
+                          onClick={() => setAdding((d) => ({ ...(d || {}), [a.label]: (on ? picked.filter((p) => p !== v) : [...picked, v]).join(COLOUR_JOIN) }))}
+                          className={`inline-flex items-center gap-1.5 h-7 px-2 rounded-md border text-[11px] font-medium ${on ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-neutral-300 bg-white text-neutral-700'}`}>
+                          {bg && <span className="w-3.5 h-3.5 rounded-full border border-neutral-300" style={{ background: bg }} />}
+                          {v}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {adding[a.label] && (
+                    <p className="mt-1 font-normal text-neutral-600 inline-flex items-center gap-1.5">
+                      {swatch(adding[a.label]) && <span className="w-3.5 h-3.5 rounded-full border border-neutral-300" style={{ background: swatch(adding[a.label]) }} />}
+                      {adding[a.label]}
+                    </p>
+                  )}
+                </div>
+              ) : (
                 <label key={a.label} className="text-[11px] font-semibold text-neutral-600">
                   {a.label}
                   {sellerMode ? (
