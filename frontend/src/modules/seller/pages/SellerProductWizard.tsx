@@ -909,6 +909,8 @@ export default function SellerProductWizard() {
               combinedAxes={combinedAxes}
               onCombinedChange={setCombinedAxes}
               suggestedAttributes={variantAttributes.map((a) => ({ label: a.label, values: a.allowedValues || [] }))}
+              mode="seller"
+              defaults={{ weightKg: Number(weightGrams) > 0 ? String(Number(weightGrams) / 1000) : '' }}
               fallbackImage={mainPreview}
               productName={productName}
               onError={setError}

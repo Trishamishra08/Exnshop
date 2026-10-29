@@ -213,14 +213,23 @@ interface Props {
   skuPrefix?: string;
   uploadFolder?: string;
   onError?: (message: string) => void;
+  /**
+   * 'admin' (default): full attribute card — tick attributes, add options, custom attributes, Generate Variants.
+   * 'seller': the attributes and options are set by the admin in Listing Setup; the seller only adds variants
+   * (choosing from those options) and fills in the matrix.
+   */
+  mode?: 'admin' | 'seller';
+  /** Starting values for a newly added variant when no other variant has any yet. */
+  defaults?: { price?: string; discPrice?: string; stock?: string; weightKg?: string };
   /** Read-only summary shown beside the attributes, as on the design. */
   productInfo?: { name?: string; category?: string; subCategory?: string; brand?: string; description?: string };
 }
 
 export default function VariantManager({
   axes, rows, onChange, combinedAxes, onCombinedChange, suggestedAttributes = [], fallbackImage, productName, skuPrefix = '',
-  uploadFolder = 'exnshop/products/options', onError, productInfo,
+  uploadFolder = 'exnshop/products/options', onError, productInfo, mode = 'admin', defaults,
 }: Props) {
+  const sellerMode = mode === 'seller';
   const fail = (m: string) => (onError ? onError(m) : window.alert(m));
   const [extraOptions, setExtraOptions] = useState<Record<string, string[]>>({});
   const [customAttrs, setCustomAttrs] = useState<string[]>([]);
@@ -251,6 +260,15 @@ export default function VariantManager({
     Object.entries(extraOptions).forEach(([l, vs]) => add(l, vs));
     return [...byLabel.entries()].map(([label, set]) => ({ label, values: [...set] }));
   }, [suggestedAttributes, customAttrs, axes, extraOptions]);
+
+  // Seller mode: the attributes are the ones the admin set up (or the ones this product already uses); options are fixed.
+  const sellerAttrs: VMAxis[] = useMemo(() => {
+    if (!sellerMode) return [];
+    const suggested = (label: string) => suggestedAttributes.find((p) => p.label.toLowerCase() === label.toLowerCase())?.values || [];
+    if (axes.length > 0) return axes.map((a) => ({ label: a.label, values: [...new Set([...suggested(a.label), ...a.values])] }));
+    return suggestedAttributes.slice(0, MAX_ATTRIBUTES).map((a) => ({ label: a.label, values: a.values }));
+  }, [sellerMode, suggestedAttributes, axes]);
+  const formAxes: VMAxis[] = sellerMode ? sellerAttrs : axes;
 
   const axisOf = (label: string) => axes.find((a) => a.label.toLowerCase() === label.toLowerCase());
   const setAxes = (next: VMAxis[]) => onChange(next, rows);
@@ -307,8 +325,14 @@ export default function VariantManager({
 
   // ── Matrix ──
   const updateRow = (title: string, patch: Partial<VMRow>) => onChange(axes, rows.map((r) => (r.title === title ? { ...r, ...patch } : r)));
+  // Seller mode: dropping the last variant goes back to a single "Default" item, and unused options fall away.
+  const commitRows = (next: VMRow[]) => {
+    if (!sellerMode) return onChange(axes, next);
+    if (next.length === 0) return onChange([], [emptyRow()]);
+    onChange(axes.map((a) => ({ ...a, values: a.values.filter((v) => next.some((r) => r.options.some((o) => o.name === a.label && o.value === v))) })), next);
+  };
   const removeRow = (title: string) => {
-    onChange(axes, rows.filter((r) => r.title !== title));
+    commitRows(rows.filter((r) => r.title !== title));
     setSelected((s) => { const n = new Set(s); n.delete(title); return n; });
   };
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.title));
@@ -323,17 +347,42 @@ export default function VariantManager({
   };
   const setActiveFor = (on: boolean) => onChange(axes, rows.map((r) => (selected.has(r.title) ? { ...r, isActive: on } : r)));
 
+  // A new variant starts with the price, discount, stock and weight of the latest one (or the defaults), so the seller only changes what differs.
+  const seeded = (title: string, options: VMOption[]): VMRow => {
+    const last = [...rows].reverse().find((r) => Number(r.price) > 0);
+    const base = emptyRow(title, options);
+    if (last) return { ...base, price: last.price, discPrice: last.discPrice, stock: last.stock, weightKg: last.weightKg };
+    return { ...base, price: defaults?.price || '', discPrice: defaults?.discPrice || '', stock: defaults?.stock || '0', weightKg: defaults?.weightKg || '' };
+  };
   const addVariant = () => {
     if (!adding) return;
-    if (axes.length === 0) return fail('Tick at least one attribute first.');
-    const values = axes.map((a) => (adding[a.label] || '').trim());
-    if (values.some((v) => !v)) return fail('Choose or type an option for every attribute.');
-    const options = axes.map((a, i) => ({ name: a.label, value: values[i] }));
+    if (formAxes.length === 0) return fail('No variant attributes are available for this product.');
+    const values = formAxes.map((a) => (adding[a.label] || '').trim());
+    if (values.some((v) => !v)) return fail('Choose an option for every attribute.');
+    const options = formAxes.map((a, i) => ({ name: a.label, value: values[i] }));
     const title = comboTitle(options);
     if (rows.some((r) => r.title === title)) return fail(`${title} is already in the list.`);
-    const nextAxes = axes.map((a, i) => (a.values.includes(values[i]) ? a : { ...a, values: [...a.values, values[i]] }));
-    onChange(nextAxes, [...rows, emptyRow(title, options)]);
+    const base: VMAxis[] = axes.length > 0 ? axes : formAxes.map((a) => ({ label: a.label, values: [] }));
+    const nextAxes = base.map((a, i) => (a.values.includes(values[i]) ? a : { ...a, values: [...a.values, values[i]] }));
+    onChange(nextAxes, [...rows.filter((r) => r.options.length > 0), seeded(title, options)]);
+    setEditing((s) => new Set(s).add(title));
     setAdding(null);
+  };
+  // Seller mode: one row for every combination of the admin's options.
+  const addAllCombinations = () => {
+    if (formAxes.length === 0 || formAxes.some((a) => a.values.length === 0)) return fail('No options are available to combine for this category.');
+    const full = formAxes.map((a) => ({ label: a.label, values: a.values }));
+    const next = buildRows(full, rows.filter((r) => r.options.length > 0));
+    if (next.length > 100) return fail(`That makes ${next.length} variants — a product can have at most 100. Add the variants you need one by one.`);
+    const made = next.map((r) => (Number(r.price) > 0 ? r : { ...seeded(r.title, r.options), ...(r._id ? { _id: r._id } : {}) }));
+    onChange(full, made);
+    setEditing((s) => new Set([...s, ...made.map((r) => r.title)]));
+    setSelected(new Set());
+  };
+  const setDiscountPct = (title: string, mrp: string, pct: string) => {
+    const m = Number(mrp);
+    const p = Math.min(99, Math.max(0, Number(pct)));
+    updateRow(title, { discPrice: m > 0 && p > 0 ? String(Math.round(m * (100 - p)) / 100) : '' });
   };
 
   const downloadCsv = () => {
@@ -460,7 +509,44 @@ export default function VariantManager({
             </section>
           )}
 
-          {/* Variant attributes */}
+          {sellerMode && (
+            <section className={`${card} p-4 ${productInfo ? '' : 'lg:col-span-2'}`}>
+              <h3 className="text-sm font-bold text-neutral-900">Variant Options</h3>
+              <p className="text-xs text-neutral-500 mb-2">Set by Exnshop for this category. Pick from these when you add a variant.</p>
+              {sellerAttrs.length === 0 ? (
+                <p className="text-xs text-neutral-600 bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2.5">
+                  No variant options are set up for this category, so this product is sold as a single item. Enter its price and stock in the table below.
+                </p>
+              ) : (
+                <div className="divide-y divide-neutral-100">
+                  {sellerAttrs.map((a) => (
+                    <div key={a.label} className="py-2 flex flex-wrap items-center gap-2">
+                      <span className="w-28 shrink-0 text-xs font-semibold text-neutral-800">{a.label}</span>
+                      <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
+                        {a.values.map((v) => {
+                          const hex = isColourAxis(a.label) ? swatch(v) : undefined;
+                          return hex ? (
+                            <span key={v} title={v} className="w-5 h-5 rounded-full border border-neutral-300" style={{ background: hex }} />
+                          ) : (
+                            <span key={v} className="px-2 py-0.5 rounded-md border border-neutral-200 bg-neutral-50 text-[11px] font-semibold text-neutral-600">{v}</span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {sellerAttrs.length > 0 && (
+                <div className="flex flex-wrap items-center gap-3 mt-3">
+                  <button type="button" onClick={() => setAdding(adding ? null : {})} className={blueBtn}>{Icon.plus} Add Variant</button>
+                  <button type="button" onClick={addAllCombinations} className={outlineBtn}>{Icon.grid} Add all combinations</button>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Variant attributes (admin) */}
+          {!sellerMode && (
           <section className={`${card} p-4 ${productInfo ? '' : 'lg:col-span-2'}`}>
             <h3 className="text-sm font-bold text-neutral-900">Variant Attributes</h3>
             <p className="text-xs text-neutral-500 mb-2">Select attributes and add options to create product variants.</p>
@@ -567,6 +653,7 @@ export default function VariantManager({
               </div>
             )}
           </section>
+          )}
         </div>
 
         {/* Variant matrix */}
@@ -582,7 +669,7 @@ export default function VariantManager({
               <button type="button" onClick={downloadCsv} className={outlineBtn}>{Icon.download} CSV</button>
               <button type="button" onClick={() => onChange(axes, autoSkus(rows, skuPrefix))} className={outlineBtn}>Auto SKU</button>
               <input ref={csvRef} type="file" accept=".csv,text/csv" className="hidden" onChange={uploadCsv} />
-              {axes.length > 0 && <button type="button" onClick={() => setAdding(adding ? null : {})} className={blueBtn}>{Icon.plus} Add Variant</button>}
+              {formAxes.length > 0 && <button type="button" onClick={() => setAdding(adding ? null : {})} className={blueBtn}>{Icon.plus} Add Variant</button>}
             </div>
           </div>
 
@@ -601,11 +688,20 @@ export default function VariantManager({
 
           {adding && (
             <div className="mx-4 mb-3 p-3 rounded-lg bg-blue-50/50 border border-blue-100 flex flex-wrap items-end gap-2">
-              {axes.map((a) => (
+              {formAxes.map((a) => (
                 <label key={a.label} className="text-[11px] font-semibold text-neutral-600">
                   {a.label}
-                  <input list={`vm-${a.label}`} value={adding[a.label] || ''} onChange={(e) => setAdding((d) => ({ ...(d || {}), [a.label]: e.target.value }))} className={`${cellInput} w-32`} />
-                  <datalist id={`vm-${a.label}`}>{a.values.map((v) => <option key={v} value={v} />)}</datalist>
+                  {sellerMode ? (
+                    <select value={adding[a.label] || ''} onChange={(e) => setAdding((d) => ({ ...(d || {}), [a.label]: e.target.value }))} className={`${cellInput} w-36`}>
+                      <option value="">Select {a.label}</option>
+                      {a.values.map((v) => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                  ) : (
+                    <>
+                      <input list={`vm-${a.label}`} value={adding[a.label] || ''} onChange={(e) => setAdding((d) => ({ ...(d || {}), [a.label]: e.target.value }))} className={`${cellInput} w-32`} />
+                      <datalist id={`vm-${a.label}`}>{a.values.map((v) => <option key={v} value={v} />)}</datalist>
+                    </>
+                  )}
                 </label>
               ))}
               <button type="button" onClick={addVariant} className={blueBtn}>Add</button>
@@ -618,7 +714,7 @@ export default function VariantManager({
               <span className="font-semibold text-neutral-700">{selected.size} selected</span>
               <button type="button" onClick={() => setActiveFor(true)} className="text-green-700 font-semibold hover:underline">Switch on</button>
               <button type="button" onClick={() => setActiveFor(false)} className="text-neutral-600 font-semibold hover:underline">Switch off</button>
-              <button type="button" onClick={() => { onChange(axes, rows.filter((r) => !selected.has(r.title))); setSelected(new Set()); }} className="text-red-600 font-semibold hover:underline">Delete</button>
+              <button type="button" onClick={() => { commitRows(rows.filter((r) => !selected.has(r.title))); setSelected(new Set()); }} className="text-red-600 font-semibold hover:underline">Delete</button>
             </div>
           )}
 
@@ -634,7 +730,7 @@ export default function VariantManager({
                   <th className="p-2.5 text-left font-semibold">SKU</th>
                   <th className="p-2.5 text-left font-semibold">MRP (₹)</th>
                   <th className="p-2.5 text-left font-semibold">Selling Price (₹)</th>
-                  <th className="p-2.5 text-left font-semibold">Discount</th>
+                  <th className="p-2.5 text-left font-semibold">Discount (%)</th>
                   <th className="p-2.5 text-left font-semibold">Stock</th>
                   <th className="p-2.5 text-left font-semibold">Weight (kg)</th>
                   <th className="p-2.5 text-left font-semibold">Images</th>
@@ -644,7 +740,7 @@ export default function VariantManager({
               </thead>
               <tbody>
                 {rows.length === 0 && (
-                  <tr><td colSpan={13} className="p-8 text-center text-neutral-500">Tick attributes and press Generate Variants.</td></tr>
+                  <tr><td colSpan={13} className="p-8 text-center text-neutral-500">{sellerMode ? 'Press Add Variant to create the first one.' : 'Tick attributes and press Generate Variants.'}</td></tr>
                 )}
                 {rows.map((r) => {
                   const pct = discountPct(r);
@@ -680,7 +776,13 @@ export default function VariantManager({
                       <td className="p-2.5 whitespace-nowrap font-mono">{field('sku', r.sku)}</td>
                       <td className="p-2.5">{field('price', r.price)}</td>
                       <td className="p-2.5">{field('discPrice', r.discPrice || r.price)}</td>
-                      <td className="p-2.5 whitespace-nowrap">{pct > 0 ? <span className="text-neutral-800">{pct}%</span> : '—'}</td>
+                      <td className="p-2.5 whitespace-nowrap">
+                        {edit ? (
+                          <span className="inline-flex items-center gap-1">
+                            <input type="number" min="0" max="99" value={pct || ''} placeholder="0" onChange={(e) => setDiscountPct(r.title, r.price, e.target.value)} className={`${cellInput} w-16`} />%
+                          </span>
+                        ) : pct > 0 ? <span className="text-neutral-800">{pct}%</span> : '—'}
+                      </td>
                       <td className="p-2.5">{field('stock', r.stock === '0' ? 'Unlimited' : r.stock)}</td>
                       <td className="p-2.5">{field('weightKg', r.weightKg)}</td>
                       <td className="p-2.5">
