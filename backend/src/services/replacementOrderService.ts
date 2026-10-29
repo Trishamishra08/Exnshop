@@ -103,7 +103,8 @@ export const createReplacementOrder = async (
     seller: item.seller,
     productName: item.productName,
     productImage: item.productImage,
-    sku: item.sku,
+    // Exchanged for another variant: ship that variant's SKU.
+    sku: (requestedIndex >= 0 && (product.variations[requestedIndex] as any)?.sku) || item.sku,
     unitPrice: 0,
     quantity: qty,
     total: 0,

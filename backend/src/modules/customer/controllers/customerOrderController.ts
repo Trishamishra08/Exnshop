@@ -332,13 +332,18 @@ async function buildAndSaveChannelOrder(params: {
       seller: product.seller,
       productName: product.productName,
       productImage: product.mainImage,
-      sku: product.sku,
+      // Each variant has its own SKU (BLK-S-001…); the product SKU is only the fallback.
+      sku: (selectedVariation as any)?.sku || product.sku,
       unitPrice: itemPrice,
       quantity: qty,
       total: itemTotal,
       commissionRate: commRate,
       commissionAmount: commAmount,
       variation: variationValue,
+      // Readable variant name, e.g. "75mm / 4key / Black" (for labels, invoices and reports).
+      variantTitle: selectedVariation
+        ? String((selectedVariation as any).title || (selectedVariation as any).value || ((selectedVariation as any).options || []).map((o: any) => o.value).join(" / ") || "") || undefined
+        : undefined,
       status: "Pending",
       isReturnable: isReturnableSnapshot,
       returnWindowDays: returnDaysSnapshot,

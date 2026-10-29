@@ -80,6 +80,36 @@ const getAuthToken = async (): Promise<string> => {
 
 const DEFAULT_PICKUP_LOCATION = () => process.env.SHIPROCKET_PICKUP_LOCATION || "Primary";
 
+/**
+ * Shiprocket rejects an order whose items share a SKU ("SKU cannot be repeated"). Variants of
+ * one product can arrive with the same SKU (older orders saved the product SKU on every item),
+ * so a repeated SKU gets the variant appended, and the item name carries the variant so the
+ * label shows which colour/size to pack.
+ */
+export const uniqueSkuItems = (items: any[]) => {
+  const used = new Set<string>();
+  return items.map((item, i) => {
+    // variantTitle, or the stored variation when it is a name rather than an id.
+    const raw = String(item.variantTitle || item.variation || "").trim();
+    const variant = /^[a-f0-9]{24}$/i.test(raw) || /^default$/i.test(raw) ? "" : raw;
+    const base = String(item.sku || item.product?.toString() || "SKU").trim();
+    let sku = base;
+    if (used.has(sku)) {
+      const tag = variant.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toUpperCase().slice(0, 30);
+      sku = tag ? `${base}-${tag}` : `${base}-${i + 1}`;
+      for (let n = 2; used.has(sku); n++) sku = `${base}-${tag || i + 1}-${n}`;
+    }
+    used.add(sku);
+    const name = item.productName || "Item";
+    return {
+      name: variant && !name.includes(variant) ? `${name} (${variant})` : name,
+      sku,
+      units: item.quantity,
+      selling_price: item.unitPrice,
+    };
+  });
+};
+
 const describeShiprocketError = (error: any): string => {
   const data = error?.response?.data;
   if (data?.errors && typeof data.errors === "object") {
@@ -340,12 +370,7 @@ export const createShiprocketOrder = async (
         billing_email: order.customerEmail || "support@exnshop.in",
         billing_phone: order.customerPhone,
         shipping_is_billing: true,
-        order_items: items.map((item) => ({
-          name: item.productName || "Item",
-          sku: item.sku || item.product?.toString() || "SKU",
-          units: item.quantity,
-          selling_price: item.unitPrice,
-        })),
+        order_items: uniqueSkuItems(items),
         payment_method: order.paymentMethod === "COD" ? "COD" : "Prepaid",
         sub_total:
           sellerCountOnOrder === 1
