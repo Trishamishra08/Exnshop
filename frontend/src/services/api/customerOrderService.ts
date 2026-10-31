@@ -111,7 +111,7 @@ export const updateOrderNotes = async (id: string, data: { deliveryInstructions?
  */
 export const requestCustomerReturn = async (
     orderId: string,
-    data: { orderItemId: string; reason: string; description?: string; quantity?: number; requestType?: 'RETURN' | 'EXCHANGE'; images?: string[]; condition?: 'Unused' | 'Defective' | 'Used'; requestedVariationId?: string; codRefundTo?: 'WALLET' | 'BANK' }
+    data: { orderItemId: string; reason: string; description?: string; quantity?: number; requestType?: 'RETURN' | 'EXCHANGE'; images?: string[]; videos?: string[]; condition?: 'Unused' | 'Defective' | 'Used'; requestedVariationId?: string; codRefundTo?: 'WALLET' | 'BANK' }
 ): Promise<OrderResponse> => {
     const response = await api.post<OrderResponse>(`/customer/orders/${orderId}/return`, data);
     return response.data;
@@ -135,6 +135,17 @@ export const uploadReturnImages = async (files: File[]): Promise<string[]> => {
     files.forEach((f) => form.append('images', f));
     const response = await api.post<{ success: boolean; data: { secureUrl: string }[] }>('/upload/return-images', form, {
         headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data.data.map((r) => r.secureUrl);
+};
+
+/** Videos for a return/exchange request (e.g. open-box proof); returns their https links. */
+export const uploadReturnVideos = async (files: File[]): Promise<string[]> => {
+    const form = new FormData();
+    files.forEach((f) => form.append('videos', f));
+    const response = await api.post<{ success: boolean; data: { secureUrl: string }[] }>('/upload/return-videos', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 5 * 60 * 1000, // videos are large
     });
     return response.data.data.map((r) => r.secureUrl);
 };

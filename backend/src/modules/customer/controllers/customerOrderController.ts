@@ -1774,6 +1774,10 @@ export const requestItemReturn = async (req: Request, res: Response) => {
     const returnQty = quantity && quantity > 0 ? Math.min(quantity, item.quantity) : item.quantity;
 
     // Photos (https links only), the item's condition, and for an exchange the variant wanted.
+    // Optional videos (open-box / unboxing proof): up to 2 https links.
+    const videos: string[] = Array.isArray(req.body.videos)
+      ? req.body.videos.filter((u: unknown) => typeof u === "string" && /^https:\/\/\S+$/.test(u)).slice(0, 2)
+      : [];
     const images: string[] = Array.isArray(req.body.images)
       ? req.body.images.filter((u: unknown) => typeof u === "string" && /^https:\/\/\S+$/.test(u)).slice(0, 5)
       : [];
@@ -1833,6 +1837,7 @@ export const requestItemReturn = async (req: Request, res: Response) => {
       description: description || "",
       quantity: returnQty,
       images,
+      ...(videos.length ? { videos } : {}),
       condition,
       requestedVariation,
       exchangeShipping,
@@ -1846,16 +1851,17 @@ export const requestItemReturn = async (req: Request, res: Response) => {
       const sellerId = item.seller?._id?.toString() || item.seller?.toString() || item.vendor?.toString();
       const io = req.app.get("io");
 
-      if (sellerId) {
-        await sendReturnRequestNotificationToSeller(
-          sellerId,
-          order.orderNumber || "N/A",
-          product.productName || "Product",
-          newReturn._id.toString(),
-          io,
-          requestType,
-          order._id.toString()
+      // Return and replacement requests are accepted by the Exnshop admin, not the seller.
+      try {
+        const { sendBroadcastNotification } = await import("../../../services/notificationService");
+        await sendBroadcastNotification(
+          "Admin",
+          requestType === "EXCHANGE" ? "New replacement request" : "New return request",
+          `Order #${order.orderNumber || "N/A"}: ${product.productName || "Product"}. Review and approve or reject it.`,
+          { type: "Warning", priority: "High", link: "/admin/returns" },
         );
+      } catch (adminErr) {
+        console.error("Error notifying admins of a return request:", adminErr);
       }
 
       // Notify customer that request was submitted

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import DeliveryHeader from '../components/DeliveryHeader';
 import DeliveryBottomNav from '../components/DeliveryBottomNav';
 import { useToast } from '../../../context/ToastContext';
+import api from '../../../services/api/config';
 import {
   getAssignedReturns,
   generateReturnPickupOtp,
@@ -88,7 +89,37 @@ export default function DeliveryReturnOrders() {
     }
   };
 
+  // Pickups alerted to this partner (nearest live partners are alerted; the first to accept gets it).
+  const [offers, setOffers] = useState<any[]>([]);
+  const [claiming, setClaiming] = useState<string | null>(null);
+  const fetchOffers = async () => {
+    try {
+      const res = await api.get('/delivery/returns/offers');
+      setOffers(res.data?.data || []);
+    } catch {
+      setOffers([]);
+    }
+  };
+  const claimOffer = async (returnId: string) => {
+    setClaiming(returnId);
+    try {
+      const res = await api.post(`/delivery/returns/${returnId}/claim`);
+      showToast(res.data?.message || 'Pickup accepted', 'success');
+      await Promise.all([fetchReturns(), fetchOffers()]);
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || 'Could not accept this pickup', 'error');
+      await fetchOffers(); // someone else may have taken it
+    } finally {
+      setClaiming(null);
+    }
+  };
+
   useEffect(() => { fetchReturns(); }, []);
+  useEffect(() => {
+    fetchOffers();
+    const timer = setInterval(fetchOffers, 10000); // new alerts show up within seconds
+    return () => clearInterval(timer);
+  }, []);
 
   const handleGenerateOtp = async (returnId: string) => {
     setOtpMessage('');
@@ -121,7 +152,7 @@ export default function DeliveryReturnOrders() {
         setOtpModal(null);
         setOtpInput('');
         await fetchReturns();
-        showToast('✅ OTP verified! Item marked as Picked Up.', 'success');
+        showToast('✅ ' + (res.message || 'OTP verified! Item marked as Picked Up.'), 'success');
       } else {
         setOtpError(res.message || 'Invalid OTP. Try again.');
       }
@@ -243,12 +274,38 @@ export default function DeliveryReturnOrders() {
           </div>
         </div>
 
+        {/* Available pickups: first to accept gets it */}
+        {offers.length > 0 && (
+          <div className="mb-4 space-y-3">
+            <p className="text-sm font-bold text-neutral-900">New pickup near you <span className="text-xs font-normal text-neutral-500">(first to accept gets it)</span></p>
+            {offers.map((o) => (
+              <div key={o.returnId} className="bg-white rounded-xl p-4 border-2 border-orange-300 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-neutral-900 text-sm">Order #{o.orderNumber}</p>
+                    <p className="text-xs text-neutral-700">{o.productName}{o.quantity > 1 ? ` × ${o.quantity}` : ''}</p>
+                    <p className="text-xs text-neutral-500 mt-1 truncate">📍 {o.address}{o.city ? `, ${o.city}` : ''}</p>
+                    {o.reason && <p className="text-[11px] text-neutral-400 mt-0.5">Reason: {o.reason}</p>}
+                  </div>
+                  <button
+                    onClick={() => claimOffer(o.returnId)}
+                    disabled={claiming !== null}
+                    className="shrink-0 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold disabled:opacity-60"
+                  >
+                    {claiming === o.returnId ? 'Accepting…' : 'Accept'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {returns.length === 0 ? (
           <div className="bg-white rounded-xl p-8 min-h-[300px] flex items-center justify-center shadow-sm border border-neutral-200">
             <div className="text-center">
               <p className="text-3xl mb-3">📦</p>
               <p className="text-neutral-500 text-sm">No return pickups assigned to you</p>
-              <p className="text-neutral-400 text-xs mt-1">Admin assigns you when a customer return needs pickup</p>
+              <p className="text-neutral-400 text-xs mt-1">New pickups near you appear above. Accept one to get it.</p>
             </div>
           </div>
         ) : (

@@ -748,6 +748,7 @@ export const getReturnRequests = asyncHandler(
       requestedVariation: req.requestedVariation,
       condition: req.condition,
       photos: req.images || [],
+      videos: req.videos || [],
       qc: req.qc,
       flags: req.flags,
     }));
@@ -817,6 +818,20 @@ export const processReturnRequest = asyncHandler(
         success: false,
         message: `Admin can only set return status to: ${validStatuses.join(", ")}. Other transitions are performed by delivery partner or seller.`,
       });
+    }
+
+    // Approve / Reject: the shared decision. A Quick return then alerts the nearest live delivery
+    // partners automatically (first to accept gets it); a Quick replacement starts the swap order.
+    if (status === "Approved" || status === "Rejected") {
+      try {
+        const { adminActorOf } = await import("../../../services/productListingService");
+        const actor = await adminActorOf(req);
+        const { decideReturnRequest } = await import("../../../services/returnDecisionService");
+        const result = await decideReturnRequest(id, status, rejectionReason || adminNotes, { id: actor.actorId, name: actor.actorName }, req.app.get("io"));
+        return res.status(200).json({ success: true, message: result.message, data: result.data });
+      } catch (err: any) {
+        return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Could not save the decision" });
+      }
     }
 
     const returnRequest = await Return.findById(id);

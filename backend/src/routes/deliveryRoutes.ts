@@ -116,7 +116,9 @@ router.post("/withdraw", requireApprovedUser, deliveryEarningController.requestW
 
 // ==================== Return Pickup Routes ====================
 // All return routes require approval — DP must be verified and active
+router.get("/returns/offers", requireApprovedUser, deliveryReturnController.getReturnOffers);
 router.get("/returns", requireApprovedUser, deliveryReturnController.getAssignedReturns);
+router.post("/returns/:id/claim", requireApprovedUser, deliveryReturnController.claimReturn);
 router.get("/returns/:id", requireApprovedUser, deliveryReturnController.getReturnDetails);
 router.post("/returns/:id/accept", requireApprovedUser, deliveryReturnController.acceptReturnAssignment);
 router.post("/returns/:id/generate-pickup-otp", requireApprovedUser, deliveryReturnController.generateReturnPickupOtpController);

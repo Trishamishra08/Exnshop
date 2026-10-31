@@ -138,8 +138,38 @@ export const createReplacementOrder = async (
     if (charged) await Return.updateOne({ _id: ret._id }, { $set: { returnShippingCharge: charge } });
   }
 
-  // Same start as any new order: the seller's panel rings.
-  if (io) {
+  if (order.channel !== "ECommerce") {
+    // Quick: the admin already approved this replacement, so the seller is not asked to accept it.
+    // It is accepted for them and the nearest live delivery partners are alerted at once
+    // (the first to accept gets it). A Self Delivery seller delivers it themselves.
+    try {
+      const sellerId = String(item.seller);
+      const { getSellerShippingMethod } = await import("./sellerShippingService");
+      const selfDelivery = (await getSellerShippingMethod(sellerId)) === "Self";
+      await OrderItem.updateOne({ _id: newItem._id }, { $set: { sellerStatus: "Accepted" } });
+      await Order.updateOne(
+        { _id: order._id },
+        {
+          $set: { ...(selfDelivery ? { deliveryPreference: "Self" } : {}) },
+          $push: { sellerResponses: { seller: item.seller, status: "Accepted", respondedAt: new Date() } },
+        },
+      );
+      const { recomputeOrderFulfillment } = await import("./orderFulfillmentOrchestrator");
+      await recomputeOrderFulfillment(String(order._id), io);
+      // Tell the seller to keep the item ready (information only, nothing to accept).
+      const { sendNotification } = await import("./notificationService");
+      await sendNotification(
+        "Seller",
+        sellerId,
+        "Replacement order approved",
+        `Replacement for order #${original.orderNumber} (${item.productName}) was approved by Exnshop. Keep the item ready for the delivery partner.`,
+        { type: "Info", priority: "High", link: `/seller/orders/${order._id}` },
+      ).catch(() => undefined);
+    } catch (err) {
+      console.error("[Replacement] Auto-accept / dispatch failed:", err);
+    }
+  } else if (io) {
+    // E-commerce replacement keeps the usual flow: the seller accepts and ships it.
     try {
       const { notifySellersOfOrderUpdate } = await import("./sellerNotificationService");
       await notifySellersOfOrderUpdate(io, order, "NEW_ORDER");

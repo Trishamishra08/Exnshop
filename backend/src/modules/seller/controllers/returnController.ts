@@ -86,6 +86,7 @@ export const getReturnRequests = asyncHandler(
         requestedVariation: ret.requestedVariation,
         condition: ret.condition,
         photos: ret.images || [],
+        videos: ret.videos || [],
         exchangeState: ret.exchangeState,
         qc: ret.qc,
         flags: ret.flags,
@@ -164,6 +165,7 @@ export const getReturnRequestById = asyncHandler(
       requestedVariation: (fullReturn as any).requestedVariation,
       condition: (fullReturn as any).condition,
       photos: (fullReturn as any).images || [],
+      videos: (fullReturn as any).videos || [],
       exchangeState: (fullReturn as any).exchangeState,
       qc: (fullReturn as any).qc,
       flags: (fullReturn as any).flags,
@@ -219,120 +221,17 @@ export const getReturnRequestById = asyncHandler(
  *
  * NO financial settlement is triggered here.
  */
-export const updateReturnStatus = asyncHandler(
-  async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { status } = req.body;
-    const sellerId = (req as any).user?.userId;
-
-    // Seller can only set these statuses
-    const sellerAllowedStatuses = ["Approved", "Rejected"];
-    if (!sellerAllowedStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: `Sellers can only set return/exchange status to: ${sellerAllowedStatuses.join(", ")}`,
-      });
-    }
-
-    // Authorization: verify return belongs to this seller
-    let returnReq: any;
-    try {
-      const result = await assertReturnBelongsToSeller(id, sellerId!);
-      returnReq = result.returnReq;
-    } catch (err: any) {
-      return res.status(err.statusCode || 500).json({ success: false, message: err.message });
-    }
-
-    // State machine: seller can only act from "Pending"
-    try {
-      const { validateSellerReturnTransition } = await import("../../../services/returnLifecycleService");
-      validateSellerReturnTransition(returnReq.status as any, status as any);
-    } catch (err: any) {
-      return res.status(400).json({ success: false, message: err.message });
-    }
-
-    const updateData: any = {
-      processedBy: sellerId,
-      processedAt: new Date(),
-    };
-
-    if (status === "Approved") {
-      // Atomic: Pending → Approved → Pickup Pending (never leaves a return stuck at Approved)
-      updateData.status = "Pickup Pending";
-      updateData.approvedAt = new Date();
-    } else {
-      updateData.status = "Rejected";
-      const rejectionReason = req.body.reason || req.body.rejectionReason;
-      if (!rejectionReason || typeof rejectionReason !== 'string' || !rejectionReason.trim()) {
-        return res.status(400).json({
-          success: false,
-          message: "A reason is required when rejecting a request.",
-        });
-      }
-      updateData.rejectionReason = rejectionReason.trim();
-    }
-
-    let updatedReturn = await Return.findByIdAndUpdate(id, updateData, { new: true });
-    const reqType = returnReq.requestType || "RETURN";
-
-    // E-commerce: book the courier reverse pickup now (Quick waits for a rider).
-    let courierNote = "";
-    if (status === "Approved") {
-      const parentOrder = await Order.findById(returnReq.order).select("channel");
-      if (parentOrder?.channel === "ECommerce") {
-        const { startCourierReturn } = await import("../../../services/courierReturnService");
-        const booked = await startCourierReturn(id);
-        courierNote = booked.success
-          ? " Courier pickup booked from the customer."
-          : ` Courier pickup could not be booked yet (${booked.message}); Exnshop support will retry.`;
-        updatedReturn = await Return.findById(id);
-      } else if (reqType === "EXCHANGE") {
-        // Quick: send the replacement now; the rider takes the old item back in the same trip.
-        const { startDoorstepSwap } = await import("../../../services/exchangeService");
-        const swap = await startDoorstepSwap(id, req.app.get("io"));
-        if (swap.started) courierNote = ` ${swap.message}`;
-        updatedReturn = await Return.findById(id);
-      }
-    }
-
-    // Send customer notification via notificationService
-    try {
-      const { sendReturnStatusNotificationToCustomer } = await import("../../../services/notificationService");
-      const order = await Order.findById(returnReq.order);
-      const item = await OrderItem.findById(returnReq.orderItem);
-      const productName = item?.productName || "Product";
-      const orderNum = order?.orderNumber || "Order";
-      const io = req.app.get("io");
-
-      await sendReturnStatusNotificationToCustomer(
-        returnReq.customer.toString(),
-        orderNum,
-        productName,
-        status,
-        updateData.rejectionReason,
-        returnReq.order.toString(),
-        io,
-        reqType,
-        returnReq._id.toString()
-      );
-    } catch (notifErr) {
-      console.error("Error sending customer status notification:", notifErr);
-    }
-
-    // NO financial settlement here — ONLY triggered after seller confirms physical receipt.
-
-    return res.status(200).json({
-      success: true,
-      message:
-        status === "Approved"
-          ? courierNote
-            ? `${reqType === "EXCHANGE" ? "Exchange" : "Return"} approved.${courierNote}`
-            : `${reqType === "EXCHANGE" ? "Exchange" : "Return"} approved. Now awaiting delivery partner assignment for pickup.`
-          : `${reqType === "EXCHANGE" ? "Exchange" : "Return"} rejected successfully.`,
-      data: updatedReturn,
-    });
-  }
-);
+/**
+ * PATCH /returns/:id/status
+ * Sellers no longer accept or reject return / replacement requests: the Exnshop admin does.
+ * (The seller still confirms receipt of the returned item.)
+ */
+export const updateReturnStatus = asyncHandler(async (_req: Request, res: Response) => {
+  return res.status(403).json({
+    success: false,
+    message: "Return and replacement requests are accepted by the Exnshop admin. You will be notified when the item is on its way back to you.",
+  });
+});
 
 
 /**

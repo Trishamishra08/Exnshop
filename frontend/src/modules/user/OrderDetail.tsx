@@ -21,7 +21,7 @@ import { formatDeliveryAddress } from "../../utils/addressUtils";
 import SupportModal from "../../components/SupportModal";
 import InvoiceDocumentsPicker from "../../components/InvoiceDocumentsPicker";
 import ExchangeExtras, { EMPTY_EXTRAS, reasonNeedsPhoto, reasonNeedsVariant, type ExchangeExtrasValue } from "../../components/ExchangeExtras";
-import { uploadReturnImages, chooseExchangeOutcome } from "../../services/api/customerOrderService";
+import { uploadReturnImages, uploadReturnVideos, chooseExchangeOutcome } from "../../services/api/customerOrderService";
 
 // Icon Components
 const ArrowLeftIcon = ({ className }: { className?: string }) => (
@@ -2339,6 +2339,7 @@ export default function OrderDetail() {
                       setReturnError(null);
                       const rawReason = isOther ? customReturnReason.trim() : returnReason;
                       const images = returnExtras.files.length ? await uploadReturnImages(returnExtras.files) : [];
+                      const videos = returnExtras.videoFiles?.length ? await uploadReturnVideos(returnExtras.videoFiles) : [];
                       const res = await requestCustomerReturn(id!, {
                         orderItemId: selectedReturnItem._id || selectedReturnItem.id,
                         requestType: isExchangeReq ? "EXCHANGE" : "RETURN",
@@ -2346,6 +2347,7 @@ export default function OrderDetail() {
                         description: customReturnReason,
                         quantity: selectedReturnItem.quantity || 1,
                         images,
+                        videos: videos.length ? videos : undefined,
                         condition: returnExtras.condition || undefined,
                         requestedVariationId: isExchangeReq && returnExtras.variationId ? returnExtras.variationId : undefined,
                         codRefundTo: !isExchangeReq && isCodOrder ? codRefundTo : undefined,

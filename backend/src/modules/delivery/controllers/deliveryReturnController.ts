@@ -413,3 +413,20 @@ export const markHandedToSeller = asyncHandler(async (req: Request, res: Respons
     data: { returnId: id, status: returnReq.status, handedToSellerAt: returnReq.handedToSellerAt },
   });
 });
+
+/** GET /delivery/returns/offers — pickups alerted to this partner that nobody has taken yet. */
+export const getReturnOffers = asyncHandler(async (req: Request, res: Response) => {
+  const { offersForRider } = await import("../../../services/returnDispatchService");
+  return res.status(200).json({ success: true, data: await offersForRider(req.user!.userId) });
+});
+
+/** POST /delivery/returns/:id/claim — the first partner to accept an offered pickup gets it. */
+export const claimReturn = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { claimReturnPickup } = await import("../../../services/returnDispatchService");
+    const ret = await claimReturnPickup(req.params.id, req.user!.userId, (req.app as any).get("io"));
+    return res.status(200).json({ success: true, message: "Pickup accepted. Collect the item from the customer with the pickup OTP.", data: { returnId: String(ret._id), status: ret.status } });
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Could not accept the pickup" });
+  }
+});

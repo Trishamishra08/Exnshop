@@ -333,7 +333,9 @@ export const handleOnlineOrderCancellation = async (
    */
 export const executeReturnRefundAndReversal = async (
   returnId: string,
-  processedByUserId?: string
+  processedByUserId?: string,
+  /** keepStatus: settle the money now but leave the return where it is (item still on its way to the seller). */
+  options: { keepStatus?: boolean } = {}
 ): Promise<{ success: boolean; message: string; data?: any }> => {
   const maxRetries = 5;
   let attempt = 0;
@@ -593,7 +595,7 @@ export const executeReturnRefundAndReversal = async (
       const refundDoc = new Refund(refundData);
       await refundDoc.save({ session });
 
-      returnReq.status = "Completed";
+      if (!options.keepStatus) returnReq.status = "Completed";
       returnReq.financialSettlementStatus = "Completed";
       returnReq.refundAmount = productRefundTotal;
       returnReq.refundId = refundDoc._id as any;

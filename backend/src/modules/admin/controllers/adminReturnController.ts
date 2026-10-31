@@ -296,3 +296,27 @@ export const getReturnOrderItemDetails = asyncHandler(
     return res.status(200).json({ success: true, data: returnReq.orderItem });
   }
 );
+
+/** POST /admin/returns/:id/decision  { decision: "Approved" | "Rejected", reason } */
+export const decideReturn = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { adminActorOf } = await import("../../../services/productListingService");
+    const actor = await adminActorOf(req);
+    const { decideReturnRequest } = await import("../../../services/returnDecisionService");
+    const result = await decideReturnRequest(req.params.id, req.body?.decision, req.body?.reason, { id: actor.actorId, name: actor.actorName }, req.app.get("io"));
+    return res.status(200).json({ success: true, message: result.message, data: result.data });
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Could not save the decision" });
+  }
+});
+
+/** POST /admin/returns/:id/ring-again — alert the nearest live delivery partners again. */
+export const ringReturnAgain = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { dispatchReturnPickup } = await import("../../../services/returnDispatchService");
+    const sent = await dispatchReturnPickup(req.params.id, req.app.get("io"));
+    return res.status(200).json({ success: sent.offered > 0, message: sent.message });
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Could not ring again" });
+  }
+});

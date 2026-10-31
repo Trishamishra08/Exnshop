@@ -113,6 +113,28 @@ router.post(
 );
 
 /**
+ * POST /api/v1/upload/return-videos
+ * Videos a customer attaches to a return or exchange request (up to 2), e.g. an open-box / unboxing video.
+ */
+router.post(
+  "/return-videos",
+  authenticate,
+  requireUserType("Customer"),
+  uploadMultipleVideos.array("videos", 2),
+  handleUploadError,
+  asyncHandler(async (req: Request, res: Response) => {
+    const files = (req as any).files as any[] | undefined;
+    if (!files || files.length === 0) {
+      return res.status(400).json({ success: false, message: "No video files provided" });
+    }
+    const results = await Promise.all(
+      files.map((file) => uploadImageFromBuffer(file.buffer, { folder: CLOUDINARY_FOLDERS.RETURNS, resourceType: "video" }))
+    );
+    return res.status(200).json({ success: true, data: results });
+  })
+);
+
+/**
  * POST /api/v1/upload/videos
  * Upload multiple videos (e.g. claim evidence)
  */

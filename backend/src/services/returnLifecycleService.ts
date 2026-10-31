@@ -186,6 +186,43 @@ export async function generateReturnPickupOtp(
  * On success: marks pickupOtpVerified = true, advances status to "Picked Up".
  * On failure: increments attempt counter, blocks after 5 failures.
  */
+/**
+ * The delivery partner has the item from the customer: the customer's refund is settled now,
+ * without waiting for the item to reach the seller. A failure never undoes the pickup; it is
+ * flagged for the admin to retry.
+ */
+async function settleRefundOnPickup(returnId: string): Promise<boolean> {
+  const r: any = await Return.findById(returnId).select("requestType financialSettlementStatus customer");
+  if (!r || r.requestType !== "RETURN") return false;
+  if (r.financialSettlementStatus === "Completed") return true;
+  try {
+    const { executeReturnRefundAndReversal } = await import("./refundSettlementService");
+    const res = await executeReturnRefundAndReversal(returnId, undefined, { keepStatus: true });
+    if (!res.success) throw new Error(res.message);
+    const { sendNotification } = await import("./notificationService");
+    await sendNotification(
+      "Customer",
+      String(r.customer),
+      "Refund processed",
+      "The delivery partner has collected your item, so your refund has been issued.",
+      { type: "Success", priority: "High", link: "/account/statement" },
+    ).catch(() => undefined);
+    return true;
+  } catch (err: any) {
+    console.error("[Return] Refund at pickup failed:", err?.message);
+    await Return.updateOne({ _id: returnId }, { $addToSet: { flags: "REFUND_FAILED_AT_PICKUP" } });
+    try {
+      const { sendBroadcastNotification } = await import("./notificationService");
+      await sendBroadcastNotification("Admin", "Return refund failed", "The item was picked up but the customer's refund could not be issued. Open the return to retry.", {
+        type: "Error",
+        priority: "High",
+        link: "/admin/returns",
+      });
+    } catch { /* best effort */ }
+    return false;
+  }
+}
+
 export async function verifyReturnPickupOtp(
   returnId: string,
   otp: string
@@ -232,7 +269,11 @@ export async function verifyReturnPickupOtp(
     returnReq.status = "Picked Up";
     returnReq.pickedUpAt = new Date();
     await returnReq.save();
-    return { success: true, message: "Return pickup OTP verified (test mode). Return marked as Picked Up." };
+    const refundedTest = await settleRefundOnPickup(returnId);
+    return {
+      success: true,
+      message: "Return pickup OTP verified (test mode). Return marked as Picked Up." + (refundedTest ? " The customer's refund has been issued." : ""),
+    };
   }
 
   // Exact OTP match
@@ -256,10 +297,11 @@ export async function verifyReturnPickupOtp(
   returnReq.status = "Picked Up";
   returnReq.pickedUpAt = new Date();
   await returnReq.save();
+  const refunded = await settleRefundOnPickup(returnId);
 
   return {
     success: true,
-    message: "Return pickup OTP verified. Return marked as Picked Up.",
+    message: "Return pickup OTP verified. Return marked as Picked Up." + (refunded ? " The customer's refund has been issued." : ""),
   };
 }
 
@@ -298,7 +340,19 @@ export async function triggerReturnFinancialSettlement(
     };
   }
 
-  // RETURN: Full refund execution
+  // RETURN: the customer was already refunded when the delivery partner collected the item;
+  // the seller's receipt only closes the return.
+  if (returnDoc.financialSettlementStatus === "Completed") {
+    if (returnDoc.status !== "Completed") {
+      returnDoc.status = "Completed";
+      returnDoc.processedAt = new Date();
+      if (processedByUserId) (returnDoc as any).processedBy = processedByUserId;
+      await returnDoc.save();
+    }
+    return { success: true, message: "Return completed. The customer was refunded when the item was picked up.", data: returnDoc };
+  }
+
+  // RETURN: Full refund execution (older returns, settled at the seller's receipt)
   const { executeReturnRefundAndReversal } = await import(
     "./refundSettlementService"
   );

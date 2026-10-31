@@ -35,6 +35,7 @@ export interface IReturn extends Document {
   // Items
   quantity: number;
   images?: string[]; // Images of items
+  videos?: string[]; // Videos of the item (e.g. unboxing / open-box proof), up to 2
 
   // Processing
   processedBy?: mongoose.Types.ObjectId;
@@ -44,6 +45,9 @@ export interface IReturn extends Document {
   // ─────── Delivery Partner Assignment (for return/exchange pickup) ───────
   deliveryBoy?: mongoose.Types.ObjectId;
   assignedAt?: Date;
+  /** Quick returns: the nearby live riders alerted for the pickup (the first to accept gets it). */
+  offeredTo?: mongoose.Types.ObjectId[];
+  offeredAt?: Date;
 
   // ─────── Return/Exchange Pickup OTP ───────
   pickupOtp?: string;
@@ -173,6 +177,7 @@ const ReturnSchema = new Schema<IReturn>(
       required: [true, "Quantity is required"],
       min: [1, "Quantity must be at least 1"],
     },
+    videos: { type: [String], default: undefined },
     images: {
       type: [String],
       default: [],
@@ -219,6 +224,8 @@ const ReturnSchema = new Schema<IReturn>(
 
     // ─────── Lifecycle Timestamps ───────
     approvedAt: { type: Date },
+    offeredTo: { type: [Schema.Types.ObjectId], default: undefined },
+    offeredAt: { type: Date },
     pickedUpAt: { type: Date },
     inTransitAt: { type: Date },
     handedToSellerAt: { type: Date },

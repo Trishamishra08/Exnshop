@@ -5,9 +5,14 @@ export interface ExchangeExtrasValue {
   variationId: string;
   condition: '' | 'Unused' | 'Defective' | 'Used';
   files: File[];
+  /** Optional videos (e.g. open-box / unboxing proof), up to 2. */
+  videoFiles?: File[];
 }
 
-export const EMPTY_EXTRAS: ExchangeExtrasValue = { variationId: '', condition: '', files: [] };
+export const EMPTY_EXTRAS: ExchangeExtrasValue = { variationId: '', condition: '', files: [], videoFiles: [] };
+
+export const MAX_RETURN_VIDEOS = 2;
+export const MAX_RETURN_VIDEO_MB = 100;
 
 /** Reasons where the customer must show the problem in a photo (matches the server). */
 export const reasonNeedsPhoto = (reason: string) => /defect|damag|wrong/i.test(reason);
@@ -36,6 +41,8 @@ export default function ExchangeExtras({
   const [opts, setOpts] = useState<ExchangeOptions | null>(null);
   const [loading, setLoading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLInputElement>(null);
+  const [videoError, setVideoError] = useState('');
 
   useEffect(() => {
     if (!isExchange) return;
@@ -48,6 +55,18 @@ export default function ExchangeExtras({
 
   const previews = value.files.map((f) => URL.createObjectURL(f));
   useEffect(() => () => previews.forEach((p) => URL.revokeObjectURL(p)));
+
+  const videos = value.videoFiles || [];
+  const videoPreviews = videos.map((f) => URL.createObjectURL(f));
+  useEffect(() => () => videoPreviews.forEach((p) => URL.revokeObjectURL(p)));
+  const addVideos = (list: FileList | null) => {
+    setVideoError('');
+    const picked = Array.from(list || []);
+    const tooBig = picked.find((f) => f.size > MAX_RETURN_VIDEO_MB * 1024 * 1024);
+    if (tooBig) return setVideoError(`Each video must be ${MAX_RETURN_VIDEO_MB} MB or smaller.`);
+    if (picked.some((f) => !f.type.startsWith('video/'))) return setVideoError('Please choose video files.');
+    onChange({ ...value, videoFiles: [...videos, ...picked].slice(0, MAX_RETURN_VIDEOS) });
+  };
 
   const needsPhoto = reasonNeedsPhoto(reason);
   const showVariant = isExchange && opts?.canChooseVariant;
@@ -148,6 +167,44 @@ export default function ExchangeExtras({
             </button>
           )}
         </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+          Video <span className="font-normal normal-case text-gray-400">(optional, up to {MAX_RETURN_VIDEOS})</span>
+        </label>
+        <p className="text-[11px] text-gray-500 mb-2">An open-box or unboxing video of the item helps us approve your request faster.</p>
+        <input
+          ref={videoRef}
+          type="file"
+          accept="video/*"
+          multiple
+          className="hidden"
+          onChange={(e) => { addVideos(e.target.files); e.target.value = ''; }}
+        />
+        <div className="flex flex-wrap gap-2">
+          {videoPreviews.map((src, i) => (
+            <div key={src} className="relative w-28">
+              <video src={src} controls preload="metadata" className="w-28 h-20 object-cover rounded-lg border border-gray-200 bg-black" />
+              <p className="text-[10px] text-gray-500 truncate mt-0.5">{videos[i]?.name}</p>
+              <button
+                type="button"
+                aria-label="Remove video"
+                onClick={() => onChange({ ...value, videoFiles: videos.filter((_, j) => j !== i) })}
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-neutral-900 text-white text-xs leading-none"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          {videos.length < MAX_RETURN_VIDEOS && (
+            <button type="button" onClick={() => videoRef.current?.click()} className="w-28 h-20 rounded-lg border-2 border-dashed border-gray-300 text-gray-400 text-xs hover:bg-gray-50 flex flex-col items-center justify-center gap-1">
+              <span className="text-xl leading-none">🎥</span>
+              Add video
+            </button>
+          )}
+        </div>
+        {videoError && <p className="text-[11px] text-red-600 mt-1">{videoError}</p>}
       </div>
     </div>
   );

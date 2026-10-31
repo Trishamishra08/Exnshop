@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import api from "../../../services/api/config";
 import {
   getReturnRequests,
   updateReturnRequest,
@@ -122,10 +123,11 @@ export default function AdminReturnRequest() {
         // Update local state
         setReturnRequests((requests) =>
           requests.map((req) =>
-            req._id === requestId ? { ...req, status: "Approved" } : req
+            req._id === requestId ? { ...req, status: (response as any).data?.status || "Pickup Pending" } : req
           )
         );
-        showToast("Return request approved successfully!", "success");
+        // e.g. "Return approved. Alerted 3 nearby delivery partners."
+        showToast(response.message || "Request approved", "success");
       } else {
         showToast(
           "Failed to approve return request: " +
@@ -751,6 +753,15 @@ export default function AdminReturnRequest() {
                       )}
                       {request.condition && <div className="text-[11px] text-neutral-500">Item: {request.condition}</div>}
                       {request.flags?.includes("REPEAT_REQUESTS") && <div className="text-[11px] font-semibold text-amber-700">Repeat requester</div>}
+                      {request.videos && request.videos.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {request.videos.map((v, i) => (
+                            <a key={i} href={v} target="_blank" rel="noreferrer" className="px-1.5 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-100">
+                              🎥 Video {i + 1}
+                            </a>
+                          ))}
+                        </div>
+                      )}
                       {request.photos && request.photos.length > 0 && (
                         <div className="flex gap-1 mt-1">
                           {request.photos.slice(0, 3).map((p, i) => (
@@ -832,13 +843,31 @@ export default function AdminReturnRequest() {
                         ) : request.doorstepSwap && request.status === "Pickup Pending" ? (
                           <span className="text-[11px] text-blue-700 font-semibold">Doorstep swap: the rider collects the old item with the replacement</span>
                         ) : request.status === "Pickup Pending" ? (
-                          <button
-                            id={`btn-assign-dp-${request._id}`}
-                            onClick={() => openAssignModal(request)}
-                            className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-medium transition-colors whitespace-nowrap"
-                          >
-                            Assign DP
-                          </button>
+                          <div className="flex flex-col gap-1 items-center">
+                            <span className="text-[11px] text-sky-700 font-semibold">Waiting for a delivery partner to accept</span>
+                            <div className="flex gap-1.5">
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const res = await api.post(`/admin/returns/${request._id}/ring-again`);
+                                    showToast(res.data?.message || "Alerted nearby delivery partners", res.data?.success ? "success" : "info");
+                                  } catch (err: any) {
+                                    showToast(err?.response?.data?.message || "Could not ring again", "error");
+                                  }
+                                }}
+                                className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded text-xs font-medium whitespace-nowrap"
+                              >
+                                Ring again
+                              </button>
+                              <button
+                                id={`btn-assign-dp-${request._id}`}
+                                onClick={() => openAssignModal(request)}
+                                className="px-2.5 py-1 bg-white border border-indigo-300 text-indigo-700 hover:bg-indigo-50 rounded text-xs font-medium whitespace-nowrap"
+                              >
+                                Assign manually
+                              </button>
+                            </div>
+                          </div>
                         ) : (
                           <span className="text-xs text-neutral-500">{request.status}</span>
                         )}

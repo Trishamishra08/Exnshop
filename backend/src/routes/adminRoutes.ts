@@ -217,6 +217,8 @@ router.get("/returns", returnController.getAdminReturns);
 router.post("/returns/:id/exchange-decision", decideExchangeAfterQc);
 router.get("/returns/:id/detail", returnController.getAdminReturnById);
 router.post("/return-requests/:id/assign-delivery", returnController.assignDeliveryPartnerToReturn);
+router.post("/returns/:id/decision", returnController.decideReturn);
+router.post("/returns/:id/ring-again", returnController.ringReturnAgain);
 router.get("/delivery/available-for-return", returnController.getAvailableDeliveryPartnersForReturn);
 
 // ==================== Customer Routes ====================

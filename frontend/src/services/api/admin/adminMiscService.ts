@@ -28,6 +28,7 @@ export interface MiscReturnRequest {
   requestedVariation?: { id: string; label: string };
   condition?: string;
   photos?: string[];
+  videos?: string[];
   qc?: { result: "Passed" | "Failed"; note?: string };
   flags?: string[];
   orderId: string;
