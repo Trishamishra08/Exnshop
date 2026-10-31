@@ -157,9 +157,14 @@ export async function generateReturnPickupOtp(
   }
 
   const testMode = isReturnTestMode();
-  const newOtp = testMode
-    ? "9999"
-    : Math.floor(1000 + Math.random() * 9000).toString();
+  // The code is the customer's own delivery code, which they can read in their app
+  // (no channel sends a fresh one), so the rider and the customer always agree.
+  let newOtp = "9999";
+  if (!testMode) {
+    const customer: any = await (await import("../models/Customer")).default.findById(returnReq.customer).select("deliveryOtp");
+    if (!customer?.deliveryOtp) throw new Error("Customer code not found. Please contact support.");
+    newOtp = String(customer.deliveryOtp);
+  }
 
   returnReq.pickupOtp = newOtp;
   returnReq.pickupOtpExpiresAt = new Date(Date.now() + PICKUP_OTP_EXPIRY_MS);
@@ -175,7 +180,7 @@ export async function generateReturnPickupOtp(
     success: true,
     message: testMode
       ? "Development Test Mode: Return pickup OTP is 9999."
-      : "Return pickup OTP generated. Customer will receive it.",
+      : "Ask the customer for the code shown in their app.",
     otp: testMode ? "9999" : undefined,
     testMode,
   };

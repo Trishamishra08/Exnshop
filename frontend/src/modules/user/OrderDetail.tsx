@@ -1710,6 +1710,12 @@ export default function OrderDetail() {
                           <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-200">
                             {item.activeReturnType === 'EXCHANGE' ? 'Exchange' : 'Return'}: {activeReturnStatus}
                           </span>
+                          {item.activeReturnPickupOtp && activeReturnStatus === 'Delivery Partner Assigned' && (
+                            <div className="text-xs text-emerald-900 bg-emerald-50 p-2.5 rounded-lg border border-emerald-300">
+                              Give this code to the delivery partner when they collect your item. Your refund is issued right after.
+                              <span className="block text-2xl font-black tracking-[0.3em] text-emerald-700">{item.activeReturnPickupOtp}</span>
+                            </div>
+                          )}
                           {item.activeReturnRequestedVariant && (
                             <p className="text-xs text-gray-600">Replacement variant: <b>{item.activeReturnRequestedVariant}</b></p>
                           )}

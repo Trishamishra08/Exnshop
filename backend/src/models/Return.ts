@@ -57,6 +57,13 @@ export interface IReturn extends Document {
   pickupOtpAttempts?: number;
   pickupOtpVerified?: boolean;
 
+  // ─────── Handover to seller (the seller reads the code, the rider enters it) ───────
+  handoverOtp?: string;
+  handoverOtpAttempts?: number;
+  handoverOtpVerified?: boolean;
+  /** A defective / wrong item the seller reported to the admin after receiving it. */
+  sellerIssue?: { note: string; images: string[]; videos: string[]; at: Date; by?: mongoose.Types.ObjectId; status: "Open" | "Resolved" };
+
   // ─────── Lifecycle Timestamps ───────
   approvedAt?: Date;
   pickedUpAt?: Date;
@@ -226,6 +233,13 @@ const ReturnSchema = new Schema<IReturn>(
     pickupOtpVerified: {
       type: Boolean,
       default: false,
+    },
+    handoverOtp: { type: String, select: false },
+    handoverOtpAttempts: { type: Number, default: 0 },
+    handoverOtpVerified: { type: Boolean, default: false },
+    sellerIssue: {
+      type: new Schema({ note: String, images: { type: [String], default: [] }, videos: { type: [String], default: [] }, at: { type: Date, default: Date.now }, by: { type: Schema.Types.ObjectId }, status: { type: String, enum: ["Open", "Resolved"], default: "Open" } }, { _id: false }),
+      default: undefined,
     },
 
     // ─────── Lifecycle Timestamps ───────

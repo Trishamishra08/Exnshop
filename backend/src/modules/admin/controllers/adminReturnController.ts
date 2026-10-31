@@ -320,3 +320,11 @@ export const ringReturnAgain = asyncHandler(async (req: Request, res: Response) 
     return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Could not ring again" });
   }
 });
+
+/** POST /admin/returns/:id/seller-issue/resolve: the admin has looked at the seller's report and closed it. */
+export const resolveSellerIssue = asyncHandler(async (req: Request, res: Response) => {
+  const ret: any = await Return.findById(req.params.id).select("sellerIssue");
+  if (!ret?.sellerIssue) return res.status(404).json({ success: false, message: "No seller report on this return" });
+  await Return.updateOne({ _id: req.params.id }, { $set: { "sellerIssue.status": "Resolved" } });
+  return res.status(200).json({ success: true, message: "Marked as resolved." });
+});

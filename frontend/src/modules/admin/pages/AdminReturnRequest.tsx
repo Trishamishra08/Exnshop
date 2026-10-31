@@ -754,6 +754,36 @@ export default function AdminReturnRequest() {
                       {request.condition && <div className="text-[11px] text-neutral-500">Item: {request.condition}</div>}
                       {request.flags?.includes("REPEAT_REQUESTS") && <div className="text-[11px] font-semibold text-amber-700">Repeat requester</div>}
                       {request.description && <div className="text-[11px] text-neutral-600 italic mt-1">“{request.description}”</div>}
+                      {request.sellerIssue && (
+                        <div className={`mt-1 p-1.5 rounded-lg border ${request.sellerIssue.status === 'Open' ? 'bg-red-50 border-red-300' : 'bg-neutral-50 border-neutral-200'}`}>
+                          <div className="text-[10px] font-bold uppercase text-red-800">Seller reported a problem · {request.sellerIssue.status}</div>
+                          <div className="text-[11px] text-neutral-800 mt-0.5">{request.sellerIssue.note}</div>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {(request.sellerIssue.images || []).map((p, i) => (
+                              <a key={`si${i}`} href={p} target="_blank" rel="noreferrer"><img src={p} alt="Seller report" className="w-8 h-8 rounded object-cover border border-red-200" /></a>
+                            ))}
+                            {(request.sellerIssue.videos || []).map((v, i) => (
+                              <a key={`sv${i}`} href={v} target="_blank" rel="noreferrer" className="px-1.5 py-0.5 rounded bg-white border border-red-300 text-[11px] font-semibold text-red-800 hover:bg-red-100">🎥 Video {i + 1}</a>
+                            ))}
+                            {request.sellerIssue.status === 'Open' && (
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const res = await api.post(`/admin/returns/${request._id}/seller-issue/resolve`);
+                                    showToast(res.data?.message || 'Marked as resolved', 'success');
+                                    window.location.reload();
+                                  } catch (err: any) {
+                                    showToast(err?.response?.data?.message || 'Could not update', 'error');
+                                  }
+                                }}
+                                className="px-1.5 py-0.5 rounded bg-white border border-neutral-300 text-[11px] font-semibold text-neutral-700 hover:bg-neutral-100"
+                              >
+                                Mark resolved
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
                       {request.sellerProof && ((request.sellerProof.images?.length || 0) + (request.sellerProof.videos?.length || 0)) > 0 && (
                         <div className="mt-1 p-1.5 rounded-lg bg-emerald-50 border border-emerald-200">
                           <div className="text-[10px] font-bold uppercase text-emerald-800">Seller's proof (item as received){request.qc ? ` · QC ${request.qc.result}` : ''}</div>

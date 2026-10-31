@@ -125,5 +125,6 @@ router.post("/returns/:id/generate-pickup-otp", requireApprovedUser, deliveryRet
 router.post("/returns/:id/verify-pickup-otp", requireApprovedUser, deliveryReturnController.verifyReturnPickupOtpController);
 router.patch("/returns/:id/mark-in-transit", requireApprovedUser, deliveryReturnController.markReturnInTransit);
 router.patch("/returns/:id/mark-handed-to-seller", requireApprovedUser, deliveryReturnController.markHandedToSeller);
+router.post("/returns/:id/verify-handover-otp", requireApprovedUser, deliveryReturnController.verifyReturnHandoverOtpController);
 
 export default router;

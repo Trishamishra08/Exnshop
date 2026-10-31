@@ -219,6 +219,7 @@ router.get("/returns/:id/detail", returnController.getAdminReturnById);
 router.post("/return-requests/:id/assign-delivery", returnController.assignDeliveryPartnerToReturn);
 router.post("/returns/:id/decision", returnController.decideReturn);
 router.post("/returns/:id/ring-again", returnController.ringReturnAgain);
+router.post("/returns/:id/seller-issue/resolve", returnController.resolveSellerIssue);
 router.get("/delivery/available-for-return", returnController.getAvailableDeliveryPartnersForReturn);
 
 // ==================== Customer Routes ====================

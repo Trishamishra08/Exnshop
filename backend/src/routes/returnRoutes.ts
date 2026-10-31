@@ -5,6 +5,7 @@ import {
   updateReturnStatus,
   confirmSellerReceipt,
   retryReplacementOrder,
+  reportReturnIssue,
 } from "../modules/seller/controllers/returnController";
 import { authenticate, requireUserType, requireApprovedUser } from "../middleware/auth";
 
@@ -26,6 +27,9 @@ router.patch("/:id/status", updateReturnStatus);
 
 // Confirm physical receipt of returned item (Handed To Seller → Completed → triggers settlement)
 router.post("/:id/confirm-receipt", confirmSellerReceipt);
+
+// Report a defective / wrong item to the admin (after the handover code confirmed receipt)
+router.post("/:id/report-issue", reportReturnIssue);
 
 // Exchange: retry the replacement order (e.g. after restocking)
 router.post("/:id/replacement", retryReplacementOrder);

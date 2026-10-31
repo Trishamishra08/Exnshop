@@ -103,6 +103,7 @@ export const completeSwapOnDelivery = async (orderId: string, riderId: string): 
   ret.status = "In Transit";
   ret.inTransitAt = now;
   await ret.save();
+  await (await import("./returnHandoverService")).ensureHandoverOtp(String(ret._id)).catch(() => undefined);
 
   try {
     const item: any = await (await import("../models/OrderItem")).default.findById(ret.orderItem).select("seller productName").lean();

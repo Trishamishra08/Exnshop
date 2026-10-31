@@ -4,7 +4,7 @@ import {
   getReturnRequests,
   getReturnRequestById,
   updateReturnStatus,
-  confirmSellerReceipt,
+  reportReturnIssue,
   retryReplacementOrder,
   ReturnRequest,
   ReturnRequestDetail,
@@ -38,7 +38,6 @@ export default function SellerReturnRequest() {
   const [showAcceptModal, setShowAcceptModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showConfirmReceiptModal, setShowConfirmReceiptModal] = useState(false);
-  const [qcResult, setQcResult] = useState<'' | 'Passed' | 'Failed'>('');
   const [qcNote, setQcNote] = useState('');
   // Photos / videos of the item as it arrived, so the admin can be sure it is right.
   const [proofImages, setProofImages] = useState<File[]>([]);
@@ -229,36 +228,28 @@ export default function SellerReturnRequest() {
     }
   };
 
-  // Handle Confirm Receipt Action
-  const handleConfirmReceipt = async () => {
+  // Report a defective / wrong item to the Exnshop admin (receipt itself is confirmed by the handover code)
+  const handleReportIssue = async () => {
     if (!selectedReturn) return;
-    const isExchange = selectedReturn.requestType === 'EXCHANGE';
-    if (isExchange && !qcResult) {
-      showToast('Record whether the returned item passed the quality check', 'error');
+    if (!qcNote.trim()) {
+      showToast('Describe what is wrong with the item', 'error');
       return;
     }
-    if (qcResult === 'Failed' && !qcNote.trim()) {
-      showToast('Describe what is wrong with the returned item', 'error');
-      return;
-    }
-    if (qcResult === 'Failed' && proofImages.length + proofVideos.length === 0) {
-      showToast('Add a photo or video of the item as proof of the problem', 'error');
+    if (proofImages.length + proofVideos.length === 0) {
+      showToast('Add a photo or video of the item as proof', 'error');
       return;
     }
     setSubmittingAction(true);
     try {
-      // Upload the proof first; the receipt then carries the links.
       const imageUrls = proofImages.length ? (await uploadImages(proofImages, 'dhakadsnazzy/returns/seller-proof')).map((r) => r.secureUrl) : [];
       const videoUrls = proofVideos.length ? (await uploadVideos(proofVideos, 'dhakadsnazzy/returns/seller-proof')).map((r) => r.secureUrl) : [];
-      const payload = {
-        ...(qcResult ? { qcResult, qcNote: qcNote.trim() || undefined } : {}),
+      const res = await reportReturnIssue(selectedReturn.id, {
+        note: qcNote.trim(),
         ...(imageUrls.length ? { proofImages: imageUrls } : {}),
         ...(videoUrls.length ? { proofVideos: videoUrls } : {}),
-      };
-      const res = await confirmSellerReceipt(selectedReturn.id, Object.keys(payload).length ? payload : undefined);
+      });
       if (res.success) {
-        showToast(isExchange ? res.message || 'Receipt recorded' : '✅ Receipt confirmed! The return is marked Completed (the customer was already refunded when the delivery partner collected it).', 'success');
-        setQcResult('');
+        showToast('Reported to the admin. They will review the photos and video.', 'success');
         setQcNote('');
         setProofImages([]);
         setProofVideos([]);
@@ -266,10 +257,10 @@ export default function SellerReturnRequest() {
         setShowDetailModal(false);
         fetchReturnRequests();
       } else {
-        showToast(res.message || 'Failed to confirm receipt', 'error');
+        showToast(res.message || 'Could not send the report', 'error');
       }
     } catch (err: any) {
-      showToast(err.response?.data?.message || err.message || 'Failed to confirm receipt', 'error');
+      showToast(err.response?.data?.message || err.message || 'Could not send the report', 'error');
     } finally {
       setSubmittingAction(false);
     }
@@ -568,18 +559,31 @@ export default function SellerReturnRequest() {
                               </span>
                             )}
 
-                            {/* Handed to Seller Action: Confirm Receipt */}
-                            {reqItem.status === 'Handed To Seller' && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedReturn(reqItem);
-                                  setShowConfirmReceiptModal(true);
-                                }}
-                                className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold shadow-xs transition-colors"
-                              >
-                                ✅ Confirm Receipt
-                              </button>
+                            {/* The rider is bringing the item: read this code to them to confirm receipt. */}
+                            {['Picked Up', 'In Transit'].includes(reqItem.status) && reqItem.handoverOtp && (
+                              <span className="px-2 py-1 rounded bg-emerald-50 border border-emerald-300 text-emerald-800 text-[11px] font-bold whitespace-nowrap">
+                                Handover code: <span className="text-sm tracking-[0.2em]">{reqItem.handoverOtp}</span>
+                              </span>
+                            )}
+
+                            {/* After the code confirmed receipt: a defective / wrong item goes to the admin. */}
+                            {['Handed To Seller', 'Completed'].includes(reqItem.status) && (
+                              reqItem.sellerIssue ? (
+                                <span className="px-2 py-1 rounded text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 whitespace-nowrap">
+                                  {reqItem.sellerIssue.status === 'Open' ? 'Reported to Exnshop' : 'Report resolved'}
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedReturn(reqItem);
+                                    setShowConfirmReceiptModal(true);
+                                  }}
+                                  className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold shadow-xs transition-colors"
+                                >
+                                  Report a problem
+                                </button>
+                              )
                             )}
                           </div>
                         </td>
@@ -869,13 +873,19 @@ export default function SellerReturnRequest() {
                   This request is being reviewed by Exnshop. You do not need to accept it. You will be notified when the item is coming back to you.
                 </p>
               )}
-              {selectedReturn.status === 'Handed To Seller' && (
+              {['Picked Up', 'In Transit'].includes(selectedReturn.status) && selectedReturn.handoverOtp && (
+                <div className="mr-auto text-xs text-emerald-900 bg-emerald-50 border border-emerald-300 rounded-xl px-3 py-2">
+                  Read this code to the delivery partner when they hand you the item:
+                  <span className="block text-2xl font-black tracking-[0.3em] text-emerald-700">{selectedReturn.handoverOtp}</span>
+                </div>
+              )}
+              {['Handed To Seller', 'Completed'].includes(selectedReturn.status) && !selectedReturn.sellerIssue && (
                 <button
                   type="button"
                   onClick={() => setShowConfirmReceiptModal(true)}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors"
+                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors"
                 >
-                  ✅ Confirm Receipt
+                  Report a problem
                 </button>
               )}
             </div>
@@ -965,49 +975,33 @@ export default function SellerReturnRequest() {
       {/* ────────────────── 4. CONFIRM RECEIPT MODAL ────────────────── */}
       {showConfirmReceiptModal && selectedReturn && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-neutral-200">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-neutral-200 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
-              <span>🤝</span> Confirm Physical Receipt
+              <span>⚠️</span> Report a defective / wrong item
             </h3>
             <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 leading-relaxed space-y-1">
               <p className="font-bold text-sm">Product: {selectedReturn.product || 'Product'}</p>
               <p>Value: <span className="font-bold">₹{Number(selectedReturn.total || (selectedReturn as any).amount || 0).toFixed(2)}</span></p>
               <p className="mt-2 text-neutral-700">
-                {selectedReturn.requestType === 'EXCHANGE'
-                  ? 'Check the item that came back, then record the result. If it passes, the replacement is sent. If it fails, an admin reviews the exchange before anything is sent.'
-                  : <>Confirming receipt indicates that you have physically received and inspected the returned product. This marks the return as <span className="font-bold">Completed</span>. The customer was already refunded when the delivery partner collected the item.</>}
+                You already confirmed this item with the handover code. If it is defective, damaged or not the product you sold, tell the Exnshop admin here with a photo or video. The admin reviews it.
               </p>
             </div>
             <div className="space-y-2">
-              <p className="text-xs font-bold text-neutral-700 uppercase tracking-wider">Quality check {selectedReturn.requestType === 'EXCHANGE' ? '' : '(optional)'}</p>
-              <div className="grid grid-cols-2 gap-2">
-                {(['Passed', 'Failed'] as const).map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setQcResult(qcResult === r ? '' : r)}
-                    className={`py-2 rounded-xl border text-xs font-semibold ${qcResult === r ? (r === 'Passed' ? 'border-emerald-600 bg-emerald-50 text-emerald-800' : 'border-red-600 bg-red-50 text-red-800') : 'border-neutral-300 text-neutral-600 hover:bg-neutral-50'}`}
-                  >
-                    {r === 'Passed' ? 'Item is as expected' : 'Item has a problem'}
-                  </button>
-                ))}
-              </div>
-              {qcResult === 'Failed' && (
-                <textarea
-                  value={qcNote}
-                  onChange={(e) => setQcNote(e.target.value)}
-                  rows={2}
-                  maxLength={500}
-                  placeholder="What is wrong? (wrong item, used, missing parts…)"
-                  className="w-full border border-neutral-300 rounded-xl p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-red-500"
-                />
-              )}
+              <p className="text-xs font-bold text-neutral-700 uppercase tracking-wider">What is wrong? <span className="text-red-600 normal-case">(required)</span></p>
+              <textarea
+                value={qcNote}
+                onChange={(e) => setQcNote(e.target.value)}
+                rows={3}
+                maxLength={1000}
+                placeholder="Defective, damaged, used, missing parts, a different product..."
+                className="w-full border border-neutral-300 rounded-xl p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
             </div>
             <div className="space-y-2">
               <p className="text-xs font-bold text-neutral-700 uppercase tracking-wider">
-                Photos / video of the item {qcResult === 'Failed' ? <span className="text-red-600 normal-case">(required)</span> : <span className="font-normal normal-case text-neutral-400">(recommended)</span>}
+                Photos / video of the item <span className="text-red-600 normal-case">(required)</span>
               </p>
-              <p className="text-[11px] text-neutral-500">Record the item as it arrived. The Exnshop admin uses it to confirm the product is right.</p>
+              <p className="text-[11px] text-neutral-500">Show the problem clearly. The Exnshop admin uses it to decide.</p>
               <input ref={proofImageRef} type="file" accept="image/*" multiple className="hidden"
                 onChange={(e) => { setProofImages((cur) => [...cur, ...Array.from(e.target.files || [])].slice(0, 5)); e.target.value = ''; }} />
               <input ref={proofVideoRef} type="file" accept="video/*" multiple className="hidden"
@@ -1052,10 +1046,10 @@ export default function SellerReturnRequest() {
               <button
                 type="button"
                 disabled={submittingAction}
-                onClick={handleConfirmReceipt}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-2"
+                onClick={handleReportIssue}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-2"
               >
-                {submittingAction ? 'Processing...' : selectedReturn.requestType === 'EXCHANGE' ? 'Record check & continue' : 'Confirm receipt'}
+                {submittingAction ? 'Sending...' : 'Send to admin'}
               </button>
             </div>
           </div>

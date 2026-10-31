@@ -30,6 +30,10 @@ export interface ReturnRequest {
   photos?: string[];
   exchangeState?: 'OutOfStock' | 'QCFailed' | 'RefundInitiated';
   qc?: { result: 'Passed' | 'Failed'; note?: string; at: string };
+  /** 4-digit code the seller reads to the rider when the returned item arrives. */
+  handoverOtp?: string;
+  /** A defective / wrong item the seller reported to the admin. */
+  sellerIssue?: { note: string; images: string[]; videos: string[]; at: string; status: 'Open' | 'Resolved' };
   flags?: string[];
 }
 
@@ -148,6 +152,15 @@ export const retryReplacementOrder = async (returnId: string) => {
  * This is the ONLY action that triggers financial settlement.
  * Return status must be 'Handed To Seller' for this to succeed.
  */
+/** Seller: tell the admin the received item is defective, damaged or not the product that was sold. */
+export const reportReturnIssue = async (
+  returnId: string,
+  data: { note: string; proofImages?: string[]; proofVideos?: string[] }
+): Promise<ApiResponse<unknown>> => {
+  const response = await api.post<ApiResponse<unknown>>(`/returns/${returnId}/report-issue`, data);
+  return response.data;
+};
+
 export const confirmSellerReceipt = async (
   returnId: string,
   qc?: { qcResult?: 'Passed' | 'Failed'; qcNote?: string; proofImages?: string[]; proofVideos?: string[] }

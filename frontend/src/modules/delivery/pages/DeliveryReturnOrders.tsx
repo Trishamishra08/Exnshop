@@ -9,7 +9,7 @@ import {
   generateReturnPickupOtp,
   verifyReturnPickupOtp,
   markReturnInTransit,
-  markReturnHandedToSeller,
+  verifyReturnHandoverOtp,
 } from '../../../services/api/delivery/deliveryService';
 
 type ReturnStatus =
@@ -72,7 +72,7 @@ export default function DeliveryReturnOrders() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // OTP modal state
-  const [otpModal, setOtpModal] = useState<{ returnId: string; mode: 'generate' | 'verify' } | null>(null);
+  const [otpModal, setOtpModal] = useState<{ returnId: string; mode: 'generate' | 'verify' | 'handover' } | null>(null);
   const [otpInput, setOtpInput] = useState('');
   const [otpMessage, setOtpMessage] = useState('');
   const [otpError, setOtpError] = useState('');
@@ -180,18 +180,23 @@ export default function DeliveryReturnOrders() {
     }
   };
 
-  const handleHandedToSeller = async (returnId: string) => {
-    setActionLoading(returnId);
+  // The seller reads a code from their app; entering it hands the item over and confirms receipt.
+  const handleVerifyHandover = async () => {
+    if (!otpModal || !otpInput.trim()) return;
+    setActionLoading(otpModal.returnId);
+    setOtpError('');
     try {
-      const res = await markReturnHandedToSeller(returnId);
+      const res = await verifyReturnHandoverOtp(otpModal.returnId, otpInput.trim());
       if (res.success) {
+        setOtpModal(null);
+        setOtpInput('');
         await fetchReturns();
-        showToast('✅ Item handed to seller. The seller will now confirm receipt.', 'success');
+        showToast('✅ ' + (res.message || 'Item handed to the seller.'), 'success');
       } else {
-        showToast('Failed: ' + (res.message || 'Unknown error'), 'error');
+        setOtpError(res.message || 'Wrong code. Try again.');
       }
     } catch (err: any) {
-      showToast('Error: ' + err.message, 'error');
+      setOtpError(err.message || 'Could not verify the code. Try again.');
     } finally {
       setActionLoading(null);
     }
@@ -393,15 +398,15 @@ export default function DeliveryReturnOrders() {
                     {ret.status === 'In Transit' && (
                       <div className="space-y-2">
                         <p className="text-xs text-orange-700 bg-orange-50 px-3 py-2 rounded-lg mb-2">
-                          🚗 In transit to seller. Tap below when you have physically handed the item.
+                          🚗 On the way to the seller. At the store, ask the seller for the code shown in their app.
                         </p>
                         <button
                           id={`btn-handed-${returnId}`}
-                          onClick={() => handleHandedToSeller(returnId)}
+                          onClick={() => { setOtpInput(''); setOtpError(''); setOtpMessage(''); setOtpModal({ returnId, mode: 'handover' }); }}
                           disabled={isLoading}
                           className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-neutral-300 text-white rounded-lg text-sm font-medium transition-colors"
                         >
-                          {isLoading ? 'Updating...' : '🤝 Confirm Handed To Seller'}
+                          🤝 Enter seller's code to hand over
                         </button>
                       </div>
                     )}
@@ -409,7 +414,7 @@ export default function DeliveryReturnOrders() {
                     {ret.status === 'Handed To Seller' && (
                       <div className="bg-purple-50 px-3 py-2 rounded-lg">
                         <p className="text-purple-700 text-xs font-medium">🤝 Item handed to seller</p>
-                        <p className="text-purple-600 text-xs mt-0.5">Waiting for seller to confirm receipt and complete the return.</p>
+                        <p className="text-purple-600 text-xs mt-0.5">Receipt was confirmed with the seller's code.</p>
                       </div>
                     )}
 
@@ -432,9 +437,11 @@ export default function DeliveryReturnOrders() {
       {otpModal && (
         <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50 pb-20">
           <div className="bg-white rounded-t-2xl p-6 w-full max-w-md">
-            <h3 className="text-neutral-900 font-semibold text-lg mb-1">Enter Pickup OTP</h3>
+            <h3 className="text-neutral-900 font-semibold text-lg mb-1">{otpModal.mode === 'handover' ? "Enter the seller's code" : 'Enter the customer\'s code'}</h3>
             <p className="text-neutral-500 text-sm mb-4">
-              Ask the customer for the OTP sent to their phone.{' '}
+              {otpModal.mode === 'handover'
+                ? "The seller sees a 4-digit code in their app. A correct code confirms the handover and the seller's receipt."
+                : 'The customer sees a 4-digit code in their app. Ask them for it.'}{' '}
               <span className="text-blue-600 font-medium">Test mode: use 9999</span>
             </p>
             {otpMessage && (
@@ -467,11 +474,11 @@ export default function DeliveryReturnOrders() {
               </button>
               <button
                 id="btn-verify-otp"
-                onClick={handleVerifyOtp}
+                onClick={otpModal.mode === 'handover' ? handleVerifyHandover : handleVerifyOtp}
                 disabled={!otpInput.trim() || !!actionLoading}
                 className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-neutral-300 text-white rounded-xl text-sm font-medium transition-colors"
               >
-                {actionLoading ? 'Verifying...' : 'Verify OTP'}
+                {actionLoading ? 'Verifying...' : otpModal.mode === 'handover' ? 'Confirm handover' : 'Verify OTP'}
               </button>
             </div>
           </div>

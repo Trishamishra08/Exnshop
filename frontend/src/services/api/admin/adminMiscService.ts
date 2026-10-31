@@ -32,6 +32,8 @@ export interface MiscReturnRequest {
   description?: string;
   /** Photos / videos the seller recorded of the item when it reached them. */
   sellerProof?: { images: string[]; videos: string[]; at?: string };
+  /** A defective / wrong item the seller reported after receiving it. */
+  sellerIssue?: { note: string; images: string[]; videos: string[]; at?: string; status: 'Open' | 'Resolved' };
   qc?: { result: "Passed" | "Failed"; note?: string };
   flags?: string[];
   orderId: string;

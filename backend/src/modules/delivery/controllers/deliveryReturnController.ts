@@ -305,6 +305,8 @@ export const markReturnInTransit = asyncHandler(async (req: Request, res: Respon
   returnReq.status = "In Transit";
   returnReq.inTransitAt = new Date();
   await returnReq.save();
+  // The seller's handover code is ready for when the rider arrives.
+  await (await import("../../../services/returnHandoverService")).ensureHandoverOtp(id).catch(() => undefined);
 
   // Notify customer and admin
   const io: SocketIOServer = req.app.get("io");
@@ -336,7 +338,30 @@ export const markReturnInTransit = asyncHandler(async (req: Request, res: Respon
  * This sets the status to "Handed To Seller" and notifies the seller to confirm receipt.
  * The seller then calls confirmSellerReceipt() → Completed → Financial Settlement.
  */
-export const markHandedToSeller = asyncHandler(async (req: Request, res: Response) => {
+export const markHandedToSeller = asyncHandler(async (_req: Request, res: Response) => {
+  return res.status(400).json({ success: false, message: "Ask the seller for the handover code and enter it to hand over the item." });
+});
+
+/** POST /delivery/returns/:id/verify-handover-otp: the seller's code confirms the handover and the receipt. */
+export const verifyReturnHandoverOtpController = asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const otp = String(req.body?.otp || "").trim();
+  if (!otp) return res.status(400).json({ success: false, message: "Enter the seller's code" });
+  try {
+    await assertReturnAssignedToDP(id, req.user?.userId!);
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, message: err.message });
+  }
+  try {
+    const { verifyHandoverOtp } = await import("../../../services/returnHandoverService");
+    const result = await verifyHandoverOtp(id, otp, req.app.get("io"));
+    return res.status(200).json(result);
+  } catch (err: any) {
+    return res.status(400).json({ success: false, message: err.message });
+  }
+});
+
+export const legacyMarkHandedToSeller = asyncHandler(async (req: Request, res: Response) => {
   const { id } = req.params;
   const deliveryBoyId = req.user?.userId;
 

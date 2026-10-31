@@ -119,6 +119,16 @@ export const markReturnInTransit = async (returnId: string) => {
   }
 };
 
+/** The seller reads a code to the rider; a correct code hands the item over and confirms receipt. */
+export const verifyReturnHandoverOtp = async (returnId: string, otp: string) => {
+  try {
+    const response = await api.post(`${BASE_URL}/returns/${returnId}/verify-handover-otp`, { otp });
+    return response.data;
+  } catch (error) {
+    throw handleApiError(error);
+  }
+};
+
 export const markReturnHandedToSeller = async (returnId: string) => {
   try {
     const response = await api.patch(`${BASE_URL}/returns/${returnId}/mark-handed-to-seller`, {});

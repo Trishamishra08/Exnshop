@@ -69,6 +69,15 @@ export const getReturnRequests = asyncHandler(
 
     const total = await Return.countDocuments(query);
 
+    // The seller reads this code to the rider who brings the item back.
+    const { ensureHandoverOtp } = await import("../../../services/returnHandoverService");
+    const handoverCodes = new Map<string, string | undefined>();
+    await Promise.all(
+      returns
+        .filter((r) => ["Picked Up", "In Transit"].includes(r.status))
+        .map(async (r) => handoverCodes.set(String(r._id), await ensureHandoverOtp(String(r._id)))),
+    );
+
     const formattedReturns = returns.map((ret) => {
       const item = ret.orderItem as any;
       const order = ret.order as any;
@@ -88,6 +97,8 @@ export const getReturnRequests = asyncHandler(
         exchangeState: ret.exchangeState,
         qc: ret.qc,
         sellerProof: (ret as any).sellerProof,
+        sellerIssue: (ret as any).sellerIssue,
+        handoverOtp: handoverCodes.get(String(ret._id)),
         price,
         discPrice: price,
         quantity,
@@ -165,6 +176,10 @@ export const getReturnRequestById = asyncHandler(
       exchangeState: (fullReturn as any).exchangeState,
       qc: (fullReturn as any).qc,
       sellerProof: (fullReturn as any).sellerProof,
+      sellerIssue: (fullReturn as any).sellerIssue,
+      handoverOtp: ["Picked Up", "In Transit"].includes(fullReturn.status)
+        ? await (await import("../../../services/returnHandoverService")).ensureHandoverOtp(String(fullReturn._id))
+        : undefined,
       // E-commerce: courier reverse pickup; exchange: the replacement order
       shiprocketReturn: (fullReturn as any).shiprocketReturn,
       replacementOrderId: (fullReturn as any).replacementOrder,
@@ -463,4 +478,50 @@ export const retryReplacementOrder = asyncHandler(async (req: Request, res: Resp
     message: result.success ? `Replacement order #${result.orderNumber} created.` : result.message,
     data: result,
   });
+});
+
+/**
+ * POST /returns/:id/report-issue
+ * The item was received (confirmed with the handover code) but it is defective, damaged or not the
+ * product that was sold. The seller reports it to the Exnshop admin with a note and photos / videos.
+ */
+export const reportReturnIssue = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = (req as any).user?.userId;
+  let returnReq: any;
+  try {
+    returnReq = (await assertReturnBelongsToSeller(req.params.id, sellerId!)).returnReq;
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, message: err.message });
+  }
+  if (!["Handed To Seller", "Completed"].includes(returnReq.status)) {
+    return res.status(400).json({ success: false, message: "You can report a problem once the item has been handed to you." });
+  }
+  const note = typeof req.body?.note === "string" ? req.body.note.trim().slice(0, 1000) : "";
+  if (!note) return res.status(400).json({ success: false, message: "Describe what is wrong with the item." });
+  const httpsList = (v: unknown, max: number): string[] =>
+    Array.isArray(v) ? v.filter((u) => typeof u === "string" && /^https:\/\/\S+$/.test(u)).slice(0, max) : [];
+  const images = httpsList(req.body?.proofImages, 5);
+  const videos = httpsList(req.body?.proofVideos, 2);
+  if (images.length + videos.length === 0) {
+    return res.status(400).json({ success: false, message: "Add a photo or video of the item as proof." });
+  }
+  if (returnReq.sellerIssue?.status === "Open") {
+    return res.status(400).json({ success: false, message: "You have already reported a problem for this item. The admin is reviewing it." });
+  }
+
+  returnReq.sellerIssue = { note, images, videos, at: new Date(), by: sellerId, status: "Open" };
+  returnReq.flags = Array.from(new Set([...(returnReq.flags || []), "SELLER_REPORTED_ISSUE"]));
+  await returnReq.save();
+
+  try {
+    const { sendBroadcastNotification } = await import("../../../services/notificationService");
+    await sendBroadcastNotification("Admin", "Seller reported a defective / wrong item", note, {
+      type: "Warning",
+      priority: "High",
+      link: "/admin/returns",
+    });
+  } catch (notifErr) {
+    console.error("Error notifying admin of the seller's report:", notifErr);
+  }
+  return res.status(200).json({ success: true, message: "Reported to the admin. They will review the photos and video.", data: { sellerIssue: returnReq.sellerIssue } });
 });

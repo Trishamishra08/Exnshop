@@ -1324,6 +1324,9 @@ export const getOrderById = async (req: Request, res: Response) => {
     }).sort({ createdAt: -1 });
     const returnMap = new Map(existingReturns.map((r: any) => [r.orderItem.toString(), r]));
 
+    const returnPickupCode = (process.env.NODE_ENV !== "production" && String(process.env.DELIVERY_TEST_MODE).trim().toLowerCase() === "true")
+      ? "9999"
+      : ((await Customer.findById(userId).select("deliveryOtp"))?.deliveryOtp || null);
     const enrichedItems = await Promise.all(
       (orderObj.items || []).map(async (item: any) => {
         const prodId = item.product?._id || item.product;
@@ -1361,6 +1364,8 @@ export const getOrderById = async (req: Request, res: Response) => {
             : null,
           // Exchange: the order sending the new unit
           activeReturnReplacementOrderId: activeReturn?.replacementOrder || null,
+          // The rider asks for this code when collecting the item.
+          activeReturnPickupOtp: activeReturn?.status === "Delivery Partner Assigned" ? returnPickupCode : null,
         };
       })
     );

@@ -751,6 +751,7 @@ export const getReturnRequests = asyncHandler(
       videos: req.videos || [],
       description: req.description || "",
       sellerProof: req.sellerProof,
+      sellerIssue: req.sellerIssue,
       qc: req.qc,
       flags: req.flags,
     }));
