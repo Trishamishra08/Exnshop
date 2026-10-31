@@ -753,6 +753,20 @@ export default function AdminReturnRequest() {
                       )}
                       {request.condition && <div className="text-[11px] text-neutral-500">Item: {request.condition}</div>}
                       {request.flags?.includes("REPEAT_REQUESTS") && <div className="text-[11px] font-semibold text-amber-700">Repeat requester</div>}
+                      {request.description && <div className="text-[11px] text-neutral-600 italic mt-1">“{request.description}”</div>}
+                      {request.sellerProof && ((request.sellerProof.images?.length || 0) + (request.sellerProof.videos?.length || 0)) > 0 && (
+                        <div className="mt-1 p-1.5 rounded-lg bg-emerald-50 border border-emerald-200">
+                          <div className="text-[10px] font-bold uppercase text-emerald-800">Seller's proof (item as received){request.qc ? ` · QC ${request.qc.result}` : ''}</div>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {(request.sellerProof.images || []).map((p, i) => (
+                              <a key={`i${i}`} href={p} target="_blank" rel="noreferrer"><img src={p} alt="Seller proof" className="w-8 h-8 rounded object-cover border border-emerald-200" /></a>
+                            ))}
+                            {(request.sellerProof.videos || []).map((v, i) => (
+                              <a key={`v${i}`} href={v} target="_blank" rel="noreferrer" className="px-1.5 py-0.5 rounded bg-white border border-emerald-300 text-[11px] font-semibold text-emerald-800 hover:bg-emerald-100">🎥 Video {i + 1}</a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {request.videos && request.videos.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {request.videos.map((v, i) => (

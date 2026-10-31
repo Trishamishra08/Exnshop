@@ -84,12 +84,10 @@ export const getReturnRequests = asyncHandler(
         variant: item?.sku || "Standard",
         requestType: ret.requestType || "RETURN",
         requestedVariation: ret.requestedVariation,
-        condition: ret.condition,
-        photos: ret.images || [],
-        videos: ret.videos || [],
+        // The customer's photos, video, reason and condition are reviewed by the Exnshop admin only.
         exchangeState: ret.exchangeState,
         qc: ret.qc,
-        flags: ret.flags,
+        sellerProof: (ret as any).sellerProof,
         price,
         discPrice: price,
         quantity,
@@ -99,7 +97,7 @@ export const getReturnRequests = asyncHandler(
         amount: totalAmount,
         status: ret.status,
         date: ret.createdAt,
-        returnReason: ret.reason,
+        returnReason: "Reviewed by Exnshop",
         image: item?.productImage,
         lifecycleStage: (() => {
           const stages: Record<string, number> = {
@@ -163,12 +161,10 @@ export const getReturnRequestById = asyncHandler(
       status: fullReturn.status,
       requestType: fullReturn.requestType || "RETURN",
       requestedVariation: (fullReturn as any).requestedVariation,
-      condition: (fullReturn as any).condition,
-      photos: (fullReturn as any).images || [],
-      videos: (fullReturn as any).videos || [],
+      // The customer's photos, video, reason and condition are reviewed by the Exnshop admin only.
       exchangeState: (fullReturn as any).exchangeState,
       qc: (fullReturn as any).qc,
-      flags: (fullReturn as any).flags,
+      sellerProof: (fullReturn as any).sellerProof,
       // E-commerce: courier reverse pickup; exchange: the replacement order
       shiprocketReturn: (fullReturn as any).shiprocketReturn,
       replacementOrderId: (fullReturn as any).replacementOrder,
@@ -199,8 +195,7 @@ export const getReturnRequestById = asyncHandler(
       ],
       subtotal: (item?.unitPrice || 0) * fullReturn.quantity,
       total: (item?.unitPrice || 0) * fullReturn.quantity,
-      reason: fullReturn.reason,
-      reasonDescription: fullReturn.description,
+      reason: "Reviewed by Exnshop",
       // Lifecycle timestamps
       approvedAt: fullReturn.approvedAt,
       pickedUpAt: fullReturn.pickedUpAt,
@@ -296,6 +291,19 @@ export const confirmSellerReceipt = asyncHandler(
       returnReq.qc = { result: qcResult, note: qcNote, at: new Date(), by: String(sellerId) };
       await returnReq.save();
     }
+    // The seller's own photos / videos of what arrived, so the admin can be sure the product is right.
+    const httpsList = (v: unknown, max: number): string[] =>
+      Array.isArray(v) ? v.filter((u) => typeof u === "string" && /^https:\/\/\S+$/.test(u)).slice(0, max) : [];
+    const proofImages = httpsList(req.body?.proofImages, 5);
+    const proofVideos = httpsList(req.body?.proofVideos, 2);
+    if (qcResult === "Failed" && proofImages.length + proofVideos.length === 0) {
+      return res.status(400).json({ success: false, message: "Add a photo or video of the item as proof of the problem." });
+    }
+    if (proofImages.length || proofVideos.length) {
+      returnReq.sellerProof = { images: proofImages, videos: proofVideos, at: new Date(), by: sellerId };
+      await returnReq.save();
+    }
+
     // Doorstep swap: the replacement already reached the customer, so a failed check can't hold it.
     // Record it, tell the admin, and let the exchange close normally.
     if (isExchangeReq && qcResult === "Failed" && returnReq.replacementOrder) {

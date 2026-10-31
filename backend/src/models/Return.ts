@@ -36,6 +36,8 @@ export interface IReturn extends Document {
   quantity: number;
   images?: string[]; // Images of items
   videos?: string[]; // Videos of the item (e.g. unboxing / open-box proof), up to 2
+  /** Photos / videos the seller records of the item when it reaches them, so the admin can verify it. */
+  sellerProof?: { images: string[]; videos: string[]; at: Date; by?: mongoose.Types.ObjectId };
 
   // Processing
   processedBy?: mongoose.Types.ObjectId;
@@ -178,6 +180,10 @@ const ReturnSchema = new Schema<IReturn>(
       min: [1, "Quantity must be at least 1"],
     },
     videos: { type: [String], default: undefined },
+    sellerProof: {
+      type: new Schema({ images: { type: [String], default: [] }, videos: { type: [String], default: [] }, at: { type: Date, default: Date.now }, by: { type: Schema.Types.ObjectId } }, { _id: false }),
+      default: undefined,
+    },
     images: {
       type: [String],
       default: [],

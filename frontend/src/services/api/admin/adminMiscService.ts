@@ -29,6 +29,9 @@ export interface MiscReturnRequest {
   condition?: string;
   photos?: string[];
   videos?: string[];
+  description?: string;
+  /** Photos / videos the seller recorded of the item when it reached them. */
+  sellerProof?: { images: string[]; videos: string[]; at?: string };
   qc?: { result: "Passed" | "Failed"; note?: string };
   flags?: string[];
   orderId: string;

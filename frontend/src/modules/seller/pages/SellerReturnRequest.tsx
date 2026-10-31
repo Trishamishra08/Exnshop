@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   getReturnRequests,
@@ -11,6 +11,7 @@ import {
   GetReturnRequestsParams,
 } from '../../../services/api/returnService';
 import { useToast } from '../../../context/ToastContext';
+import { uploadImages, uploadVideos } from '../../../services/api/uploadService';
 
 export default function SellerReturnRequest() {
   const { showToast } = useToast();
@@ -39,6 +40,14 @@ export default function SellerReturnRequest() {
   const [showConfirmReceiptModal, setShowConfirmReceiptModal] = useState(false);
   const [qcResult, setQcResult] = useState<'' | 'Passed' | 'Failed'>('');
   const [qcNote, setQcNote] = useState('');
+  // Photos / videos of the item as it arrived, so the admin can be sure it is right.
+  const [proofImages, setProofImages] = useState<File[]>([]);
+  const [proofVideos, setProofVideos] = useState<File[]>([]);
+  const proofImageRef = useRef<HTMLInputElement>(null);
+  const proofVideoRef = useRef<HTMLInputElement>(null);
+  const proofImagePreviews = proofImages.map((f) => URL.createObjectURL(f));
+  const proofVideoPreviews = proofVideos.map((f) => URL.createObjectURL(f));
+  useEffect(() => () => { proofImagePreviews.forEach((p) => URL.revokeObjectURL(p)); proofVideoPreviews.forEach((p) => URL.revokeObjectURL(p)); });
 
   const [rejectionReasonInput, setRejectionReasonInput] = useState('');
   const [submittingAction, setSubmittingAction] = useState(false);
@@ -232,13 +241,27 @@ export default function SellerReturnRequest() {
       showToast('Describe what is wrong with the returned item', 'error');
       return;
     }
+    if (qcResult === 'Failed' && proofImages.length + proofVideos.length === 0) {
+      showToast('Add a photo or video of the item as proof of the problem', 'error');
+      return;
+    }
     setSubmittingAction(true);
     try {
-      const res = await confirmSellerReceipt(selectedReturn.id, qcResult ? { qcResult, qcNote: qcNote.trim() || undefined } : undefined);
+      // Upload the proof first; the receipt then carries the links.
+      const imageUrls = proofImages.length ? (await uploadImages(proofImages, 'dhakadsnazzy/returns/seller-proof')).map((r) => r.secureUrl) : [];
+      const videoUrls = proofVideos.length ? (await uploadVideos(proofVideos, 'dhakadsnazzy/returns/seller-proof')).map((r) => r.secureUrl) : [];
+      const payload = {
+        ...(qcResult ? { qcResult, qcNote: qcNote.trim() || undefined } : {}),
+        ...(imageUrls.length ? { proofImages: imageUrls } : {}),
+        ...(videoUrls.length ? { proofVideos: videoUrls } : {}),
+      };
+      const res = await confirmSellerReceipt(selectedReturn.id, Object.keys(payload).length ? payload : undefined);
       if (res.success) {
-        showToast(isExchange ? res.message || 'Receipt recorded' : '✅ Receipt confirmed! Return marked Completed and customer refund processed.', 'success');
+        showToast(isExchange ? res.message || 'Receipt recorded' : '✅ Receipt confirmed! The return is marked Completed (the customer was already refunded when the delivery partner collected it).', 'success');
         setQcResult('');
         setQcNote('');
+        setProofImages([]);
+        setProofVideos([]);
         setShowConfirmReceiptModal(false);
         setShowDetailModal(false);
         fetchReturnRequests();
@@ -944,15 +967,15 @@ export default function SellerReturnRequest() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4 border border-neutral-200">
             <h3 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
-              <span>🤝</span> Confirm Physical Receipt & Issue Refund
+              <span>🤝</span> Confirm Physical Receipt
             </h3>
             <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 leading-relaxed space-y-1">
               <p className="font-bold text-sm">Product: {selectedReturn.product || 'Product'}</p>
-              <p>Refund Amount: <span className="font-bold">₹{Number(selectedReturn.total || (selectedReturn as any).amount || 0).toFixed(2)}</span></p>
+              <p>Value: <span className="font-bold">₹{Number(selectedReturn.total || (selectedReturn as any).amount || 0).toFixed(2)}</span></p>
               <p className="mt-2 text-neutral-700">
                 {selectedReturn.requestType === 'EXCHANGE'
                   ? 'Check the item that came back, then record the result. If it passes, the replacement is sent. If it fails, an admin reviews the exchange before anything is sent.'
-                  : <>Confirming receipt indicates that you have physically received and inspected the returned product. This will mark the return as <span className="font-bold">Completed</span> and release the customer's refund.</>}
+                  : <>Confirming receipt indicates that you have physically received and inspected the returned product. This marks the return as <span className="font-bold">Completed</span>. The customer was already refunded when the delivery partner collected the item.</>}
               </p>
             </div>
             <div className="space-y-2">
@@ -980,6 +1003,43 @@ export default function SellerReturnRequest() {
                 />
               )}
             </div>
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-neutral-700 uppercase tracking-wider">
+                Photos / video of the item {qcResult === 'Failed' ? <span className="text-red-600 normal-case">(required)</span> : <span className="font-normal normal-case text-neutral-400">(recommended)</span>}
+              </p>
+              <p className="text-[11px] text-neutral-500">Record the item as it arrived. The Exnshop admin uses it to confirm the product is right.</p>
+              <input ref={proofImageRef} type="file" accept="image/*" multiple className="hidden"
+                onChange={(e) => { setProofImages((cur) => [...cur, ...Array.from(e.target.files || [])].slice(0, 5)); e.target.value = ''; }} />
+              <input ref={proofVideoRef} type="file" accept="video/*" multiple className="hidden"
+                onChange={(e) => {
+                  const picked = Array.from(e.target.files || []).filter((f) => f.size <= 100 * 1024 * 1024);
+                  if (picked.length < (e.target.files?.length || 0)) showToast('Each video must be 100 MB or smaller', 'error');
+                  setProofVideos((cur) => [...cur, ...picked].slice(0, 2));
+                  e.target.value = '';
+                }} />
+              <div className="flex flex-wrap gap-2">
+                {proofImagePreviews.map((src, i) => (
+                  <div key={src} className="relative w-14 h-14">
+                    <img src={src} alt={`Proof ${i + 1}`} className="w-14 h-14 object-cover rounded-lg border border-neutral-200" />
+                    <button type="button" aria-label="Remove photo" onClick={() => setProofImages((cur) => cur.filter((_, j) => j !== i))}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-neutral-900 text-white text-xs leading-none">×</button>
+                  </div>
+                ))}
+                {proofVideoPreviews.map((src, i) => (
+                  <div key={src} className="relative w-24">
+                    <video src={src} controls preload="metadata" className="w-24 h-14 object-cover rounded-lg border border-neutral-200 bg-black" />
+                    <button type="button" aria-label="Remove video" onClick={() => setProofVideos((cur) => cur.filter((_, j) => j !== i))}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-neutral-900 text-white text-xs leading-none">×</button>
+                  </div>
+                ))}
+                {proofImages.length < 5 && (
+                  <button type="button" onClick={() => proofImageRef.current?.click()} className="w-14 h-14 rounded-lg border-2 border-dashed border-neutral-300 text-neutral-400 text-xl hover:bg-neutral-50">+</button>
+                )}
+                {proofVideos.length < 2 && (
+                  <button type="button" onClick={() => proofVideoRef.current?.click()} className="h-14 px-2 rounded-lg border-2 border-dashed border-neutral-300 text-neutral-500 text-[11px] hover:bg-neutral-50">🎥 Add video</button>
+                )}
+              </div>
+            </div>
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
@@ -995,7 +1055,7 @@ export default function SellerReturnRequest() {
                 onClick={handleConfirmReceipt}
                 className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors flex items-center gap-2"
               >
-                {submittingAction ? 'Processing...' : selectedReturn.requestType === 'EXCHANGE' ? 'Record check & continue' : 'Confirm & Issue Refund'}
+                {submittingAction ? 'Processing...' : selectedReturn.requestType === 'EXCHANGE' ? 'Record check & continue' : 'Confirm receipt'}
               </button>
             </div>
           </div>

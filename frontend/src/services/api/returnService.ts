@@ -150,7 +150,7 @@ export const retryReplacementOrder = async (returnId: string) => {
  */
 export const confirmSellerReceipt = async (
   returnId: string,
-  qc?: { qcResult: 'Passed' | 'Failed'; qcNote?: string }
+  qc?: { qcResult?: 'Passed' | 'Failed'; qcNote?: string; proofImages?: string[]; proofVideos?: string[] }
 ): Promise<ApiResponse<{ id: string; status: string; financialSettlementStatus: string }>> => {
   const response = await api.post<ApiResponse<{ id: string; status: string; financialSettlementStatus: string }>>(
     `/returns/${returnId}/confirm-receipt`,
