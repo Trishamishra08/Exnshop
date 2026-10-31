@@ -204,6 +204,14 @@ export interface ISeller extends Document {
     decidedBy?: string;
     adminNote?: string;
   };
+  /**
+   * Profile / store / bank changes an approved seller made, waiting for admin approval.
+   * The approved values stay live until then (see sellerProfileChangeService).
+   */
+  pendingProfileChange?: {
+    data: Record<string, any>;
+    submittedAt: Date;
+  };
 
   createdAt: Date;
   updatedAt: Date;
@@ -559,6 +567,16 @@ const SellerSchema = new Schema<ISeller>(
           decidedAt: { type: Date },
           decidedBy: { type: String },
           adminNote: { type: String, trim: true, maxlength: 500 },
+        },
+        { _id: false }
+      ),
+      default: undefined,
+    },
+    pendingProfileChange: {
+      type: new Schema(
+        {
+          data: { type: Schema.Types.Mixed, default: {} },
+          submittedAt: { type: Date, default: Date.now },
         },
         { _id: false }
       ),

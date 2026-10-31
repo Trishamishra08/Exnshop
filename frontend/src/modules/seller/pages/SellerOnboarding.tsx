@@ -278,6 +278,17 @@ export default function SellerOnboarding() {
 
   // ── Render helpers ──
   const banner = (() => {
+    // Approved seller's edits wait for admin approval; the approved details stay in use.
+    if (view.pendingChanges && view.pendingChanges.length > 0) {
+      return (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-bold mb-1">Changes waiting for admin approval</p>
+          <p className="text-xs">
+            {view.pendingChanges.map((f) => f.replace(/([a-z])([A-Z])/g, '$1 $2')).join(', ')} — your current details stay in use until the admin approves.
+          </p>
+        </div>
+      );
+    }
     if (status === 'ActionRequired') {
       return (
         <div className="rounded-2xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-900">

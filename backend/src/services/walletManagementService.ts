@@ -8,7 +8,7 @@ import mongoose from "mongoose";
 import { payoutBlockReason } from "./sellerOnboardingService";
 
 export type WalletUserType = "SELLER" | "DELIVERY_BOY" | "CUSTOMER";
-export type WalletCategory = "COD_RETURN_REFUND" | "ORDER_CANCELLATION_REFUND" | "ORDER_PAYMENT" | "MANUAL_ADMIN_CREDIT" | "MANUAL_ADMIN_DEBIT" | "RTO_REVERSE_SHIPPING_DEBIT" | "AD_SPEND" | "RETURN_SHIPPING_DEBIT";
+export type WalletCategory = "COD_RETURN_REFUND" | "ORDER_CANCELLATION_REFUND" | "ORDER_PAYMENT" | "MANUAL_ADMIN_CREDIT" | "MANUAL_ADMIN_DEBIT" | "RTO_REVERSE_SHIPPING_DEBIT" | "AD_SPEND" | "RETURN_SHIPPING_DEBIT" | "PLATFORM_FEE_DEBIT" | "DELIVERY_CANCEL_PENALTY" | "PENALTY_REFUND";
 
 /**
  * Bill a courier return-pickup charge to a seller. Unlike an ordinary debit it
@@ -38,6 +38,52 @@ export const chargeSellerShipping = async (
         userId: sellerId,
         userType: "SELLER",
         category: "RETURN_SHIPPING_DEBIT",
+        amount,
+        balanceBefore: balanceAfter + amount,
+        balanceAfter,
+        type: "Debit",
+        description,
+        status: "Completed",
+        reference,
+        relatedOrder: relatedOrderId,
+      },
+    ],
+    session ? { session } : {},
+  );
+  return true;
+};
+
+/**
+ * Charges a seller or delivery partner something they owe the platform (platform fee
+ * on cash they collected themselves, a cancellation penalty…). Always applied: if the
+ * balance can't cover it, it goes negative and is recovered from their next earnings.
+ * Idempotent by `reference`. Returns true when charged.
+ */
+export const chargeWalletDue = async (
+  userType: "SELLER" | "DELIVERY_BOY",
+  userId: string,
+  amount: number,
+  description: string,
+  reference: string,
+  category: WalletCategory,
+  relatedOrderId?: string,
+  session?: mongoose.ClientSession,
+): Promise<boolean> => {
+  amount = Math.round(amount * 100) / 100;
+  if (!(amount > 0)) return false;
+  const existing = session ? await WalletTransaction.findOne({ reference }).session(session) : await WalletTransaction.findOne({ reference });
+  if (existing) return false;
+
+  const Model: any = userType === "SELLER" ? Seller : Delivery;
+  const updated = await Model.findByIdAndUpdate(userId, { $inc: { balance: -amount } }, { new: true, session }).select("balance");
+  if (!updated) return false;
+  const balanceAfter = updated.balance || 0;
+  await WalletTransaction.create(
+    [
+      {
+        userId,
+        userType,
+        category,
         amount,
         balanceBefore: balanceAfter + amount,
         balanceAfter,

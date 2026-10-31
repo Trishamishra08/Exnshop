@@ -27,6 +27,7 @@ const BUSINESS_TYPES = [
 const SellerAccountSettings = () => {
     const { user, updateUser } = useAuth();
     // ?tab=shipping (e.g. from the Orders page) opens that tab directly.
+    const [notice, setNotice] = useState('');
     const [activeTab, setActiveTab] = useState(() => new URLSearchParams(window.location.search).get('tab') || 'profile');
     // Shipping method only matters to sellers who sell via E-commerce (courier shipping).
     const [shipsEcommerce, setShipsEcommerce] = useState(false);
@@ -282,6 +283,8 @@ const SellerAccountSettings = () => {
                     searchLocation: data.searchLocation || data.address || '',
                     serviceRadiusKm: (data.serviceRadiusKm || 10).toString(),
                 });
+                // e.g. "Your changes were sent to the admin for approval…"
+                setNotice(response.message || 'Profile updated');
                 if (updateUser) {
                     updateUser({
                         ...user,
@@ -356,6 +359,15 @@ const SellerAccountSettings = () => {
                 ),
             }]
             : []),
+        {
+            id: 'kyc',
+            label: 'KYC & Documents',
+            icon: (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+            ),
+        },
     ];
 
     return (
@@ -451,6 +463,27 @@ const SellerAccountSettings = () => {
 
                     {/* Main Content Area */}
                     <div className="flex-1">
+                        {/* Changes an approved seller made wait for admin approval; the approved details stay live. */}
+                        {(sellerData as any).pendingProfileChange?.data && Object.keys((sellerData as any).pendingProfileChange.data).filter((f: string) => f !== 'location').length > 0 && (
+                            <div className="mb-6 p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-sm">
+                                <p className="font-semibold">Changes waiting for admin approval</p>
+                                <p className="text-xs mt-1">
+                                    {Object.entries((sellerData as any).pendingProfileChange.data)
+                                        .filter(([f]) => f !== 'location')
+                                        .map(([f, v]) => `${f.replace(/([a-z])([A-Z])/g, '$1 $2')}: ${Array.isArray(v) ? v.join(', ') : typeof v === 'object' ? '…' : String(v)}`)
+                                        .join(' · ')}
+                                </p>
+                                <p className="text-xs mt-1 text-amber-700">
+                                    Sent {new Date((sellerData as any).pendingProfileChange.submittedAt).toLocaleString('en-IN')}. Your current details below stay live until the admin approves.
+                                </p>
+                            </div>
+                        )}
+                        {notice && (
+                            <div className="mb-6 p-4 bg-green-50 border border-green-200 text-green-800 rounded-xl text-sm flex justify-between items-center">
+                                <span>{notice}</span>
+                                <button onClick={() => setNotice('')} className="text-green-700 font-bold ml-3" aria-label="Close">×</button>
+                            </div>
+                        )}
                         {error && (
                             <motion.div
                                 initial={{ opacity: 0, y: -10 }}
@@ -839,6 +872,19 @@ const SellerAccountSettings = () => {
                                                 <ShippingMethodCard />
                                                 <ShippingSettingsCard />
                                             </>
+                                        )}
+
+                                        {activeTab === 'kyc' && (
+                                            <div className="space-y-4">
+                                                <h4 className="text-lg font-bold text-gray-900">KYC & Documents</h4>
+                                                <p className="text-sm text-gray-600">
+                                                    Your business documents (PAN, GST certificate, ID and address proof, cancelled cheque) and their verification status are managed on the KYC page.
+                                                    Changes to verified details go to the Exnshop team for approval.
+                                                </p>
+                                                <a href="/seller/onboarding" className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold">
+                                                    Open KYC & Documents →
+                                                </a>
+                                            </div>
                                         )}
 
                                         {activeTab === 'bank' && (

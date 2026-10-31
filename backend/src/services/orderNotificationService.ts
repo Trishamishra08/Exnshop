@@ -378,8 +378,14 @@ export async function notifyDeliveryBoysOfNewOrder(
             }
         }
 
+        // Riders who already accepted and then cancelled this order are not rung again.
+        const cancelledBy = new Set(((order as any).deliveryCancelledBy || []).map((x: any) => String(x)));
+        if (cancelledBy.size) nearbyDeliveryBoyIds = nearbyDeliveryBoyIds.filter((id: any) => !cancelledBy.has(String(id)));
+
         if (nearbyDeliveryBoyIds.length === 0) {
             console.log('⚠️ [NOTIFICATION] No available delivery boys found to notify.');
+            // Let the seller see it and ring again or deliver themselves.
+            await Order.findByIdAndUpdate(order._id, { $set: { deliveryAssignmentStatus: 'Failed' } });
             return;
         }
 
@@ -413,6 +419,7 @@ export async function notifyDeliveryBoysOfNewOrder(
 
             if (nearbyDeliveryBoyIds.length === 0) {
                 console.log('⚠️ [NOTIFICATION] All targeted delivery boys are currently busy with other orders.');
+                await Order.findByIdAndUpdate(order._id, { $set: { deliveryAssignmentStatus: 'Failed' } });
                 return;
             }
         }
@@ -583,6 +590,8 @@ export async function handleOrderAcceptance(
         const updatedOrder = await Order.findOneAndUpdate(
             {
                 _id: orderId,
+                // Not once the seller chose to deliver it themselves.
+                deliveryPreference: { $ne: "Self" },
                 $or: [
                     { deliveryBoy: null },
                     { deliveryBoy: { $exists: false } }

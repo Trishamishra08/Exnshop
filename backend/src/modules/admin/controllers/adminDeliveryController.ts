@@ -155,6 +155,7 @@ export const updateDeliveryBoy = asyncHandler(
 
     // Don't allow password update through this endpoint
     delete updateData.password;
+    const before: any = await Delivery.findById(id).lean();
 
     const deliveryBoy = await Delivery.findByIdAndUpdate(id, updateData, {
       new: true,
@@ -166,6 +167,24 @@ export const updateDeliveryBoy = asyncHandler(
         success: false,
         message: "Delivery boy not found",
       });
+    }
+
+    // History: what the admin changed (old -> new).
+    if (before) {
+      const asText = (v: any) => (v !== null && typeof v === "object" ? JSON.stringify(v) : v);
+      const changed = Object.keys(updateData || {}).filter(
+        (k) => !k.startsWith("_") && JSON.stringify(before[k] ?? null) !== JSON.stringify(updateData[k] ?? null)
+      );
+      if (changed.length) {
+        const { auditDelivery } = await import("../../../services/deliveryProfileChangeService");
+        await auditDelivery({
+          deliveryId: id,
+          actorType: "Admin",
+          actorId: (req as any).user?.userId,
+          action: "UPDATED_BY_ADMIN",
+          changes: changed.map((k) => ({ field: k, from: asText(before[k]), to: asText(updateData[k]) })),
+        });
+      }
     }
 
     return res.status(200).json({
@@ -236,6 +255,23 @@ export const updateDeliveryStatus = asyncHandler(
       });
     }
 
+    // A partner is activated only once all required documents are approved (admin can override knowingly).
+    if (status === "Active" && req.body.force !== true) {
+      const current: any = await Delivery.findById(id).select("documents status");
+      if (current && current.status !== "Active") {
+        const { missingApprovedDocuments } = await import("../../../services/deliveryDocumentService");
+        const missing = missingApprovedDocuments(current);
+        if (missing.length) {
+          return res.status(409).json({
+            success: false,
+            code: "DOCUMENTS_INCOMPLETE",
+            message: `Documents not approved yet: ${missing.join(", ")}`,
+            data: { missing },
+          });
+        }
+      }
+    }
+
     const deliveryBoy = await Delivery.findByIdAndUpdate(
       id,
       { status },
@@ -246,6 +282,18 @@ export const updateDeliveryStatus = asyncHandler(
       return res.status(404).json({
         success: false,
         message: "Delivery boy not found",
+      });
+    }
+
+    // History: approval / deactivation by the admin.
+    {
+      const { auditDelivery } = await import("../../../services/deliveryProfileChangeService");
+      await auditDelivery({
+        deliveryId: id,
+        actorType: "Admin",
+        actorId: (req as any).user?.userId,
+        action: status === "Active" ? "APPROVED_ACTIVATED" : "DEACTIVATED",
+        changes: [{ field: "status", to: status }],
       });
     }
 

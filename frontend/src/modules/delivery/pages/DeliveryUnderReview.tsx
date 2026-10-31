@@ -167,6 +167,16 @@ export default function DeliveryUnderReview() {
         {/* Action Buttons */}
         <div className="space-y-3">
           <button
+            onClick={() => navigate("/delivery/documents")}
+            className="w-full h-12 rounded-xl font-semibold text-sm bg-orange-500 hover:bg-orange-600 text-white shadow-md active:scale-[0.99] transition-all cursor-pointer"
+          >
+            Upload KYC Documents
+          </button>
+          <p className="text-[11px] text-slate-500 text-center -mt-1">
+            ID, address proof, driving licence, vehicle photo, RC, PUC, insurance and bank proof. Admin activates your account once they are approved.
+          </p>
+
+          <button
             onClick={() => checkStatus(true)}
             disabled={checking}
             className="w-full h-12 rounded-xl font-semibold text-sm bg-gradient-to-r from-teal-700 via-teal-600 to-emerald-600 hover:from-teal-800 hover:to-emerald-700 text-white shadow-md shadow-teal-900/20 active:scale-[0.99] flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-75"

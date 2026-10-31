@@ -127,6 +127,9 @@ const DeliveryLogin = lazyWithRetry(
 const DeliverySignUp = lazyWithRetry(
   () => import("./modules/delivery/pages/DeliverySignUp"), "DeliverySignUp"
 );
+const DeliveryDocuments = lazyWithRetry(
+  () => import("./modules/delivery/pages/DeliveryDocuments"), "DeliveryDocuments"
+);
 const DeliveryUnderReview = lazyWithRetry(
   () => import("./modules/delivery/pages/DeliveryUnderReview"), "DeliveryUnderReview"
 );
@@ -274,6 +277,15 @@ const AdminSubcategoryOrder = lazyWithRetry(
 );
 const AdminManageSellerList = lazyWithRetry(
   () => import("./modules/admin/pages/AdminManageSellerList"), "AdminManageSellerList"
+);
+const AdminDeliveryChangeRequests = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminDeliveryChangeRequests"), "AdminDeliveryChangeRequests"
+);
+const AdminDeliveryCancellations = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminDeliveryCancellations"), "AdminDeliveryCancellations"
+);
+const AdminSellerChangeRequests = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminSellerChangeRequests"), "AdminSellerChangeRequests"
 );
 const AdminSellerReview = lazyWithRetry(
   () => import("./modules/admin/pages/AdminSellerReview"), "AdminSellerReview"
@@ -571,6 +583,16 @@ function App() {
                                   <DeliverySignUp />
                                 </Suspense>
                               </PublicRoute>
+                            }
+                          />
+                          <Route
+                            path="/delivery/documents"
+                            element={
+                              <ProtectedRoute requiredUserType="Delivery" allowUnapproved redirectTo="/delivery/login">
+                                <Suspense fallback={<IconLoader forceShow />}>
+                                  <DeliveryDocuments />
+                                </Suspense>
+                              </ProtectedRoute>
                             }
                           />
                           <Route
@@ -920,6 +942,18 @@ function App() {
                                       <Route
                                         path="manage-seller/drafts"
                                         element={<AdminDraftSellers />}
+                                      />
+                                      <Route
+                                        path="delivery-change-requests"
+                                        element={<AdminDeliveryChangeRequests />}
+                                      />
+                                      <Route
+                                        path="delivery-cancellations"
+                                        element={<AdminDeliveryCancellations />}
+                                      />
+                                      <Route
+                                        path="seller-change-requests"
+                                        element={<AdminSellerChangeRequests />}
                                       />
                                       <Route
                                         path="manage-seller/review/:id"

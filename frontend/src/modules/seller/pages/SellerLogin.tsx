@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { sendMobileOTP, verifyMobileOTP, sendOTP as sendEmailOTP, verifyOTP as verifyEmailOTP } from '../../../services/api/auth/sellerAuthService';
-import LoginMethodTabs, { LoginMethod, isValidEmail } from '../../../components/LoginMethodTabs';
+import LoginMethodTabs, { DEFAULT_LOGIN_METHOD, LoginMethod, isValidEmail } from '../../../components/LoginMethodTabs';
 import OTPInput from '../../../components/OTPInput';
 import { useAuth } from '../../../context/AuthContext';
 import AnimatedLogo from '../../../components/AnimatedLogo';
@@ -11,7 +11,7 @@ export default function SellerLogin() {
   const location = useLocation();
   const { login } = useAuth();
 
-  const [method, setMethod] = useState<LoginMethod>('mobile');
+  const [method, setMethod] = useState<LoginMethod>(DEFAULT_LOGIN_METHOD);
   const [mobileNumber, setMobileNumber] = useState('');
   const [email, setEmail] = useState('');
   const loginTarget = method === 'mobile' ? `+91 ${mobileNumber}` : email.trim();

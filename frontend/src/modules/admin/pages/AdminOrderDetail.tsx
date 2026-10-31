@@ -5,6 +5,7 @@ import { useToast } from '../../../context/ToastContext';
 import { getAdminShippingLabels } from '../../../services/api/shippingLabelService';
 import { getAdminTaxInvoices } from '../../../services/api/taxInvoiceService';
 import { formatDeliveryAddress } from '../../../utils/addressUtils';
+import { paymentLabel } from '../../../utils/paymentDisplay';
 
 export default function AdminOrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -278,7 +279,7 @@ export default function AdminOrderDetail() {
               </div>
               <div>
                 <span className="text-neutral-600">Payment Status:</span>
-                <span className="ml-2 font-medium capitalize">{order.paymentStatus}</span>
+                <span className="ml-2 font-medium">{paymentLabel(order as any)}</span>
               </div>
             </div>
           </div>
@@ -442,7 +443,7 @@ export default function AdminOrderDetail() {
               </div>
               <div>
                 <span className="text-neutral-600">Status:</span>
-                <span className="ml-2 font-medium capitalize">{order.paymentStatus}</span>
+                <span className="ml-2 font-medium">{paymentLabel(order as any)}</span>
               </div>
               {order.paymentId && (
                 <div>

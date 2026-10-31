@@ -52,8 +52,15 @@ export default function GoogleMapsTracking({
 }: GoogleMapsTrackingProps) {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
     const mapRef = useRef<any>(null)
-    const distanceServiceRef = useRef<any>(null)
-    const lastRouteCalcRef = useRef<{ time: number, origin: Location }>({ time: 0, origin: { lat: 0, lng: 0 } })
+    const lastRouteCalcRef = useRef<{
+        time: number
+        origin: Location
+        destination?: Location
+        known?: boolean
+        roadFactor: number
+        metersPerSecond: number
+    }>({ time: 0, origin: { lat: 0, lng: 0 }, roadFactor: 1.3, metersPerSecond: 25000 / 3600 })
+    const routeCallRef = useRef(0)
     const hasInitialBoundsFitted = useRef<boolean>(false)
     const [userHasInteracted, setUserHasInteracted] = useState<boolean>(false)
     const [isFullScreen, setIsFullScreen] = useState<boolean>(false)
@@ -249,87 +256,83 @@ export default function GoogleMapsTracking({
             return
         }
 
-        // Optimization: Throttle calculation (min 5 seconds between calls)
-        // unless origin has moved significantly (> 50m)
+        // Google Routes API is billed per request, so it is called sparingly: at most once a minute,
+        // or sooner only when the rider has moved far (~300 m) or the destination changed. In between,
+        // the distance is worked out for free from the last answer (same road-to-straight-line ratio
+        // and speed), so the screen still updates smoothly.
         const now = Date.now()
-        const lastCalc = lastRouteCalcRef.current
-        const timeDiff = now - lastCalc.time
-
-        if (timeDiff < 5000) {
-            // Check if origin moved significantly
-            const latDiff = Math.abs(origin.lat - lastCalc.origin.lat)
-            const lngDiff = Math.abs(origin.lng - lastCalc.origin.lng)
-            // Rough approximation: 0.0005 degrees is ~50m
-            if (latDiff < 0.0005 && lngDiff < 0.0005) {
-                return // Skip calculation
-            }
+        const last = lastRouteCalcRef.current
+        const toRad = (d: number) => (d * Math.PI) / 180
+        const straightMeters = (p: Location, q: Location) => {
+            const dLat = toRad(q.lat - p.lat)
+            const dLng = toRad(q.lng - p.lng)
+            const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(p.lat)) * Math.cos(toRad(q.lat)) * Math.sin(dLng / 2) ** 2
+            return 2 * 6371000 * Math.asin(Math.sqrt(h))
+        }
+        const fmtDuration = (seconds: number) => {
+            const mins = Math.max(1, Math.ceil(seconds / 60))
+            if (mins < 60) return `${mins} mins`
+            return `${Math.floor(mins / 60)}h ${mins % 60}m`
+        }
+        const fmtDistance = (meters: number) => (meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)} km`)
+        const show = (meters: number, seconds: number) => {
+            const total = seconds + 120 // 2-minute buffer
+            setRouteError(null)
+            setRouteInfo({ distance: fmtDistance(meters), duration: fmtDuration(total), durationValue: total, distanceValue: Math.round(meters) })
         }
 
-        lastRouteCalcRef.current = { time: now, origin: { ...origin } }
+        const sameDestination = !!last.destination && Math.abs(last.destination.lat - destination.lat) < 0.0001 && Math.abs(last.destination.lng - destination.lng) < 0.0001
+        const movedFar = !!last.origin.lat && straightMeters(last.origin, origin) > 300
+        const dueByTime = now - last.time >= 60000
+        const needApiCall = !last.known || !sameDestination || dueByTime || movedFar
 
-        // Initialize DistanceMatrixService if not already initialized
-        if (!distanceServiceRef.current) {
-            distanceServiceRef.current = new window.google.maps.DistanceMatrixService()
+        if (!needApiCall) {
+            // Free update from the last Routes answer: scale by the road/straight ratio and the speed it implied.
+            const straightNow = straightMeters(origin, destination)
+            const meters = straightNow * last.roadFactor
+            show(meters, meters / last.metersPerSecond)
+            return
         }
 
-        // Route through waypoints (if any) as intermediate destinations isn't supported by
-        // Distance Matrix in one call — use the final destination for the headline ETA, which is
-        // what the UI shows.
-        distanceServiceRef.current.getDistanceMatrix(
-            {
-                origins: [origin],
-                destinations: [destination],
-                travelMode: window.google.maps.TravelMode.DRIVING,
+        lastRouteCalcRef.current = { ...last, time: now, origin: { ...origin }, destination: { ...destination } }
+        const myCall = ++routeCallRef.current
+
+        fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Goog-Api-Key': apiKey || '',
+                'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters',
             },
-            (result: any, status: any) => {
-                const element = result?.rows?.[0]?.elements?.[0]
-                if (status === 'OK' && element && element.status === 'OK') {
-                    setRouteError(null)
-
-                    let totalDurationSeconds = (element.duration?.value || 0) + 120 // 2-minute buffer
-                    const totalDistance = element.distance?.value || 0
-
-                    const formatDuration = (seconds: number) => {
-                        if (seconds < 60) return `${Math.ceil(seconds)} sec`
-                        const mins = Math.ceil(seconds / 60)
-                        if (mins < 60) return `${mins} mins`
-                        const hours = Math.floor(mins / 60)
-                        const remainingMins = mins % 60
-                        return `${hours}h ${remainingMins}m`
-                    }
-
-                    const formatDistance = (meters: number) => {
-                        if (meters < 1000) return `${meters}m`
-                        return `${(meters / 1000).toFixed(1)} km`
-                    }
-
-                    setRouteInfo({
-                        distance: formatDistance(totalDistance),
-                        duration: formatDuration(totalDurationSeconds),
-                        durationValue: totalDurationSeconds,
-                        distanceValue: totalDistance,
-                    })
-                } else {
-                    const elementStatus = element?.status || status
-                    console.error(`❌ Distance Matrix API [status=${elementStatus}]:`, { origin, destination })
-                    if (elementStatus === 'REQUEST_DENIED') {
-                        console.error('ACTION REQUIRED: Enable Distance Matrix API at https://console.cloud.google.com/apis/library/distance-matrix-backend.googleapis.com')
-                    }
-                    setRouteInfo(null)
-
-                    if (elementStatus === 'ZERO_RESULTS') {
-                        setRouteError('No road route found. Showing straight line.')
-                    } else if (elementStatus === 'OVER_QUERY_LIMIT') {
-                        setRouteError('Route service busy. Showing straight line.')
-                    } else if (elementStatus === 'REQUEST_DENIED') {
-                        setRouteError(`Distance Matrix API not enabled (${elementStatus}). Enable it in Google Cloud Console.`)
-                    } else {
-                        setRouteError('Navigation error. Showing straight line.')
-                    }
+            body: JSON.stringify({
+                origin: { location: { latLng: { latitude: origin.lat, longitude: origin.lng } } },
+                destination: { location: { latLng: { latitude: destination.lat, longitude: destination.lng } } },
+                travelMode: 'DRIVE',
+            }),
+        })
+            .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`Routes API ${res.status}`))))
+            .then((data) => {
+                if (myCall !== routeCallRef.current) return // a newer calculation is running
+                const route = data?.routes?.[0]
+                const meters = Number(route?.distanceMeters)
+                const seconds = parseInt(String(route?.duration || '').replace('s', ''), 10)
+                if (!Number.isFinite(meters) || !Number.isFinite(seconds)) throw new Error('No route returned')
+                const straight = Math.max(1, straightMeters(origin, destination))
+                lastRouteCalcRef.current = {
+                    time: Date.now(), origin: { ...origin }, destination: { ...destination }, known: true,
+                    roadFactor: Math.max(1, meters / straight),
+                    metersPerSecond: Math.max(1.5, meters / Math.max(1, seconds)),
                 }
-            }
-        )
-    }, [isLoaded])
+                show(meters, seconds)
+            })
+            .catch((err) => {
+                if (myCall !== routeCallRef.current) return
+                // Routes API refused (not enabled, key restriction, quota…): fall back to a straight-line estimate.
+                console.warn('Routes API unavailable, using a straight-line estimate:', err?.message)
+                const road = straightMeters(origin, destination) * 1.3 // roads are longer than the straight line
+                show(road, road / (25000 / 3600)) // ~25 km/h average city speed
+            })
+    }, [isLoaded, apiKey])
 
     // Handle distance/ETA calculation when routeOrigin and routeDestination are provided
     useEffect(() => {

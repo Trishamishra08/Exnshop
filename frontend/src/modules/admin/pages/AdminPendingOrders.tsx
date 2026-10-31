@@ -7,6 +7,7 @@ import {
 import { useAuth } from "../../../context/AuthContext";
 import { useAdminMode } from "../context/AdminModeContext";
 import AssignDeliveryBoyModal from "../components/AssignDeliveryBoyModal";
+import { PaymentBadge } from '../../../utils/paymentDisplay';
 
 type SortField =
   | "orderId"
@@ -622,15 +623,7 @@ export default function AdminPendingOrders() {
                           <span className="font-semibold text-xs text-neutral-800">
                             {order.paymentMethod || 'COD'}
                           </span>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            order.paymentStatus === 'Refunded'
-                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                              : order.paymentStatus === 'Paid'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}>
-                            {order.paymentStatus || 'Pending'}
-                          </span>
+                          <PaymentBadge order={order} />
                         </div>
                       </td>
 

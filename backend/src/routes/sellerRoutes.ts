@@ -15,6 +15,11 @@ import {
   decideSellerOnboarding,
   runSellerVerifications,
 } from "../modules/admin/controllers/adminSellerOnboardingController";
+import {
+  getSellerChangeRequests,
+  decideSellerChangeRequest,
+  getSellerHistory,
+} from "../modules/admin/controllers/adminSellerChangeController";
 import { authenticate, requireUserType } from "../middleware/auth";
 
 const router = Router();
@@ -22,6 +27,11 @@ const router = Router();
 // All routes require authentication and admin user type
 router.use(authenticate);
 router.use(requireUserType("Admin"));
+
+// Profile / store / bank changes waiting for approval, and each seller's full history
+router.get("/change-requests", getSellerChangeRequests);
+router.post("/:id/change-request/decision", decideSellerChangeRequest);
+router.get("/:id/history", getSellerHistory);
 
 // Onboarding / KYC review
 router.get("/:id/onboarding", getSellerOnboarding);

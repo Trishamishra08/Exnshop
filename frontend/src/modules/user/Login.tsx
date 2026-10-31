@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { sendOTP, verifyOTP, sendEmailOTP, verifyEmailOTP } from '../../services/api/auth/customerAuthService';
-import LoginMethodTabs, { LoginMethod, isValidEmail } from '../../components/LoginMethodTabs';
+import LoginMethodTabs, { DEFAULT_LOGIN_METHOD, LoginMethod, isValidEmail } from '../../components/LoginMethodTabs';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import OTPInput from '../../components/OTPInput';
@@ -16,7 +16,7 @@ export default function Login({ mode = 'login' }: LoginProps) {
   const navigate = useNavigate();
   const { login } = useAuth();
   const { setLanguage } = useLanguage();
-  const [method, setMethod] = useState<LoginMethod>('mobile');
+  const [method, setMethod] = useState<LoginMethod>(DEFAULT_LOGIN_METHOD);
   const [mobileNumber, setMobileNumber] = useState('');
   const [email, setEmail] = useState('');
   // Email signup: this email has no account yet, so the mobile number is asked

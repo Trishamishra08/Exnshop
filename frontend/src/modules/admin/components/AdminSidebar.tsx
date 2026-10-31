@@ -547,7 +547,7 @@ const getMenuSections = (mode: "Quick" | "ECommerce"): MenuSection[] => [
           </svg>
         ),
       },
-      ...(mode === "ECommerce" ? [shipmentsItem] : [deliveryBoyItem]),
+      ...(mode === "ECommerce" ? [shipmentsItem, deliveryBoyItem] : [deliveryBoyItem]),
       {
         label: "Couriers",
         path: "/admin/couriers",
@@ -604,6 +604,38 @@ const getMenuSections = (mode: "Quick" | "ECommerce"): MenuSection[] => [
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="12" y1="1" x2="12" y2="23"></line>
             <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+          </svg>
+        ),
+      },
+      {
+        label: "Delivery Change Requests",
+        path: "/admin/delivery-change-requests",
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+            <circle cx="8.5" cy="7" r="4"></circle>
+            <polyline points="17 11 19 13 23 9"></polyline>
+          </svg>
+        ),
+      },
+      {
+        label: "Delivery Cancellations",
+        path: "/admin/delivery-cancellations",
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+          </svg>
+        ),
+      },
+      {
+        label: "Seller Change Requests",
+        path: "/admin/seller-change-requests",
+        icon: (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 11l3 3L22 4"></path>
+            <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
           </svg>
         ),
       },

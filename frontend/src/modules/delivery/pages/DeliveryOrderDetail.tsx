@@ -10,6 +10,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { acceptOrder, rejectOrder } from '../../../services/api/delivery/deliveryOrderNotificationService';
 import { getTranslatedDeliveryStatus } from '../utils/deliveryStatusHelper';
 import { getSocketBaseURL, getAuthToken } from '../../../services/api/config';
+import CancelAcceptedDelivery from '../components/CancelAcceptedDelivery';
 import { useRingtoneAlert } from '../../../hooks/useRingtoneAlert';
 
 // Helper to get delivery icon URL (works in both dev and production)
@@ -788,6 +789,11 @@ export default function DeliveryOrderDetail() {
                     onRouteInfoUpdate={setRouteInfo}
                     lastUpdate={lastUpdate}
                 />
+            )}
+
+            {/* Accepted but not picked up yet: the partner can give the order back (penalty applies). */}
+            {isAssignedToMe && (order?.channel || "Quick") === "Quick" && (!order?.deliveryBoyStatus || order?.deliveryBoyStatus === "Assigned") && !["Delivered", "Cancelled", "Returned", "Rejected"].includes(order?.status) && id && (
+                <CancelAcceptedDelivery orderId={id} onCancelled={() => navigate("/delivery")} />
             )}
 
             {/* Seller Locations Card with Pickup Buttons (before all sellers picked up) */}

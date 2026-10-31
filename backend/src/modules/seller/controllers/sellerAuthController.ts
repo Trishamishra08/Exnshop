@@ -12,6 +12,7 @@ import { asyncHandler } from "../../../utils/asyncHandler";
 import { sendVerificationCodeEmail } from "../../../services/emailService";
 import { queueSellerPickupSync } from "../../../services/shiprocketService";
 import { auditSeller, diffFields, effectiveStatus, notifyAdmins } from "../../../services/sellerOnboardingService";
+import { changesNeedApproval, queueSellerChange, splitSellerUpdate } from "../../../services/sellerProfileChangeService";
 
 const AUDITED_PROFILE_FIELDS = [
   "sellerName",
@@ -339,8 +340,8 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 
   // E-commerce sellers choose how their parcels ship: by the company (courier booked for them) or themselves.
   const shippingMethod: "Self" | "Company" | undefined = ["Self", "Company"].includes(req.body.shippingMethod) ? req.body.shippingMethod : undefined;
-  if (channels.includes("ECommerce") && !shippingMethod) {
-    return res.status(400).json({ success: false, message: "Choose a shipping method for E-commerce orders: By Company or Self shipping" });
+  if (!shippingMethod) {
+    return res.status(400).json({ success: false, message: "Choose how your orders will be delivered: Delivery by Company or Self Delivery" });
   }
 
   // Validate location is provided. Treat 0,0 as "not provided" — it's never a
@@ -437,7 +438,7 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
         ? req.body.categories
         : [category],
     channels,
-    shippingMethod: channels.includes("ECommerce") ? shippingMethod : undefined,
+    shippingMethod,
   };
 
   await PendingSellerRegistration.findOneAndUpdate(
@@ -622,7 +623,9 @@ export const updateProfile = asyncHandler(
     const businessLocked =
       current.onboardingReview?.business?.status === "Approved" ||
       ["UnderReview", "Approved", "Active", "Suspended"].includes(effectiveStatus(current));
-    if (identityChanges.length && businessLocked) {
+    // An approved seller's changes (identity included) go to the admin for approval below.
+    const needsApproval = changesNeedApproval(current);
+    if (identityChanges.length && businessLocked && !needsApproval) {
       return res.status(409).json({
         success: false,
         message: "PAN, GST and business type can't be changed after verification. Please contact support.",
@@ -633,7 +636,7 @@ export const updateProfile = asyncHandler(
     if (updates.ifsc) updates.ifsc = String(updates.ifsc).trim().toUpperCase();
 
     const bankChanges = diffFields(current, updates, ["accountName", "accountNumber", "ifsc"]);
-    if (bankChanges.length) {
+    if (bankChanges.length && !needsApproval) {
       if (["UnderReview", "Suspended", "Rejected"].includes(effectiveStatus(current))) {
         return res.status(409).json({ success: false, message: "Bank details can't be changed right now. Please contact support." });
       }
@@ -696,6 +699,24 @@ export const updateProfile = asyncHandler(
     ) {
       // If empty string or null is sent, remove it from updates to keep existing value
       delete updates.serviceRadiusKm;
+    }
+
+    // Approved seller: business details change only after the admin approves them.
+    if (needsApproval) {
+      const { instant, review } = splitSellerUpdate(current, updates);
+      const sent = Object.keys(review).length > 0;
+      if (sent) await queueSellerChange(current, review, "profile");
+      const saved = Object.keys(instant).length
+        ? await Seller.findByIdAndUpdate(sellerId, instant, { new: true, runValidators: true }).select("-password")
+        : await Seller.findById(sellerId).select("-password");
+      return res.status(200).json({
+        success: true,
+        message: sent
+          ? "Your changes were sent to the admin for approval. Your current details stay live until they are approved."
+          : "Profile updated successfully",
+        data: saved,
+        approvalPending: Boolean((saved as any)?.pendingProfileChange?.data),
+      });
     }
 
     const seller = await Seller.findByIdAndUpdate(sellerId, updates, {

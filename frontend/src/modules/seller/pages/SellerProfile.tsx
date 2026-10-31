@@ -388,8 +388,8 @@ export default function SellerProfile() {
     },
     {
       id: 'categories',
-      title: 'Categories & Subcategories',
-      description: 'View mapped store categories',
+      title: 'My Categories',
+      description: 'Categories you are allowed to sell in',
       route: '/seller/category',
       icon: (
         <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -453,10 +453,88 @@ export default function SellerProfile() {
         </svg>
       ),
     },
+    // Also in the desktop sidebar; listed here so they are reachable on mobile.
+    {
+      id: 'campaigns',
+      title: 'Ad Campaigns',
+      description: 'Promote your products with sponsored ads',
+      route: '/seller/campaigns',
+      icon: (
+        <svg className="w-5 h-5 text-pink-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'shipping',
+      title: 'Shipping Method',
+      description: 'Ship by Company or Self Ship, handling time',
+      route: '/seller/account-settings?tab=shipping',
+      icon: (
+        <svg className="w-5 h-5 text-sky-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zm10 0a2 2 0 11-4 0 2 2 0 014 0zM13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+        </svg>
+      ),
+    },
+    {
+      id: 'bulk',
+      title: 'Bulk Upload',
+      description: 'Add many products from a spreadsheet',
+      route: '/seller/product/bulk-upload',
+      icon: (
+        <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+        </svg>
+      ),
+    },
+    {
+      id: 'refunds',
+      title: 'Refunds',
+      description: 'Refunds on your orders',
+      route: '/seller/refunds',
+      icon: (
+        <svg className="w-5 h-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+        </svg>
+      ),
+    },
+    {
+      id: 'rto',
+      title: 'Return & RTO',
+      description: 'Parcels coming back to you',
+      route: '/seller/rto-dashboard',
+      icon: (
+        <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'claims',
+      title: 'Claims',
+      description: 'Raise and track claims for damaged/lost items',
+      route: '/seller/claims',
+      icon: (
+        <svg className="w-5 h-5 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'support',
+      title: 'Help & Support',
+      description: 'Raise a ticket with the Exnshop team',
+      route: '/seller/support-tickets',
+      icon: (
+        <svg className="w-5 h-5 text-teal-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      ),
+    },
     {
       id: 'settings',
       title: 'Full Account Settings',
-      description: 'Bank, GST, branding & advanced setup',
+      description: 'Profile, store, bank, GST, shipping & documents',
       route: '/seller/account-settings',
       icon: (
         <svg className="w-5 h-5 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -620,18 +698,14 @@ export default function SellerProfile() {
           </div>
         </div>
 
-        {/* Action strip: Change Password, Language & Security */}
+        {/* Action strip: Language. Sellers log in with an email OTP, so there is no password to change. */}
         <div className="pt-3 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100">
-          <button
-            type="button"
-            onClick={() => setIsPasswordModalOpen(true)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-neutral-700 bg-neutral-100 hover:bg-neutral-200 transition-colors border border-neutral-200"
-          >
-            <svg className="w-4 h-4 text-neutral-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <span className="inline-flex items-center gap-1.5 text-xs text-neutral-500">
+            <svg className="w-4 h-4 text-neutral-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
-            Change Password
-          </button>
+            Secure login with a one-time code sent to your email
+          </span>
 
           <div className="flex items-center gap-2">
             <span className="text-xs text-neutral-500 font-medium">Language:</span>

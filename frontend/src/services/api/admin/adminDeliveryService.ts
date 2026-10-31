@@ -179,11 +179,12 @@ export const deleteDeliveryBoy = async (
 
 export const updateDeliveryBoyStatus = async (
   id: string,
-  status: "Active" | "Inactive"
+  status: "Active" | "Inactive",
+  force = false
 ): Promise<ApiResponse<DeliveryBoy>> => {
   const response = await api.patch<ApiResponse<DeliveryBoy>>(
     `/admin/delivery/${id}/status`,
-    { status }
+    force ? { status, force: true } : { status }
   );
   return response.data;
 };

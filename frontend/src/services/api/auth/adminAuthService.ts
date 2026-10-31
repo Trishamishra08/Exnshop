@@ -60,6 +60,15 @@ export const sendEmailOTP = async (email: string): Promise<SendOTPResponse> => {
   return response.data;
 };
 
+/** Admin login with email + password. */
+export const loginWithPassword = async (email: string, password: string): Promise<VerifyOTPResponse> => {
+  const response = await api.post<VerifyOTPResponse>('/auth/admin/login', { email, password });
+  if (response.data.success && response.data.data.token) {
+    setAuthToken(response.data.data.token, 'Admin', { ...response.data.data.user, userType: 'Admin' as const });
+  }
+  return response.data;
+};
+
 /**
  * Verify OTP and login admin — by mobile, or by email when `byEmail` is set
  * (then the first argument is the email).

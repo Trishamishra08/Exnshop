@@ -93,6 +93,9 @@ export interface IAppSettings extends Document {
    *  auto-cancelled. Quick orders keep their minutes-long response timeout. */
   ecommerceSellerAcceptDays: number;
 
+  /** Penalty (₹) charged to a delivery partner who accepts a Quick order and then cancels it. */
+  deliveryCancelPenalty: number;
+
   // Seller Category Visibility
   /** "assigned" = a seller's "Select Header Category" picker only shows the categories
    *  granted to them (picked at signup, or set later via Admin > Manage Seller List).
@@ -379,6 +382,12 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       default: "auto",
     },
 
+    deliveryCancelPenalty: {
+      type: Number,
+      default: 50,
+      min: [0, "Penalty cannot be negative"],
+      max: [10000, "Penalty is too high"],
+    },
     ecommerceSellerAcceptDays: {
       type: Number,
       default: 3,

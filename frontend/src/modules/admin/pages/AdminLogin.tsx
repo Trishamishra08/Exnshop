@@ -1,54 +1,33 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { sendEmailOTP, verifyOTP } from '../../../services/api/auth/adminAuthService';
+import { loginWithPassword } from '../../../services/api/auth/adminAuthService';
 import { isValidEmail } from '../../../components/LoginMethodTabs';
-import OTPInput from '../../../components/OTPInput';
 import { useAuth } from '../../../context/AuthContext';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
   const { login } = useAuth();
-  // Admins log in by email + OTP only.
+  // Admins log in with email + password.
   const [email, setEmail] = useState('');
-  const canContinue = isValidEmail(email);
-  const [showOTP, setShowOTP] = useState(false);
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const canContinue = isValidEmail(email) && password.length > 0;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleMobileLogin = async () => {
-    if (!canContinue) return;
-
+  const handleLogin = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!canContinue || loading) return;
     setLoading(true);
     setError("");
-
     try {
-      await sendEmailOTP(email.trim());
-      setShowOTP(true);
-    } catch (err: any) {
-      setError(
-        err.response?.data?.message || "Failed to send OTP. Please try again."
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleOTPComplete = async (otp: string) => {
-    setLoading(true);
-    setError("");
-
-    try {
-      const response = await verifyOTP(email.trim(), otp, true);
+      const response = await loginWithPassword(email.trim(), password);
       if (response.success && response.data) {
-        // Update AuthContext with token and user data
-        login(response.data.token, {
-          ...response.data.user,
-          userType: "Admin",
-        });
+        login(response.data.token, { ...response.data.user, userType: "Admin" });
         navigate("/admin");
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || "OTP should be valid. Please try again.");
+      setError(err.response?.data?.message || "Wrong email or password");
     } finally {
       setLoading(false);
     }
@@ -109,82 +88,50 @@ export default function AdminLogin() {
 
         {/* Login Form */}
         <div className="p-6 space-y-4">
-          {!showOTP ? (
-            /* Email Login Form */
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-2">Admin email</label>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">Admin email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your admin email"
+                autoComplete="username"
+                className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg placeholder:text-neutral-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                disabled={loading}
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">Password</label>
+              <div className="relative">
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your admin email"
-                  className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg placeholder:text-neutral-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
+                  className="w-full px-3 py-2.5 pr-16 text-sm border border-neutral-300 rounded-lg placeholder:text-neutral-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
                   disabled={loading}
-                  autoFocus
                 />
-                <p className="mt-1.5 text-xs text-neutral-500">A 6-digit code will be sent to this email.</p>
-              </div>
-
-              {error && (
-                <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                  {error}
-                </div>
-              )}
-
-              <button
-                onClick={handleMobileLogin}
-                disabled={!canContinue || loading}
-                className={`w-full py-2.5 rounded-lg font-semibold text-sm transition-colors ${canContinue && !loading
-                  ? "bg-teal-600 text-white hover:bg-teal-700 shadow-md"
-                  : "bg-neutral-300 text-neutral-500 cursor-not-allowed"
-                  }`}>
-                {loading ? "Sending..." : "Continue"}
-              </button>
-            </div>
-          ) : (
-            /* OTP Verification Form */
-            <div className="space-y-4">
-              <div className="text-center">
-                <p className="text-sm text-neutral-600 mb-2">
-                  Enter the 6-digit OTP sent to
-                </p>
-                <p className="text-sm font-semibold text-neutral-800">
-                  {email}
-                </p>
-              </div>
-
-              <OTPInput onComplete={handleOTPComplete} disabled={loading} />
-
-              {error && (
-                <div className="text-sm text-red-600 bg-red-50 p-2 rounded text-center">
-                  {error}
-                </div>
-              )}
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setShowOTP(false);
-                    setError("");
-                  }}
-                  disabled={loading}
-                  className="flex-1 py-2.5 rounded-lg font-semibold text-sm bg-neutral-100 text-neutral-700 hover:bg-neutral-200 transition-colors border border-neutral-300">
-                  Change Email
-                </button>
-                <button
-                  onClick={handleMobileLogin}
-                  disabled={loading}
-                  className="flex-1 py-2.5 rounded-lg font-semibold text-sm bg-teal-600 text-white hover:bg-teal-700 transition-colors">
-                  {loading ? "Verifying..." : "Resend OTP"}
+                <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-teal-700">
+                  {showPassword ? "Hide" : "Show"}
                 </button>
               </div>
             </div>
-          )}
 
+            {error && <div className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</div>}
 
-
-
+            <button
+              type="submit"
+              disabled={!canContinue || loading}
+              className={`w-full py-2.5 rounded-lg font-semibold text-sm transition-colors ${canContinue && !loading
+                ? "bg-teal-600 text-white hover:bg-teal-700 shadow-md"
+                : "bg-neutral-300 text-neutral-500 cursor-not-allowed"
+                }`}>
+              {loading ? "Logging in..." : "Login"}
+            </button>
+          </form>
         </div>
       </div>
 

@@ -4,7 +4,7 @@ import OrderItem from "../models/OrderItem";
 import Seller from "../models/Seller";
 import Delivery from "../models/Delivery";
 import AppSettings from "../models/AppSettings";
-import { creditWallet } from "./walletManagementService";
+import { chargeWalletDue, creditWallet } from "./walletManagementService";
 import mongoose from "mongoose";
 import Category from "../models/Category";
 import Product from "../models/Product";
@@ -488,8 +488,42 @@ export const distributeCommissions = async (orderId: string) => {
       }
     }
 
+    // E-commerce COD shipped by the seller themselves: the seller collected the customer's
+    // cash, so nothing is paid out to them; the platform's share (commission + platform fee)
+    // is debited from their wallet instead. Company-shipped orders settle as usual.
+    const isCodOrder = order.paymentMethod?.toUpperCase() === "COD";
+    let selfCollectingSellers = new Set<string>();
+    if (isCourierShipment && isCodOrder && sellerEarnings.size) {
+      const ids = [...sellerEarnings.keys()];
+      const companyIds = new Set(await companyShippedSellerIds(ids));
+      selfCollectingSellers = new Set(ids.filter((id) => !companyIds.has(id)));
+    }
+    const allSellersAmount = [...sellerEarnings.values()].reduce((t, d) => t + (d.orderAmount || 0), 0) || 1;
+
     // Credit / Hold Seller Wallets
     for (const [sellerId, data] of sellerEarnings.entries()) {
+      if (selfCollectingSellers.has(sellerId)) {
+        const commission = commissionsToProcess
+          .filter((c: any) => c.type === "SELLER" && String(c.seller) === sellerId)
+          .reduce((t: number, c: any) => t + (Number(c.commissionAmount) || 0), 0);
+        const platformFeeShare = ((order as any).platformFee || 0) * ((data.orderAmount || 0) / allSellersAmount);
+        await chargeWalletDue(
+          "SELLER",
+          sellerId,
+          commission + platformFeeShare,
+          `Commission + platform fee for COD order ${order.orderNumber} (you shipped it and collected the cash)`,
+          `PLATFORMDUE-${orderId}-${sellerId}`,
+          "PLATFORM_FEE_DEBIT",
+          orderId,
+          session,
+        );
+        await Commission.updateMany(
+          { _id: { $in: data.commissionIds } },
+          { $set: { status: "Paid", paidAt: new Date() }, $unset: { onHoldUntil: "" } },
+          { session },
+        );
+        continue;
+      }
       if (treatAsCOD) {
         if (!isSelfAssign) {
           console.log(
@@ -983,7 +1017,8 @@ export const calculateCODOrderBreakdown = async (
       throw new Error("This function is only for COD orders");
     }
 
-    const isSelfAssign = order.deliveryPreference === "Self";
+    // Seller delivered it themselves: no delivery partner on the order.
+    const isSelfAssign = !order.deliveryBoy;
     const breakdown: ICODOrderBreakdown = {
       orderId: order._id.toString(),
       orderNumber: order.orderNumber,
@@ -1123,7 +1158,8 @@ export const getOrderEarningBreakdown = async (
   }
 
   // Online / Prepaid: compute same-shaped breakdown
-  const isSelfAssign = order.deliveryPreference === "Self";
+  // Seller delivered it themselves: no delivery partner on a Quick order.
+  const isSelfAssign = !order.deliveryBoy && (order as any).channel !== "ECommerce";
   const breakdown: ICODOrderBreakdown = {
     orderId: order._id.toString(),
     orderNumber: order.orderNumber,
@@ -1223,7 +1259,8 @@ export const processCODOrderDeliverySelf = async (
     const order = await Order.findById(orderId).populate("items").session(session);
     if (!order) throw new Error("Order not found");
     if (order.paymentMethod !== "COD") throw new Error("This function is only for COD orders");
-    if (order.deliveryPreference !== "Self") throw new Error("This function is only for Self Assign COD orders");
+    // Delivered by the seller: no delivery partner on the order.
+    if (order.deliveryBoy) throw new Error("This function is only for orders the seller delivered themselves");
 
     const breakdown = await calculateCODOrderBreakdown(orderId);
     const shippingTotal = breakdown.totalDeliveryCharge || 0;
@@ -1231,10 +1268,14 @@ export const processCODOrderDeliverySelf = async (
     const totalSellerEarning = sellerEarningsArray.reduce((s, [, amt]) => s + amt, 0);
     const proportionDenom = totalSellerEarning > 0 ? totalSellerEarning : 1;
 
+    // The seller delivered it and collected the customer's cash (product price, delivery
+    // charge and platform fee). So nothing is paid out: the seller keeps their earning and the
+    // delivery charge from that cash, and the platform's share — commission plus platform
+    // fee — is debited from their wallet.
+    const platformFee = breakdown.platformFee || 0;
     for (const [sellerId, netEarning] of sellerEarningsArray) {
       const proportion = netEarning / proportionDenom;
-      const shippingShare = Math.round(shippingTotal * proportion * 100) / 100;
-      const totalCredit = Math.round((netEarning + shippingShare) * 100) / 100;
+      let sellerCommission = 0;
 
       const orderItems = await OrderItem.find({ order: orderId, seller: sellerId }).session(session);
       for (const item of orderItems) {
@@ -1242,6 +1283,14 @@ export const processCODOrderDeliverySelf = async (
           item.commissionRate ||
           (await getOrderItemCommissionRate(item.product.toString(), item.seller.toString()));
         const itemCommission = (item.total * commRate) / 100;
+        sellerCommission += itemCommission;
+        // Commission records made when the order was paid/placed are settled, not duplicated.
+        const existing = await Commission.findOneAndUpdate(
+          { order: orderId, orderItem: item._id, type: "SELLER" },
+          { $set: { status: "Paid", paidAt: new Date() } },
+          { session },
+        );
+        if (existing) continue;
         await Commission.create(
           [
             {
@@ -1260,19 +1309,20 @@ export const processCODOrderDeliverySelf = async (
         );
       }
 
-      await creditWallet(
-        sellerId,
+      await chargeWalletDue(
         "SELLER",
-        totalCredit,
-        `Sale proceeds + delivery charge (self-delivered) for COD order ${order.orderNumber}`,
+        sellerId,
+        sellerCommission + platformFee * proportion,
+        `Commission + platform fee for COD order ${order.orderNumber} (you delivered it and collected the cash)`,
+        `PLATFORMDUE-${orderId}-${sellerId}`,
+        "PLATFORM_FEE_DEBIT",
         orderId,
-        undefined,
         session,
       );
     }
 
     await session.commitTransaction();
-    console.log(`[COD Self Delivery] Order ${order.orderNumber} processed. Sellers credited with net + delivery charge.`);
+    console.log(`[COD Self Delivery] Order ${order.orderNumber}: seller kept the cash; commission + platform fee debited from their wallet.`);
   } catch (error: any) {
     await session.abortTransaction();
     console.error("Error in processCODOrderDeliverySelf:", error);

@@ -1025,6 +1025,25 @@ export const acceptOrderController = asyncHandler(
 /**
  * Reject Order (REST Endpoint Fallback)
  */
+/** The delivery partner cancels an order they already accepted (before pickup). A penalty applies. */
+export const cancelAcceptedOrderController = asyncHandler(async (req: Request, res: Response) => {
+  const deliveryId = req.user?.userId;
+  if (!deliveryId) return res.status(401).json({ success: false, message: "Unauthorized" });
+  try {
+    const { cancelAcceptedDelivery, getCancelPenalty } = await import("../../../services/deliveryCancelService");
+    const rec = await cancelAcceptedDelivery(req.params.id, deliveryId, req.body?.reason, req.body?.note, (req.app as any).get("io"));
+    return res.status(200).json({ success: true, message: `Order cancelled. A penalty of ₹${rec.penalty ?? (await getCancelPenalty())} was charged to your wallet.`, data: rec });
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Could not cancel" });
+  }
+});
+
+/** Reasons and the penalty amount, shown before the partner confirms the cancellation. */
+export const getCancelInfoController = asyncHandler(async (_req: Request, res: Response) => {
+  const { CANCEL_REASONS, getCancelPenalty } = await import("../../../services/deliveryCancelService");
+  return res.status(200).json({ success: true, data: { reasons: CANCEL_REASONS, penalty: await getCancelPenalty() } });
+});
+
 export const rejectOrderController = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;

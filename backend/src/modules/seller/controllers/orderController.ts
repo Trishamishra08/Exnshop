@@ -205,6 +205,9 @@ export const getSettlementOrders = asyncHandler(
     const { page = 1, limit = 20, settlementStatus = "pending" } = req.query;
     const orderIds = await OrderItem.find({ seller: sellerId }).distinct("order");
     const query: any = { _id: { $in: orderIds }, status: "Delivered", paymentMethod: "COD" };
+    // Company-shipped courier orders settle like any other: the courier remits the cash, so the seller
+    // has no COD to track. Only self-shipped E-commerce orders (and Quick orders) are listed.
+    if ((await getSellerShippingMethod(String(sellerId))) !== "Self") query.channel = { $ne: "ECommerce" };
     if (settlementStatus === "pending") {
       query.codPaidToAdminAt = null;
     } else if (settlementStatus === "settled") {
@@ -237,7 +240,7 @@ export const getSettlementOrders = asyncHandler(
               totalAdminEarning: full.totalAdminEarning,
               yourEarning: myEarning,
               note: full.isSelfAssign
-                ? "Self Assign: Delivery charge added to your earning. Delivery boy has no share."
+                ? "You delivered this order and collected the cash, so nothing is paid out to you. The platform share (commission + platform fee) was debited from your wallet."
                 : "Amount to pay admin & your earning.",
             };
           } catch {
@@ -607,11 +610,9 @@ export const updateOrderStatus = asyncHandler(
 
       // Apply delivery preference from the accepting seller before recomputing fulfillment.
       if (deliveryPreference && status === "Accepted") {
-        if (order.deliveryOption === "Instant" && deliveryPreference === "Admin") {
-          order.deliveryPreference = undefined;
-        } else {
-          order.deliveryPreference = deliveryPreference as "Self" | "Admin";
-        }
+        // Quick orders ring the nearby live riders by themselves. The seller can only choose to
+        // deliver an order personally ("Self"); there is no rider assignment by seller or admin.
+        order.deliveryPreference = (await getSellerShippingMethod(sellerId.toString())) === "Self" ? "Self" : undefined;
         if (deliveryPreference === "Self") {
           order.deliveryBoy = undefined;
         }
@@ -652,11 +653,9 @@ export const updateOrderStatus = asyncHandler(
       }
 
       if (deliveryPreference && (status === "Accepted" || order.status === "Accepted")) {
-        if (order.deliveryOption === "Instant" && deliveryPreference === "Admin") {
-          order.deliveryPreference = undefined;
-        } else {
-          order.deliveryPreference = deliveryPreference as "Self" | "Admin";
-        }
+        // Quick orders ring the nearby live riders by themselves. The seller can only choose to
+        // deliver an order personally ("Self"); there is no rider assignment by seller or admin.
+        order.deliveryPreference = (await getSellerShippingMethod(sellerId.toString())) === "Self" ? "Self" : undefined;
         if (deliveryPreference === "Self") {
           order.deliveryBoy = undefined;
         }
@@ -986,7 +985,27 @@ export const getAvailableDeliveryPartners = asyncHandler(
 /**
  * Assign delivery boy by seller (Manual Seller Assignment)
  */
-export const assignDeliveryBoySeller = asyncHandler(
+/** Seller asks the nearby live delivery partners again (nobody took the order, or a partner cancelled). */
+export const ringDeliveryAgain = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { sellerRingAgain } = await import("../../../services/deliveryCancelService");
+    await sellerRingAgain(req.params.id, (req as any).user.userId, req.app.get("io"));
+    return res.status(200).json({ success: true, message: "Ringing nearby delivery partners again" });
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Could not ring again" });
+  }
+});
+
+/** Sellers no longer pick a rider: Quick orders ring the nearest live delivery partners and the first to accept gets it. */
+export const assignDeliveryBoySeller = asyncHandler(async (_req: Request, res: Response) =>
+  res.status(410).json({
+    success: false,
+    message: "Delivery partners are assigned automatically now. Use Ring again if nobody has accepted.",
+  }),
+);
+
+/** Previous manual assignment by the seller (kept for reference, no longer routed). */
+export const legacyAssignDeliveryBoySeller = asyncHandler(
   async (req: Request, res: Response) => {
     const sellerId = (req as any).user?.userId;
     const { id } = req.params;

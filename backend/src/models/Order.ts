@@ -75,6 +75,8 @@ export interface IOrder extends Document {
   | "Delivered"
   | "Failed";
   assignedAt?: Date;
+  /** Riders who accepted this order and then cancelled; they are not rung again for it. */
+  deliveryCancelledBy?: mongoose.Types.ObjectId[];
 
   // Tracking
   trackingNumber?: string;
@@ -412,6 +414,7 @@ const OrderSchema = new Schema<IOrder>(
       type: String,
       enum: ["Assigned", "Picked Up", "In Transit", "Delivered", "Failed"],
     },
+    deliveryCancelledBy: { type: [Schema.Types.ObjectId], default: undefined },
     assignedAt: {
       type: Date,
     },

@@ -67,6 +67,26 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
   return res.status(400).json({ success: false, message: "Admin login is by email only. Enter your admin email." });
 });
 
+/**
+ * Email + password login. The default admin's password is the default admin code
+ * (ADMIN_DEFAULT_OTP); other admins use the password saved on their account.
+ */
+export const loginWithPassword = asyncHandler(async (req: Request, res: Response) => {
+  const email = String(req.body.email || "").trim().toLowerCase();
+  const password = String(req.body.password || "");
+  if (!EMAIL_RE.test(email) || !password) {
+    return res.status(400).json({ success: false, message: "Enter your admin email and password" });
+  }
+  const admin: any = await Admin.findOne({ email });
+  let ok = false;
+  if (admin) {
+    if (email === DEFAULT_ADMIN_EMAIL && password === DEFAULT_ADMIN_OTP) ok = true;
+    else if (admin.password) ok = await admin.comparePassword(password).catch(() => false);
+  }
+  if (!ok) return res.status(401).json({ success: false, message: "Wrong email or password" });
+  return sendAdminLogin(res, admin);
+});
+
 const sendAdminLogin = (res: Response, admin: any) => {
   // Generate JWT token
   const token = generateToken(admin._id.toString(), "Admin", admin.role);

@@ -11,6 +11,9 @@ import AppSettings from "../../../models/AppSettings";
 import OrderItem from "../../../models/OrderItem";
 import {
   MATERIAL_FIELDS,
+  PRICE_REVIEW_FIELDS,
+  applyStockOnly,
+  variationsNeedReview,
   auditProduct,
   computeQualityFlags,
   configForProduct,
@@ -672,14 +675,28 @@ export const updateProduct = asyncHandler(
       if (skuProblem) return res.status(400).json({ success: false, message: skuProblem });
     }
 
-    // An already-approved listing keeps its approved customer-facing details live.
-    // Edits to those details wait for admin review; everything else applies now.
+    // An already-approved listing keeps its approved version live. Edits to its details,
+    // price, variants, SKU, weight and size wait for admin review; only stock applies now.
     const wasApproved = APPROVED_STATES.includes(product.status);
     let revisionChanged = false;
     if (wasApproved) {
       const revisionData: Record<string, any> = { ...((product.pendingRevision as any)?.data || {}) };
       const before = JSON.stringify(revisionData);
-      for (const field of MATERIAL_FIELDS) {
+
+      // Variants: a stock-only change goes live; anything else (price, SKU, new/removed variant…) is reviewed.
+      if (updateData.variations !== undefined) {
+        const liveVariations: any[] = (product.variations as any) || [];
+        const compareTo = revisionData.variations || liveVariations;
+        if (variationsNeedReview(compareTo, updateData.variations)) {
+          if (variationsNeedReview(liveVariations, updateData.variations)) revisionData.variations = updateData.variations;
+          else delete revisionData.variations;
+        } else if (revisionData.variations && !variationsNeedReview(liveVariations, updateData.variations)) {
+          delete revisionData.variations; // edited back to what is live
+        }
+        updateData.variations = applyStockOnly(liveVariations, updateData.variations);
+      }
+
+      for (const field of [...MATERIAL_FIELDS, ...PRICE_REVIEW_FIELDS]) {
         if (updateData[field] === undefined) continue;
         const incoming = updateData[field] === "" ? null : updateData[field];
         if (sameValue((product as any)[field], incoming)) delete revisionData[field];
@@ -748,7 +765,8 @@ export const updateProduct = asyncHandler(
         product,
         ...sellerActor(req),
         action: data ? "REVISION_SUBMITTED" : "REVISION_WITHDRAWN",
-        changes: Object.keys(data || {}).map((field) => ({ field, to: data[field] })),
+        // Old value kept next to the new one, so every edit can be traced later.
+        changes: Object.keys(data || {}).map((field) => ({ field, from: (product as any)[field], to: data[field] })),
       });
     }
     if (submitted) {

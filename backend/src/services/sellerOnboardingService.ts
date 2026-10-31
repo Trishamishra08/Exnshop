@@ -313,6 +313,9 @@ export const buildOnboardingView = (seller: ISeller, opts: { forAdmin?: boolean 
     onboardingStatus: status,
     statusReason: seller.onboardingStatusReason || "",
     submittedAt: seller.onboardingSubmittedAt,
+    // Changes waiting for admin approval (the approved values below stay live until then).
+    pendingChanges: (seller as any).pendingProfileChange?.data ? Object.keys((seller as any).pendingProfileChange.data).filter((f: string) => f !== "location") : [],
+    pendingChangesSince: (seller as any).pendingProfileChange?.submittedAt || null,
     canSubmit: EDITABLE_STATUSES.includes(status) && SECTIONS.every((s) => gaps[s].length === 0),
     sections,
     business: {

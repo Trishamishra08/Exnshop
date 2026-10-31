@@ -33,9 +33,7 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [showAssignPopup, setShowAssignPopup] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
-  const [deliveryPreference, setDeliveryPreference] = useState<'Self' | 'Admin' | 'Auto'>('Admin');
 
   const handleStatusUpdate = async (status: string, pref?: 'Self' | 'Admin' | 'Auto') => {
     if (!notification) return;
@@ -79,13 +77,6 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
       audioRef.current.volume = volume;
     }
   }, [volume]);
-
-  // Default delivery preference when assign popup opens: Instant → Auto (no admin), Standard → Admin
-  useEffect(() => {
-    if (showAssignPopup && notification) {
-      setDeliveryPreference(notification.deliveryOption === 'Instant' ? 'Auto' : 'Admin');
-    }
-  }, [showAssignPopup, notification?.orderId, notification?.deliveryOption]);
 
   if (!notification) return null;
 
@@ -225,7 +216,7 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
             <div className="flex gap-4">
               <button
                 // E-commerce orders ship by courier — nothing to choose about riders.
-                onClick={() => (isECommerce ? handleStatusUpdate('Accepted') : setShowAssignPopup(true))}
+                onClick={() => handleStatusUpdate('Accepted')}
                 disabled={loading}
                 className="flex-1 py-4 rounded-xl font-bold text-white shadow-lg bg-teal-600 hover:bg-teal-700 transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -249,82 +240,6 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
           )}
         </div>
       </div>
-
-      {/* Delivery Assignment Popup */}
-      {showAssignPopup && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6 overflow-hidden">
-            <h3 className="text-xl font-bold text-neutral-900 mb-2">Accept Order & Assign Delivery</h3>
-            <p className="text-neutral-600 mb-6 text-sm">
-              Please choose how you want to assign the delivery for this order.
-            </p>
-
-            <div className="space-y-3 mb-6 flex flex-col items-stretch">
-              <label
-                className={`flex items-start p-4 border rounded-xl cursor-pointer transition-all ${
-                  deliveryPreference === 'Self' ? 'border-teal-500 bg-teal-50/70 ring-2 ring-teal-500/20' : 'border-neutral-200 hover:bg-neutral-50'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="delivery_preference_alert"
-                  value="Self"
-                  checked={deliveryPreference === 'Self'}
-                  onChange={() => setDeliveryPreference('Self')}
-                  className="w-4 h-4 mt-0.5 text-teal-600 border-neutral-300 focus:ring-teal-500"
-                />
-                <div className="ml-3 text-left">
-                  <span className="block text-sm font-bold text-neutral-900">Assign by Seller</span>
-                  <span className="block text-xs text-neutral-500 mt-0.5">
-                    Manually select a delivery partner from the list of available online riders.
-                  </span>
-                </div>
-              </label>
-
-              <label
-                className={`flex items-start p-4 border rounded-xl cursor-pointer transition-all ${
-                  deliveryPreference === 'Admin' ? 'border-teal-500 bg-teal-50/70 ring-2 ring-teal-500/20' : 'border-neutral-200 hover:bg-neutral-50'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="delivery_preference_alert"
-                  value="Admin"
-                  checked={deliveryPreference === 'Admin'}
-                  onChange={() => setDeliveryPreference('Admin')}
-                  className="w-4 h-4 mt-0.5 text-teal-600 border-neutral-300 focus:ring-teal-500"
-                />
-                <div className="ml-3 text-left">
-                  <span className="block text-sm font-bold text-neutral-900">Assigned By Admin</span>
-                  <span className="block text-xs text-neutral-500 mt-0.5">
-                    Let the platform admin assign an eligible delivery partner for this order.
-                  </span>
-                </div>
-              </label>
-            </div>
-
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowAssignPopup(false)}
-                className="px-5 py-2 text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors"
-                disabled={loading}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setShowAssignPopup(false);
-                  handleStatusUpdate('Accepted', deliveryPreference);
-                }}
-                className="px-5 py-2 text-sm font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors shadow-sm"
-                disabled={loading}
-              >
-                {deliveryPreference === 'Self' ? 'Accept & Open Order' : 'Confirm & Accept'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <ConfirmationModal
         isOpen={showRejectModal}

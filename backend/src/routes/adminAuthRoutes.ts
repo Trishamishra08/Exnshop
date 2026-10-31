@@ -11,6 +11,9 @@ router.post("/send-otp", otpRateLimiter, adminAuthController.sendOTP);
 // Verify OTP and login route
 router.post("/verify-otp", loginRateLimiter, adminAuthController.verifyOTP);
 
+// Email + password login
+router.post("/login", loginRateLimiter, adminAuthController.loginWithPassword);
+
 // Register route — only a signed-in Super Admin may create admins
 router.post("/register", authenticate, requireUserType("Admin"), adminAuthController.register);
 

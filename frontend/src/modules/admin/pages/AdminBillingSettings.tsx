@@ -25,6 +25,8 @@ export default function AdminBillingSettings() {
 
     // Days a seller has to accept an E-commerce order before it is auto-cancelled
     const [ecommerceSellerAcceptDays, setEcommerceSellerAcceptDays] = useState<number>(3);
+    // Penalty for a delivery partner who accepts a Quick order and then cancels it
+    const [deliveryCancelPenalty, setDeliveryCancelPenalty] = useState<number>(50);
 
     // Seller Category Visibility
     const [sellerCategoryVisibility, setSellerCategoryVisibility] = useState<'all' | 'assigned'>('assigned');
@@ -61,6 +63,7 @@ export default function AdminBillingSettings() {
                 setGstEnabled(data.gstEnabled || false);
                 setGstRate(data.gstRate || 0);
                 setSettlementApprovalMode(data.settlementApprovalMode === 'manual' ? 'manual' : 'auto');
+                setDeliveryCancelPenalty(Number(data.deliveryCancelPenalty) >= 0 ? Number(data.deliveryCancelPenalty) : 50);
                 setEcommerceSellerAcceptDays(Number(data.ecommerceSellerAcceptDays) >= 1 ? Number(data.ecommerceSellerAcceptDays) : 3);
                 setSellerCategoryVisibility(data.sellerCategoryVisibility === 'all' ? 'all' : 'assigned');
 
@@ -102,6 +105,7 @@ export default function AdminBillingSettings() {
                 gstRate,
                 settlementApprovalMode,
                 ecommerceSellerAcceptDays,
+                deliveryCancelPenalty,
                 sellerCategoryVisibility,
                 deliveryConfig: {
                     isDistanceBased,
@@ -487,6 +491,26 @@ export default function AdminBillingSettings() {
                             className="w-20 px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                         />
                         days
+                    </label>
+                </div>
+
+                {/* Delivery partner cancellation penalty */}
+                <div className="bg-white rounded-xl shadow-sm border border-neutral-200 p-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-2">Delivery Cancellation Penalty</h2>
+                    <p className="text-sm text-gray-500 mb-4">
+                        Charged to a delivery partner's wallet when they accept a Quick order and then cancel it. Refund it from
+                        Delivery Cancellations if their reason is genuine.
+                    </p>
+                    <label className="flex items-center gap-3 text-sm text-gray-700">
+                        Penalty ₹
+                        <input
+                            type="number"
+                            min={0}
+                            max={10000}
+                            value={deliveryCancelPenalty}
+                            onChange={(e) => setDeliveryCancelPenalty(Math.min(10000, Math.max(0, Math.round(Number(e.target.value) || 0))))}
+                            className="w-24 px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        />
                     </label>
                 </div>
 

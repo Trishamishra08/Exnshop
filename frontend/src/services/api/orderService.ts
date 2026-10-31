@@ -173,6 +173,12 @@ export const getAvailableDeliveryPartners = async (orderId: string): Promise<Api
 /**
  * Assign delivery partner to order by Seller (Manual Assignment)
  */
+/** Ring the nearby live delivery partners again (nobody accepted, or a partner cancelled). */
+export const ringDeliveryAgain = async (orderId: string): Promise<ApiResponse<any>> => {
+  const response = await api.post<ApiResponse<any>>(`/orders/${orderId}/ring-delivery-again`);
+  return response.data;
+};
+
 export const assignDeliveryBoySeller = async (orderId: string, deliveryBoyId: string): Promise<ApiResponse<any>> => {
   const response = await api.patch<ApiResponse<any>>(`/orders/${orderId}/assign-delivery`, { deliveryBoyId });
   return response.data;

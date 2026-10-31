@@ -39,7 +39,7 @@ export const getShippingMethodState = async (sellerId: string) => {
     effectiveMethod: effectiveShippingMethod(seller),
     chosenAt: seller.shippingMethodChosenAt || null,
     request: seller.shippingMethodRequest || null,
-    shipsEcommerce: (seller.channels || []).includes("ECommerce"),
+    shipsEcommerce: true, // every seller has a delivery method now (Quick and E-commerce)
     couriers: await activeCourierNames(),
   };
 };

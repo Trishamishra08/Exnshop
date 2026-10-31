@@ -2,6 +2,9 @@ import { Router } from "express";
 import { authenticate, requireUserType } from "../middleware/auth";
 import { decideExchangeAfterQc } from "../modules/admin/controllers/adminExchangeController";
 import { getRefundRequests, decideRefund } from "../modules/admin/controllers/adminRefundRequestController";
+import { getDeliveryDocuments, getDeliveryDocumentUrl, reviewDocument } from "../modules/admin/controllers/adminDeliveryDocumentController";
+import { getDeliveryChangeRequests, decideDeliveryChangeRequest, getDeliveryHistory } from "../modules/admin/controllers/adminDeliveryChangeController";
+import { getDeliveryCancellations, decideDeliveryCancellation } from "../modules/admin/controllers/adminDeliveryCancellationController";
 import { getShippingMethodRequests, decideShippingMethod, setSellerShippingMethod, listSellerShippingMethods, getRates as getShippingRatesAdmin, updateRates as updateShippingRatesAdmin } from "../modules/admin/controllers/adminShippingMethodController";
 
 // Dashboard Controllers
@@ -351,6 +354,14 @@ router.get("/sellers/drafts", sellerController.getDraftSellers);
 
 // ==================== Courier/Logistics Routes ====================
 router.get("/shipping-method-requests", getShippingMethodRequests);
+router.get("/delivery-cancellations", getDeliveryCancellations);
+router.get("/delivery-change-requests", getDeliveryChangeRequests);
+router.post("/delivery/:id/change-request/decision", decideDeliveryChangeRequest);
+router.get("/delivery/:id/history", getDeliveryHistory);
+router.get("/delivery/:id/documents", getDeliveryDocuments);
+router.get("/delivery/:id/documents/:docId/url", getDeliveryDocumentUrl);
+router.patch("/delivery/:id/documents/:docId", reviewDocument);
+router.post("/delivery-cancellations/:id/decision", decideDeliveryCancellation);
 router.get("/sellers/shipping-methods", listSellerShippingMethods);
 router.post("/sellers/:sellerId/shipping-method/decision", decideShippingMethod);
 router.put("/sellers/:sellerId/shipping-method", setSellerShippingMethod);

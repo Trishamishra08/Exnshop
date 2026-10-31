@@ -7,6 +7,8 @@ import { requireApprovedUser } from "../middleware/auth";
 import * as deliveryReturnController from "../modules/delivery/controllers/deliveryReturnController";
 
 import * as deliveryProfileController from "../modules/delivery/controllers/deliveryProfileController";
+import * as deliveryDocumentController from "../modules/delivery/controllers/deliveryDocumentController";
+import { uploadDocument as documentUpload, handleUploadError } from "../middleware/upload";
 import * as deliveryNotificationController from "../modules/delivery/controllers/deliveryNotificationController";
 
 const router = Router();
@@ -14,6 +16,11 @@ const router = Router();
 // Profile & Non-Operational Status (accessible to unapproved/pending delivery partners)
 router.get("/profile", getProfile);
 router.put("/profile", deliveryProfileController.updateProfile);
+
+// KYC documents (available before approval, so new partners can complete them)
+router.get("/documents", deliveryDocumentController.getMyDocuments);
+router.post("/documents", documentUpload.single("file"), handleUploadError, deliveryDocumentController.uploadMyDocument);
+router.get("/documents/:docId/url", deliveryDocumentController.getMyDocumentUrl);
 router.put("/settings", deliveryProfileController.updateSettings);
 
 // Help & Support
@@ -94,6 +101,8 @@ router.post("/orders/:id/send-delivery-otp", requireApprovedUser, deliveryOrderC
 router.post("/orders/:id/verify-delivery-otp", requireApprovedUser, deliveryOrderController.verifyDeliveryOtpController);
 router.post("/orders/:id/accept", requireApprovedUser, deliveryOrderController.acceptOrderController);
 router.post("/orders/:id/reject", requireApprovedUser, deliveryOrderController.rejectOrderController);
+router.get("/cancel-info", requireApprovedUser, deliveryOrderController.getCancelInfoController);
+router.post("/orders/:id/cancel-accepted", requireApprovedUser, deliveryOrderController.cancelAcceptedOrderController);
 router.post("/orders/:id/mark-rto", requireApprovedUser, deliveryOrderController.markOrderRtoController);
 
 // Proximity and pickup routes (require approval)

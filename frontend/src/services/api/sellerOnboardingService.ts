@@ -36,6 +36,9 @@ export interface OnboardingView {
   sellerId: string;
   onboardingStatus: OnboardingStatus;
   statusReason: string;
+  /** Fields changed by an approved seller that are waiting for admin approval. */
+  pendingChanges?: string[];
+  pendingChangesSince?: string | null;
   submittedAt?: string;
   canSubmit: boolean;
   sections: Record<SectionKey, SectionState>;

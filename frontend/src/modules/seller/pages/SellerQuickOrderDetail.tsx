@@ -1,11 +1,10 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { getOrderById, updateOrderStatus, getOrderEarningBreakdown, type OrderDetail, type SellerEarningBreakdown } from '../../../services/api/orderService';
+import { getOrderById, updateOrderStatus, ringDeliveryAgain, getOrderEarningBreakdown, type OrderDetail, type SellerEarningBreakdown } from '../../../services/api/orderService';
 import { useToast } from '../../../context/ToastContext';
 import ConfirmationModal from '../../../components/ConfirmationModal';
 import { formatDeliveryAddress } from '../../../utils/addressUtils';
 import { getSellerTaxInvoice } from '../../../services/api/taxInvoiceService';
-import SellerAssignDeliveryBoyModal from '../components/SellerAssignDeliveryBoyModal';
 import ExchangeBanner from '../../../components/ExchangeBanner';
 
 // Quick-commerce order screen. The flow (accept popup, status dropdown, rider
@@ -19,10 +18,8 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
   const [loading, setLoading] = useState(!initialOrder);
   const [error, setError] = useState<string>('');
   const [orderStatus, setOrderStatus] = useState<string>(initialOrder?.status || 'Out For Delivery');
-  const [showAssignPopup, setShowAssignPopup] = useState(false);
-  const [showRiderModal, setShowRiderModal] = useState(false);
+  const [ringing, setRinging] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
-  const [deliveryPreference, setDeliveryPreference] = useState<'Self' | 'Admin'>('Self');
   const [earningBreakdown, setEarningBreakdown] = useState<SellerEarningBreakdown | null>(null);
   const [invoiceBusy, setInvoiceBusy] = useState(false);
 
@@ -50,13 +47,6 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
 
     fetchOrderDetail();
   }, [id, initialOrder]);
-
-  // Default delivery preference when assign popup opens: Instant → Auto, Standard → Admin
-  useEffect(() => {
-    if (showAssignPopup && orderDetail) {
-      setDeliveryPreference('Self');
-    }
-  }, [showAssignPopup, orderDetail?.id]);
 
   // Fetch earning breakdown (COD or Online): your earning, delivery (Self = you get delivery charge)
   useEffect(() => {
@@ -91,6 +81,19 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
       }
     } catch (err: any) {
       showToast(err.response?.data?.message || 'Failed to update order status', 'error');
+    }
+  };
+
+  const handleRingAgain = async () => {
+    if (!orderDetail) return;
+    setRinging(true);
+    try {
+      const res = await ringDeliveryAgain(orderDetail.id);
+      showToast(res.message || 'Ringing nearby delivery partners again', 'success');
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Could not ring again', 'error');
+    } finally {
+      setRinging(false);
     }
   };
 
@@ -227,6 +230,10 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
 
   const address = formatDeliveryAddress(orderDetail.deliveryAddress);
   const hasRider = Boolean(orderDetail.deliveryBoyName && orderDetail.deliveryBoyName !== 'Self Assign');
+  // Accepted but nobody has taken it yet (or the partner cancelled).
+  // The seller's fixed delivery method: Self = they deliver, otherwise Exnshop's delivery partners do.
+  const selfDelivery = (orderDetail as any).deliveryPreference === 'Self';
+  const noRiderYet = !hasRider && orderStatus === 'Accepted';
   const isFinished = ['Delivered', 'Cancelled', 'Rejected', 'Returned'].includes(orderStatus);
   const money = (n: number) => `₹${(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const cardCls = 'bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden';
@@ -280,10 +287,10 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
         <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-500 mb-2">Order action</p>
         {['Received', 'Pending'].includes(orderStatus) ? (
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-            <p className="text-sm text-neutral-700 flex-1">New order received. Accept it and choose how the delivery is assigned, or reject it.</p>
+            <p className="text-sm text-neutral-700 flex-1">New order received. Accept it and the nearest live delivery partners are rung automatically; the first to accept gets it.</p>
             <div className="flex gap-2">
               <button
-                onClick={() => setShowAssignPopup(true)}
+                onClick={() => handleStatusUpdate('Accepted', 'Auto')}
                 className="px-5 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold shadow-sm"
               >
                 Accept Order
@@ -315,14 +322,20 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
               {orderStatus === 'Rejected' && <option value="Rejected">Rejected</option>}
             </select>
 
-            {/* Manual Assignment Button for Seller */}
-            {(!orderDetail?.deliveryBoyName || orderDetail?.deliveryBoyName === 'Self Assign') && ['Accepted', 'Processed', 'Received'].includes(orderStatus) && (
+            {/* Delivery by Company: no partner yet, ring the nearby ones again. Self Delivery sellers deliver it themselves. */}
+            {noRiderYet && !selfDelivery && (
               <button
-                onClick={() => setShowRiderModal(true)}
-                className="inline-flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm"
+                onClick={handleRingAgain}
+                disabled={ringing}
+                className="inline-flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm disabled:opacity-60"
               >
-                <span>🛵</span> Assign by Seller
+                <span>🔔</span> {ringing ? 'Ringing…' : 'Ring delivery partners again'}
               </button>
+            )}
+            {selfDelivery && ['Accepted', 'Processed'].includes(orderStatus) && (
+              <span className="text-xs font-semibold text-sky-700 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2">
+                Self Delivery: you deliver this order yourself.
+              </span>
             )}
           </div>
         )}
@@ -478,18 +491,12 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
                   )}
                 </span>
               </div>
-              {/* A rider is involved only after the seller accepts the order. */}
-              {!isFinished && !['Received', 'Pending'].includes(orderStatus) && (
-                <button
-                  onClick={() => setShowRiderModal(true)}
-                  className={
-                    hasRider
-                      ? 'mt-1 text-xs font-semibold text-teal-700 hover:underline print:hidden'
-                      : 'mt-2 w-full inline-flex items-center justify-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white px-3 py-2 rounded-lg text-xs font-bold print:hidden'
-                  }
-                >
-                  {hasRider ? 'Change delivery partner' : <><span>🛵</span> Assign Delivery Partner</>}
-                </button>
+              {noRiderYet && (
+                <p className="mt-2 text-xs text-neutral-500 print:hidden">
+                  {selfDelivery
+                    ? 'Self Delivery: you are delivering this order yourself.'
+                    : 'Nearby delivery partners have been rung. The first to accept gets the order.'}
+                </p>
               )}
             </div>
           </section>
@@ -509,107 +516,6 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
           </section>
         </div>
       </div>
-
-      {/* Delivery Assignment Mode Popup */}
-      {showAssignPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 overflow-hidden border border-neutral-200">
-            <h3 className="text-xl font-bold text-neutral-900 mb-2">Accept Order & Assign Delivery</h3>
-            <p className="text-neutral-600 mb-6 text-sm">
-              Please choose how you would like to assign the delivery for this order.
-            </p>
-
-            <div className="space-y-3 mb-6">
-              <label
-                className={`flex items-start p-4 border rounded-xl cursor-pointer transition-all ${
-                  deliveryPreference === 'Self' ? 'border-teal-500 bg-teal-50/70 ring-2 ring-teal-500/20' : 'border-neutral-200 hover:bg-neutral-50'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="delivery_preference"
-                  value="Self"
-                  checked={deliveryPreference === 'Self'}
-                  onChange={() => setDeliveryPreference('Self')}
-                  className="w-4 h-4 mt-0.5 text-teal-600 border-neutral-300 focus:ring-teal-500"
-                />
-                <div className="ml-3">
-                  <span className="block text-sm font-bold text-neutral-900">Assign by Seller</span>
-                  <span className="block text-xs text-neutral-500 mt-0.5">
-                    Manually select a delivery partner from the list of available online riders.
-                  </span>
-                </div>
-              </label>
-
-              <label
-                className={`flex items-start p-4 border rounded-xl cursor-pointer transition-all ${
-                  deliveryPreference === 'Admin' ? 'border-teal-500 bg-teal-50/70 ring-2 ring-teal-500/20' : 'border-neutral-200 hover:bg-neutral-50'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="delivery_preference"
-                  value="Admin"
-                  checked={deliveryPreference === 'Admin'}
-                  onChange={() => setDeliveryPreference('Admin')}
-                  className="w-4 h-4 mt-0.5 text-teal-600 border-neutral-300 focus:ring-teal-500"
-                />
-                <div className="ml-3">
-                  <span className="block text-sm font-bold text-neutral-900">Assigned By Admin</span>
-                  <span className="block text-xs text-neutral-500 mt-0.5">
-                    Let the platform admin assign an eligible delivery partner for this order.
-                  </span>
-                </div>
-              </label>
-            </div>
-
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowAssignPopup(false)}
-                className="px-5 py-2 text-sm font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200 rounded-lg transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  setShowAssignPopup(false);
-                  if (deliveryPreference === 'Self') {
-                    await handleStatusUpdate('Accepted', 'Self');
-                    setShowRiderModal(true);
-                  } else {
-                    await handleStatusUpdate('Accepted', 'Admin');
-                  }
-                }}
-                className="px-5 py-2 text-sm font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-lg transition-colors shadow-sm"
-              >
-                {deliveryPreference === 'Self' ? 'Accept & Select Rider' : 'Confirm & Accept'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Manual Delivery Partner Selection Modal */}
-      {orderDetail && (
-        <SellerAssignDeliveryBoyModal
-          isOpen={showRiderModal}
-          onClose={() => setShowRiderModal(false)}
-          orderId={orderDetail.id}
-          orderNumber={orderDetail.invoiceNumber || orderDetail.id}
-          onAssignSuccess={(rider) => {
-            setOrderDetail((prev) =>
-              prev
-                ? {
-                    ...prev,
-                    deliveryBoyName: rider?.name || 'Assigned Partner',
-                    deliveryBoyPhone: rider?.mobile || '',
-                  }
-                : null
-            );
-            setOrderStatus('Processed');
-          }}
-        />
-      )}
 
       <ConfirmationModal
         isOpen={showRejectModal}

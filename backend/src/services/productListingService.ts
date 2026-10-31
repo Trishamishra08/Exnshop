@@ -72,6 +72,74 @@ export const MATERIAL_FIELDS = [
   "hsnCode",
 ];
 
+/**
+ * Pricing and listing details of a live product that also wait for admin review.
+ * Stock is the only thing a seller changes on a live product without review.
+ */
+export const PRICE_REVIEW_FIELDS = [
+  "price",
+  "discPrice",
+  "compareAtPrice",
+  "sku",
+  "variantAxes",
+  "combinedAxes",
+  "weightGrams",
+  "dimensionsCm",
+  "handlingTimeDays",
+  "totalAllowedQuantity",
+];
+
+/** A variation as the admin reviews it: everything except stock (which a seller changes freely). */
+const variationShape = (v: any) =>
+  JSON.stringify({
+    title: String(v?.title || v?.value || ""),
+    options: (v?.options || []).map((o: any) => [String(o.name), String(o.value)]),
+    price: Number(v?.price) || 0,
+    discPrice: Number(v?.discPrice) || 0,
+    sku: String(v?.sku || ""),
+    weightGrams: Number(v?.weightGrams) || 0,
+    isActive: v?.isActive !== false,
+    images: (v?.images || []).map(String),
+  });
+
+const variationKey = (v: any) => String(v?._id || v?.title || v?.value || "");
+
+/** Finds the live variation an edited one stands for (same id, or same title). */
+const matchVariation = (list: any[], v: any) =>
+  list.find((x) => (v?._id && String(x?._id) === String(v._id)) || (variationKey(x) && variationKey(x) === variationKey(v)));
+
+/** True when the edited variations differ from the live ones in anything other than stock. */
+export const variationsNeedReview = (live: any[], incoming: any[]) =>
+  (live || []).length !== (incoming || []).length ||
+  (incoming || []).some((v) => {
+    const l = matchVariation(live || [], v);
+    return !l || variationShape(l) !== variationShape(v);
+  });
+
+/** Pending variations with today's stock copied in, so stock changed meanwhile isn't lost. */
+export const withLiveStock = (pending: any[], live: any[]) =>
+  (pending || []).map((v) => {
+    const l = matchVariation(live || [], v);
+    return l ? { ...v, stock: l.stock } : v;
+  });
+
+/** Live variations with only the stock values taken from the edit. */
+export const applyStockOnly = (live: any[], incoming: any[]) =>
+  (live || []).map((l: any) => {
+    const plain = typeof l?.toObject === "function" ? l.toObject() : { ...l };
+    const v = matchVariation(incoming || [], plain);
+    return v && v.stock !== undefined ? { ...plain, stock: Number(v.stock) || 0 } : plain;
+  });
+
+/** One readable line per variation, for the review screen and the audit trail. */
+export const describeVariations = (list: any[]) =>
+  (list || [])
+    .map((v) => {
+      const sell = Number(v.discPrice) > 0 ? Number(v.discPrice) : Number(v.price) || 0;
+      return `${v.title || v.value || "Default"}: MRP ₹${Number(v.price) || 0}, selling ₹${sell}${v.sku ? `, SKU ${v.sku}` : ""}${v.isActive === false ? " (off)" : ""}`;
+    })
+    .join("\n");
+
 const ID_FIELDS = new Set(["category", "subcategory", "subSubCategory", "headerCategoryId", "brand", "tax", "shopId"]);
 
 export const stripProtectedFields = <T extends Record<string, any>>(body: T): T => {
@@ -334,9 +402,11 @@ export const ownerView = (product: any) => {
   const obj = typeof product.toObject === "function" ? product.toObject() : { ...product };
   const revision = obj.pendingRevision?.data;
   if (revision) {
+    const liveVariations = obj.variations;
     for (const [field, value] of Object.entries(revision)) {
       obj[field] = ID_FIELDS.has(field) && value ? { _id: String(value) } : value;
     }
+    if (Array.isArray(revision.variations)) obj.variations = withLiveStock(revision.variations, liveVariations);
   }
   obj.revisionPending = Boolean(revision && Object.keys(revision).length);
   // Seller-facing: no storage ids, no internal reviewer notes.
@@ -362,10 +432,12 @@ export const adminActorOf = async (req: any) => {
 
 // ── Audit trail ─────────────────────────────────────────────
 
+/** Value kept in the audit trail: long enough to keep every variant price, so old records stay traceable. */
 const clip = (v: any) => {
   const s = norm(v);
-  return s.length > 200 ? `${s.slice(0, 200)}…` : s;
+  return s.length > 4000 ? `${s.slice(0, 4000)}…` : s;
 };
+const auditValue = (field: string, v: any) => (field === "variations" && Array.isArray(v) ? describeVariations(v) : clip(v));
 
 export const auditProduct = async (entry: {
   product: Pick<IProduct, "_id" | "seller" | "productName"> | any;
@@ -386,7 +458,7 @@ export const auditProduct = async (entry: {
       actorName: entry.actorName,
       action: entry.action,
       remarks: entry.remarks,
-      changes: (entry.changes || []).map((c) => ({ field: c.field, from: clip(c.from), to: clip(c.to) })),
+      changes: (entry.changes || []).map((c) => ({ field: c.field, from: auditValue(c.field, c.from), to: auditValue(c.field, c.to) })),
     });
   } catch (err) {
     console.error("[ProductAudit] Failed to write audit entry:", err);

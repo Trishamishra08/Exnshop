@@ -6,6 +6,7 @@ import { useDeliveryUser } from '../context/DeliveryUserContext';
 import { getDeliveryProfile, updateProfile } from '../../../services/api/delivery/deliveryService';
 import { useToast } from '../../../context/ToastContext';
 import { useLanguage } from '../../../context/LanguageContext';
+import api from '../../../services/api/config';
 
 export default function DeliveryProfile() {
   const navigate = useNavigate();
@@ -30,6 +31,12 @@ export default function DeliveryProfile() {
     ifscCode: '',
     upiId: '',
   });
+
+  // How many KYC documents are approved
+  const [kyc, setKyc] = useState<{ approved: number; total: number; complete: boolean } | null>(null);
+  useEffect(() => {
+    api.get("/delivery/documents").then((res) => setKyc(res.data?.data || null)).catch(() => setKyc(null));
+  }, []);
 
   // Fetch profile data on mount
   useEffect(() => {
@@ -161,6 +168,24 @@ export default function DeliveryProfile() {
             </div>
           </div>
         </div>
+
+        {/* KYC & documents, like the seller profile's verification card */}
+        <button
+          type="button"
+          onClick={() => navigate("/delivery/documents")}
+          className="w-full mb-4 bg-white rounded-xl p-4 shadow-sm border border-neutral-200 flex items-center justify-between text-left hover:border-orange-300"
+        >
+          <span>
+            <span className="block text-neutral-900 font-semibold">KYC & Documents</span>
+            <span className="block text-xs text-neutral-500">
+              {kyc ? `${kyc.approved} of ${kyc.total} approved${kyc.complete ? " · Verified" : " · Upload or fix the rest"}` : "ID, licence, vehicle papers & bank proof"}
+            </span>
+          </span>
+          <span className="flex items-center gap-2">
+            {kyc && !kyc.complete && <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">Incomplete</span>}
+            <span className="text-neutral-400">›</span>
+          </span>
+        </button>
 
         {/* Profile Details */}
         <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">

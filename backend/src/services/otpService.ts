@@ -553,10 +553,17 @@ const ADMIN_TEST_BYPASS_OTP = "123456";
  * real users) and fall back to actually sending/verifying a random OTP.
  */
 function getSpecialOtpForMobile(mobile: string): string | null {
+  // Fixed test codes work only while OTP_UNIVERSAL_BYPASS=true (testing). Off by default.
+  if (process.env.OTP_UNIVERSAL_BYPASS !== "true") return null;
   if (String(mobile).trim() === ADMIN_TEST_BYPASS_MOBILE) return ADMIN_TEST_BYPASS_OTP;
-  if (process.env.OTP_UNIVERSAL_BYPASS === "false") return null;
   return "123456";
 }
+
+/** No SMS provider is set up: say so instead of pretending a code was sent. */
+const SMS_UNAVAILABLE = "SMS OTP is not available right now. Please log in with your email instead.";
+const refuseMockSms = () => {
+  if (process.env.NODE_ENV === "production") throw new Error(SMS_UNAVAILABLE);
+};
 
 /**
  * Check if special bypass should be used (normalized comparison)
@@ -608,8 +615,9 @@ export async function sendSmsOtp(
       };
     }
 
-    // Mock mode
+    // Mock mode (no SMS provider): refused on the live site; logged locally for development.
     if (isMockMode()) {
+      refuseMockSms();
       await saveOtpToDb(mobileStr, otp, userType);
       if (process.env.NODE_ENV !== "production" || DEBUG_SMS) {
         console.log(`[SMS] Mock OTP for ${mobileStr}: ${otp}`);
@@ -737,8 +745,9 @@ export async function sendOTP(
       };
     }
 
-    // Mock mode
+    // Mock mode (no SMS provider): refused on the live site.
     if (isMockMode()) {
+      refuseMockSms();
       await saveOtpToDb(mobile, otp, userType);
       return {
         success: true,
@@ -822,7 +831,8 @@ export async function sendEmailOtp(
   userType: "Seller" | "Admin" | "Customer" | "Delivery",
   recipientName?: string,
   purpose: OtpPurpose = "login",
-  awaitDelivery: boolean = false,
+  // Wait for the email to actually go out, so a mail failure is reported instead of "OTP sent".
+  awaitDelivery: boolean = true,
 ): Promise<OtpResponse> {
   try {
     const otp = generateOTP(6);

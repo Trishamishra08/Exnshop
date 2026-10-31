@@ -41,6 +41,19 @@ const FIELD_LABELS: Record<string, string> = {
     returnPolicyText: 'Return policy',
     isShopByStoreOnly: 'Shop-by-store only',
     shopId: 'Shop',
+    price: 'MRP (₹)',
+    discPrice: 'Selling price (₹)',
+    compareAtPrice: 'Compare-at price (₹)',
+    sku: 'SKU',
+    variations: 'Variants & prices',
+    variantAxes: 'Variant attributes',
+    combinedAxes: 'Combined options',
+    weightGrams: 'Package weight (g)',
+    dimensionsCm: 'Package size (cm)',
+    handlingTimeDays: 'Handling time (days)',
+    totalAllowedQuantity: 'Max quantity per order',
+    attributes: 'Specifications',
+    hsnCode: 'HSN code',
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -111,7 +124,11 @@ function FactGrid({ facts, cols = 'sm:grid-cols-3' }: { facts: Array<[string, an
 
 const formatValue = (field: string, value: any): string => {
     if (value === null || value === undefined || value === '') return '—';
-    if (Array.isArray(value)) return `${value.length} image${value.length === 1 ? '' : 's'}`;
+    if (field === 'galleryImages' && Array.isArray(value)) return `${value.length} image${value.length === 1 ? '' : 's'}`;
+    if (field === 'variantAxes' && Array.isArray(value)) return value.map((a: any) => `${a.name}: ${(a.values || []).join(', ')}`).join('\n');
+    if (field === 'dimensionsCm' && typeof value === 'object') return `${value.length || '?'} × ${value.width || '?'} × ${value.height || '?'}`;
+    if (Array.isArray(value)) return value.join(', ');
+    if (field === 'attributes' && typeof value === 'object') return Object.entries(value).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`).join('\n');
     if (typeof value === 'object') return value.name || value._id || JSON.stringify(value);
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
     return String(value);
@@ -506,10 +523,10 @@ export default function AdminProductApprovals() {
                                                 {row.changes.map((c) => (
                                                     <tr key={c.field} className="border-t border-neutral-100 align-top">
                                                         <td className="p-2 font-medium text-neutral-700">{FIELD_LABELS[c.field] || c.field}</td>
-                                                        <td className="p-2 text-neutral-500">
+                                                        <td className="p-2 text-neutral-500 whitespace-pre-line">
                                                             {isImageField(c.field) && c.from ? <img src={c.from} alt="" className="w-14 h-14 object-cover rounded border" /> : formatValue(c.field, c.from)}
                                                         </td>
-                                                        <td className="p-2 text-neutral-900">
+                                                        <td className="p-2 text-neutral-900 whitespace-pre-line">
                                                             {isImageField(c.field) && c.to ? <img src={c.to} alt="" className="w-14 h-14 object-cover rounded border" /> : formatValue(c.field, c.to)}
                                                         </td>
                                                     </tr>

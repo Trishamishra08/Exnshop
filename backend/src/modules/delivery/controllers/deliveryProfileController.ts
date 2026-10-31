@@ -8,51 +8,22 @@ import Delivery from "../../../models/Delivery";
  */
 export const updateProfile = asyncHandler(async (req: Request, res: Response) => {
     const deliveryId = req.user?.userId;
-    const {
-        name,
-        email,
-        address,
-        city,
-        vehicleNumber,
-        vehicleType,
-        bankName,
-        accountNumber,
-        ifscCode,
-        accountName,
-        upiId
-    } = req.body;
-
-    const delivery = await Delivery.findById(deliveryId);
-
-    if (!delivery) {
-        return res.status(404).json({
-            success: false,
-            message: "Delivery partner not found"
+    if (!deliveryId) return res.status(401).json({ success: false, message: "Unauthorized" });
+    // An approved partner's profile, vehicle and bank changes wait for admin approval (history kept).
+    const { submitDeliveryChanges } = await import("../../../services/deliveryProfileChangeService");
+    try {
+        const { delivery, queued } = await submitDeliveryChanges(deliveryId, req.body || {});
+        return res.status(200).json({
+            success: true,
+            message: queued
+                ? "Your changes were sent to the admin for approval. Your current details stay in use until then."
+                : "Profile updated successfully",
+            data: delivery,
+            approvalPending: Boolean((delivery as any).pendingProfileChange?.data),
         });
+    } catch (err: any) {
+        return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Could not update profile" });
     }
-
-    // Update fields if provided
-    if (name) delivery.name = name;
-    if (email) delivery.email = email;
-    if (address) delivery.address = address;
-    if (city) delivery.city = city;
-    if (vehicleNumber) delivery.vehicleNumber = vehicleNumber;
-    if (vehicleType) delivery.vehicleType = vehicleType;
-
-    // Bank details updates
-    if (bankName) delivery.bankName = bankName;
-    if (accountNumber) delivery.accountNumber = accountNumber;
-    if (ifscCode) delivery.ifscCode = ifscCode;
-    if (accountName) delivery.accountName = accountName;
-    if (upiId !== undefined) delivery.upiId = upiId ? upiId.trim() : undefined;
-
-    await delivery.save();
-
-    return res.status(200).json({
-        success: true,
-        message: "Profile updated successfully",
-        data: delivery
-    });
 });
 
 /**

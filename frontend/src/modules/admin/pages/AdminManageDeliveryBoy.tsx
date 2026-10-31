@@ -8,11 +8,15 @@ import {
 } from '../../../services/api/admin/adminDeliveryService';
 import { useAuth } from '../../../context/AuthContext';
 import ConfirmationModal from '../../../components/ConfirmationModal';
+import DeliveryHistoryModal from '../components/DeliveryHistoryModal';
+import DeliveryDocumentsModal from '../components/DeliveryDocumentsModal';
 
 export default function AdminManageDeliveryBoy() {
     const { isAuthenticated, token } = useAuth();
     const [deliveryBoys, setDeliveryBoys] = useState<DeliveryBoy[]>([]);
     const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [historyFor, setHistoryFor] = useState<{ id: string; name?: string } | null>(null);
+    const [docsFor, setDocsFor] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [processing, setProcessing] = useState<string | null>(null);
@@ -108,10 +112,10 @@ export default function AdminManageDeliveryBoy() {
         setCurrentPage(1); // Reset to first page when sorting changes
     };
 
-    const handleStatusChange = async (deliveryBoyId: string, newStatus: 'Active' | 'Inactive') => {
+    const handleStatusChange = async (deliveryBoyId: string, newStatus: 'Active' | 'Inactive', force = false) => {
         try {
             setProcessing(deliveryBoyId);
-            const response = await updateDeliveryBoyStatus(deliveryBoyId, newStatus);
+            const response = await updateDeliveryBoyStatus(deliveryBoyId, newStatus, force);
 
             if (response.success) {
                 // Update local state
@@ -143,6 +147,16 @@ export default function AdminManageDeliveryBoy() {
                 setSuccessMessage('');
             }
         } catch (err: any) {
+            // Activation needs every KYC document approved; the admin may knowingly activate anyway.
+            if (err.response?.data?.code === 'DOCUMENTS_INCOMPLETE') {
+                setProcessing(null);
+                if (window.confirm(`${err.response.data.message}\n\nOpen the documents to review them? (Cancel to activate anyway without full documents)`)) {
+                    setDocsFor(deliveryBoyId);
+                } else if (window.confirm('Activate this delivery partner WITHOUT approved documents? This is recorded in their history.')) {
+                    return handleStatusChange(deliveryBoyId, newStatus, true);
+                }
+                return;
+            }
             console.error('Error updating delivery boy status:', err);
             setError('Failed to update delivery boy status: ' + (err.response?.data?.message || 'Please try again.'));
             setSuccessMessage('');
@@ -600,6 +614,20 @@ export default function AdminManageDeliveryBoy() {
                                                         </svg>
                                                     </button>
                                                     <button
+                                                        onClick={() => setDocsFor(deliveryBoy._id)}
+                                                        className="px-2 py-1 text-xs font-semibold text-teal-700 hover:bg-teal-50 rounded transition-colors"
+                                                        title="KYC documents: view, approve or reject"
+                                                    >
+                                                        Documents
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setHistoryFor({ id: deliveryBoy._id, name: deliveryBoy.name })}
+                                                        className="px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                                                        title="Activity history (all changes and approvals)"
+                                                    >
+                                                        History
+                                                    </button>
+                                                    <button
                                                         onClick={() => setDeleteId(deliveryBoy._id)}
                                                         disabled={processing === deliveryBoy._id}
                                                         className="p-1.5 text-red-600 hover:bg-red-50 disabled:text-neutral-400 disabled:cursor-not-allowed rounded transition-colors"
@@ -713,6 +741,8 @@ export default function AdminManageDeliveryBoy() {
                 <a href="#" className="text-blue-600 hover:underline">Exnshop</a>
             </footer>
 
+            {docsFor && <DeliveryDocumentsModal deliveryId={docsFor} onClose={() => setDocsFor(null)} />}
+            {historyFor && <DeliveryHistoryModal deliveryId={historyFor.id} name={historyFor.name} onClose={() => setHistoryFor(null)} />}
             <ConfirmationModal
                 isOpen={!!deleteId}
                 title="Delete Delivery Boy"

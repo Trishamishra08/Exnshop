@@ -22,6 +22,8 @@ import {
   newListingContext,
   describeProblems,
   notifySellerProductDecision,
+  describeVariations,
+  withLiveStock,
 } from "../../../services/productListingService";
 
 // ==================== Category Controllers ====================
@@ -1583,7 +1585,12 @@ export const getProductRevisions = asyncHandler(async (_req: Request, res: Respo
       mainImage: p.mainImage,
       seller: p.seller,
       submittedAt: p.pendingRevision?.submittedAt,
-      changes: Object.keys(data).map((field) => ({ field, from: p[field] ?? null, to: data[field] })),
+      // Variants are shown as one line each ("Black / S: MRP ₹999, selling ₹499, SKU …").
+      changes: Object.keys(data).map((field) =>
+        field === "variations"
+          ? { field, from: describeVariations(p.variations || []), to: describeVariations(data.variations || []) }
+          : { field, from: p[field] ?? null, to: data[field] }
+      ),
     };
   });
   return res.status(200).json({ success: true, data: rows });
@@ -1610,7 +1617,12 @@ export const decideProductRevision = asyncHandler(async (req: Request, res: Resp
 
   const applied = Object.entries(revision).map(([field, to]) => ({ field, from: (product as any)[field], to }));
   if (decision === "Approved") {
-    Object.assign(product, revision);
+    // Stock the seller changed while the edit waited stays as it is now.
+    const toApply = Array.isArray(revision.variations)
+      ? { ...revision, variations: withLiveStock(revision.variations, (product.variations as any) || []) }
+      : revision;
+    Object.assign(product, toApply);
+    if (toApply.variations) product.markModified("variations");
     const problems = await listingProblems(product.toObject());
     if (problems.length) {
       return res.status(400).json({

@@ -37,6 +37,9 @@ const REVIEW_LABEL: Record<string, string> = {
 };
 
 const ACTION_LABELS: Record<string, string> = {
+  CHANGE_REQUESTED: 'Change requested (waiting for approval)',
+  CHANGE_APPROVED: 'Change approved',
+  CHANGE_REJECTED: 'Change rejected',
   REGISTERED: 'Registered',
   SUBMITTED: 'Submitted application',
   RESUBMITTED: 'Resubmitted application',
@@ -507,7 +510,7 @@ export default function AdminSellerReview() {
                     </p>
                     {entry.changes && entry.changes.length > 0 && (
                       <ul className="mt-0.5 text-neutral-600">
-                        {entry.changes.slice(0, 6).map((c, i) => (
+                        {entry.changes.map((c, i) => (
                           <li key={i} className="break-all">
                             {c.field}
                             {c.from || c.to ? `: ${c.from || '—'} → ${c.to || '—'}` : ''}

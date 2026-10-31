@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { register, sendMobileOTP, verifyMobileOTP, sendOTP as sendEmailOTP, verifyOTP as verifyEmailOTP } from '../../../services/api/auth/sellerAuthService';
-import LoginMethodTabs, { LoginMethod } from '../../../components/LoginMethodTabs';
+import LoginMethodTabs, { DEFAULT_LOGIN_METHOD, LoginMethod } from '../../../components/LoginMethodTabs';
 import { removeAuthToken } from '../../../services/api/config';
 import OTPInput from '../../../components/OTPInput';
 import GoogleMapsAutocomplete from '../../../components/GoogleMapsAutocomplete';
@@ -83,7 +83,7 @@ export default function SellerSignUp() {
     );
   };
 
-  const [verifyBy, setVerifyBy] = useState<LoginMethod>('mobile');
+  const [verifyBy, setVerifyBy] = useState<LoginMethod>(DEFAULT_LOGIN_METHOD);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +93,7 @@ export default function SellerSignUp() {
     if (!formData.storeName) { setError('Please enter your store name'); return; }
     if (formData.categories.length === 0) { setError('Select at least one category'); return; }
     if (formData.channels.length === 0) { setError('Select at least one commerce channel'); return; }
-    if (formData.channels.includes('ECommerce') && !formData.shippingMethod) { setError('Choose a shipping method for E-Commerce orders'); return; }
+    if (!formData.shippingMethod) { setError('Choose how your orders will be delivered'); return; }
     if (!formData.searchLocation || !formData.latitude || !formData.longitude) { setError('Please select your store location'); return; }
     if (!formData.city) { setError('Please enter your city'); return; }
     const radius = parseFloat(formData.serviceRadiusKm);
@@ -116,7 +116,7 @@ export default function SellerSignUp() {
         longitude: formData.longitude,
         serviceRadiusKm: formData.serviceRadiusKm,
         channels: formData.channels,
-        shippingMethod: formData.channels.includes('ECommerce') && formData.shippingMethod ? formData.shippingMethod : undefined,
+        shippingMethod: formData.shippingMethod || undefined,
       });
       if (response.success) {
         removeAuthToken('seller');
@@ -323,14 +323,14 @@ export default function SellerSignUp() {
                   )}
                 </div>
 
-                {/* Shipping method for E-commerce orders */}
-                {formData.channels.includes('ECommerce') && (
+                {/* One delivery method for all of the seller's orders (Quick and E-commerce) */}
+                {formData.channels.length > 0 && (
                   <div className="mb-3">
-                    <label className={labelCls}>Shipping Method <span className="text-red-500">*</span> <span className="text-slate-400 font-normal">(for E-Commerce orders)</span></label>
+                    <label className={labelCls}>Delivery Method <span className="text-red-500">*</span> <span className="text-slate-400 font-normal">(for all your orders)</span></label>
                     <div className="grid grid-cols-2 gap-2">
                       {([
-                        { key: 'Company' as const, label: 'Ship by Company', sub: 'We book the courier & pickup (Easy Ship)' },
-                        { key: 'Self' as const, label: 'Self Shipping', sub: 'You ship with your own courier' },
+                        { key: 'Company' as const, label: 'Delivery by Company', sub: 'Exnshop delivers: courier or delivery partner' },
+                        { key: 'Self' as const, label: 'Self Delivery', sub: 'You deliver or ship the orders yourself' },
                       ]).map((m) => (
                         <button key={m.key} type="button" onClick={() => setFormData((p) => ({ ...p, shippingMethod: m.key }))} disabled={loading}
                           className={`flex flex-col items-start gap-0.5 px-3 py-2 rounded-xl border text-left transition-all ${formData.shippingMethod === m.key ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : 'bg-white border-slate-200 hover:bg-slate-50'}`}>
@@ -340,7 +340,7 @@ export default function SellerSignUp() {
                       ))}
                     </div>
                     {!formData.shippingMethod && (
-                      <p className="text-[10px] text-red-500 mt-0.5">Choose how your E-Commerce orders will be shipped</p>
+                      <p className="text-[10px] text-red-500 mt-0.5">Choose how your orders will be delivered</p>
                     )}
                     <p className="text-[10px] text-slate-400 mt-0.5">Can be changed later with admin approval.</p>
                   </div>

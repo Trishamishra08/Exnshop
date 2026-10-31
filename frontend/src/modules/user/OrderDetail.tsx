@@ -6,6 +6,7 @@ import { useOrders } from "../../hooks/useOrders";
 import { OrderStatus } from "../../types/order";
 import GoogleMapsTracking from "../../components/GoogleMapsTracking";
 import { useDeliveryTracking } from "../../hooks/useDeliveryTracking";
+import OrderProgressCard from "./components/OrderProgressCard";
 import DeliveryPartnerCard from "../../components/DeliveryPartnerCard";
 import { cancelOrder, updateOrderNotes, getSellerLocationsForOrder, refreshDeliveryOtp, requestCustomerReturn } from "../../services/api/customerOrderService";
 import {
@@ -1113,6 +1114,11 @@ export default function OrderDetail() {
           <span>⚠️</span>
           <span>{trackingError}</span>
         </div>
+      )}
+
+      {/* Order Progress (Quick orders): same steps as the delivery partner sees */}
+      {!isECommerce && !["Cancelled", "Rejected", "Returned"].includes(orderStatus) && (
+        <OrderProgressCard status={orderStatus} />
       )}
 
       {/* Delivery Partner Card — hide OTP and card after delivery */}

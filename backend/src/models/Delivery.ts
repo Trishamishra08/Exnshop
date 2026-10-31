@@ -1,4 +1,5 @@
 import mongoose, { Document, Schema } from "mongoose";
+import { DELIVERY_DOCUMENT_TYPES } from "../constants/deliveryDocuments";
 import bcrypt from "bcrypt";
 
 export interface IDelivery extends Document {
@@ -32,6 +33,10 @@ export interface IDelivery extends Document {
   bonusType?: string; // 'Fixed' | 'Salaried' | 'Commission Based'
   commissionRate?: number; // Individual commission rate (overrides global setting)
   status: "Active" | "Inactive";
+  /** Profile / vehicle / bank changes of an approved partner, waiting for admin approval. */
+  pendingProfileChange?: { data: Record<string, any>; submittedAt: Date };
+  /** KYC documents (private files). A replaced document stays on record as "Superseded". */
+  documents: mongoose.Types.DocumentArray<any>;
   isOnline: boolean; // Availability status
   available: "Available" | "Not Available"; // String status for UI and filtering
   location?: {
@@ -172,6 +177,27 @@ const DeliverySchema = new Schema<IDelivery>(
       type: String,
       enum: ["Active", "Inactive"],
       default: "Inactive", // New delivery partners start as Inactive until approved
+    },
+    documents: [
+      {
+        docType: { type: String, enum: DELIVERY_DOCUMENT_TYPES, required: true },
+        publicId: { type: String, required: true },
+        resourceType: { type: String, default: "image" },
+        format: { type: String },
+        originalName: { type: String },
+        bytes: { type: Number },
+        uploadedAt: { type: Date, default: Date.now },
+        status: { type: String, enum: ["Pending", "Approved", "Rejected", "Superseded"], default: "Pending" },
+        remarks: { type: String, trim: true },
+        /** The approved document this upload is meant to replace (it stays valid until this one is approved). */
+        replaces: { type: Schema.Types.ObjectId },
+        reviewedAt: { type: Date },
+        reviewedBy: { type: String },
+      },
+    ],
+    pendingProfileChange: {
+      type: new Schema({ data: { type: Schema.Types.Mixed, default: {} }, submittedAt: { type: Date, default: Date.now } }, { _id: false }),
+      default: undefined,
     },
     isOnline: {
       type: Boolean,

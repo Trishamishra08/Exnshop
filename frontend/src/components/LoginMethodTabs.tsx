@@ -1,5 +1,12 @@
 export type LoginMethod = 'mobile' | 'email';
 
+/**
+ * Mobile OTP needs an SMS provider. Until one is set up (VITE_MOBILE_OTP_ENABLED=true),
+ * logins use email OTP only and the Mobile tab is hidden.
+ */
+export const MOBILE_OTP_ENABLED = import.meta.env.VITE_MOBILE_OTP_ENABLED === "true";
+export const DEFAULT_LOGIN_METHOD: LoginMethod = MOBILE_OTP_ENABLED ? "mobile" : "email";
+
 export const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
 /** "Mobile | Email" switch shown above every login and sign-up form. */
@@ -25,6 +32,7 @@ export default function LoginMethodTabs({
       {label}
     </button>
   );
+  if (!MOBILE_OTP_ENABLED) return null; // email only
   return (
     <div className="w-full flex gap-1 p-1 mb-3.5 bg-slate-100 rounded-xl" role="group" aria-label="Login with">
       {tab('mobile', 'Mobile number')}

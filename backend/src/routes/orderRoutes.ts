@@ -9,6 +9,7 @@ import {
   getPendingOrderAlerts,
   getAvailableDeliveryPartners,
   assignDeliveryBoySeller,
+  ringDeliveryAgain,
   getShippingLabel,
   generateShippingAwb,
   saveSelfShippingDetails,
@@ -36,6 +37,7 @@ router.get("/settlement", getSettlementOrders);
 // Available delivery partners for manual seller assignment (must be before /:id)
 router.get("/:id/available-delivery-partners", getAvailableDeliveryPartners);
 // Manual seller delivery assignment
+router.post("/:id/ring-delivery-again", ringDeliveryAgain);
 router.patch("/:id/assign-delivery", assignDeliveryBoySeller);
 router.post("/:id/assign-delivery", assignDeliveryBoySeller);
 

@@ -30,6 +30,7 @@ import {
 import { queueSellerPickupSync } from "../../../services/shiprocketService";
 import { runVerificationChecks } from "../../../services/sellerVerificationService";
 import { apiclubConfigured } from "../../../services/apiclubService";
+import { changesNeedApproval, queueSellerChange, splitSellerUpdate } from "../../../services/sellerProfileChangeService";
 
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
@@ -144,6 +145,18 @@ export const saveBank = asyncHandler(async (req: Request, res: Response) => {
     return res.status(400).json({ success: false, message: "Could not look up the bank name. Please enter it." });
   }
 
+  // Approved seller: the new bank account is used only after the admin approves it.
+  if (changesNeedApproval(seller)) {
+    const { review } = splitSellerUpdate(seller, updates);
+    if (Object.keys(review).length) await queueSellerChange(seller, review, "bank");
+    const fresh = await findSellerOrThrow(sellerIdOf(req));
+    return res.json({
+      success: true,
+      message: Object.keys(review).length ? "Bank details sent to the admin for approval. Payouts use your current account until then." : "No changes to save",
+      data: buildOnboardingView(fresh),
+    });
+  }
+
   const changes = diffFields(seller, updates, Object.keys(updates));
   const bankIdentityChanged = changes.some((c) => ["accountName", "accountNumber", "ifsc"].includes(c.field));
   Object.assign(seller, updates);
@@ -198,6 +211,17 @@ export const saveStore = asyncHandler(async (req: Request, res: Response) => {
     latitude: lat.toString(),
     longitude: lng.toString(),
   };
+  // Approved seller: store details change only after the admin approves them.
+  if (changesNeedApproval(seller)) {
+    const { review } = splitSellerUpdate(seller, updates);
+    if (Object.keys(review).length) await queueSellerChange(seller, review, "store");
+    const fresh = await findSellerOrThrow(sellerIdOf(req));
+    return res.json({
+      success: true,
+      message: Object.keys(review).length ? "Store details sent to the admin for approval. Your current details stay live until then." : "No changes to save",
+      data: buildOnboardingView(fresh),
+    });
+  }
   const changes = diffFields(seller, updates, Object.keys(updates));
   Object.assign(seller, updates);
   seller.location = { type: "Point", coordinates: [lng, lat] };

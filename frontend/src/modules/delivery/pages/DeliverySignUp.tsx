@@ -7,7 +7,7 @@ import {
   sendOTP as sendEmailOTP,
   verifyOTP as verifyEmailOTP,
 } from "../../../services/api/auth/deliveryAuthService";
-import LoginMethodTabs, { LoginMethod } from "../../../components/LoginMethodTabs";
+import LoginMethodTabs, { DEFAULT_LOGIN_METHOD, LoginMethod } from "../../../components/LoginMethodTabs";
 import { removeAuthToken } from "../../../services/api/config";
 import { uploadDocument } from "../../../services/api/uploadService";
 import { validateDocumentFile, compressImage } from "../../../utils/imageUpload";
@@ -210,7 +210,7 @@ export default function DeliverySignUp() {
     }
   };
 
-  const [verifyBy, setVerifyBy] = useState<LoginMethod>("mobile");
+  const [verifyBy, setVerifyBy] = useState<LoginMethod>(DEFAULT_LOGIN_METHOD);
 
   const handleOTPComplete = async (otp: string) => {
     setLoading(true);
