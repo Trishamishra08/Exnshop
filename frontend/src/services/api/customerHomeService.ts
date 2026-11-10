@@ -6,13 +6,15 @@ export interface HomeContentResponse {
   data: {
     categories: any[];
     shops: any[];
-    promoBanners: any[];
     trending: any[];
     cookingIdeas: any[];
     promoCards?: any[];
     promoStrip?: any; // PromoStrip data from backend
     lowestPrices?: any[];
     homeSections?: any[];
+    bestsellers?: any[];
+    /** Admin › Home Page Content for the requested mode (banners, trust strip, offer cards, section titles) */
+    pageContent?: any;
   };
 }
 

@@ -2,10 +2,11 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import HomeHero from "./components/HomeHero";
 import PromoStrip from "./components/PromoStrip";
-import LowestPricesEver from "./components/LowestPricesEver";
+import ShopByCategory from "./components/home/ShopByCategory";
+import { useHomeTheme, resolvePageContent } from "./components/home/homeTheme";
 import CategoryTileSection from "./components/CategoryTileSection";
 import BestsellerSection from "./components/BestsellerSection";
-import FeaturedThisWeek from "./components/FeaturedThisWeek";
+import ProductRail, { prefetchRails } from "./components/home/ProductRail";
 import ProductCard from "./components/ProductCard";
 import { getHomeContent } from "../../services/api/customerHomeService";
 import { useLocation } from "../../hooks/useLocation";
@@ -18,6 +19,7 @@ export default function Home() {
   const navigate = useNavigate();
   const { location } = useLocation();
   const { mode } = useCommerceMode();
+  const homeTheme = useHomeTheme();
   const { activeCategory, setActiveCategory } = useThemeContext();
   const { t, getTranslatedField } = useTranslation();
   const activeTab = activeCategory; // mapping for existing code compatibility
@@ -28,6 +30,8 @@ export default function Home() {
 
   // State for dynamic data
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const hasLoadedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [homeData, setHomeData] = useState<any>({
     categories: [],
@@ -37,6 +41,8 @@ export default function Home() {
     trending: [],
     cookingIdeas: [],
   });
+  // Admin › Home Page Content from the server, or the defaults if it sent none
+  const pageContent = resolvePageContent(homeData.pageContent, homeTheme.quick);
 
   const [products, setProducts] = useState<any[]>([]);
 
@@ -54,6 +60,7 @@ export default function Home() {
   };
 
   useEffect(() => {
+    let cancelled = false;
     const fetchData = async () => {
       try {
         setLoading(true);
@@ -68,27 +75,50 @@ export default function Home() {
           location?.longitude,
           true,
           5 * 60 * 1000,
-          false,
+          // Only the very first load shows the full-screen loader; switching
+          // Quick ⇄ Shop All (or tabs) keeps the page and refreshes in place.
+          hasLoadedRef.current,
           mode
         );
+        if (cancelled) return;
         if (response.success && response.data) {
           setHomeData(response.data);
-
-
+          hasLoadedRef.current = true;
+          setHasLoaded(true);
         } else {
           setError("Failed to load content. Please try again.");
         }
       } catch (error) {
+        if (cancelled) return;
         console.error("Failed to fetch home content", error);
         setError("Network error. Please check your connection.");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchData();
-
+    return () => {
+      cancelled = true;
+    };
   }, [location?.latitude, location?.longitude, activeTab, mode]);
+
+  // Once the page is up, quietly load the other mode too, so the first
+  // Quick ⇄ Shop All switch is instant (served from the in-memory caches).
+  useEffect(() => {
+    if (!hasLoaded) return;
+    const other = mode === "Quick" ? "ECommerce" : "Quick";
+    const timer = setTimeout(() => {
+      const slug = activeTab === "all" ? undefined : activeTab;
+      getHomeContent(slug, location?.latitude, location?.longitude, true, 5 * 60 * 1000, true, other)
+        .then((res) => {
+          const sections = resolvePageContent(res?.data?.pageContent, other === "Quick").productSections;
+          if (activeTab === "all") prefetchRails(sections, other, location?.latitude, location?.longitude);
+        })
+        .catch(() => {});
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [hasLoaded, mode, activeTab, location?.latitude, location?.longitude]);
 
   // Restore scroll position when returning to this page
   useEffect(() => {
@@ -176,11 +206,12 @@ export default function Home() {
     [activeTab, products]
   );
 
-  if (loading && !products.length) {
+  // Full-page loader only before the first content arrives — never on refreshes.
+  if (!hasLoaded && loading) {
     return <PageLoader />; // Let the global IconLoader handle the initial loading state
   }
 
-  if (error && !loading) {
+  if (error && !loading && !hasLoaded) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-4 text-center">
         <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-4">
@@ -201,22 +232,21 @@ export default function Home() {
   }
 
   return (
-    <div className="bg-[#f7fbff] min-h-screen pb-20 md:pb-0" ref={contentRef}>
+    <div className="min-h-screen pb-8 antialiased" ref={contentRef} style={{ background: homeTheme.pageBg, fontFamily: "\"Poppins\", system-ui, sans-serif" }}>
       {/* Hero Header with location, search and category circles */}
-      <HomeHero activeTab={activeTab} onTabChange={setActiveTab} />
+      <HomeHero activeTab={activeTab} onTabChange={setActiveTab} searchPlaceholder={pageContent.searchPlaceholder} />
 
-      {/* Promo Banner + Crazy Deals + Features */}
-      <PromoStrip activeTab={activeTab} />
+      {/* While a mode/tab switch refreshes, keep the current content on screen (slightly dimmed) */}
+      <div className="transition-opacity duration-200" style={{ opacity: loading && hasLoaded ? 0.6 : 1 }}>
+      {/* Banner, trust strip, offers, Crazy Deals and category promo banners — all from homeData */}
+      <PromoStrip homeData={homeData} loading={loading} />
 
-      {/* LOWEST PRICES EVER Section */}
-      {homeData.lowestPrices && homeData.lowestPrices.length > 0 && (
-        <LowestPricesEver activeTab={activeTab} products={homeData.lowestPrices} />
-      )}
-
+      {/* Shop by Category tiles */}
+      {activeTab === "all" && <ShopByCategory theme={homeTheme} config={pageContent.shopByCategory} />}
 
       {/* Main content */}
       <div
-        className="bg-[#f7fbff] -mt-2 pt-1 space-y-5 md:space-y-8 md:pt-4">
+        className="pt-1 space-y-5 md:space-y-8 md:pt-4">
 
 
         {/* Bestseller Cards Section - Render modern Bestseller Cards */}
@@ -315,8 +345,12 @@ export default function Home() {
 
         {activeTab === "all" && (
           <>
-            {/* Featured this week Section */}
-            <FeaturedThisWeek />
+            {/* Product sections from Admin › Home Page Content (each hides itself when empty) */}
+            <div className="!mt-0">
+              {pageContent.productSections.map((section: any) => (
+                <ProductRail key={section._id} section={section} theme={homeTheme} onViewAll={() => navigate("/categories")} />
+              ))}
+            </div>
 
             {/* Shop by Store Section (hidden until there is at least one store) */}
             {(homeData.shops || []).length > 0 && (
@@ -379,6 +413,7 @@ export default function Home() {
             )}
           </>
         )}
+      </div>
       </div>
     </div>
   );

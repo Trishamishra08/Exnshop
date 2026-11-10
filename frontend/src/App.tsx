@@ -330,6 +330,9 @@ const AdminBestsellerCards = lazyWithRetry(
 const AdminPromoStrip = lazyWithRetry(
   () => import("./modules/admin/pages/AdminPromoStrip"), "AdminPromoStrip"
 );
+const AdminHomePageContent = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminHomePageContent"), "AdminHomePageContent"
+);
 const AdminLowestPrices = lazyWithRetry(
   () => import("./modules/admin/pages/AdminLowestPrices"), "AdminLowestPrices"
 );
@@ -1039,6 +1042,10 @@ function App() {
                                       <Route
                                         path="promo-strip"
                                         element={<AdminPromoStrip />}
+                                      />
+                                      <Route
+                                        path="home-page-content"
+                                        element={<AdminHomePageContent />}
                                       />
                                       <Route
                                         path="lowest-prices"

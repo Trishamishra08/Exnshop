@@ -1,13 +1,25 @@
-import { useLayoutEffect, useRef, useState, useEffect, useCallback } from "react";
-import { gsap } from "gsap";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { getTheme } from "../../../utils/themes";
-import { getHomeContent } from "../../../services/api/customerHomeService";
 import { getSubcategories } from "../../../services/api/categoryService";
-import { apiCache } from "../../../utils/apiCache";
-import { useLocation } from "../../../hooks/useLocation";
-import { useCommerceMode } from "../../../context/CommerceModeContext";
+import { getHeaderCategoriesPublic } from "../../../services/api/headerCategoryService";
 import { useTranslation } from "../../../hooks/useTranslation";
+import { useAppSettings } from "../../../context/AppSettingsContext";
+import { categoryEmoji } from "../../../utils/categoryEmoji";
+import DealCard from "./home/DealCard";
+import { useHomeTheme, OFFER_STYLES, resolvePageContent, type HomePageContent, type HomeBanner } from "./home/homeTheme";
+import { TRUST_ICON_SVGS, OFFER_ICON_SVGS } from "./home/homeIcons";
+
+/**
+ * Top of the home page under the search bar: banner carousel, trust strip,
+ * offer cards, Crazy Deals and the category promo banners.
+ *
+ * Everything here comes from data — `homeData` is the /customer/home
+ * response that Home already loaded (no second request):
+ *   - banners / trust strip / offer cards → Admin › Home Page Content
+ *   - Crazy Deals → Admin › Lowest Prices products (+ Promo Strip title/end date)
+ *   - promo banners → Admin › Promo Strip cards, else the real categories,
+ *     badge = their best live discount
+ */
 
 interface PromoCard {
   id: string;
@@ -16,653 +28,440 @@ interface PromoCard {
   imageUrl?: string;
   categoryId?: string;
   slug?: string;
-  bgColor?: string;
   subcategoryImages?: string[];
+  translations?: any;
 }
-
-// Soft pastel backgrounds cycling through the Crazy Deals grid (matches mockup)
-const DEAL_BG_COLORS = [
-  "#fff7e8",
-  "#eaf3ff",
-  "#e9f9ee",
-  "#fdeef1",
-  "#f3ecff",
-  "#fff7e8",
-  "#eaf3ff",
-  "#e9f9ee",
-];
-
-// Comprehensive Icon mappings for each category and keyword fallback
-const getCategoryIcons = (categoryId: string, categoryTitle: string = ""): string[] => {
-  const normalized = (categoryId || "").toLowerCase().replace(/_/g, "-");
-  const titleNorm = (categoryTitle || "").toLowerCase();
-
-  const iconMap: Record<string, string[]> = {
-    "foot-wear-ladies": ["👠", "👡", "🥿", "👢"],
-    "foot-wear-mens": ["👞", "👟", "🥾", "🩴"],
-    "ladies-wear-fashion": ["👗", "👚", "👘", "🥻"],
-    "mens-wear-fashion": ["👔", "👕", "👖", "🧥"],
-    "kids-wear": ["🧒", "👕", "🧸", "👟"],
-    "jewellery-item": ["💍", "💎", "👑", "📿"],
-    "handicraft-hosiery-item": ["🧶", "🧵", "🧦", "🧤"],
-    "ladies-jean-bag-purse": ["👜", "👛", "🎒", "👝"],
-    fashion: ["👕", "👗", "👠", "👜"],
-    "vegetable-fruits-fresh": ["🥬", "🥕", "🍅", "🍎"],
-    "fruits-vegetable-juice": ["🧃", "🍊", "🍍", "🍉"],
-    "fruits-veg": ["🥬", "🥕", "🍅", "🥒"],
-    "dairy-items-milk-product": ["🥛", "🧀", "🧈", "🍦"],
-    "dairy-breakfast": ["🥛", "🧀", "🍞", "🥚"],
-    "dairy-milk": ["🥛", "🧀", "🧈", "🥛"],
-    "bakery-biscuit-item": ["🥐", "🥖", "🍪", "🍞"],
-    "bakery-biscuits": ["🥐", "🥖", "🍪", "🍞"],
-    "chips-namkeen-cold-drinks": ["🍿", "🥤", "🥨", "🍫"],
-    "sweet-farsan-chocolate": ["🍫", "🍬", "🧁", "🍩"],
-    "icecream-faluda": ["🍨", "🍦", "🍧", "🍮"],
-    "tea-coffee": ["☕", "🍵", "🧋", "🫖"],
-    "all-grocery-mart": ["🛒", "🥫", "🌾", "🍯"],
-    "rani-masala-spices-all": ["🌶️", "🧂", "🌿", "🥘"],
-    "all-spices-wholesaler": ["🌶️", "🧂", "🌿", "🥘"],
-    "oils-ghee": ["🫒", "🧈", "🫙", "🌻"],
-    "pan-parlour-all-item": ["🍃", "🍬", "🍫", "💨"],
-    "breakfast-instant": ["🍜", "☕", "🥛", "🍞"],
-    "atta-rice": ["🌾", "🍚", "🫘", "🫒"],
-    snacks: ["🍿", "🍪", "🥨", "🍫"],
-    "cosmetics-item-bath-body": ["💄", "🧴", "🧼", "💅"],
-    "skins-face-hair": ["✨", "🧴", "💇‍♀️", "💆"],
-    "baby-care-products": ["🍼", "👶", "🧸", "🧴"],
-    "personal-care": ["🧴", "💧", "🧼", "💄"],
-    "electronics-all-items": ["📱", "💻", "⌚", "🎧"],
-    "ac-fridge-tv-electronics": ["📺", "❄️", "🖥️", "⚡"],
-    "mobile-item-accessories": ["📱", "🔌", "🔋", "🎧"],
-    electronics: ["📱", "💻", "⌚", "🎧"],
-    "home-decor": ["🖼️", "🪴", "🕯️", "🛋️"],
-    "furniture-all": ["🛋️", "🪑", "🛏️", "🚪"],
-    "home-furniture": ["🛋️", "🪑", "🛏️", "🚪"],
-    "kitchen-item-vasan-bhandar": ["🍳", "🔪", "🍽️", "🥘"],
-    "cleaners-refill-item": ["🧹", "🧽", "🧼", "🧴"],
-    household: ["🧹", "🧽", "🧼", "🧴"],
-    "toys-sports-item": ["🧸", "⚽", "🎮", "🛹"],
-    "yoga-jim-item": ["🧘", "🏋️", "🏃", "🥊"],
-    sports: ["⚽", "🏀", "🏋️", "🎾"],
-    "stationery-games-item": ["✏️", "📚", "🎨", "🎲"],
-    "pet-store-products": ["🐶", "🐱", "🦴", "🐾"],
-    "medical-health-pharma": ["💊", "🩺", "🩹", "💉"],
-    "puja-item": ["🪔", "🔔", "🌺", "🥥"],
-    "festival-item": ["🎉", "✨", "🎁", "🪔"],
-    "travel-item": ["🧳", "🎒", "✈️", "🗺️"],
-    "home-essentials": ["🧹", "🧽", "🧼", "🧴"],
-    "home-essentials-cleaners": ["🧹", "🧽", "🧴", "🧺"],
-  };
-
-  if (iconMap[normalized]) {
-    return iconMap[normalized];
-  }
-
-  const searchStr = `${normalized} ${titleNorm}`;
-  if (searchStr.includes("foot") || searchStr.includes("shoe") || searchStr.includes("heel") || searchStr.includes("sandal")) {
-    return searchStr.includes("men") ? ["👞", "👟", "🥾", "🩴"] : ["👠", "👡", "🥿", "👢"];
-  }
-  if (searchStr.includes("ladi") || searchStr.includes("women") || searchStr.includes("dress") || searchStr.includes("saree") || searchStr.includes("kurti")) {
-    return ["👗", "👚", "👘", "🥻"];
-  }
-  if (searchStr.includes("men") || searchStr.includes("shirt") || searchStr.includes("pant") || searchStr.includes("suit")) {
-    return ["👔", "👕", "👖", "🧥"];
-  }
-  if (searchStr.includes("jewel") || searchStr.includes("ring") || searchStr.includes("gold")) {
-    return ["💍", "💎", "👑", "📿"];
-  }
-  if (searchStr.includes("bag") || searchStr.includes("purse") || searchStr.includes("wallet")) {
-    return ["👜", "👛", "🎒", "👝"];
-  }
-  if (searchStr.includes("fruit") || searchStr.includes("veg") || searchStr.includes("fresh")) {
-    return ["🍎", "🍌", "🥦", "🥕"];
-  }
-  if (searchStr.includes("milk") || searchStr.includes("dairy") || searchStr.includes("butter") || searchStr.includes("cheese")) {
-    return ["🥛", "🧀", "🧈", "🍦"];
-  }
-  if (searchStr.includes("spice") || searchStr.includes("masala")) {
-    return ["🌶️", "🧂", "🌿", "🥘"];
-  }
-  if (searchStr.includes("snack") || searchStr.includes("biscuit") || searchStr.includes("bakery") || searchStr.includes("cake")) {
-    return ["🍪", "🥐", "🥨", "🍫"];
-  }
-  if (searchStr.includes("drink") || searchStr.includes("tea") || searchStr.includes("coffee") || searchStr.includes("juice")) {
-    return ["☕", "🍵", "🧃", "🥤"];
-  }
-  if (searchStr.includes("phone") || searchStr.includes("elect") || searchStr.includes("gadget")) {
-    return ["📱", "💻", "⌚", "🎧"];
-  }
-  if (searchStr.includes("cosmetic") || searchStr.includes("beauty") || searchStr.includes("skin") || searchStr.includes("hair")) {
-    return ["💄", "🧴", "✨", "💅"];
-  }
-  if (searchStr.includes("toy") || searchStr.includes("kid") || searchStr.includes("baby")) {
-    return ["🧸", "🍼", "👶", "🎮"];
-  }
-  if (searchStr.includes("clean") || searchStr.includes("home") || searchStr.includes("essential") || searchStr.includes("household")) {
-    return ["🧹", "🧽", "🧼", "🧴"];
-  }
-
-  return ["✨", "🛍️", "🏷️", "⭐"];
-};
-
-// Positions subcategory photos so they read as one overlapping collage (matches mockup)
-// (kept for reference; the Crazy Deals cards now use a simple row of equal tiles)
-export const getCollageLayout = (count: number, index: number) => {
-  if (count <= 1) {
-    return { size: "w-full h-full", pos: "inset-0", z: "z-10" };
-  }
-  if (count === 2) {
-    const layouts = [
-      { size: "w-[58%] h-[82%]", pos: "bottom-0 left-0", z: "z-10" },
-      { size: "w-[58%] h-[82%]", pos: "bottom-0 right-0", z: "z-20" },
-    ];
-    return layouts[index] || layouts[0];
-  }
-  const layouts = [
-    { size: "w-[46%] h-[58%]", pos: "bottom-0 left-0", z: "z-10" },
-    { size: "w-[46%] h-[58%]", pos: "bottom-0 left-[26%]", z: "z-20" },
-    { size: "w-[50%] h-[76%]", pos: "bottom-0 right-0", z: "z-30" },
-  ];
-  return layouts[index] || layouts[0];
-};
 
 interface PromoStripProps {
-  activeTab?: string;
+  homeData: any;
+  loading?: boolean;
 }
 
-export default function PromoStrip({ activeTab = "all" }: PromoStripProps) {
-  const { location } = useLocation();
-  const { mode } = useCommerceMode();
-  const { t, getTranslatedField } = useTranslation();
-  const theme = getTheme(activeTab);
-  const navigate = useNavigate();
-  const [categoryCards, setCategoryCards] = useState<PromoCard[]>([]);
-  const [headingText, setHeadingText] = useState(theme.bannerText);
-  const [saleTextValue, setSaleTextValue] = useState(theme.saleText);
-  const [dateRange, setDateRange] = useState("");
-  const [crazyDealsTitle, setCrazyDealsTitle] = useState("CRAZY DEALS");
-  const [subcategoryImagesMap, setSubcategoryImagesMap] = useState<Record<string, string[]>>({});
-  const containerRef = useRef<HTMLDivElement>(null);
-  const bannerTextRef = useRef<HTMLDivElement>(null);
-  const [loading, setLoading] = useState(true);
-  const [hasData, setHasData] = useState(false);
-  const [bannerImgOk, setBannerImgOk] = useState(true);
+// Department names are the same for every mode — load them once per page view.
+let departmentNamesCache: any[] | null = null;
 
-  // Fetch subcategory images for category cards - DEFERRED for faster initial load
-  const fetchSubcategoryImages = useCallback(async (cards: PromoCard[]) => {
-    setTimeout(async () => {
-      const imagesMap: Record<string, string[]> = {};
-      const batchSize = 2;
-      for (let i = 0; i < cards.length; i += batchSize) {
-        const batch = cards.slice(i, i + batchSize);
-        await Promise.all(
-          batch.map(async (card) => {
-            const categoryId = card.categoryId;
-            if (!categoryId) return;
-            try {
-              const response = await getSubcategories(categoryId, { limit: 4 });
-              if (response.success && response.data) {
-                const images = response.data
-                  .filter((subcat) => subcat.subcategoryImage)
-                  .map((subcat) => subcat.subcategoryImage!)
-                  .slice(0, 4);
-                if (images.length > 0) {
-                  imagesMap[card.id] = images;
-                }
-              }
-            } catch (error) {
-              console.error(`Error fetching subcategories for category ${categoryId}:`, error);
-            }
-          })
-        );
-        if (i + batchSize < cards.length) {
-          await new Promise(resolve => setTimeout(resolve, 50));
-        }
-      }
-      setSubcategoryImagesMap(imagesMap);
-    }, 300);
-  }, []);
+export default function PromoStrip({ homeData, loading = false }: PromoStripProps) {
+  const navigate = useNavigate();
+  const { t, getTranslatedField } = useTranslation();
+  const { settings: appSettings } = useAppSettings();
+  const homeTheme = useHomeTheme();
+
+  // The server's Home Page Content, or the defaults if it sent none (older backend / not saved yet)
+  const pageContent: HomePageContent = resolvePageContent(homeData?.pageContent, homeTheme.quick);
+  const deals: any[] = homeData?.lowestPrices || [];
+  const promoStrip = homeData?.promoStrip?.isActive ? homeData.promoStrip : null;
+
+  const [departments, setDepartments] = useState<any[]>(departmentNamesCache || []);
+  const [subcategoryImagesMap, setSubcategoryImagesMap] = useState<Record<string, string[]>>({});
+  const [slide, setSlide] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  const [failedBanners, setFailedBanners] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    const fetchData = async () => {
-      const cacheKey = `home-content-${activeTab || 'all'}`;
-      const cachedData = apiCache.getSync(cacheKey);
-      if (!cachedData) {
-        setLoading(true);
-      }
+    if (departmentNamesCache) return;
+    getHeaderCategoriesPublic(true)
+      .then((cats) => {
+        departmentNamesCache = (cats || [])
+          .filter((c) => c.status === "Published" && c.slug !== "all")
+          .sort((a, b) => (a.order || 0) - (b.order || 0));
+        setDepartments(departmentNamesCache);
+      })
+      .catch(() => setDepartments([]));
+  }, []);
 
-      try {
-        const response = await getHomeContent(
-          activeTab,
-          location?.latitude,
-          location?.longitude,
-          true,
-          5 * 60 * 1000,
-          false,
-          mode
-        );
-
-        let fetchedCards: PromoCard[] = [];
-        let newHeadingText = theme.bannerText;
-        let newSaleTextValue = theme.saleText;
-        let newDateRange = "";
-
-        if (response.success && response.data) {
-          if (response.data.promoStrip && response.data.promoStrip.isActive) {
-            const promoStrip = response.data.promoStrip;
-            newHeadingText = promoStrip.heading || newHeadingText;
-            newSaleTextValue = promoStrip.saleText || newSaleTextValue;
-            if (promoStrip.crazyDealsTitle) {
-              setCrazyDealsTitle(promoStrip.crazyDealsTitle);
-            } else {
-              setCrazyDealsTitle("CRAZY DEALS");
-            }
-
-            if (promoStrip.startDate && promoStrip.endDate) {
-              const start = new Date(promoStrip.startDate);
-              const end = new Date(promoStrip.endDate);
-              newDateRange = `${start.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase()} - ${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).toUpperCase()}`;
-            }
-
-            if (promoStrip.categoryCards && promoStrip.categoryCards.length > 0) {
-              fetchedCards = promoStrip.categoryCards
-                .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
-                .map((card: any) => {
-                  const category = typeof card.categoryId === 'object' ? card.categoryId : null;
-                  return {
-                    id: card._id || card.categoryId?._id || card.categoryId,
-                    badge: card.badge || `Up to ${card.discountPercentage || 0}% OFF`,
-                    title: card.title || category?.name || "",
-                    categoryId: category?._id || card.categoryId,
-                    slug: category?.slug || card.categoryId,
-                    imageUrl: category?.image,
-                    bgColor: "bg-yellow-50",
-                  };
-                });
-            }
-          } else if (response.data.promoCards && response.data.promoCards.length > 0) {
-            fetchedCards = response.data.promoCards;
-          } else if (
-            response.data.categories &&
-            response.data.categories.length > 0
-          ) {
-            fetchedCards = response.data.categories
-              .slice(0, 6)
-              .map((c: any) => ({
-                id: c._id || c.id,
-                badge: "Up to 50% OFF",
-                title: c.name,
-                categoryId: c.slug || c._id,
-                slug: c.slug,
-                bgColor: c.color || "bg-yellow-50",
-              }));
-          }
-        }
-
-        setCategoryCards(fetchedCards);
-        setHeadingText(newHeadingText);
-        setSaleTextValue(newSaleTextValue);
-        setDateRange(newDateRange);
-        if (!response.data?.promoStrip || !response.data.promoStrip.isActive) {
-          setCrazyDealsTitle("CRAZY DEALS");
-        }
-        setHasData(fetchedCards.length > 0);
-
-        if (fetchedCards.length > 0) {
-          fetchSubcategoryImages(fetchedCards);
-        }
-      } catch (error) {
-        console.error("Error fetching home content for PromoStrip:", error);
-        setCategoryCards([]);
-        setHasData(false);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, theme.bannerText, theme.saleText, mode]);
-
-  // Card entrance animation
-  useLayoutEffect(() => {
-    if (!hasData) return;
-    const container = containerRef.current;
-    if (!container) return;
-
-    let ctx: gsap.Context | null = null;
-    const timeoutId = setTimeout(() => {
-      ctx = gsap.context(() => {
-        const cards = container.querySelectorAll(".promo-card");
-        if (cards.length > 0) {
-          gsap.fromTo(
-            cards,
-            { y: 20, opacity: 0 },
-            {
-              y: 0,
-              opacity: 1,
-              duration: 0.4,
-              stagger: 0.05,
-              ease: "power2.out",
-            }
-          );
-        }
-      }, container);
-    }, 100);
-
-    return () => {
-      clearTimeout(timeoutId);
-      if (ctx) ctx.revert();
-    };
-  }, [hasData]);
-
-  // Banner text entrance animation
-  useLayoutEffect(() => {
-    const el = bannerTextRef.current;
-    if (!el) return;
-    const timeoutId = setTimeout(() => {
-      gsap.fromTo(
-        el,
-        { scale: 0.9, opacity: 0 },
-        { scale: 1, opacity: 1, duration: 0.55, ease: "back.out(1.6)" }
-      );
-    }, 120);
-    return () => {
-      clearTimeout(timeoutId);
-      gsap.killTweensOf(el);
-    };
-  }, [headingText, saleTextValue]);
-
-  // Helper to extract max discount % from badges for the banner seal
-  const maxDiscount = (() => {
-    let max = 0;
-    for (const card of categoryCards) {
-      const match = (card.badge || "").match(/(\d+)\s*%/);
-      if (match) {
-        const n = parseInt(match[1], 10);
-        if (n > max) max = n;
-      }
+  // ── Category promo cards (Promo Strip → promo cards → categories) ──
+  const categoryCards: PromoCard[] = useMemo(() => {
+    if (promoStrip?.categoryCards?.length) {
+      return [...promoStrip.categoryCards]
+        .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+        .map((card: any) => {
+          const category = typeof card.categoryId === "object" ? card.categoryId : null;
+          return {
+            id: card._id || category?._id || card.categoryId,
+            badge: card.badge || (card.discountPercentage ? `Up to ${card.discountPercentage}% OFF` : ""),
+            title: card.title || category?.name || "",
+            categoryId: category?._id || card.categoryId,
+            slug: category?.slug || card.categoryId,
+            imageUrl: category?.image,
+            translations: card.translations,
+          };
+        });
     }
-    return max > 0 ? max : 55;
-  })();
+    if (homeData?.promoCards?.length) return homeData.promoCards;
+    return [];
+  }, [promoStrip, homeData?.promoCards]);
 
-  const showCrazyDeals = !loading && categoryCards.length > 0;
+  // Promo Strip cards carry only the category — fetch a few sub-category photos for them
+  useEffect(() => {
+    if (!promoStrip?.categoryCards?.length) return;
+    let cancelled = false;
+    (async () => {
+      const map: Record<string, string[]> = {};
+      await Promise.all(
+        categoryCards.slice(0, 4).map(async (card) => {
+          if (!card.categoryId) return;
+          try {
+            const res = await getSubcategories(card.categoryId, { limit: 4 });
+            const imgs = (res?.data || []).map((s: any) => s.subcategoryImage || s.image).filter(Boolean);
+            if (imgs.length) map[card.id] = imgs.slice(0, 4);
+          } catch {
+            /* keep the category image */
+          }
+        })
+      );
+      if (!cancelled) setSubcategoryImagesMap(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [promoStrip, categoryCards]);
+
+  // ── Crazy Deals countdown to the Promo Strip end date ──
+  const promoEndDate = promoStrip?.endDate ? new Date(promoStrip.endDate) : null;
+  useEffect(() => {
+    if (!promoEndDate) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [promoStrip?.endDate]);
+  const remainingMs = promoEndDate ? promoEndDate.getTime() - now : 0;
+  const countdown =
+    remainingMs > 0
+      ? [Math.floor(remainingMs / 3_600_000), Math.floor(remainingMs / 60_000) % 60, Math.floor(remainingMs / 1000) % 60]
+          .map((n) => String(n).padStart(2, "0"))
+          .join(" : ")
+      : null;
+
+  // ── Banner carousel: admin banners for this mode ──
+  const banners: HomeBanner[] = (pageContent?.banners || []).filter((b) => !failedBanners[b._id]);
+  useEffect(() => setSlide(0), [banners.length, homeTheme.quick]);
+  useEffect(() => {
+    if (banners.length < 2) return;
+    const id = setInterval(() => setSlide((s) => (s + 1) % banners.length), 5000);
+    return () => clearInterval(id);
+  }, [banners.length]);
+  const currentBanner = banners[Math.min(slide, banners.length - 1)];
+
+  // Built-in banner, only when this mode has no banner image: Promo Strip heading,
+  // real best discount, department names and real product photos.
+  const bestDiscount = Math.max(
+    0,
+    ...deals.map((p: any) => Number(p.discount) || 0),
+    ...categoryCards.map((c) => Number((c.badge || "").match(/(\d+)\s*%/)?.[1] || 0))
+  );
+  const builtIn = {
+    headline: promoStrip?.heading || pageContent?.fallbackHeadline || appSettings?.appName || "",
+    pill: promoStrip?.saleText || (bestDiscount > 0 ? `${t("home.upTo", "Up to")} ${bestDiscount}% ${t("home.off", "Off")}` : ""),
+    subtitle: departments.length
+      ? [...departments.slice(0, 3).map((d) => getTranslatedField(d, "name") || d.name), t("common.more", "More")].join("  •  ")
+      : "",
+    art: [
+      ...deals.map((p: any) => p.imageUrl || p.mainImage),
+      ...categoryCards.flatMap((c) => subcategoryImagesMap[c.id] || c.subcategoryImages || (c.imageUrl ? [c.imageUrl] : [])),
+    ]
+      .filter(Boolean)
+      .slice(0, 3) as string[],
+  };
+
+  const crazyTitle = promoStrip?.crazyDealsTitle || t("home.crazyDeals", "Crazy Deals");
+  const trustItems = pageContent?.trustItems || [];
+  const offerCards = pageContent?.offerCards || [];
+
+  const promoBackgrounds = [
+    { bg: "linear-gradient(120deg, #FFF4DF 0%, #FFE0B5 100%)", title: "#3A2A12" },
+    { bg: "linear-gradient(120deg, #FFE6EE 0%, #FAC3D4 100%)", title: homeTheme.quick ? "#0B3FB8" : "#B0103F" },
+    { bg: "linear-gradient(120deg, #E6F0FF 0%, #C9DCFF 100%)", title: "#0B3FB8" },
+    { bg: "linear-gradient(120deg, #E8F8EE 0%, #C8EED6 100%)", title: "#11643A" },
+  ];
+
+  const go = (link?: string) => {
+    if (!link) return;
+    if (/^https?:\/\//i.test(link)) window.open(link, "_blank", "noopener");
+    else navigate(link);
+  };
+
+  const pad = "px-3 min-[400px]:px-4 md:px-6 lg:px-8";
 
   return (
-    <div className="bg-[#f7fbff]">
-      {/* ============ HERO BANNER (homebanner.png) ============ */}
-      <div className="px-4 pt-3 md:px-6 md:pt-4">
-        <div
-          className="relative rounded-2xl overflow-hidden shadow-sm select-none"
-          style={{
-            background: "linear-gradient(135deg, #0056FF 0%, #2b7cff 55%, #55a3ff 100%)",
-            minHeight: "150px",
-          }}
-        >
-          {/* Banner image */}
-          {bannerImgOk ? (
-            <img
-              src="/homebanner.png"
-              alt=""
-              aria-hidden="true"
-              className="absolute inset-0 w-full h-full object-cover object-right"
-              loading="eager"
-              decoding="async"
-              onError={() => setBannerImgOk(false)}
-            />
-          ) : null}
-
-          {/* Left-side content overlay */}
+    <div style={{ background: homeTheme.pageBg }}>
+      {/* ============ BANNER ============ */}
+      <div className={`${pad} pt-2.5`}>
+        {currentBanner ? (
           <div
-            ref={bannerTextRef}
-            className="relative z-10 flex flex-col justify-center gap-1 px-4 sm:px-6 py-5 sm:py-7"
-            style={{ maxWidth: "72%" }}
+            className="relative rounded-2xl sm:rounded-3xl overflow-hidden select-none shadow-[0_6px_16px_rgba(0,0,0,0.12)]"
+            style={{ background: homeTheme.bannerBg, aspectRatio: "3 / 1" }}
           >
-            <div className="flex items-center gap-1.5">
-              <svg width="18" height="24" viewBox="0 0 24 30" fill="none" aria-hidden="true">
-                <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" fill="#FFD700" stroke="#FFA500" strokeWidth="0.5" />
-              </svg>
-              <h2
-                className="font-black text-white leading-none"
-                style={{
-                  fontFamily: '"Poppins", sans-serif',
-                  fontSize: "clamp(22px, 6vw, 40px)",
-                  letterSpacing: "1px",
-                  textShadow: "0 2px 6px rgba(0,0,0,0.35)",
-                  fontStyle: "italic",
-                }}
-              >
-                {headingText}
-              </h2>
-            </div>
-            <h3
-              className="font-black leading-none"
-              style={{
-                fontFamily: '"Poppins", sans-serif',
-                fontSize: "clamp(20px, 5.5vw, 36px)",
-                letterSpacing: "1px",
-                color: "#FFE14D",
-                textShadow: "0 2px 6px rgba(0,0,0,0.35)",
-                fontStyle: "italic",
-                marginTop: "-2px",
-              }}
+            <button
+              key={currentBanner._id}
+              type="button"
+              onClick={() => go(currentBanner.link)}
+              aria-label={currentBanner.headline || currentBanner.title || t("home.shopNow", "Shop Now")}
+              className="absolute inset-0 w-full h-full text-left"
             >
-              {saleTextValue}
-            </h3>
-            <p
-              className="text-white/95 font-semibold leading-snug mt-1"
-              style={{ fontSize: "clamp(11px, 2.8vw, 14px)", textShadow: "0 1px 3px rgba(0,0,0,0.3)" }}
-            >
-              {t("home.bannerSubtitle", "Daily essentials at unbeatable prices")}
-            </p>
-
-            {/* Discount seal */}
-            <div className="mt-2 inline-flex">
-              <div
-                className="bg-[#FFD700] text-[#c1121f] font-black rounded-full flex items-center justify-center text-center shadow-md"
-                style={{ width: "72px", height: "72px", lineHeight: 1.05, fontSize: "11px", padding: "6px" }}
-              >
-                <span>
-                  UP TO
-                  <br />
-                  <span style={{ fontSize: "18px" }}>{maxDiscount}%</span>
-                  <br />
-                  OFF
-                </span>
+              <picture>
+                {currentBanner.mobileImage && <source media="(max-width: 640px)" srcSet={currentBanner.mobileImage} />}
+                <img
+                  src={currentBanner.image}
+                  alt={currentBanner.headline || currentBanner.title || ""}
+                  className="absolute inset-0 w-full h-full object-cover object-right"
+                  loading="eager"
+                  decoding="async"
+                  onError={() => setFailedBanners((m) => ({ ...m, [currentBanner._id]: true }))}
+                />
+              </picture>
+              {(currentBanner.headline || currentBanner.subtitle || currentBanner.buttonText) && (
+                <div className="relative z-10 h-full w-[62%] sm:w-[55%] flex flex-col justify-center pl-3 min-[400px]:pl-4 sm:pl-7">
+                  {currentBanner.headline && (
+                    <h2
+                      className="text-white font-bold tracking-tight leading-[1.1] line-clamp-2"
+                      style={{ fontSize: "clamp(16px, 5.4vw, 40px)", textShadow: "0 2px 6px rgba(0,0,0,0.3)" }}
+                    >
+                      {currentBanner.headline}
+                    </h2>
+                  )}
+                  {currentBanner.subtitle && (
+                    <p className="text-white/95 font-semibold mt-1 line-clamp-2" style={{ fontSize: "clamp(9px, 2.8vw, 16px)", textShadow: "0 1px 3px rgba(0,0,0,0.3)" }}>
+                      {currentBanner.subtitle}
+                    </p>
+                  )}
+                  {currentBanner.buttonText && (
+                    <span
+                      className="mt-1.5 self-start inline-flex items-center gap-1 bg-white text-neutral-900 font-bold rounded-full shadow"
+                      style={{ fontSize: "clamp(9px, 2.6vw, 14px)", padding: "clamp(3px, 1vw, 8px) clamp(8px, 2.6vw, 16px)" }}
+                    >
+                      {currentBanner.buttonText}
+                      <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M5 12h14M13 6l6 6-6 6" />
+                      </svg>
+                    </span>
+                  )}
+                </div>
+              )}
+            </button>
+            {banners.length > 1 && (
+              <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20 flex gap-1">
+                {banners.map((b, i) => (
+                  <button
+                    key={b._id}
+                    type="button"
+                    aria-label={`Banner ${i + 1}`}
+                    onClick={() => setSlide(i)}
+                    className={`h-1.5 rounded-full transition-all ${i === slide ? "w-4 bg-white" : "w-1.5 bg-white/50"}`}
+                  />
+                ))}
               </div>
+            )}
+          </div>
+        ) : builtIn.headline ? (
+          <div
+            className="relative rounded-2xl sm:rounded-3xl overflow-hidden select-none shadow-[0_6px_16px_rgba(0,0,0,0.12)]"
+            style={{ background: homeTheme.bannerBg, height: "clamp(118px, 35vw, 250px)" }}
+          >
+            <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(circle at 85% 20%, rgba(255,255,255,0.25) 0%, transparent 35%)" }} />
+            <div className="relative z-10 flex h-full">
+              <div className="flex flex-col justify-center pl-3 min-[400px]:pl-4 sm:pl-7 pr-1 w-[60%] sm:w-[55%]">
+                {appSettings?.appName && (
+                  <span className="text-white/95 font-semibold leading-none" style={{ fontSize: "clamp(10px, 3vw, 18px)" }}>
+                    {appSettings.appName}
+                  </span>
+                )}
+                <h2 className="text-white font-bold tracking-tight leading-[1.1] line-clamp-2 mt-0.5" style={{ fontSize: "clamp(16px, 5.4vw, 40px)", textShadow: "0 2px 6px rgba(0,0,0,0.25)" }}>
+                  {builtIn.headline}
+                </h2>
+                {builtIn.pill && (
+                  <div className="mt-1">
+                    <span className="inline-block bg-[#FFD60A] text-neutral-900 font-bold px-2 py-px rounded shadow" style={{ fontSize: "clamp(10px, 3.4vw, 20px)" }}>
+                      {builtIn.pill}
+                    </span>
+                  </div>
+                )}
+                {builtIn.subtitle && (
+                  <p className="text-white/90 font-medium mt-1 line-clamp-1" style={{ fontSize: "clamp(8px, 2.4vw, 14px)" }}>
+                    {builtIn.subtitle}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => navigate("/categories")}
+                  className="mt-1.5 self-start inline-flex items-center gap-1 bg-white text-neutral-900 font-bold rounded-full shadow active:scale-95 transition-transform"
+                  style={{ fontSize: "clamp(9px, 2.6vw, 14px)", padding: "clamp(3px, 1vw, 8px) clamp(8px, 2.6vw, 16px)" }}
+                >
+                  {t("home.shopNow", "Shop Now")}
+                  <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                </button>
+              </div>
+              {builtIn.art.length > 0 && (
+                <div className="relative flex-1 max-w-[300px] ml-auto">
+                  <div className="absolute bottom-[12%] left-[10%] right-[8%] h-[13%] rounded-[50%] shadow-md" style={{ background: "linear-gradient(180deg, #FFE2A0 0%, #E3A53C 100%)" }} />
+                  {builtIn.art[1] && <img src={builtIn.art[1]} alt="" className="absolute bottom-[20%] left-[6%] w-[36%] aspect-square object-cover rounded-xl bg-white shadow rotate-[-6deg]" />}
+                  {builtIn.art[2] && <img src={builtIn.art[2]} alt="" className="absolute bottom-[20%] right-[4%] w-[34%] aspect-square object-cover rounded-xl bg-white shadow rotate-[6deg]" />}
+                  <img src={builtIn.art[0]} alt="" className="absolute bottom-[18%] left-1/2 -translate-x-1/2 z-10 w-[52%] aspect-square object-cover rounded-xl bg-white shadow-lg ring-2 ring-white/70" />
+                </div>
+              )}
             </div>
           </div>
-
-          {/* Carousel dots (decorative single-slide indicator) */}
-          <div className="absolute bottom-2.5 left-4 z-10 flex gap-1.5" aria-hidden="true">
-            <span className="w-2 h-2 rounded-full bg-white" />
-            <span className="w-2 h-2 rounded-full bg-white/45" />
-            <span className="w-2 h-2 rounded-full bg-white/45" />
-          </div>
-
-          {/* Date range chip if configured */}
-          {dateRange && (
-            <div className="absolute top-2.5 right-3 z-10 bg-white/90 text-neutral-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
-              {dateRange}
-            </div>
-          )}
-        </div>
+        ) : loading ? (
+          <div className="rounded-2xl bg-neutral-100 animate-pulse" style={{ aspectRatio: "3 / 1" }} />
+        ) : null}
       </div>
 
+      {/* ============ TRUST STRIP ============ */}
+      {trustItems.length > 0 && (
+        <div className={`${pad} mt-2.5`}>
+          <div
+            className="bg-white rounded-xl border border-neutral-100 shadow-[0_1px_6px_rgba(0,0,0,0.04)] grid py-1.5 sm:py-2.5"
+            style={{ gridTemplateColumns: `repeat(${trustItems.length}, minmax(0, 1fr))` }}
+          >
+            {trustItems.map((item, i) => {
+              const content = (
+                <>
+                  <span className="text-neutral-800 [&>svg]:w-[18px] [&>svg]:h-[18px] sm:[&>svg]:w-6 sm:[&>svg]:h-6">
+                    {TRUST_ICON_SVGS[item.icon] || TRUST_ICON_SVGS.offers}
+                  </span>
+                  <span className="text-[8.5px] min-[400px]:text-[9.5px] sm:text-xs font-semibold text-neutral-900 text-center leading-[1.15] tracking-tight">
+                    {getTranslatedField(item, "label") || item.label}
+                  </span>
+                </>
+              );
+              const cls = `flex flex-col items-center gap-0.5 px-0.5 ${i < trustItems.length - 1 ? "border-r border-neutral-100" : ""}`;
+              return item.link ? (
+                <button key={item._id} type="button" onClick={() => go(item.link)} className={cls}>
+                  {content}
+                </button>
+              ) : (
+                <div key={item._id} className={cls}>
+                  {content}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ============ OFFER CARDS ============ */}
+      {offerCards.length > 0 && (
+        <div className={`${pad} mt-2 grid gap-2 ${offerCards.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+          {offerCards.map((card) => {
+            const style = OFFER_STYLES[card.style] || OFFER_STYLES.blue;
+            return (
+              <button
+                key={card._id}
+                type="button"
+                onClick={() => go(card.link)}
+                className="text-left rounded-xl px-2 py-1.5 sm:px-3 sm:py-2 flex items-center gap-1.5 border active:scale-[0.98] transition-transform"
+                style={{ background: style.bg, borderColor: style.border }}
+              >
+                <span className="flex-shrink-0 w-4 h-4 sm:w-5 sm:h-5 [&>svg]:w-full [&>svg]:h-full" style={{ color: style.icon }}>
+                  {OFFER_ICON_SVGS[card.icon] || OFFER_ICON_SVGS.tag}
+                </span>
+                <div className="flex-1 min-w-0 leading-tight">
+                  <p className="font-bold tracking-tight text-[10.5px] min-[400px]:text-xs sm:text-sm truncate" style={{ color: style.title }}>
+                    {getTranslatedField(card, "title") || card.title}
+                  </p>
+                  {card.text && (
+                    <p className="text-[8.5px] min-[400px]:text-[9.5px] sm:text-xs text-neutral-700 font-medium truncate">
+                      {getTranslatedField(card, "text") || card.text}
+                    </p>
+                  )}
+                </div>
+                <svg className="flex-shrink-0 w-3 h-3 sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="none" stroke="#1f2937" strokeWidth="2.6" strokeLinecap="round">
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* ============ CRAZY DEALS ============ */}
-      <div className="px-4 mt-4 md:px-6 lg:px-8">
-        <div ref={containerRef} className="bg-white rounded-2xl shadow-sm border border-neutral-100 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="flex items-center gap-1.5 text-lg md:text-xl font-black text-neutral-900 tracking-tight">
-              <span aria-hidden="true">🔥</span>
-              {getTranslatedField({ title: crazyDealsTitle }, "title") || crazyDealsTitle}
-            </h2>
-            <button
-              type="button"
-              onClick={() => navigate("/categories")}
-              className="flex items-center gap-1 text-primary font-bold text-sm hover:underline"
-            >
+      {deals.length > 0 && (
+        <div className="mt-4">
+          <div className={`flex items-center justify-between gap-2 ${pad} mb-2`}>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-base sm:text-xl leading-none" aria-hidden="true">🔥</span>
+              <h2 className="text-[16px] sm:text-xl font-bold tracking-tight text-neutral-900 whitespace-nowrap">
+                {getTranslatedField({ title: crazyTitle, translations: promoStrip?.translations }, "title") || crazyTitle}
+              </h2>
+              {countdown && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] min-[400px]:text-[10px] sm:text-xs font-semibold whitespace-nowrap"
+                  style={{ background: homeTheme.tint, color: homeTheme.brand }}
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                    <circle cx="12" cy="13" r="8" />
+                    <path d="M12 9v4l2.5 1.5M9 2h6" />
+                  </svg>
+                  {t("home.endsIn", "Ends in")} <b>{countdown}</b>
+                </span>
+              )}
+            </div>
+            <button type="button" onClick={() => navigate("/categories")} className="flex-shrink-0 flex items-center text-[#0056FF] font-semibold text-xs sm:text-sm">
               {t("common.viewAll", "View All")}
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 12h14M13 6l6 6-6 6" />
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                <path d="M9 6l6 6-6 6" />
               </svg>
             </button>
           </div>
-
-          {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 md:gap-4">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="rounded-xl h-32 bg-neutral-100 animate-pulse" />
-              ))}
-            </div>
-          ) : showCrazyDeals ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 md:gap-4">
-              {categoryCards.map((card, index) => {
-                const subcategoryImages = subcategoryImagesMap[card.id] || card.subcategoryImages || [];
-                const hasSubcategoryImages = subcategoryImages.length > 0;
-                const categoryIcons = getCategoryIcons(card.slug || card.categoryId || "", card.title || "");
-                const bg = DEAL_BG_COLORS[index % DEAL_BG_COLORS.length];
-
-                return (
-                  <Link
-                    key={card.id}
-                    to={card.slug || card.categoryId ? `/category/${card.slug || card.categoryId}` : "#"}
-                    className="promo-card group relative rounded-xl overflow-hidden flex flex-col min-h-[140px] transition-shadow hover:shadow-md active:scale-[0.98]"
-                    style={{ background: bg }}
-                  >
-                    {/* Orange discount badge */}
-                    <div className="px-2.5 pt-2.5">
-                      <span className="inline-block bg-[#ff5b2e] text-white text-[10px] sm:text-[11px] font-black px-2 py-0.5 rounded-md shadow-sm">
-                        {card.badge}
-                      </span>
-                    </div>
-
-                    {/* Title */}
-                    <div className="px-2.5 mt-1.5">
-                      <span className="text-[13px] sm:text-sm font-extrabold text-neutral-900 leading-tight line-clamp-2">
-                        {getTranslatedField(card, "title") || card.title}
-                      </span>
-                    </div>
-
-                    {/* Product image collage + arrow */}
-                    <div className="relative mt-auto px-2.5 pb-2.5 pt-2">
-                      {hasSubcategoryImages ? (
-                        <div className="flex gap-1.5 h-[88px] sm:h-28 md:h-32">
-                          {subcategoryImages.slice(0, 3).map((imageUrl, idx, shown) => (
-                            <div
-                              key={idx}
-                              className={`relative h-full overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-white ${shown.length === 1 ? "flex-1" : "flex-1 min-w-0"}`}
-                            >
-                              <img
-                                src={imageUrl}
-                                alt=""
-                                className="absolute inset-0 w-full h-full object-cover"
-                                loading="lazy"
-                                decoding="async"
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).style.visibility = "hidden";
-                                }}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="flex items-end justify-end h-[76px] sm:h-24 md:h-28">
-                          <span className="text-3xl opacity-70" aria-hidden="true">
-                            {categoryIcons[0] || "✨"}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Blue circular arrow overlapping the collage */}
-                      <div className="absolute bottom-3.5 right-3.5 z-40 w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M5 12h14M13 6l6 6-6 6" />
-                        </svg>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-neutral-400 text-sm text-center py-4">
-              {t("home.noPromotions", "No active promotions")}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* ============ FEATURES STRIP ============ */}
-      <div className="px-4 mt-3 md:px-6 lg:px-8">
-        <div className="bg-white rounded-2xl shadow-sm border border-neutral-100 px-2 py-3.5">
-          <div className="grid grid-cols-4">
-            <FeatureItem
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="9" cy="9" r="2" />
-                  <circle cx="15" cy="15" r="2" />
-                  <path d="M19 5L5 19" />
-                </svg>
-              }
-              label={t("home.featureOffers", "Special Offers")}
-            />
-            <FeatureItem
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="9" />
-                  <path d="M12 7v5l3 2" />
-                </svg>
-              }
-              label={t("home.featureDelivery", "12–15 Mins Delivery")}
-            />
-            <FeatureItem
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                  <path d="M9 12l2 2 4-4" />
-                </svg>
-              }
-              label={t("home.featureQuality", "Best Quality")}
-            />
-            <FeatureItem
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="2" y="5" width="20" height="14" rx="2" />
-                  <path d="M2 10h20" />
-                </svg>
-              }
-              label={t("home.featurePayments", "Safe & Easy Payments")}
-              isLast
-            />
+          <div className={`flex gap-1.5 min-[400px]:gap-2 overflow-x-auto scrollbar-hide ${pad} pb-1 snap-x`}>
+            {deals.map((product: any) => (
+              <div key={product.id || product._id} className="snap-start flex-shrink-0 w-[30%] min-[360px]:w-[23.5%] md:w-[18%] lg:w-[14%]">
+                <DealCard product={product} theme={homeTheme} />
+              </div>
+            ))}
           </div>
         </div>
-      </div>
-    </div>
-  );
-}
+      )}
 
-function FeatureItem({
-  icon,
-  label,
-  isLast,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  isLast?: boolean;
-}) {
-  return (
-    <div
-      className={`flex flex-col items-center gap-1.5 px-1 ${
-        isLast ? "" : "border-r border-neutral-100"
-      }`}
-    >
-      <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-        {icon}
-      </div>
-      <span className="text-[10px] sm:text-[11px] font-bold text-neutral-700 text-center leading-tight">
-        {label}
-      </span>
+      {/* ============ CATEGORY PROMO BANNERS ============ */}
+      {categoryCards.length > 0 && (
+        <div className={`${pad} mt-4 grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3`}>
+          {categoryCards.slice(0, 4).map((card, index) => {
+            const imgs = subcategoryImagesMap[card.id] || card.subcategoryImages || [];
+            const art = imgs[0] || card.imageUrl;
+            const style = promoBackgrounds[index % promoBackgrounds.length];
+            return (
+              <Link
+                key={card.id}
+                to={card.slug || card.categoryId ? `/category/${card.slug || card.categoryId}` : "/categories"}
+                className={`relative rounded-xl overflow-hidden ${index >= 2 ? "hidden lg:block" : "block"} active:scale-[0.98] transition-transform`}
+                style={{ background: style.bg, height: "clamp(64px, 18vw, 150px)" }}
+              >
+                {art ? (
+                  <img
+                    src={art}
+                    alt=""
+                    loading="lazy"
+                    className="absolute right-0 top-0 h-full w-[42%] object-cover"
+                    style={{ maskImage: "linear-gradient(to right, transparent 0%, #000 35%)", WebkitMaskImage: "linear-gradient(to right, transparent 0%, #000 35%)" }}
+                  />
+                ) : (
+                  <span className="absolute right-2 bottom-1 text-3xl opacity-80" aria-hidden="true">{categoryEmoji(card.title)}</span>
+                )}
+                <div className="relative z-10 h-full w-[64%] flex flex-col justify-center gap-0.5 sm:gap-1.5 pl-2 min-[400px]:pl-2.5 sm:pl-4">
+                  <h3 className="font-bold tracking-tight leading-tight line-clamp-1 sm:line-clamp-2" style={{ color: style.title, fontSize: "clamp(11px, 3.3vw, 22px)" }}>
+                    {getTranslatedField(card, "title") || card.title}
+                  </h3>
+                  {card.badge && (
+                    <span className="self-start bg-[#FFD60A] text-neutral-900 font-bold px-1.5 rounded-sm whitespace-nowrap" style={{ fontSize: "clamp(7.5px, 2.2vw, 13px)" }}>
+                      {card.badge}
+                    </span>
+                  )}
+                  <span
+                    className="mt-0.5 self-start inline-flex items-center gap-0.5 bg-white text-neutral-900 font-semibold rounded-full shadow-sm whitespace-nowrap"
+                    style={{ fontSize: "clamp(7.5px, 2.1vw, 12px)", padding: "clamp(1px, 0.5vw, 4px) clamp(5px, 1.6vw, 10px)" }}
+                  >
+                    {t("home.shopNow", "Shop Now")}
+                    <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round">
+                      <path d="M5 12h14M13 6l6 6-6 6" />
+                    </svg>
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

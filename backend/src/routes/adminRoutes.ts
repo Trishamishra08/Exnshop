@@ -88,6 +88,9 @@ import * as bestsellerCardController from "../modules/admin/controllers/adminBes
 // Lowest Prices Controllers
 import * as lowestPricesController from "../modules/admin/controllers/adminLowestPricesController";
 
+// Home Page Content (banners, trust strip, offer cards, home section titles)
+import * as homePageContentController from "../modules/admin/controllers/adminHomePageContentController";
+
 // PromoStrip Controllers
 import * as promoStripController from "../modules/admin/controllers/adminPromoStripController";
 
@@ -412,6 +415,10 @@ router.get("/system-users/:id", systemUserController.getSystemUserById);
 router.post("/system-users", systemUserController.createSystemUser);
 router.put("/system-users/:id", systemUserController.updateSystemUser);
 router.delete("/system-users/:id", systemUserController.deleteSystemUser);
+
+// ==================== Home Page Content Routes ====================
+router.get("/home-page-content", homePageContentController.getHomePageContent);
+router.put("/home-page-content", homePageContentController.updateHomePageContent);
 
 // ==================== Home Section Routes ====================
 router.get("/home-sections", homeSectionController.getHomeSections);
