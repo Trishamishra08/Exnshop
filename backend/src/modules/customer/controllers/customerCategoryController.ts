@@ -6,9 +6,12 @@ import mongoose from "mongoose";
 import { cache } from "../../../utils/cache";
 
 // Get all categories (public) - with caching
-export const getCategories = async (_req: Request, res: Response) => {
+export const getCategories = async (req: Request, res: Response) => {
   try {
-    const cacheKey = "customer-categories-list-v4";
+    // ?withChildren=true also returns sub-categories (with parentId), for the
+    // side-rail Categories page that shows department → group → tiles.
+    const withChildren = req.query.withChildren === "true";
+    const cacheKey = withChildren ? "customer-category-list-with-children" : "customer-categories-list-v4";
 
     // Try cache first
     let categories = cache.get(cacheKey);
@@ -16,10 +19,10 @@ export const getCategories = async (_req: Request, res: Response) => {
     if (!categories) {
       categories = await Category.find({
         status: "Active", // Only return active categories
-        $or: [{ parentId: null }, { parentId: { $exists: false } }],
+        ...(withChildren ? {} : { $or: [{ parentId: null }, { parentId: { $exists: false } }] }),
       })
         .sort({ order: 1 })
-        .select("name image icon description color slug _id headerCategoryId order isBestseller translations")
+        .select("name image icon description color slug _id headerCategoryId parentId order isBestseller translations")
         .lean(); // Use lean() for better performance
 
       // Cache for 10 minutes

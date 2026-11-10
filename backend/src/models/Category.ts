@@ -33,7 +33,6 @@ const CategorySchema = new Schema<ICategory>(
       type: String,
       required: [true, "Category name is required"],
       trim: true,
-      unique: true,
     },
     slug: {
       type: String,
@@ -103,6 +102,10 @@ const CategorySchema = new Schema<ICategory>(
   }
 );
 
+// The same name may repeat under different parents (e.g. "Bottom Wear" under both
+// Women's and Men's Fashion), but never twice under the same parent.
+CategorySchema.index({ headerCategoryId: 1, parentId: 1, name: 1 }, { unique: true });
+
 // Index for faster queries
 CategorySchema.index({ order: 1 });
 CategorySchema.index({ parentId: 1 });
@@ -134,10 +137,21 @@ CategorySchema.set("toObject", { virtuals: true });
 // Pre-save middleware to auto-generate slug if not provided
 CategorySchema.pre("save", async function (next) {
   if (!this.slug && this.name) {
-    this.slug = this.name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "");
+    const slugify = (s: string) =>
+      s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    const CategoryModel = this.constructor as Model<ICategory>;
+    const taken = (s: string) => CategoryModel.exists({ slug: s, _id: { $ne: this._id } });
+
+    // Names repeat across branches, so on a clash prefix the parent's slug
+    // ("womens-bottom-wear-trackpants"), then fall back to a counter.
+    let slug = slugify(this.name);
+    if (await taken(slug)) {
+      const parent = this.parentId ? await CategoryModel.findById(this.parentId).select("slug").lean() : null;
+      if (parent?.slug) slug = `${parent.slug}-${slugify(this.name)}`;
+      const base = slug;
+      for (let n = 2; await taken(slug); n++) slug = `${base}-${n}`;
+    }
+    this.slug = slug;
   }
   next();
 });

@@ -53,6 +53,15 @@ export const createCategory = asyncHandler(
       });
     }
 
+    // Departments (header categories) use an icon; every category and
+    // sub-category under them needs an image for its tile.
+    if (!image || !String(image).trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Category image is required",
+      });
+    }
+
     if (taxId) {
       const tax = await Tax.findById(taxId);
       if (!tax) {
@@ -278,6 +287,14 @@ export const updateCategory = asyncHandler(
       return res.status(404).json({
         success: false,
         message: "Category not found",
+      });
+    }
+
+    // An image can be replaced but not removed (see createCategory).
+    if (updateData.image !== undefined && !String(updateData.image || "").trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Category image is required",
       });
     }
 

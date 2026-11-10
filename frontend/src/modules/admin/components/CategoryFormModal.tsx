@@ -8,7 +8,7 @@ import { uploadImage } from "../../../services/api/uploadService";
 import {
   validateImageFile,
   createImagePreview,
-  compressImage,
+  cropToSquare,
 } from "../../../utils/imageUpload";
 import {
   getAvailableParents,
@@ -310,6 +310,11 @@ export default function CategoryFormModal({
       newErrors.order = "Display order must be a positive number";
     }
 
+    // Header categories use an icon; every category / sub-category needs an image.
+    if (!imageFile && !formData.image) {
+      newErrors.image = "Category image is required";
+    }
+
     // Validate header category (required for root categories, inherited for subcategories)
     if (isSubcategoryMode) {
       // For subcategories, header category should be inherited from parent
@@ -373,8 +378,8 @@ export default function CategoryFormModal({
       // Upload image if a new file is selected
       if (imageFile) {
         setUploading(true);
-        // Compress image before upload
-        const compressedFile = await compressImage(imageFile);
+        // Square-crop (600 px) so every category tile has the same compact shape
+        const compressedFile = await cropToSquare(imageFile);
         const imageResult = await uploadImage(compressedFile, "exnshop/categories");
         imageUrl = imageResult.secureUrl;
         setUploading(false);
@@ -619,7 +624,7 @@ export default function CategoryFormModal({
           {/* Category Image */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-neutral-700 mb-2">
-              Category Image
+              Category Image <span className="text-red-500">*</span>
             </label>
             <label
               className={`block border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${isDragging
@@ -632,11 +637,13 @@ export default function CategoryFormModal({
               onDrop={handleDrop}>
               {imagePreview ? (
                 <div className="space-y-2">
+                  {/* Same square, rounded tile the customer Categories page shows */}
                   <img
                     src={imagePreview}
                     alt="Category preview"
-                    className="max-h-32 mx-auto rounded-lg object-cover"
+                    className="w-28 h-28 mx-auto rounded-2xl object-cover bg-slate-100"
                   />
+                  <p className="text-[11px] text-neutral-500">Preview of the tile — cropped to a square on save</p>
                   <p className="text-xs text-neutral-600">
                     {imageFile?.name || "Current image"}
                   </p>
@@ -669,7 +676,9 @@ export default function CategoryFormModal({
                   <p className="text-xs text-neutral-600">
                     {isDragging ? "Drop image here" : "Choose File or Drag & Drop"}
                   </p>
-                  <p className="text-xs text-neutral-500 mt-1">Max 50MB</p>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    Square photo works best — one product on a plain background. Auto-cropped to square.
+                  </p>
                 </div>
               )}
               <input

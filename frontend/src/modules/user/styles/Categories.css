@@ -8,7 +8,7 @@
   min-height: 100%;
   background: #ffffff;
   font-family: inherit;
-  overflow-x: hidden;
+  overflow-x: clip; /* clip, not hidden: hidden would break the sticky side rail */
   position: relative;
 }
 

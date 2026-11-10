@@ -1,7 +1,6 @@
 import Admin from '../models/Admin';
 import Seller from '../models/Seller';
 import Delivery from '../models/Delivery';
-import Customer from '../models/Customer';
 import bcrypt from 'bcrypt';
 
 export async function ensurePanelUsers(): Promise<void> {
@@ -76,20 +75,8 @@ export async function ensurePanelUsers(): Promise<void> {
       console.log("✓ Default Delivery Partner ensured: 8839044030");
     }
 
-    // 4. Ensure Customer (8839044030)
-    const existingCustomer = await Customer.findOne({ phone: "8839044030" });
-    if (!existingCustomer) {
-      await Customer.create({
-        name: "Exnshop Customer",
-        phone: "8839044030",
-        email: "user@exnshop.io",
-        status: "Active",
-        walletAmount: 100,
-        totalOrders: 0,
-        totalSpent: 0,
-      });
-      console.log("✓ Default Customer ensured: 8839044030");
-    }
+    // No default customer: customers sign up themselves (email OTP → mobile),
+    // and a pre-created one would block that mobile number from signing up.
   } catch (error: any) {
     console.error("Warning: Error in ensurePanelUsers:", error.message);
   }

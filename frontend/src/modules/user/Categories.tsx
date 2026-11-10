@@ -1,24 +1,68 @@
-import { useEffect, useState, useMemo, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useLayoutEffect, useState, useMemo, useRef } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { getHeaderCategoriesPublic, HeaderCategory } from "../../services/api/headerCategoryService";
-import { getCategories, Category as ApiCategory } from "../../services/api/customerProductService";
+import { getCategoriesWithChildren, Category as ApiCategory } from "../../services/api/customerProductService";
 import { getIconByName } from "../../utils/iconLibrary";
+import { categoryEmoji } from "../../utils/categoryEmoji";
 import { useTranslation } from "../../hooks/useTranslation";
 import { useLocation } from "../../hooks/useLocation";
 import { useAppSettings } from "../../context/AppSettingsContext";
 import { appConfig } from "../../services/configService";
-import { motion, AnimatePresence } from "framer-motion";
 import "./styles/Categories.css";
 
-interface GroupedCategory extends HeaderCategory {
-  categories: ApiCategory[];
+/**
+ * Categories page, marketplace style:
+ *   left rail  = departments (header categories)
+ *   right pane = the selected department's groups, each with a grid of
+ *                sub-category tiles.
+ */
+
+interface Group extends ApiCategory {
+  children: ApiCategory[];
 }
 
-// Soft pastel backgrounds cycling through category sections (matches mockup)
-const SECTION_BG_COLORS = ["#e9f9ee", "#fff7e8", "#eaf3ff", "#fdeef1", "#f3ecff"];
+interface Department extends HeaderCategory {
+  groups: Group[];
+}
+
+const idOf = (v: any): string => (v && typeof v === "object" ? v._id : v)?.toString() || "";
+
+/** Square tile: the admin's image when there is one, otherwise a fitting emoji. */
+function Tile({ category, label, onClick }: { category: ApiCategory; label: string; onClick: () => void }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const showImage = Boolean(category.image) && !imgFailed;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex flex-col items-center text-center cursor-pointer select-none active:scale-95 transition-transform"
+    >
+      <div className="w-full aspect-square rounded-2xl bg-slate-100/80 overflow-hidden flex items-center justify-center group-hover:bg-slate-100 transition-colors">
+        {showImage ? (
+          <img
+            src={category.image}
+            alt={label}
+            loading="lazy"
+            onError={() => setImgFailed(true)}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <span className="text-[28px] sm:text-[34px] leading-none" aria-hidden="true">
+            {category.icon || categoryEmoji(category.name)}
+          </span>
+        )}
+      </div>
+      <span className="mt-1.5 text-[11px] sm:text-xs font-medium text-slate-800 leading-tight line-clamp-2 break-words w-full group-hover:text-primary">
+        {label}
+      </span>
+    </button>
+  );
+}
 
 export default function Categories() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { t, getTranslatedField } = useTranslation();
   const { location: userLocation } = useLocation();
   const { settings: appSettings } = useAppSettings();
@@ -40,29 +84,42 @@ export default function Categories() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   const [headerCategories, setHeaderCategories] = useState<HeaderCategory[]>([]);
   const [allCategories, setAllCategories] = useState<ApiCategory[]>([]);
-
-  // Search and Tab Filter States
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<string>("all");
 
-  const tabsContainerRef = useRef<HTMLDivElement>(null);
-  const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
+  const contentRef = useRef<HTMLDivElement>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
+  const railRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
 
-  // Fetch all categories and published header categories in parallel
+  // The rail + content area fills the rest of the screen, and each column
+  // scrolls on its own, so the rail never moves while the tiles scroll.
+  // (CSS sticky can't do this here: the app layout wraps pages in overflow
+  // containers, which disables sticky.)
+  const [paneHeight, setPaneHeight] = useState<number>();
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = contentRef.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top + window.scrollY;
+      setPaneHeight(Math.max(320, window.innerHeight - top - 16));
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [loading]);
+
+  const nameOf = (c: any) => getTranslatedField(c, "name") || c.name;
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
-
         const [headers, catRes] = await Promise.all([
           getHeaderCategoriesPublic(true),
-          getCategories(false, true), // Flat list of categories
+          getCategoriesWithChildren(),
         ]);
-
         setHeaderCategories(headers || []);
         setAllCategories(catRes?.data || []);
       } catch (err) {
@@ -72,50 +129,35 @@ export default function Categories() {
         setLoading(false);
       }
     };
-
     fetchData();
   }, []);
 
-  // Dynamically group categories by Header Category ID
-  const allGroups = useMemo<GroupedCategory[]>(() => {
-    if (!allCategories.length) return [];
+  // department → groups (root categories) → tiles (child categories)
+  const departments = useMemo<Department[]>(() => {
+    const byOrder = (a: ApiCategory, b: ApiCategory) => (a.order || 0) - (b.order || 0);
+    const childrenOf = new Map<string, ApiCategory[]>();
+    allCategories.forEach((c) => {
+      const p = idOf(c.parentId);
+      if (p) childrenOf.set(p, [...(childrenOf.get(p) || []), c]);
+    });
+    const roots = allCategories.filter((c) => !idOf(c.parentId)).sort(byOrder);
 
-    const groups: GroupedCategory[] = headerCategories
+    const depts: Department[] = headerCategories
       .filter((h) => h.status === "Published" && h.slug !== "all")
       .sort((a, b) => (a.order || 0) - (b.order || 0))
-      .map((header) => {
-        const matchingCategories = allCategories.filter((cat) => {
-          // Only show top-level categories (no parentId) under headers
-          if (cat.parentId) return false;
+      .map((h) => ({
+        ...h,
+        groups: roots
+          .filter((r) => idOf(r.headerCategoryId) === h._id.toString())
+          .map((r) => ({ ...r, children: (childrenOf.get(r._id) || []).sort(byOrder) })),
+      }))
+      .filter((d) => d.groups.length > 0);
 
-          // headerCategoryId might be an object or a string
-          const headerId =
-            typeof cat.headerCategoryId === "object"
-              ? cat.headerCategoryId?._id
-              : cat.headerCategoryId;
-
-          return headerId?.toString() === header._id.toString();
-        });
-
-        return {
-          ...header,
-          categories: matchingCategories.sort(
-            (a, b) => (a.order || 0) - (b.order || 0)
-          ),
-        };
-      })
-      .filter((group) => group.categories.length > 0);
-
-    // Fallback: collect any root categories that weren't mapped to a header category
-    const matchedCategoryIds = new Set(
-      groups.flatMap((group) => group.categories.map((c) => c._id))
-    );
-    const unmappedCategories = allCategories.filter(
-      (cat) => !cat.parentId && !matchedCategoryIds.has(cat._id)
-    );
-
-    if (unmappedCategories.length > 0) {
-      groups.push({
+    // Root categories not linked to any published department
+    const placed = new Set(depts.flatMap((d) => d.groups.map((g) => g._id)));
+    const orphans = roots.filter((r) => !placed.has(r._id));
+    if (orphans.length) {
+      depts.push({
         _id: "other-categories",
         name: t("common.otherCategories", "Other Categories"),
         slug: "other",
@@ -123,126 +165,108 @@ export default function Categories() {
         iconLibrary: "Custom",
         status: "Published",
         order: 9999,
-        categories: unmappedCategories.sort(
-          (a, b) => (a.order || 0) - (b.order || 0)
-        ),
-      } as GroupedCategory);
+        groups: orphans.map((r) => ({ ...r, children: (childrenOf.get(r._id) || []).sort(byOrder) })),
+      } as Department);
     }
-
-    return groups;
+    return depts;
   }, [headerCategories, allCategories, t]);
 
-  // Filter groups based on selected Tab and Client-Side Search Query
-  const filteredGroups = useMemo(() => {
-    let groups = allGroups;
+  // Selected department lives in the URL (?dept=slug) so Back returns to it.
+  const deptParam = searchParams.get("dept");
+  const activeDept = useMemo(
+    () => departments.find((d) => d.slug === deptParam || d._id === deptParam) || departments[0],
+    [departments, deptParam]
+  );
 
-    // Filter by active Header Category tab if not "all"
-    if (activeTab !== "all") {
-      groups = groups.filter(
-        (g) => g._id === activeTab || g.slug === activeTab
-      );
-    }
-
-    // Filter by search query if text is present
-    const query = searchQuery.trim().toLowerCase();
-    if (query) {
-      groups = groups
-        .map((group) => {
-          const matchingCats = group.categories.filter((cat) => {
-            const name = (
-              getTranslatedField(cat, "name") ||
-              cat.name ||
-              ""
-            ).toLowerCase();
-            const desc = (cat.description || "").toLowerCase();
-            return name.includes(query) || desc.includes(query);
-          });
-
-          return {
-            ...group,
-            categories: matchingCats,
-          };
-        })
-        .filter((group) => group.categories.length > 0);
-    }
-
-    return groups;
-  }, [allGroups, activeTab, searchQuery, getTranslatedField]);
-
-  // Total matching categories across visible groups
-  const totalMatchingCategoriesCount = useMemo(() => {
-    return filteredGroups.reduce((acc, g) => acc + g.categories.length, 0);
-  }, [filteredGroups]);
-
-  // Handle Tab Click and Auto-scroll tab into view
-  const handleTabClick = (tabId: string) => {
-    setActiveTab(tabId);
-    const tabEl = tabRefs.current.get(tabId);
-    if (tabEl && tabsContainerRef.current) {
-      tabEl.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-        inline: "center",
-      });
-    }
-  };
-
-  // Clear search input
-  const handleClearSearch = () => {
+  const selectDept = (d: Department) => {
     setSearchQuery("");
+    setSearchParams({ dept: d.slug || d._id }, { replace: true });
+    railRefs.current.get(d._id)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    paneRef.current?.scrollTo({ top: 0 });
   };
 
-  // 1. Loading Skeleton State
+  useEffect(() => {
+    paneRef.current?.scrollTo({ top: 0 });
+  }, [searchQuery]);
+
+  // Search runs across every department; a matching group shows all its tiles.
+  const query = searchQuery.trim().toLowerCase();
+  const searchResults = useMemo(() => {
+    if (!query) return [];
+    const hit = (c: any) => nameOf(c).toLowerCase().includes(query);
+    return departments
+      .map((d) => ({
+        ...d,
+        groups: d.groups
+          .map((g) => (hit(g) ? g : { ...g, children: g.children.filter(hit) }))
+          .filter((g) => hit(g) || g.children.length > 0),
+      }))
+      .filter((d) => d.groups.length > 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [departments, query]);
+
+  const openCategory = (c: ApiCategory) => navigate(`/category/${c.slug || c._id}`);
+
+  const renderGroups = (groups: Group[]) =>
+    groups.map((group) => {
+      // A group without sub-categories is shown as a single tile of itself.
+      const tiles = group.children.length ? group.children : [group];
+      return (
+        <section key={group._id} className="mb-6">
+          <div className="flex items-center justify-between gap-2 mb-2.5">
+            <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-tight">{nameOf(group)}</h3>
+            <button
+              type="button"
+              onClick={() => openCategory(group)}
+              className="flex-shrink-0 text-[11px] sm:text-xs font-semibold text-primary hover:underline cursor-pointer"
+            >
+              {t("common.seeAll", "See all")}
+            </button>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-x-2.5 gap-y-3.5">
+            {tiles.map((c) => (
+              <Tile key={c._id} category={c} label={nameOf(c)} onClick={() => openCategory(c)} />
+            ))}
+          </div>
+        </section>
+      );
+    });
+
+  // 1. Loading skeleton
   if (loading) {
     return (
       <div className="categories-container font-sans bg-white min-h-screen">
-        {/* Skeleton Header */}
-        <div className="px-4 pt-4 pb-3 border-b border-slate-100 bg-white">
-          <div className="w-32 h-7 rounded-lg skeleton-shimmer mb-1.5" />
-          <div className="w-48 h-3.5 rounded-md skeleton-shimmer mb-3" />
+        <div className="px-4 pt-4 pb-3 border-b border-slate-100">
+          <div className="w-32 h-7 rounded-lg skeleton-shimmer mb-3" />
           <div className="w-full h-10 rounded-xl skeleton-shimmer" />
         </div>
-
-        {/* Skeleton Tabs */}
-        <div className="px-4 py-2.5 flex items-center gap-2 overflow-x-hidden border-b border-slate-100 bg-white">
-          {[80, 100, 120, 110, 95].map((w, i) => (
-            <div
-              key={i}
-              style={{ width: `${w}px` }}
-              className="h-9 rounded-full skeleton-shimmer flex-shrink-0"
-            />
-          ))}
-        </div>
-
-        {/* Skeleton Section & Cards */}
-        <div className="p-4 space-y-6">
-          {[1, 2].map((s) => (
-            <div key={s} className="space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-lg skeleton-shimmer" />
-                  <div className="w-28 h-5 rounded-md skeleton-shimmer" />
-                  <div className="w-20 h-4 rounded-full skeleton-shimmer" />
+        <div className="flex">
+          <div className="w-[84px] sm:w-[104px] flex-shrink-0 bg-slate-50 py-3 space-y-4 flex flex-col items-center">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="flex flex-col items-center gap-1.5">
+                <div className="w-12 h-12 rounded-full skeleton-shimmer" />
+                <div className="w-14 h-3 rounded skeleton-shimmer" />
+              </div>
+            ))}
+          </div>
+          <div className="flex-1 p-3">
+            <div className="w-28 h-4 rounded skeleton-shimmer mb-3" />
+            <div className="grid grid-cols-3 gap-2.5">
+              {Array.from({ length: 9 }).map((_, i) => (
+                <div key={i}>
+                  <div className="aspect-square rounded-2xl skeleton-shimmer" />
+                  <div className="w-3/4 h-3 rounded skeleton-shimmer mx-auto mt-1.5" />
                 </div>
-                <div className="w-16 h-4 rounded-md skeleton-shimmer" />
-              </div>
-              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2 sm:gap-3 category-mobile-grid">
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((c) => (
-                  <div key={c} className="flex flex-col items-center">
-                    <div className="aspect-square w-full rounded-2xl skeleton-shimmer mb-1.5" />
-                    <div className="w-3/4 h-4 rounded-md bg-slate-200/80 mx-auto" />
-                  </div>
-                ))}
-              </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
       </div>
     );
   }
 
-  // 2. Error State
-  if (error && !allGroups.length) {
+  // 2. Error state
+  if (error && !departments.length) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center bg-white">
         <div className="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mb-4 border border-red-100 shadow-sm">
@@ -264,7 +288,7 @@ export default function Categories() {
 
   return (
     <div className="categories-container font-sans">
-      {/* 0. Delivery / Address Banner (matches Home hero, dynamic location + ETA) */}
+      {/* Delivery / address banner */}
       <div
         className="px-4 pt-3 pb-6 flex flex-col gap-1.5"
         style={{ background: "linear-gradient(to bottom, #b3d4ff 0%, #d6e8ff 70%, transparent 100%)" }}
@@ -277,36 +301,23 @@ export default function Categories() {
             {t("customer.deliveringInShort", "Delivering in")} {cleanDeliveryTime}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={openLocationModal}
-          className="flex items-center gap-1.5 max-w-full cursor-pointer group text-left"
-        >
+        <button type="button" onClick={openLocationModal} className="flex items-center gap-1.5 max-w-full cursor-pointer group text-left">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 text-blue-700">
             <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             <circle cx="12" cy="9" r="2.5" stroke="currentColor" strokeWidth="2" />
           </svg>
-          <span className="font-semibold text-neutral-900 text-sm truncate group-hover:text-blue-700 transition-colors">
-            {addressLabel}
-          </span>
+          <span className="font-semibold text-neutral-900 text-sm truncate group-hover:text-blue-700 transition-colors">{addressLabel}</span>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 text-neutral-700">
             <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
       </div>
 
-      {/* 1. Page Header: Title + Subtitle + Search Field */}
-      <div className="bg-white px-4 pt-4 pb-3 -mt-4 rounded-t-3xl relative z-10 border-b border-slate-100/90 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
-        <div className="flex flex-col mb-3">
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight">
-            {t("common.categories", "Categories")}
-          </h1>
-          <p className="text-slate-500 font-medium text-xs mt-0.5">
-            {t("customer.discoverProductsByCategory", "Explore products by category")}
-          </p>
-        </div>
-
-        {/* Search Bar */}
+      {/* Title + search */}
+      <div className="bg-white px-4 pt-4 pb-3 -mt-4 rounded-t-3xl relative z-10 border-b border-slate-100">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-tight mb-3">
+          {t("common.categories", "Categories")}
+        </h1>
         <div className="relative w-full">
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -322,8 +333,8 @@ export default function Categories() {
           />
           {searchQuery && (
             <button
-              onClick={handleClearSearch}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              onClick={() => setSearchQuery("")}
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 cursor-pointer"
               aria-label="Clear search"
             >
               <svg className="w-4 h-4 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-full p-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -332,246 +343,106 @@ export default function Categories() {
             </button>
           )}
         </div>
-
-        {/* Live Search Result Indicator */}
-        {searchQuery && (
-          <div className="flex items-center justify-between mt-2 pt-1 text-xs text-slate-500">
-            <span>
-              {totalMatchingCategoriesCount === 1
-                ? `1 category matching "${searchQuery}"`
-                : `${totalMatchingCategoriesCount} categories matching "${searchQuery}"`}
-            </span>
-            <button
-              onClick={handleClearSearch}
-              className="text-primary hover:text-primary-dark font-semibold cursor-pointer"
-            >
-              {t("common.clear", "Clear")}
-            </button>
-          </div>
-        )}
       </div>
 
-      {/* 2. Header Category Navigation Tabs (Horizontally Scrollable) */}
-      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-100 px-3 sm:px-4 py-2.5 shadow-[0_2px_6px_rgba(0,0,0,0.02)]">
-        <div
-          ref={tabsContainerRef}
-          className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-0.5"
-        >
-          {/* "All" Tab — icon-over-label square chip */}
+      {departments.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
+          <h3 className="text-slate-900 font-bold text-base mb-1">{t("customer.noCategoriesFound", "No Categories Found")}</h3>
+          <p className="text-slate-400 text-xs max-w-xs mb-4">
+            {t("customer.noCategoriesPrompt", "We couldn't find any registered categories at the moment.")}
+          </p>
           <button
-            ref={(el) => {
-              if (el) tabRefs.current.set("all", el);
-              else tabRefs.current.delete("all");
-            }}
-            onClick={() => handleTabClick("all")}
-            className={`flex flex-col items-center justify-center gap-1 w-16 h-16 rounded-2xl text-xs font-semibold cursor-pointer transition-all flex-shrink-0 ${
-              activeTab === "all"
-                ? "bg-primary text-white shadow-md scale-105"
-                : "bg-primary/10 text-primary hover:bg-primary/15"
-            }`}
+            onClick={() => window.location.reload()}
+            className="px-5 py-2 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-semibold shadow-sm cursor-pointer"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-              <rect x="3" y="3" width="7" height="7" rx="1.5" />
-              <rect x="14" y="3" width="7" height="7" rx="1.5" />
-              <rect x="14" y="14" width="7" height="7" rx="1.5" />
-              <rect x="3" y="14" width="7" height="7" rx="1.5" />
-            </svg>
-            <span>{t("common.all", "All")}</span>
+            {t("common.retry", "Retry")}
           </button>
-
-          {/* Dynamic Published Header Categories — icon-beside-label chip, wraps to 2 lines */}
-          {allGroups.map((group) => {
-            const isTabActive = activeTab === group._id || activeTab === group.slug;
-            return (
-              <button
-                key={group._id}
-                ref={(el) => {
-                  if (el) {
-                    tabRefs.current.set(group._id, el);
-                    if (group.slug) tabRefs.current.set(group.slug, el);
-                  } else {
-                    tabRefs.current.delete(group._id);
-                    if (group.slug) tabRefs.current.delete(group.slug);
-                  }
-                }}
-                onClick={() => handleTabClick(group._id)}
-                className={`flex items-center gap-2 px-3 h-16 rounded-2xl text-xs font-semibold cursor-pointer transition-all flex-shrink-0 max-w-[130px] ${
-                  isTabActive
-                    ? "bg-primary text-white shadow-md scale-105"
-                    : "bg-primary/10 text-primary hover:bg-primary/15"
-                }`}
-              >
-                <span className="flex-shrink-0 [&>svg]:w-5 [&>svg]:h-5">
-                  {getIconByName(group.iconName)}
-                </span>
-                <span className="text-left leading-tight line-clamp-2">
-                  {getTranslatedField(group, "name") || group.name}
-                </span>
-              </button>
-            );
-          })}
         </div>
-      </div>
-
-      {/* 3. Category Sections List Area */}
-      <div className="categories-scroll-area px-3 sm:px-4 py-4 space-y-4">
-        <AnimatePresence mode="popLayout">
-          {filteredGroups.map((group, groupIndex) => {
-            const sectionBg = SECTION_BG_COLORS[groupIndex % SECTION_BG_COLORS.length];
-            return (
-            <motion.section
-              key={group._id}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98 }}
-              transition={{ duration: 0.3, delay: groupIndex * 0.05 }}
-              className="rounded-2xl p-3 sm:p-4"
-              style={{ background: sectionBg }}
-            >
-              {/* Section Header with Icon, Name, Count Badge, and 'View all >' */}
-              <div className="flex items-center justify-between pb-3">
-                <div className="flex items-center gap-2">
-                  <div className="text-primary flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5">
-                    {getIconByName(group.iconName)}
-                  </div>
-                  <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-none">
-                    {getTranslatedField(group, "name") || group.name}
-                  </h2>
-                  <span className="bg-white/80 text-slate-600 text-[11px] font-semibold px-2 py-0.5 rounded-full">
-                    {group.categories.length === 1
-                      ? `1 category`
-                      : `${group.categories.length} categories`}
-                  </span>
-                </div>
-
-                {activeTab === "all" && (
-                  <button
-                    onClick={() => handleTabClick(group._id)}
-                    className="text-primary hover:text-primary-dark text-xs font-bold flex items-center gap-0.5 cursor-pointer hover:underline"
+      ) : (
+        <div
+          ref={contentRef}
+          className="flex bg-white overflow-hidden"
+          style={{ height: paneHeight ? `${paneHeight}px` : "calc(100dvh - 240px)" }}
+        >
+          {/* Left rail: departments (fixed; scrolls on its own only if it doesn't fit) */}
+          <nav
+            aria-label="Departments"
+            className="h-full w-[84px] sm:w-[104px] flex-shrink-0 overflow-y-auto overscroll-contain scrollbar-hide bg-slate-50 border-r border-slate-100 pb-6"
+          >
+            {departments.map((d) => {
+              const active = !query && activeDept?._id === d._id;
+              return (
+                <button
+                  key={d._id}
+                  type="button"
+                  ref={(el) => {
+                    if (el) railRefs.current.set(d._id, el);
+                    else railRefs.current.delete(d._id);
+                  }}
+                  onClick={() => selectDept(d)}
+                  aria-current={active ? "page" : undefined}
+                  className={`relative w-full flex flex-col items-center gap-1.5 px-1.5 py-3 cursor-pointer transition-colors ${
+                    active ? "bg-white" : "hover:bg-white/60"
+                  }`}
+                >
+                  {active && <span className="absolute left-0 top-2 bottom-2 w-1 rounded-r-full bg-primary" />}
+                  <span
+                    className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center bg-amber-300 text-slate-900 [&>svg]:w-6 [&>svg]:h-6 sm:[&>svg]:w-7 sm:[&>svg]:h-7 transition-shadow ${
+                      active ? "ring-2 ring-primary ring-offset-2 ring-offset-white" : ""
+                    }`}
                   >
-                    <span>View All</span>
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                    </svg>
+                    {getIconByName(d.iconName)}
+                  </span>
+                  <span
+                    className={`text-[11px] sm:text-xs leading-tight text-center break-words w-full ${
+                      active ? "font-bold text-slate-900" : "font-medium text-slate-600"
+                    }`}
+                  >
+                    {nameOf(d)}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Right pane: groups and tiles — the only part that scrolls */}
+          <div
+            ref={paneRef}
+            className="h-full flex-1 min-w-0 overflow-y-auto overscroll-contain px-3 sm:px-4 pt-3 pb-24"
+          >
+            {query ? (
+              searchResults.length ? (
+                searchResults.map((d) => (
+                  <div key={d._id}>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">{nameOf(d)}</p>
+                    {renderGroups(d.groups)}
+                  </div>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <h3 className="text-slate-800 font-bold text-sm mb-1">
+                    {t("customer.noMatchingCategories", "No matching categories")}
+                  </h3>
+                  <p className="text-slate-400 text-xs mb-4">We couldn't find any category matching "{searchQuery}".</p>
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-semibold cursor-pointer"
+                  >
+                    {t("customer.clearSearch", "Clear Search")}
                   </button>
-                )}
-              </div>
-
-              {/* 4. Full Coverage Category Cards Grid */}
-              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2 sm:gap-3 category-mobile-grid">
-                {group.categories.map((category) => {
-                  const catName = getTranslatedField(category, "name") || category.name;
-                  return (
-                    <motion.div
-                      key={category._id}
-                      whileHover={{ y: -2, scale: 1.02 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => navigate(`/category/${category._id}`)}
-                      className="group flex flex-col items-center cursor-pointer active:scale-95 select-none"
-                    >
-                      {/* Soft rounded container for image - full fit with no padding */}
-                      <div className="aspect-square w-full rounded-2xl bg-white flex items-center justify-center overflow-hidden p-0 shadow-sm group-hover:shadow-md transition-all duration-200 relative">
-                        {category.image ? (
-                          <img
-                            src={category.image}
-                            alt={catName}
-                            className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-300"
-                            loading="lazy"
-                            onError={(e) => {
-                              // Fallback to icon if image fails to load
-                              (e.target as HTMLElement).style.display = "none";
-                              const fallbackEl = (e.target as HTMLElement).nextElementSibling;
-                              if (fallbackEl) (fallbackEl as HTMLElement).style.display = "flex";
-                            }}
-                          />
-                        ) : null}
-
-                        {/* Fallback Icon Container */}
-                        <div
-                          className={`w-full h-full text-2xl sm:text-3xl text-primary/80 ${
-                            category.image ? "hidden" : "flex"
-                          } items-center justify-center`}
-                        >
-                          {category.icon || "📦"}
-                        </div>
-
-                        {/* Chevron badge overlapping the tile's bottom-right corner */}
-                        <div className="absolute bottom-1.5 right-1.5 w-5 h-5 rounded-full bg-white shadow-sm flex items-center justify-center text-primary">
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </div>
-
-                        {/* Bestseller ribbon */}
-                        {category.isBestseller && (
-                          <div className="absolute top-1 left-1 bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
-                            {t("common.bestseller", "Bestseller")}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Category Name below container - max 2 lines, clean line-wrapping */}
-                      <div
-                        title={catName}
-                        className="mt-1.5 text-center text-sm font-bold text-neutral-900 leading-tight line-clamp-2 w-full break-words px-0.5 group-hover:text-primary transition-colors"
-                      >
-                        {catName}
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </motion.section>
-            );
-          })}
-        </AnimatePresence>
-
-        {/* 7. Empty State for Search */}
-        {!loading && searchQuery && filteredGroups.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-            <div className="w-16 h-16 bg-slate-50 text-slate-400 rounded-2xl flex items-center justify-center mb-3 border border-slate-100">
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0zM10 8v6M8 10h4" />
-              </svg>
-            </div>
-            <h3 className="text-slate-800 font-bold text-base mb-1">
-              {t("customer.noMatchingCategories", "No matching categories")}
-            </h3>
-            <p className="text-slate-400 text-xs max-w-xs mb-4">
-              We couldn't find any category matching "{searchQuery}".
-            </p>
-            <button
-              onClick={handleClearSearch}
-              className="px-5 py-2 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-semibold shadow-sm transition-all active:scale-95 cursor-pointer"
-            >
-              {t("customer.clearSearch", "Clear Search")}
-            </button>
+                </div>
+              )
+            ) : (
+              activeDept && (
+                <>
+                  <h2 className="text-base sm:text-lg font-bold text-slate-900 mb-3">{nameOf(activeDept)}</h2>
+                  {renderGroups(activeDept.groups)}
+                </>
+              )
+            )}
           </div>
-        )}
-
-        {/* 7. Empty State for Zero Categories */}
-        {!loading && !searchQuery && allGroups.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
-            <div className="w-16 h-16 bg-slate-50 text-slate-300 rounded-2xl flex items-center justify-center mb-4 border border-slate-100">
-              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-            </div>
-            <h3 className="text-slate-900 font-bold text-base mb-1">
-              {t("customer.noCategoriesFound", "No Categories Found")}
-            </h3>
-            <p className="text-slate-400 text-xs max-w-xs mb-4">
-              {t("customer.noCategoriesPrompt", "We couldn't find any registered categories at the moment.")}
-            </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-5 py-2 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer"
-            >
-              {t("common.retry", "Retry")}
-            </button>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

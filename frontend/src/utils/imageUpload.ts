@@ -218,3 +218,56 @@ export function compressImage(
     reader.readAsDataURL(file);
   });
 }
+
+/**
+ * Centre-crops an image to a square and scales it to `size` px, so every
+ * category tile is the same compact shape no matter what photo was picked.
+ * Transparent PNGs stay PNG; everything else becomes a JPEG on white.
+ */
+export function cropToSquare(file: File, size: number = 600, quality: number = 0.85): Promise<File> {
+  return new Promise((resolve, reject) => {
+    if (!isImageFile(file)) {
+      resolve(file);
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const side = Math.min(img.width, img.height);
+      const out = Math.min(size, side);
+      const canvas = document.createElement("canvas");
+      canvas.width = out;
+      canvas.height = out;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Failed to get canvas context"));
+        return;
+      }
+      const keepAlpha = file.type === "image/png" || file.type === "image/webp";
+      if (!keepAlpha) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, out, out);
+      }
+      ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, out, out);
+      const type = keepAlpha ? "image/png" : "image/jpeg";
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Failed to crop image"));
+            return;
+          }
+          const name = file.name.replace(/\.[^.]+$/, "") + (keepAlpha ? ".png" : ".jpg");
+          resolve(new File([blob], name, { type, lastModified: Date.now() }));
+        },
+        type,
+        quality
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Failed to load image"));
+    };
+    img.src = url;
+  });
+}

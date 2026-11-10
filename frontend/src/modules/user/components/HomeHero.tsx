@@ -176,8 +176,16 @@ export default function HomeHero({ activeTab = 'all', onTabChange }: HomeHeroPro
         return ['home decor', 'cleaners', 'kitchen items', 'stationery', 'furniture', 'pooja items'];
       case 'toys-sports':
         return ['toys', 'cricket bat', 'football', 'board games', 'gym equipment', 'yoga mat'];
+      case 'womens-fashion':
+        return ['kurtis', 'sarees', 'dresses', 'tops', 'leggings', 'earrings', 'handbags', 'sandals'];
+      case 'mens-fashion':
+        return ['t-shirts', 'shirts', 'jeans', 'trackpants', 'kurtas', 'sports shoes', 'watches', 'wallets'];
+      case 'home-and-kitchen':
+        return ['pressure cooker', 'frying pan', 'wall clock', 'cushions'];
+      case 'kids-fashion':
+        return ['frocks', 'boys t-shirts', 'school bags', 'educational toys', 'plush toys', 'kids shoes'];
       default:
-        return ['atta', 'rice', 'dal', 'milk', 'chips', 'fresh fruits', 'oil', 'tea', 'vegetables'];
+        return ['kurtis', 't-shirts', 'earbuds', 'bedsheets', 'storage containers', 'frocks', 'phone cover'];
     }
   }, [activeTab, categories]);
 

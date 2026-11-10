@@ -249,7 +249,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
     '/customer-policy',
     '/faq',
   ].includes(location.pathname);
-  const showSiteFooter = !isCheckoutPage && !isAuthPage && !isCartPage;
+  // The Categories page fills the screen with its own side-rail layout, so no footer under it.
+  const showSiteFooter = !isCheckoutPage && !isAuthPage && !isCartPage && location.pathname !== "/categories";
 
   // Standalone onboarding routes bypass AppLayout chrome completely
   if (location.pathname === "/language-selection") {

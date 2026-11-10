@@ -4,6 +4,7 @@ import { apiCache } from '../../utils/apiCache';
 
 export interface Category {
     _id: string; // MongoDB ID
+    slug?: string;
     id?: string; // Virtual ID
     name: string;
     parent?: string | null;
@@ -95,6 +96,12 @@ export const getCategoryById = async (id: string): Promise<any> => {
  * Using /tree endpoint to get hierarchy if available, otherwise just /
  * Cached for 10 minutes as categories don't change frequently
  */
+/** Every active category, groups and sub-categories alike (sub-categories carry parentId). */
+export const getCategoriesWithChildren = async (): Promise<CategoryListResponse> => {
+    const response = await api.get<CategoryListResponse>('/customer/categories', { params: { withChildren: 'true' } });
+    return response.data;
+};
+
 export const getCategories = async (tree: boolean = false, skipCache: boolean = false): Promise<CategoryListResponse> => {
     const url = tree ? '/customer/categories/tree' : '/customer/categories';
     if (skipCache) {
