@@ -9,6 +9,7 @@ import deliveryAuthRoutes from "./deliveryAuthRoutes";
 
 // ... (other imports)
 import { authenticate, requireUserType } from "../middleware/auth";
+import { getServiceStates, serviceControlGuard } from "../services/serviceControls";
 import customerRoutes from "./customerRoutes";
 import sellerRoutes from "./sellerRoutes";
 import claimRoutes from "./claimRoutes";
@@ -65,6 +66,13 @@ import {
 } from "../modules/customer/controllers/customerOrderController";
 
 const router = Router();
+
+// Public: which services are ON (the storefront hides what's OFF), and the
+// central guard that makes OFF switches real in the API.
+router.get("/customer/services", async (_req, res) => {
+  res.json({ success: true, data: await getServiceStates() });
+});
+router.use(serviceControlGuard);
 
 // Health check route
 router.get("/health", (_req, res) => {

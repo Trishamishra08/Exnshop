@@ -88,6 +88,9 @@ import * as bestsellerCardController from "../modules/admin/controllers/adminBes
 // Lowest Prices Controllers
 import * as lowestPricesController from "../modules/admin/controllers/adminLowestPricesController";
 
+// Service ON/OFF controls
+import * as serviceControlController from "../modules/admin/controllers/adminServiceControlController";
+
 // Home Page Content (banners, trust strip, offer cards, home section titles)
 import * as homePageContentController from "../modules/admin/controllers/adminHomePageContentController";
 
@@ -415,6 +418,11 @@ router.get("/system-users/:id", systemUserController.getSystemUserById);
 router.post("/system-users", systemUserController.createSystemUser);
 router.put("/system-users/:id", systemUserController.updateSystemUser);
 router.delete("/system-users/:id", systemUserController.deleteSystemUser);
+
+// ==================== Service ON/OFF Control Routes ====================
+router.get("/service-controls", serviceControlController.getServiceControls);
+router.get("/service-controls/logs", serviceControlController.getServiceControlLogs);
+router.put("/service-controls/:key", serviceControlController.setServiceControl);
 
 // ==================== Home Page Content Routes ====================
 router.get("/home-page-content", homePageContentController.getHomePageContent);
