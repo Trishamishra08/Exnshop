@@ -1,36 +1,59 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { loginWithPassword } from '../../../services/api/auth/adminAuthService';
+import { loginWithPassword, sendEmailOTP, verifyOTP } from '../../../services/api/auth/adminAuthService';
 import { isValidEmail } from '../../../components/LoginMethodTabs';
 import { useAuth } from '../../../context/AuthContext';
 
 export default function AdminLogin() {
   const navigate = useNavigate();
   const { login } = useAuth();
-  // Admins log in with email + password.
+  // Default: email -> OTP sent to that email -> enter the code. Password login is the fallback.
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const canContinue = isValidEmail(email) && password.length > 0;
+  const [usePassword, setUsePassword] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const canContinue = isValidEmail(email) && (usePassword ? password.length > 0 : otpSent ? otp.trim().length >= 4 : true);
+
+  const finish = (response: any) => {
+    if (response.success && response.data) {
+      login(response.data.token, { ...response.data.user, userType: "Admin" });
+      navigate("/admin");
+    }
+  };
 
   const handleLogin = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!canContinue || loading) return;
     setLoading(true);
     setError("");
+    setInfo("");
     try {
-      const response = await loginWithPassword(email.trim(), password);
-      if (response.success && response.data) {
-        login(response.data.token, { ...response.data.user, userType: "Admin" });
-        navigate("/admin");
+      if (usePassword) {
+        finish(await loginWithPassword(email.trim(), password));
+      } else if (!otpSent) {
+        const res = await sendEmailOTP(email.trim());
+        setOtpSent(true);
+        setInfo(res.message || 'OTP sent to your email');
+      } else {
+        finish(await verifyOTP(email.trim(), otp.trim(), true));
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || "Wrong email or password");
+      setError(err.response?.data?.message || (usePassword ? "Wrong email or password" : otpSent ? "Invalid or expired OTP" : "Could not send OTP"));
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetOtp = () => {
+    setOtpSent(false);
+    setOtp('');
+    setInfo('');
+    setError('');
   };
 
   const handleExnshopLogin = () => {
@@ -98,28 +121,52 @@ export default function AdminLogin() {
                 placeholder="Enter your admin email"
                 autoComplete="username"
                 className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg placeholder:text-neutral-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
-                disabled={loading}
+                disabled={loading || otpSent}
                 autoFocus
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-neutral-700 mb-2">Password</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                  className="w-full px-3 py-2.5 pr-16 text-sm border border-neutral-300 rounded-lg placeholder:text-neutral-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
-                  disabled={loading}
-                />
-                <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-teal-700">
-                  {showPassword ? "Hide" : "Show"}
-                </button>
+            {usePassword ? (
+              <div>
+                <label className="block text-sm font-medium text-neutral-700 mb-2">Password</label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    autoComplete="current-password"
+                    className="w-full px-3 py-2.5 pr-16 text-sm border border-neutral-300 rounded-lg placeholder:text-neutral-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                    disabled={loading}
+                  />
+                  <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-xs font-semibold text-teal-700">
+                    {showPassword ? "Hide" : "Show"}
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              otpSent && (
+                <div>
+                  <label className="block text-sm font-medium text-neutral-700 mb-2">Enter OTP</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="6-digit code from your email"
+                    autoComplete="one-time-code"
+                    className="w-full px-3 py-2.5 text-sm tracking-widest border border-neutral-300 rounded-lg placeholder:tracking-normal placeholder:text-neutral-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+                    disabled={loading}
+                    autoFocus
+                  />
+                  <div className="flex justify-between mt-2 text-xs">
+                    <button type="button" onClick={resetOtp} className="text-teal-700 font-semibold">Change email</button>
+                    <button type="button" disabled={loading} onClick={async () => { setLoading(true); setError(''); try { const r = await sendEmailOTP(email.trim()); setInfo(r.message || 'OTP sent again'); } catch (e: any) { setError(e.response?.data?.message || 'Could not resend OTP'); } finally { setLoading(false); } }} className="text-teal-700 font-semibold">Resend OTP</button>
+                  </div>
+                </div>
+              )
+            )}
 
+            {info && !error && <div className="text-sm text-green-700 bg-green-50 p-2 rounded">{info}</div>}
             {error && <div className="text-sm text-red-600 bg-red-50 p-2 rounded">{error}</div>}
 
             <button
@@ -129,9 +176,12 @@ export default function AdminLogin() {
                 ? "bg-teal-600 text-white hover:bg-teal-700 shadow-md"
                 : "bg-neutral-300 text-neutral-500 cursor-not-allowed"
                 }`}>
-              {loading ? "Logging in..." : "Login"}
+              {loading ? "Please wait..." : usePassword ? "Login" : otpSent ? "Verify & Login" : "Send OTP"}
             </button>
           </form>
+          <button type="button" onClick={() => { setUsePassword((v) => !v); resetOtp(); }} className="w-full text-center text-xs font-semibold text-teal-700 hover:underline">
+            {usePassword ? "Login with email OTP instead" : "Login with password instead"}
+          </button>
         </div>
       </div>
 
