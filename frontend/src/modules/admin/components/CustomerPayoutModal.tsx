@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useToast } from '../../../context/ToastContext';
-import { createCustomerPayout, CustomerPayoutInfo, getCustomerPayoutInfo } from '../../../services/api/admin/adminCustomerService';
+import { createCustomerPayout, CustomerPayoutInfo, decideCustomerBankChange, getCustomerBankProofUrl, getCustomerPayoutInfo } from '../../../services/api/admin/adminCustomerService';
 import { processWithdrawal } from '../../../services/api/admin/adminWalletService';
 
 /**
@@ -77,6 +77,16 @@ export default function CustomerPayoutModal({ customerId, onClose }: { customerI
   };
 
   const b = info?.bankDetails;
+  const pend = info?.pendingBankChange;
+
+  const viewProof = async (which: 'pending' | 'approved') => {
+    try {
+      const res = await getCustomerBankProofUrl(customerId, which);
+      if (res.data?.url) window.open(res.data.url, '_blank', 'noopener');
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || 'Could not open the proof', 'error');
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-start sm:items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
@@ -109,9 +119,47 @@ export default function CustomerPayoutModal({ customerId, onClose }: { customerI
               ))}
             </div>
 
+            {/* Bank details waiting for approval */}
+            {pend && (
+              <div className={`rounded-lg border p-4 ${pend.status === 'Pending' ? 'border-amber-300 bg-amber-50' : 'border-red-200 bg-red-50'}`}>
+                <p className="text-xs font-bold uppercase tracking-wide mb-2 text-neutral-800">
+                  {pend.status === 'Pending' ? 'New bank details — approval needed' : 'Rejected bank details'}
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1.5 text-sm">
+                  {pend.accountNumber && (
+                    <>
+                      <p><span className="text-neutral-500">Account holder:</span> <b>{pend.accountHolderName}</b></p>
+                      <p><span className="text-neutral-500">Account no:</span> <b className="font-mono">{pend.accountNumber}</b></p>
+                      <p><span className="text-neutral-500">IFSC:</span> <b className="font-mono">{pend.ifscCode}</b></p>
+                      <p><span className="text-neutral-500">Bank:</span> {pend.bankName || '—'}</p>
+                    </>
+                  )}
+                  {pend.upiId && <p><span className="text-neutral-500">UPI ID:</span> <b>{pend.upiId}</b></p>}
+                  <p className="text-[11px] text-neutral-500 sm:col-span-2">Submitted {new Date(pend.submittedAt).toLocaleString('en-IN')}</p>
+                </div>
+                {pend.status === 'Rejected' ? (
+                  <p className="text-xs text-red-700 mt-2">Reason: {pend.remarks}</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {pend.hasProof
+                      ? <button onClick={() => viewProof('pending')} className="px-3 py-1.5 rounded-lg border border-neutral-300 bg-white text-xs font-semibold text-neutral-800">View statement / cheque</button>
+                      : <span className="text-xs text-red-600 self-center">No proof attached</span>}
+                    <button disabled={busy !== null || (!!pend.accountNumber && !pend.hasProof)}
+                      onClick={() => act('bank-approve', () => decideCustomerBankChange(customerId, 'Approved'), 'Bank details approved')}
+                      className="px-3 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold disabled:opacity-50">Approve</button>
+                    <button disabled={busy !== null} onClick={() => {
+                      const reason = window.prompt('Reason for rejecting these bank details?');
+                      if (reason) act('bank-reject', () => decideCustomerBankChange(customerId, 'Rejected', reason), 'Bank details rejected');
+                    }} className="px-3 py-1.5 rounded-lg border border-red-200 bg-white text-red-600 text-xs font-semibold disabled:opacity-50">Reject</button>
+                  </div>
+                )}
+                <p className="text-[11px] text-neutral-500 mt-2">Check that the name and account number on the proof match before approving. Payouts use only approved details.</p>
+              </div>
+            )}
+
             {/* Bank details the customer saved */}
             <div className="rounded-lg border border-neutral-200 p-4">
-              <p className="text-xs font-bold text-neutral-700 uppercase tracking-wide mb-2">Bank details (saved by the customer)</p>
+              <p className="text-xs font-bold text-neutral-700 uppercase tracking-wide mb-2">Approved bank details (used for payouts)</p>
               {!b?.hasBank && !b?.hasUpi ? (
                 <p className="text-sm text-neutral-500">The customer hasn't added bank details yet. They can add them in Profile → Bank Details.</p>
               ) : (
@@ -125,7 +173,8 @@ export default function CustomerPayoutModal({ customerId, onClose }: { customerI
                     </>
                   )}
                   {b?.hasUpi && <p><span className="text-neutral-500">UPI ID:</span> <b>{b.upiId}</b><Copy value={b.upiId} /></p>}
-                  {b?.updatedAt && <p className="text-[11px] text-neutral-400 sm:col-span-2">Last updated {new Date(b.updatedAt).toLocaleString('en-IN')}</p>}
+                  {b?.updatedAt && <p className="text-[11px] text-neutral-400 sm:col-span-2">Last updated {new Date(b.updatedAt).toLocaleString('en-IN')}{b.approvedBy ? ` · approved by ${b.approvedBy}` : ''}</p>}
+                  {b?.hasProof && <button onClick={() => viewProof('approved')} className="text-xs font-semibold text-blue-700 hover:underline text-left sm:col-span-2">View proof on file</button>}
                 </div>
               )}
             </div>

@@ -70,6 +70,7 @@ export interface SupportContactData {
   email: string;
   subject: string;
   message: string;
+  category?: string;
 }
 
 export interface SupportContactResponse {

@@ -118,9 +118,31 @@ export interface CustomerPayoutInfo {
     updatedAt?: string | null;
     hasBank: boolean;
     hasUpi: boolean;
+    hasProof?: boolean;
+    approvedAt?: string | null;
+    approvedBy?: string;
   };
+  pendingBankChange?: {
+    status: 'Pending' | 'Rejected';
+    remarks: string;
+    submittedAt: string;
+    accountHolderName: string;
+    accountNumber: string;
+    ifscCode: string;
+    bankName: string;
+    upiId: string;
+    hasProof: boolean;
+  } | null;
   payouts: any[];
 }
+
+/** Short-lived link to the customer's bank proof (statement / cancelled cheque). */
+export const getCustomerBankProofUrl = async (id: string, which: 'pending' | 'approved'): Promise<ApiResponse<{ url: string }>> =>
+  (await api.get<ApiResponse<{ url: string }>>(`/admin/customers/${id}/bank-proof`, { params: { which } })).data;
+
+/** Approve or reject the bank details the customer submitted. */
+export const decideCustomerBankChange = async (id: string, decision: 'Approved' | 'Rejected', remarks?: string): Promise<ApiResponse<any>> =>
+  (await api.post<ApiResponse<any>>(`/admin/customers/${id}/bank-decision`, { decision, remarks })).data;
 
 /** The customer's bank / UPI, wallet balance and payout requests. */
 export const getCustomerPayoutInfo = async (id: string): Promise<ApiResponse<CustomerPayoutInfo>> =>

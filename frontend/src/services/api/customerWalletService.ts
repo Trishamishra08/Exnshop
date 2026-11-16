@@ -22,11 +22,31 @@ export interface CustomerBankDetails {
   updatedAt?: string | null;
   hasBank?: boolean;
   hasUpi?: boolean;
+  proof?: { originalName: string; hasProof: boolean } | null;
+  pending?: {
+    status: 'Pending' | 'Rejected';
+    remarks: string;
+    submittedAt: string;
+    accountHolderName: string;
+    accountNumberMasked: string;
+    ifscCode: string;
+    bankName: string;
+    upiId: string;
+    proof?: { originalName: string; hasProof: boolean } | null;
+  } | null;
 }
 
 export const getCustomerBankDetails = async () => (await api.get('/customer/bank-details')).data;
 
-export const saveCustomerBankDetails = async (body: Partial<CustomerBankDetails>) => (await api.put('/customer/bank-details', body)).data;
+/** Sends new / changed bank details (with the statement or cancelled-cheque photo) for admin approval. */
+export const saveCustomerBankDetails = async (body: Partial<CustomerBankDetails>, proof?: File | null) => {
+  const form = new FormData();
+  (['accountHolderName', 'accountNumber', 'ifscCode', 'bankName', 'upiId'] as const).forEach((k) => form.append(k, String(body[k] ?? '')));
+  if (proof) form.append('proof', proof);
+  return (await api.put('/customer/bank-details', form, { headers: { 'Content-Type': 'multipart/form-data' } })).data;
+};
+
+export const cancelPendingBankDetails = async () => (await api.delete('/customer/bank-details/pending')).data;
 
 /** Move wallet balance to the saved bank account or UPI ID. */
 export const requestCustomerWithdrawal = async (amount: number, method: 'Bank Transfer' | 'UPI') =>

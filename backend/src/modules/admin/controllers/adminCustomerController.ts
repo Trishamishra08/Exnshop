@@ -166,7 +166,7 @@ const OPEN_PAYOUT = ["Pending", "Approved", "Processing"];
  * so the admin can see where to pay and what is still owed.
  */
 export const getCustomerPayoutInfo = asyncHandler(async (req: Request, res: Response) => {
-  const customer: any = await Customer.findById(req.params.id).select("name email phone walletAmount bankDetails").lean();
+  const customer: any = await Customer.findById(req.params.id).select("name email phone walletAmount bankDetails pendingBankChange").lean();
   if (!customer) return res.status(404).json({ success: false, message: "Customer not found" });
 
   const [walletBalance, payouts] = await Promise.all([
@@ -192,7 +192,23 @@ export const getCustomerPayoutInfo = asyncHandler(async (req: Request, res: Resp
         updatedAt: b.updatedAt || null,
         hasBank: Boolean(b.accountNumber && b.ifscCode),
         hasUpi: Boolean(b.upiId),
+        hasProof: Boolean(b.proof?.publicId),
+        approvedAt: b.approvedAt || null,
+        approvedBy: b.approvedBy || "",
       },
+      pendingBankChange: customer.pendingBankChange
+        ? {
+            status: customer.pendingBankChange.status,
+            remarks: customer.pendingBankChange.remarks || "",
+            submittedAt: customer.pendingBankChange.submittedAt,
+            accountHolderName: customer.pendingBankChange.accountHolderName || "",
+            accountNumber: customer.pendingBankChange.accountNumber || "",
+            ifscCode: customer.pendingBankChange.ifscCode || "",
+            bankName: customer.pendingBankChange.bankName || "",
+            upiId: customer.pendingBankChange.upiId || "",
+            hasProof: Boolean(customer.pendingBankChange.proof?.publicId),
+          }
+        : null,
       payouts,
     },
   });
@@ -241,4 +257,54 @@ export const createCustomerPayout = asyncHandler(async (req: Request, res: Respo
     processedAt: new Date(),
   });
   return res.status(201).json({ success: true, message: "Payout created. Pay it now, then mark it paid.", data: request });
+});
+
+/** GET /admin/customers/:id/bank-proof?which=pending|approved — short-lived link to the proof file. */
+export const getCustomerBankProofUrl = asyncHandler(async (req: Request, res: Response) => {
+  const c: any = await Customer.findById(req.params.id).select("bankDetails pendingBankChange").lean();
+  const proof = req.query.which === "approved" ? c?.bankDetails?.proof : c?.pendingBankChange?.proof;
+  if (!proof?.publicId) return res.status(404).json({ success: false, message: "No proof file attached" });
+  const { signedDocumentUrl } = await import("../../../services/sellerOnboardingService");
+  return res.json({ success: true, data: { url: signedDocumentUrl(proof) } });
+});
+
+/**
+ * POST /admin/customers/:id/bank-decision  { decision: "Approved" | "Rejected", remarks? }
+ * Approving makes the requested details the ones used for refunds and payouts.
+ */
+export const decideCustomerBankChange = asyncHandler(async (req: Request, res: Response) => {
+  const decision = req.body.decision;
+  const remarks = String(req.body.remarks || "").trim().slice(0, 300);
+  if (!["Approved", "Rejected"].includes(decision)) return res.status(400).json({ success: false, message: "Decision must be Approved or Rejected" });
+  if (decision === "Rejected" && !remarks) return res.status(400).json({ success: false, message: "Please give a reason so the customer knows what to fix" });
+
+  const c: any = await Customer.findById(req.params.id);
+  const p = c?.pendingBankChange;
+  if (!c || !p || p.status !== "Pending") return res.status(404).json({ success: false, message: "No bank details are waiting for approval" });
+
+  const adminName = (req as any).user?.name || (req as any).user?.email || (req as any).user?.userId || "Admin";
+  if (decision === "Approved") {
+    if (p.accountNumber && !p.proof?.publicId) return res.status(400).json({ success: false, message: "The bank proof is missing — ask the customer to resubmit" });
+    c.bankDetails = {
+      accountHolderName: p.accountHolderName, accountNumber: p.accountNumber, ifscCode: p.ifscCode,
+      bankName: p.bankName, upiId: p.upiId, proof: p.proof, updatedAt: new Date(), approvedAt: new Date(), approvedBy: String(adminName),
+    };
+    c.pendingBankChange = undefined;
+  } else {
+    c.pendingBankChange.status = "Rejected";
+    c.pendingBankChange.remarks = remarks;
+    c.pendingBankChange.reviewedAt = new Date();
+  }
+  await c.save();
+
+  try {
+    const { sendNotification } = await import("../../../services/notificationService");
+    await sendNotification(
+      "Customer", String(c._id),
+      decision === "Approved" ? "Bank details approved" : "Bank details not approved",
+      decision === "Approved" ? "Your bank details are approved and can now be used for refunds and wallet transfers." : `Your bank details were not approved: ${remarks}`,
+      { type: decision === "Approved" ? "Success" : "Warning", link: "/account/bank-details", priority: "Medium" },
+    );
+  } catch { /* best effort */ }
+  return res.json({ success: true, message: decision === "Approved" ? "Bank details approved" : "Bank details rejected" });
 });

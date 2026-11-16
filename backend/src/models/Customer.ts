@@ -21,6 +21,19 @@ export interface ICustomer extends Document {
     bankName?: string;
     upiId?: string;
     updatedAt?: Date;
+    /** Approved proof (account statement / cancelled cheque) — private file. */
+    proof?: { publicId: string; resourceType: string; format?: string; originalName?: string };
+    approvedAt?: Date;
+    approvedBy?: string;
+  };
+  /** New / changed bank details waiting for admin approval. bankDetails keeps the approved ones. */
+  pendingBankChange?: {
+    accountHolderName?: string; accountNumber?: string; ifscCode?: string; bankName?: string; upiId?: string;
+    proof?: { publicId: string; resourceType: string; format?: string; originalName?: string };
+    status: 'Pending' | 'Rejected';
+    remarks?: string;
+    submittedAt: Date;
+    reviewedAt?: Date;
   };
   // Location fields
   latitude?: number;
@@ -135,6 +148,20 @@ const CustomerSchema = new Schema<ICustomer>(
       bankName: { type: String, trim: true },
       upiId: { type: String, trim: true },
       updatedAt: { type: Date },
+      proof: { type: new Schema({ publicId: String, resourceType: String, format: String, originalName: String }, { _id: false }), default: undefined },
+      approvedAt: { type: Date },
+      approvedBy: { type: String },
+    },
+    pendingBankChange: {
+      type: new Schema({
+        accountHolderName: String, accountNumber: String, ifscCode: String, bankName: String, upiId: String,
+        proof: { type: new Schema({ publicId: String, resourceType: String, format: String, originalName: String }, { _id: false }), default: undefined },
+        status: { type: String, enum: ['Pending', 'Rejected'], default: 'Pending' },
+        remarks: String,
+        submittedAt: { type: Date, default: Date.now },
+        reviewedAt: Date,
+      }, { _id: false }),
+      default: undefined,
     },
     // Location fields
     latitude: {

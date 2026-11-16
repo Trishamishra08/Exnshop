@@ -234,6 +234,8 @@ router.get("/customers/:id", customerController.getCustomerById);
 router.patch("/customers/:id/status", customerController.updateCustomerStatus);
 router.get("/customers/:id/orders", customerController.getCustomerOrders);
 router.get("/customers/:id/payouts", customerController.getCustomerPayoutInfo);
+router.get("/customers/:id/bank-proof", customerController.getCustomerBankProofUrl);
+router.post("/customers/:id/bank-decision", customerController.decideCustomerBankChange);
 router.post("/customers/:id/payouts", customerController.createCustomerPayout);
 
 // ==================== Delivery Routes ====================

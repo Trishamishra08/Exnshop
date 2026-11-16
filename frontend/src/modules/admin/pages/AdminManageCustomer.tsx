@@ -475,6 +475,9 @@ export default function AdminManageCustomer() {
                             title="Bank details & pay customer">
                             ₹ Bank & Pay
                           </button>
+                          {(customer as any).pendingBankChange?.status === 'Pending' && (
+                            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold whitespace-nowrap">Bank approval</span>
+                          )}
                           <button
                             onClick={() => setPayoutFor(customer._id)}
                             className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"

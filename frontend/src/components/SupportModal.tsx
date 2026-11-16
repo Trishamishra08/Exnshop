@@ -75,6 +75,7 @@ export default function SupportModal({ isOpen, onClose, orderId }: SupportModalP
         email: email.trim(),
         subject: subject.trim(),
         message: message.trim(),
+        category: issueCategory,
       });
 
       if (response.success) {

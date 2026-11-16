@@ -97,6 +97,7 @@ router.post("/location", authenticate, customerController.updateLocation);
 router.put("/language", authenticate, customerController.updateLanguagePreference);
 
 import * as walletController from "../modules/customer/controllers/customerWalletController";
+import { uploadDocument as bankProofUpload, handleUploadError } from "../middleware/upload";
 import * as supportController from "../modules/customer/controllers/customerSupportController";
 
 // Customer Wallet routes (protected)
@@ -105,7 +106,8 @@ router.get("/wallet/transactions", authenticate, walletController.getCustomerWal
 router.post("/wallet/withdraw", authenticate, walletController.requestCustomerWithdrawal);
 router.get("/wallet/withdrawals", authenticate, walletController.getCustomerWithdrawals);
 router.get("/bank-details", authenticate, walletController.getCustomerBankDetails);
-router.put("/bank-details", authenticate, walletController.saveCustomerBankDetails);
+router.put("/bank-details", authenticate, bankProofUpload.single("proof"), handleUploadError, walletController.saveCustomerBankDetails);
+router.delete("/bank-details/pending", authenticate, walletController.cancelPendingBankChange);
 router.get("/statement", authenticate, walletController.getCustomerStatement);
 
 // Customer Support Contact route (optional authentication)

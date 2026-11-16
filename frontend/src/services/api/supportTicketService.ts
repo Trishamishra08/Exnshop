@@ -38,8 +38,12 @@ export interface TicketStatusChange {
 
 export interface SupportTicket {
   _id: string;
-  seller: string | { sellerName: string; storeName: string };
-  category: "Payment" | "Product" | "Order" | "Technical" | "Account" | "Other";
+  seller?: string | { sellerName: string; storeName: string } | null;
+  customer?: string | { name: string; email?: string; phone?: string } | null;
+  requesterType?: "Seller" | "Customer";
+  requesterName?: string;
+  requesterEmail?: string;
+  category: "Payment" | "Product" | "Order" | "Technical" | "Account" | "Other" | "Delivery" | "Return" | "General";
   priority: "Low" | "Medium" | "High";
   subject: string;
   description: string;

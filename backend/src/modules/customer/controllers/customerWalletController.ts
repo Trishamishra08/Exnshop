@@ -66,10 +66,18 @@ const UPI_REGEX = /^[\w.\-]{2,256}@[a-zA-Z]{2,64}$/;
 /** Bank account number shown with all but the last 4 digits hidden. */
 const maskAccount = (n?: string) => (n ? `${"•".repeat(Math.max(0, n.length - 4))}${n.slice(-4)}` : "");
 
-/** GET /customer/bank-details */
+/** The proof file (statement / cancelled cheque) as the client may know it — never a link. */
+const proofInfo = (p: any) => (p?.publicId ? { originalName: p.originalName || "Uploaded file", hasProof: true } : null);
+
+/**
+ * GET /customer/bank-details
+ * The approved details (the only ones used for refunds / payouts) plus any request that
+ * is waiting for, or was turned down by, the admin.
+ */
 export const getCustomerBankDetails = async (req: Request, res: Response) => {
-  const c: any = await Customer.findById(req.user!.userId).select("bankDetails").lean();
+  const c: any = await Customer.findById(req.user!.userId).select("bankDetails pendingBankChange").lean();
   const b = c?.bankDetails || {};
+  const p = c?.pendingBankChange;
   return res.status(200).json({
     success: true,
     data: {
@@ -82,32 +90,93 @@ export const getCustomerBankDetails = async (req: Request, res: Response) => {
       updatedAt: b.updatedAt || null,
       hasBank: Boolean(b.accountNumber && b.ifscCode),
       hasUpi: Boolean(b.upiId),
+      proof: proofInfo(b.proof),
+      pending: p
+        ? {
+            status: p.status,
+            remarks: p.remarks || "",
+            submittedAt: p.submittedAt,
+            accountHolderName: p.accountHolderName || "",
+            accountNumberMasked: maskAccount(p.accountNumber),
+            ifscCode: p.ifscCode || "",
+            bankName: p.bankName || "",
+            upiId: p.upiId || "",
+            proof: proofInfo(p.proof),
+          }
+        : null,
     },
   });
 };
 
-/** PUT /customer/bank-details — bank account (holder, number, IFSC) and/or UPI ID. */
+/**
+ * PUT /customer/bank-details (multipart: fields + optional `proof` file)
+ * New or changed bank details never replace the approved ones directly: they wait for the
+ * admin. A bank account needs a statement / cancelled-cheque photo; a UPI-only change doesn't.
+ */
 export const saveCustomerBankDetails = async (req: Request, res: Response) => {
   const s = (v: any) => String(v ?? "").trim();
   const accountHolderName = s(req.body.accountHolderName).slice(0, 100);
-  const accountNumber = s(req.body.accountNumber).replace(/\s/g, "");
+  const accountNumber = s(req.body.accountNumber).replace(/s/g, "");
   const ifscCode = s(req.body.ifscCode).toUpperCase();
   const bankName = s(req.body.bankName).slice(0, 100);
   const upiId = s(req.body.upiId);
+  const file = (req as any).file;
+  const bad = (message: string) => res.status(400).json({ success: false, message });
 
   const anyBank = accountHolderName || accountNumber || ifscCode;
   if (anyBank) {
-    if (!accountHolderName) return res.status(400).json({ success: false, message: "Enter the account holder's name" });
-    if (!/^\d{9,18}$/.test(accountNumber)) return res.status(400).json({ success: false, message: "Account number must be 9 to 18 digits" });
-    if (!IFSC_REGEX.test(ifscCode)) return res.status(400).json({ success: false, message: "Enter a valid IFSC code, e.g. SBIN0001234" });
+    if (!accountHolderName) return bad("Enter the account holder's name");
+    if (!/^d{9,18}$/.test(accountNumber)) return bad("Account number must be 9 to 18 digits");
+    if (!IFSC_REGEX.test(ifscCode)) return bad("Enter a valid IFSC code, e.g. SBIN0001234");
   }
-  if (upiId && !UPI_REGEX.test(upiId)) return res.status(400).json({ success: false, message: "Enter a valid UPI ID, e.g. name@okbank" });
-  if (!anyBank && !upiId) return res.status(400).json({ success: false, message: "Add a bank account or a UPI ID" });
+  if (upiId && !UPI_REGEX.test(upiId)) return bad("Enter a valid UPI ID, e.g. name@okbank");
+  if (!anyBank && !upiId) return bad("Add a bank account or a UPI ID");
+  if (file && file.size > 10 * 1024 * 1024) return bad("The proof must be 10 MB or smaller");
 
-  await Customer.updateOne(
-    { _id: req.user!.userId },
-    { $set: { bankDetails: { accountHolderName, accountNumber, ifscCode, bankName, upiId, updatedAt: new Date() } } }
-  );
+  const customer: any = await Customer.findById(req.user!.userId).select("name bankDetails pendingBankChange");
+  if (!customer) return res.status(404).json({ success: false, message: "Customer not found" });
+  const cur = customer.bankDetails || {};
+
+  // A bank account that is new or different from the approved one must come with proof.
+  const bankChanged = Boolean(anyBank) && (accountNumber !== (cur.accountNumber || "") || ifscCode !== (cur.ifscCode || "") || accountHolderName !== (cur.accountHolderName || ""));
+  if (bankChanged && !file) return bad("Attach a photo of your bank account statement or cancelled cheque");
+  if (!bankChanged && upiId === (cur.upiId || "") && bankName === (cur.bankName || "") && !file) return bad("Nothing has changed");
+
+  let proof: any;
+  if (file) {
+    try {
+      const { uploadPrivateDocument } = await import("../../../services/sellerOnboardingService");
+      const stored = await uploadPrivateDocument(String(customer._id), file.buffer, "exnshop/customer-bank-proof");
+      proof = { publicId: stored.publicId, resourceType: stored.resourceType, format: stored.format, originalName: String(file.originalname || "").slice(0, 120) };
+    } catch {
+      return res.status(502).json({ success: false, message: "Could not upload the proof. Please try again." });
+    }
+  } else {
+    proof = customer.bankDetails?.proof; // unchanged account: keep the approved proof with the request
+  }
+
+  customer.pendingBankChange = {
+    accountHolderName, accountNumber, ifscCode, bankName, upiId, proof,
+    status: "Pending", submittedAt: new Date(),
+  };
+  await customer.save();
+
+  try {
+    const { sendBroadcastNotification } = await import("../../../services/notificationService");
+    await sendBroadcastNotification(
+      "Admin",
+      "Customer bank details — approval needed",
+      `${customer.name || "A customer"} submitted bank details. Review them in Customers → Bank & Pay.`,
+      { type: "Info", priority: "Medium", link: "/admin/customers" },
+    );
+  } catch { /* best effort */ }
+
+  return getCustomerBankDetails(req, res);
+};
+
+/** DELETE /customer/bank-details/pending — withdraw a request (or dismiss a rejected one). */
+export const cancelPendingBankChange = async (req: Request, res: Response) => {
+  await Customer.updateOne({ _id: req.user!.userId }, { $unset: { pendingBankChange: 1 } });
   return getCustomerBankDetails(req, res);
 };
 

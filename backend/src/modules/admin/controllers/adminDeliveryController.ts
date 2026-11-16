@@ -257,10 +257,12 @@ export const updateDeliveryStatus = asyncHandler(
 
     // A partner is activated only once all required documents are approved (admin can override knowingly).
     if (status === "Active" && req.body.force !== true) {
-      const current: any = await Delivery.findById(id).select("documents status");
+      const current: any = await Delivery.findById(id).select("documents status accountNumber ifscCode accountName vehicleNumber");
       if (current && current.status !== "Active") {
         const { missingApprovedDocuments } = await import("../../../services/deliveryDocumentService");
         const missing = missingApprovedDocuments(current);
+        if (!current.accountNumber || !current.ifscCode || !current.accountName) missing.push("Bank details");
+        if (!current.vehicleNumber) missing.push("Vehicle number");
         if (missing.length) {
           return res.status(409).json({
             success: false,

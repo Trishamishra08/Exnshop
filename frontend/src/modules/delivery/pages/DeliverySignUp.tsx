@@ -9,10 +9,22 @@ import {
 } from "../../../services/api/auth/deliveryAuthService";
 import LoginMethodTabs, { DEFAULT_LOGIN_METHOD, LoginMethod } from "../../../components/LoginMethodTabs";
 import { removeAuthToken } from "../../../services/api/config";
-import { uploadDocument } from "../../../services/api/uploadService";
+import api from "../../../services/api/config";
 import { validateDocumentFile, compressImage } from "../../../utils/imageUpload";
 import OTPInput from "../../../components/OTPInput";
 import AnimatedLogo from "../../../components/AnimatedLogo";
+
+// KYC documents an agent must provide; reviewed by the admin before activation.
+const KYC_DOCS = [
+  { type: "id_proof", label: "ID Proof", hint: "Aadhaar / Voter ID / Passport / Govt. ID" },
+  { type: "address_proof", label: "Address Proof", hint: "PAN Card / Electricity bill / Govt. ID" },
+  { type: "driving_license", label: "Driving Licence", hint: "Valid driving licence" },
+  { type: "vehicle_photo", label: "Vehicle Photo", hint: "Number plate clearly visible" },
+  { type: "vehicle_rc", label: "Vehicle RC", hint: "Registration certificate" },
+  { type: "vehicle_puc", label: "Vehicle PUC", hint: "Pollution certificate" },
+  { type: "vehicle_insurance", label: "Vehicle Insurance", hint: "Valid insurance policy" },
+  { type: "bank_proof", label: "Bank Proof", hint: "Account statement / cancelled cheque" },
+] as const;
 
 export default function DeliverySignUp() {
   const navigate = useNavigate();
@@ -25,17 +37,17 @@ export default function DeliverySignUp() {
     address: "",
     city: "",
     pincode: "",
-    drivingLicenseUrl: "",
-    nationalIdentityCardUrl: "",
     accountName: "",
     bankName: "",
     accountNumber: "",
     ifscCode: "",
     bonusType: "",
+    confirmAccountNumber: "",
+    vehicleType: "Bike",
+    vehicleNumber: "",
   });
 
-  const [drivingLicenseFile, setDrivingLicenseFile] = useState<File | null>(null);
-  const [nationalIdentityCardFile, setNationalIdentityCardFile] = useState<File | null>(null);
+  const [docFiles, setDocFiles] = useState<Record<string, File>>({});
   const [uploadingDocs, setUploadingDocs] = useState(false);
   const [showOTP, setShowOTP] = useState(false);
   const [sessionId, setSessionId] = useState("");
@@ -48,10 +60,10 @@ export default function DeliverySignUp() {
   // What a field accepts while typing — a stray letter in a phone/account
   // number, or more characters than the real format has, is rejected as it's
   // typed, not only flagged after the fact.
-  const DIGITS_ONLY_FIELDS = new Set(["mobile", "pincode", "accountNumber"]);
-  const ALPHANUMERIC_FIELDS = new Set(["ifscCode"]);
-  const UPPERCASE_FIELDS = new Set(["ifscCode"]);
-  const FIELD_MAX_LENGTH: Record<string, number> = { mobile: 10, pincode: 6, accountNumber: 18, ifscCode: 11 };
+  const DIGITS_ONLY_FIELDS = new Set(["mobile", "pincode", "accountNumber", "confirmAccountNumber"]);
+  const ALPHANUMERIC_FIELDS = new Set(["ifscCode", "vehicleNumber"]);
+  const UPPERCASE_FIELDS = new Set(["ifscCode", "vehicleNumber"]);
+  const FIELD_MAX_LENGTH: Record<string, number> = { mobile: 10, pincode: 6, accountNumber: 18, confirmAccountNumber: 18, ifscCode: 11, vehicleNumber: 12 };
 
   // Format checks: name/mobile/email/password/address/city are always required;
   // DOB (if given) must mean 18+; pincode (if given) must be a real 6-digit
@@ -71,11 +83,13 @@ export default function DeliverySignUp() {
     },
     address: (v) => (!v.trim() ? "Address is required" : v.trim().length < 5 ? "Enter your full address" : undefined),
     city: (v) => (!v.trim() ? "City is required" : undefined),
-    pincode: (v) => (v && !/^[1-9][0-9]{5}$/.test(v) ? "Enter a valid 6-digit pincode" : undefined),
-    accountName: (v, d) => (!v.trim() && (d.bankName || d.accountNumber || d.ifscCode) ? "Required once any bank detail is filled in" : undefined),
-    bankName: (v, d) => (!v.trim() && (d.accountName || d.accountNumber || d.ifscCode) ? "Required once any bank detail is filled in" : undefined),
-    accountNumber: (v) => (v && !/^[0-9]{9,18}$/.test(v) ? "Account number must be 9–18 digits" : undefined),
-    ifscCode: (v, d) => (d.accountNumber && !v ? "IFSC is required with an account number" : v && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(v) ? "IFSC must look like ABCD0123456" : undefined),
+    pincode: (v) => (!v ? "Pincode is required" : !/^[1-9][0-9]{5}$/.test(v) ? "Enter a valid 6-digit pincode" : undefined),
+    vehicleNumber: (v) => (!v ? "Vehicle number is required" : !/^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{4}$/.test(v) ? "Enter a valid vehicle number, e.g. RJ14AB1234" : undefined),
+    accountName: (v) => (!v.trim() ? "Account holder name is required" : v.trim().length < 2 ? "Enter the name on the account" : undefined),
+    bankName: (v) => (!v.trim() ? "Bank name is required" : undefined),
+    accountNumber: (v) => (!v ? "Account number is required" : !/^[0-9]{9,18}$/.test(v) ? "Account number must be 9–18 digits" : undefined),
+    confirmAccountNumber: (v, d) => (!v ? "Re-enter the account number" : v !== d.accountNumber ? "Account numbers do not match" : undefined),
+    ifscCode: (v) => (!v ? "IFSC is required" : !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(v) ? "IFSC must look like ABCD0123456" : undefined),
   };
 
   const validateField = (name: string, value: string, data = formData) => {
@@ -139,8 +153,8 @@ export default function DeliverySignUp() {
     if (!files || !files[0]) return;
     const validation = validateDocumentFile(files[0]);
     if (!validation.valid) { setError(validation.error || "Invalid file"); return; }
-    if (name === "drivingLicense") setDrivingLicenseFile(files[0]);
-    else if (name === "nationalIdentityCard") setNationalIdentityCardFile(files[0]);
+    const picked = files[0];
+    setDocFiles((prev) => ({ ...prev, [name]: picked }));
     setError("");
   };
 
@@ -155,24 +169,15 @@ export default function DeliverySignUp() {
       return;
     }
 
+    const missingDocs = KYC_DOCS.filter((d) => !docFiles[d.type]).map((d) => d.label);
+    if (missingDocs.length) {
+      setError(`Please upload: ${missingDocs.join(", ")}`);
+      return;
+    }
+
     setLoading(true);
 
     try {
-      let drivingLicenseUrl = formData.drivingLicenseUrl;
-      let nationalIdentityCardUrl = formData.nationalIdentityCardUrl;
-
-      if (drivingLicenseFile || nationalIdentityCardFile) {
-        setUploadingDocs(true);
-        if (drivingLicenseFile) {
-          const f = drivingLicenseFile.type.startsWith("image/") ? await compressImage(drivingLicenseFile) : drivingLicenseFile;
-          drivingLicenseUrl = (await uploadDocument(f, "exnshop/delivery/documents")).secureUrl;
-        }
-        if (nationalIdentityCardFile) {
-          const f = nationalIdentityCardFile.type.startsWith("image/") ? await compressImage(nationalIdentityCardFile) : nationalIdentityCardFile;
-          nationalIdentityCardUrl = (await uploadDocument(f, "exnshop/delivery/documents")).secureUrl;
-        }
-        setUploadingDocs(false);
-      }
 
       const response = await register({
         name: formData.name,
@@ -182,13 +187,13 @@ export default function DeliverySignUp() {
         password: formData.password,
         address: formData.address,
         city: formData.city,
-        pincode: formData.pincode || undefined,
-        drivingLicense: drivingLicenseUrl || undefined,
-        nationalIdentityCard: nationalIdentityCardUrl || undefined,
-        accountName: formData.accountName || undefined,
-        bankName: formData.bankName || undefined,
-        accountNumber: formData.accountNumber || undefined,
-        ifscCode: formData.ifscCode || undefined,
+        pincode: formData.pincode,
+        vehicleType: formData.vehicleType,
+        vehicleNumber: formData.vehicleNumber,
+        accountName: formData.accountName,
+        bankName: formData.bankName,
+        accountNumber: formData.accountNumber,
+        ifscCode: formData.ifscCode,
         bonusType: formData.bonusType || undefined,
       });
 
@@ -217,7 +222,25 @@ export default function DeliverySignUp() {
     setError("");
     try {
       const response = verifyBy === "mobile" ? await verifyMobileOTP(formData.mobile, otp, sessionId) : await verifyEmailOTP(formData.email.trim(), otp);
-      if (response.success) navigate("/delivery");
+      if (response.success) {
+        // Now signed in: send the KYC documents to the private, admin-reviewed store.
+        setUploadingDocs(true);
+        const failed: string[] = [];
+        for (const doc of KYC_DOCS) {
+          const file = docFiles[doc.type];
+          if (!file) continue;
+          try {
+            const f = file.type.startsWith("image/") ? await compressImage(file) : file;
+            const form = new FormData();
+            form.append("docType", doc.type);
+            form.append("file", f);
+            await api.post("/delivery/documents", form, { headers: { "Content-Type": "multipart/form-data" } });
+          } catch { failed.push(doc.label); }
+        }
+        setUploadingDocs(false);
+        // Anything that failed can be re-uploaded from KYC & Documents.
+        navigate(failed.length ? "/delivery/documents" : "/delivery/under-review", { replace: true });
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || "Invalid OTP. Please try again.");
     } finally {
@@ -405,7 +428,7 @@ export default function DeliverySignUp() {
 
                 {/* Pincode */}
                 <div className="mb-4">
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Pincode</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Pincode <span className="text-red-500">*</span></label>
                   <input type="text" name="pincode" value={formData.pincode} onChange={handleInputChange} onBlur={handleFieldBlur} inputMode="numeric" maxLength={6} placeholder="6-digit pincode" disabled={loading}
                     className={`w-full h-10 px-3 text-xs font-semibold text-slate-900 bg-slate-50 border rounded-xl focus:outline-none focus:ring-2 focus:bg-white transition-all placeholder:text-slate-400 placeholder:font-normal ${fieldErrors.pincode ? "border-red-400 focus:border-red-500 focus:ring-red-500/15" : "border-slate-200 focus:border-blue-500 focus:ring-blue-500/15"}`} />
                   {fieldErrors.pincode && <p className="text-[11px] text-red-600 mt-1 ml-1">{fieldErrors.pincode}</p>}
@@ -413,22 +436,43 @@ export default function DeliverySignUp() {
 
                 {/* ── Bank Info (collapsible section header) ── */}
                 <div className="border-t border-slate-100 pt-3 mb-3">
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Bank Details <span className="text-slate-300 normal-case font-normal">(optional)</span></p>
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Bank Details <span className="text-red-500 normal-case font-normal">(required, verified by admin)</span></p>
                   <div className="grid grid-cols-2 gap-2">
                     {[
                       { name: "accountName", label: "Account Name", placeholder: "Account holder" },
                       { name: "bankName", label: "Bank Name", placeholder: "Bank name" },
                       { name: "accountNumber", label: "Account No.", placeholder: "9–18 digits", inputMode: "numeric" as const, maxLength: 18 },
+                      { name: "confirmAccountNumber", label: "Confirm Account No.", placeholder: "Re-enter", inputMode: "numeric" as const, maxLength: 18 },
                       { name: "ifscCode", label: "IFSC Code", placeholder: "ABCD0123456", maxLength: 11 },
                     ].map((field) => (
                       <div key={field.name}>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">{field.label}</label>
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">{field.label} <span className="text-red-500">*</span></label>
                         <input type="text" name={field.name} value={(formData as any)[field.name]} onChange={handleInputChange} onBlur={handleFieldBlur}
                           inputMode={field.inputMode} maxLength={field.maxLength} placeholder={field.placeholder} disabled={loading}
                           className={`w-full h-9 px-2.5 text-xs font-semibold text-slate-900 bg-slate-50 border rounded-lg focus:outline-none focus:bg-white transition-all placeholder:text-slate-400 placeholder:font-normal ${(fieldErrors as any)[field.name] ? "border-red-400 focus:border-red-500" : "border-slate-200 focus:border-blue-500"}`} />
                         {(fieldErrors as any)[field.name] && <p className="text-[11px] text-red-600 mt-1">{(fieldErrors as any)[field.name]}</p>}
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                {/* Vehicle */}
+                <div className="border-t border-slate-100 pt-3 mb-3">
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Vehicle</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Type <span className="text-red-500">*</span></label>
+                      <select name="vehicleType" value={formData.vehicleType} onChange={handleInputChange} disabled={loading}
+                        className="w-full h-9 px-2.5 text-xs font-semibold text-slate-900 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500">
+                        {["Bike", "Scooter", "Car", "Cycle"].map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-600 mb-1">Vehicle No. <span className="text-red-500">*</span></label>
+                      <input type="text" name="vehicleNumber" value={formData.vehicleNumber} onChange={handleInputChange} onBlur={handleFieldBlur} maxLength={12} placeholder="RJ14AB1234" disabled={loading}
+                        className={`w-full h-9 px-2.5 text-xs font-semibold text-slate-900 bg-slate-50 border rounded-lg focus:outline-none focus:bg-white transition-all placeholder:text-slate-400 placeholder:font-normal ${fieldErrors.vehicleNumber ? "border-red-400" : "border-slate-200 focus:border-blue-500"}`} />
+                      {fieldErrors.vehicleNumber && <p className="text-[11px] text-red-600 mt-1">{fieldErrors.vehicleNumber}</p>}
+                    </div>
                   </div>
                 </div>
 
@@ -446,17 +490,16 @@ export default function DeliverySignUp() {
 
                 {/* ── Documents ── */}
                 <div className="border-t border-slate-100 pt-3 mb-4">
-                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Documents <span className="text-slate-300 normal-case font-normal">(optional, upload later)</span></p>
-                  <div className="space-y-2">
-                    {[
-                      { name: "drivingLicense", label: "Driving License", file: drivingLicenseFile },
-                      { name: "nationalIdentityCard", label: "National ID Card", file: nationalIdentityCardFile },
-                    ].map((doc) => (
-                      <div key={doc.name}>
-                        <label className="block text-xs font-semibold text-slate-600 mb-1">{doc.label}</label>
-                        <input type="file" name={doc.name} onChange={handleFileChange} accept="image/*,.pdf" disabled={loading || uploadingDocs}
+                  <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-1">Documents <span className="text-red-500 normal-case font-normal">(all required)</span></p>
+                  <p className="text-[11px] text-slate-500 mb-2">Photo or PDF, up to 10 MB each. Your account is activated after admin approval.</p>
+                  <div className="space-y-2.5">
+                    {KYC_DOCS.map((doc) => (
+                      <div key={doc.type}>
+                        <label className="block text-xs font-semibold text-slate-600">{doc.label} <span className="text-red-500">*</span></label>
+                        <p className="text-[10px] text-slate-400 mb-1">{doc.hint}</p>
+                        <input type="file" name={doc.type} onChange={handleFileChange} accept="image/*,.pdf" disabled={loading || uploadingDocs}
                           className="w-full text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 file:mr-3 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer" />
-                        {doc.file && <p className="text-[10px] text-slate-500 mt-0.5 truncate">📎 {doc.file.name}</p>}
+                        {docFiles[doc.type] && <p className="text-[10px] text-green-600 mt-0.5 truncate">✓ {docFiles[doc.type].name}</p>}
                       </div>
                     ))}
                   </div>

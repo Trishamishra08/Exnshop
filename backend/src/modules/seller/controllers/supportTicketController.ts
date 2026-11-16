@@ -136,16 +136,16 @@ export const getAllTickets = asyncHandler(async (req: Request, res: Response) =>
 
   const tickets = await SupportTicket.find(query)
     .populate("seller", "sellerName storeName")
+    .populate("customer", "name email phone")
     .sort({ updatedAt: -1 });
 
   return res.status(200).json({ success: true, message: "Tickets fetched successfully", data: tickets });
 });
 
 export const getTicketByIdAdmin = asyncHandler(async (req: Request, res: Response) => {
-  const ticket = await SupportTicket.findById(req.params.id).populate(
-    "seller",
-    "sellerName storeName email mobile"
-  );
+  const ticket = await SupportTicket.findById(req.params.id)
+    .populate("seller", "sellerName storeName email mobile")
+    .populate("customer", "name email phone");
   if (!ticket) {
     return res.status(404).json({ success: false, message: "Ticket not found" });
   }
@@ -184,15 +184,19 @@ export const replyToTicketAsAdmin = asyncHandler(async (req: Request, res: Respo
 
   await ticket.save();
 
-  sendNotification(
-    "Seller",
-    ticket.seller.toString(),
-    `Support Ticket Update: ${ticket.subject}`,
-    hasMessage
-      ? message.trim()
-      : `Your ticket is now: ${STATUS_LABELS[ticket.status]}.`,
-    { type: "Info", priority: "Medium", link: "/seller/support-tickets" }
-  ).catch((err) => console.error("Failed to send support ticket notification:", err));
+  const isCustomerTicket = ticket.requesterType === "Customer";
+  const recipientId = (isCustomerTicket ? ticket.customer : ticket.seller)?.toString();
+  (recipientId
+    ? sendNotification(
+        isCustomerTicket ? "Customer" : "Seller",
+        recipientId,
+        `Support Ticket Update: ${ticket.subject}`,
+        hasMessage
+          ? message.trim()
+          : `Your ticket is now: ${STATUS_LABELS[ticket.status]}.`,
+        { type: "Info", priority: "Medium", link: isCustomerTicket ? "/account" : "/seller/support-tickets" }
+      )
+    : Promise.resolve()).catch((err) => console.error("Failed to send support ticket notification:", err));
 
   return res.status(200).json({
     success: true,

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../../context/ToastContext';
-import { CustomerBankDetails, getCustomerBankDetails, saveCustomerBankDetails } from '../../../services/api/customerWalletService';
+import { CustomerBankDetails, cancelPendingBankDetails, getCustomerBankDetails, saveCustomerBankDetails } from '../../../services/api/customerWalletService';
 
 /**
  * The customer's bank account / UPI ID. COD return refunds can be paid here,
@@ -21,6 +21,7 @@ export default function BankDetails() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [proof, setProof] = useState<File | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -30,7 +31,7 @@ export default function BankDetails() {
           setSaved(res.data);
           setForm({ ...EMPTY, ...res.data });
           setConfirmNumber(res.data.accountNumber || '');
-          setEditing(!res.data.hasBank && !res.data.hasUpi);
+          setEditing(!res.data.hasBank && !res.data.hasUpi && !res.data.pending);
         }
       } catch {
         setEditing(true);
@@ -46,11 +47,12 @@ export default function BankDetails() {
     if (form.accountNumber && form.accountNumber !== confirmNumber) return setError('The account numbers do not match.');
     setSaving(true);
     try {
-      const res = await saveCustomerBankDetails(form);
+      const res = await saveCustomerBankDetails(form, proof);
       if (res.success) {
         setSaved(res.data);
         setEditing(false);
-        showToast('Bank details saved', 'success');
+        setProof(null);
+        showToast('Sent to admin for approval', 'success');
       }
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Could not save your bank details');
@@ -58,6 +60,27 @@ export default function BankDetails() {
       setSaving(false);
     }
   };
+
+  const onProof = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f) return;
+    if (!/^(image\/|application\/pdf)/.test(f.type)) return setError('Upload a photo or a PDF');
+    if (f.size > 10 * 1024 * 1024) return setError('The file must be 10 MB or smaller');
+    setProof(f);
+    setError('');
+  };
+
+  const withdrawPending = async () => {
+    try {
+      const res = await cancelPendingBankDetails();
+      if (res.success) { setSaved(res.data); setEditing(!res.data.hasBank && !res.data.hasUpi); }
+    } catch (err: any) {
+      showToast(err?.response?.data?.message || 'Could not withdraw the request', 'error');
+    }
+  };
+
+  const pending = saved?.pending;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
@@ -76,9 +99,26 @@ export default function BankDetails() {
           You can also transfer your wallet balance here.
         </div>
 
+        {!editing && pending && (
+          <div className={`rounded-xl border p-3 text-xs space-y-1.5 ${pending.status === 'Pending' ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-red-50 border-red-200 text-red-800'}`}>
+            <p className="font-bold text-sm">{pending.status === 'Pending' ? 'Waiting for admin approval' : 'Not approved'}</p>
+            <p>
+              {pending.accountNumberMasked ? `${pending.accountHolderName} · ${pending.accountNumberMasked} · ${pending.ifscCode}` : null}
+              {pending.upiId ? `${pending.accountNumberMasked ? ' · ' : ''}UPI ${pending.upiId}` : null}
+            </p>
+            {pending.status === 'Pending'
+              ? <p>{saved?.hasBank || saved?.hasUpi ? 'Your previous approved details stay in use until then.' : 'Your details can be used once approved.'}</p>
+              : <p>Reason: {pending.remarks}</p>}
+            <div className="flex gap-2 pt-1">
+              {pending.status === 'Rejected' && <button onClick={() => { setForm({ ...EMPTY, upiId: pending.upiId, bankName: pending.bankName, accountHolderName: pending.accountHolderName, ifscCode: pending.ifscCode }); setConfirmNumber(''); setEditing(true); }} className="px-3 py-1.5 rounded-lg bg-red-600 text-white font-semibold">Fix and resend</button>}
+              <button onClick={withdrawPending} className="px-3 py-1.5 rounded-lg border border-current font-semibold">{pending.status === 'Pending' ? 'Withdraw request' : 'Dismiss'}</button>
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600" /></div>
-        ) : !editing && saved ? (
+        ) : !editing && saved && (saved.hasBank || saved.hasUpi) ? (
           <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
             {saved.hasBank && (
               <div>
@@ -86,6 +126,7 @@ export default function BankDetails() {
                 <p className="text-sm font-semibold text-gray-900 mt-1">{saved.accountHolderName}</p>
                 <p className="text-sm text-gray-700 font-mono">{saved.accountNumberMasked}</p>
                 <p className="text-xs text-gray-500">IFSC {saved.ifscCode}{saved.bankName ? ` · ${saved.bankName}` : ''}</p>
+                <p className="text-[11px] text-emerald-700 font-semibold mt-1">✓ Approved</p>
               </div>
             )}
             {saved.hasUpi && (
@@ -94,7 +135,7 @@ export default function BankDetails() {
                 <p className="text-sm text-gray-900 mt-1">{saved.upiId}</p>
               </div>
             )}
-            <button onClick={() => setEditing(true)} className="w-full py-2.5 rounded-lg border border-emerald-600 text-emerald-700 text-sm font-semibold">Edit bank details</button>
+            <button onClick={() => setEditing(true)} className="w-full py-2.5 rounded-lg border border-emerald-600 text-emerald-700 text-sm font-semibold">Change bank details (needs admin approval)</button>
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
@@ -122,17 +163,25 @@ export default function BankDetails() {
               </div>
             </div>
 
+            <div>
+              <label className={labelCls}>Bank proof <span className="text-red-500">*</span></label>
+              <p className="text-[11px] text-gray-500 mb-1">Photo or PDF of your account statement or cancelled cheque (up to 10 MB). Required for a new or changed bank account.</p>
+              <input type="file" accept="image/*,application/pdf" onChange={onProof}
+                className="w-full text-xs text-gray-600 bg-gray-50 border border-gray-300 rounded-lg px-3 py-2 file:mr-3 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700" />
+              {proof && <p className="text-[11px] text-emerald-700 mt-1 truncate">✓ {proof.name}</p>}
+            </div>
+
             <p className="text-sm font-bold text-gray-900 pt-2">UPI ID <span className="font-normal text-gray-500 text-xs">(optional)</span></p>
             <input className={inputCls} value={form.upiId} onChange={(e) => set('upiId', e.target.value.trim())} placeholder="name@okbank" />
 
             {error && <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
             <div className="flex gap-2 pt-1">
-              {saved && (saved.hasBank || saved.hasUpi) && (
-                <button onClick={() => { setEditing(false); setForm({ ...EMPTY, ...saved }); setConfirmNumber(saved.accountNumber || ''); setError(''); }}
+              {saved && (saved.hasBank || saved.hasUpi || saved.pending) && (
+                <button onClick={() => { setEditing(false); setForm({ ...EMPTY, ...saved }); setConfirmNumber(saved.accountNumber || ''); setProof(null); setError(''); }}
                   className="flex-1 py-2.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700">Cancel</button>
               )}
               <button onClick={save} disabled={saving} className="flex-1 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold disabled:opacity-50">
-                {saving ? 'Saving…' : 'Save bank details'}
+                {saving ? 'Sending…' : 'Submit for approval'}
               </button>
             </div>
           </div>

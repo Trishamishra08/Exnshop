@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface ITicketMessage {
-  sender: "Seller" | "Admin";
+  sender: "Seller" | "Customer" | "Admin";
   message: string;
   attachments: string[];
   createdAt: Date;
@@ -16,14 +16,19 @@ export type TicketStatus = (typeof TICKET_STATUSES)[number];
 
 export interface ITicketStatusChange {
   status: TicketStatus;
-  by: "Seller" | "Admin" | "System";
+  by: "Seller" | "Customer" | "Admin" | "System";
   note?: string;
   at: Date;
 }
 
 export interface ISupportTicket extends Document {
-  seller: mongoose.Types.ObjectId;
-  category: "Payment" | "Product" | "Order" | "Technical" | "Account" | "Other";
+  /** Set for seller tickets. Customer tickets carry customer / requester* instead. */
+  seller?: mongoose.Types.ObjectId;
+  customer?: mongoose.Types.ObjectId;
+  requesterType: "Seller" | "Customer";
+  requesterName?: string;
+  requesterEmail?: string;
+  category: "Payment" | "Product" | "Order" | "Technical" | "Account" | "Other" | "Delivery" | "Return" | "General";
   priority: "Low" | "Medium" | "High";
   subject: string;
   description: string;
@@ -37,7 +42,7 @@ export interface ISupportTicket extends Document {
 
 const TicketMessageSchema = new Schema<ITicketMessage>(
   {
-    sender: { type: String, enum: ["Seller", "Admin"], required: true },
+    sender: { type: String, enum: ["Seller", "Customer", "Admin"], required: true },
     message: { type: String, required: true, trim: true },
     attachments: { type: [String], default: [] },
     createdAt: { type: Date, default: Date.now },
@@ -50,11 +55,14 @@ const SupportTicketSchema = new Schema<ISupportTicket>(
     seller: {
       type: Schema.Types.ObjectId,
       ref: "Seller",
-      required: [true, "Seller is required"],
     },
+    customer: { type: Schema.Types.ObjectId, ref: "Customer" },
+    requesterType: { type: String, enum: ["Seller", "Customer"], default: "Seller" },
+    requesterName: { type: String, trim: true },
+    requesterEmail: { type: String, trim: true, lowercase: true },
     category: {
       type: String,
-      enum: ["Payment", "Product", "Order", "Technical", "Account", "Other"],
+      enum: ["Payment", "Product", "Order", "Technical", "Account", "Other", "Delivery", "Return", "General"],
       default: "Other",
     },
     priority: {
@@ -86,7 +94,7 @@ const SupportTicketSchema = new Schema<ISupportTicket>(
         new Schema<ITicketStatusChange>(
           {
             status: { type: String, enum: TICKET_STATUSES, required: true },
-            by: { type: String, enum: ["Seller", "Admin", "System"], required: true },
+            by: { type: String, enum: ["Seller", "Customer", "Admin", "System"], required: true },
             note: { type: String, trim: true },
             at: { type: Date, default: Date.now },
           },
@@ -106,6 +114,7 @@ const SupportTicketSchema = new Schema<ISupportTicket>(
 );
 
 SupportTicketSchema.index({ seller: 1, status: 1 });
+SupportTicketSchema.index({ customer: 1, status: 1 });
 
 const SupportTicket =
   (mongoose.models.SupportTicket as mongoose.Model<ISupportTicket>) ||

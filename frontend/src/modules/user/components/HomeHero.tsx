@@ -306,7 +306,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange, searchPlaceho
     appSettings?.estimatedDeliveryTime || appConfig.estimatedDeliveryTime || '12–15 mins';
   const cleanDeliveryTime = deliveryTime.toLowerCase().replace('delivery', '').trim();
 
-  // "Deliver to Trisha — Noida, Uttar Pradesh 201301" (name only once the customer has set one)
+  // "Welcome, Trisha" greeting (only once the customer has set a name)
   const customerName = (user?.name && user.name !== 'User' ? String(user.name).split(' ')[0] : '') as string;
 
   return (
@@ -416,11 +416,17 @@ export default function HomeHero({ activeTab = 'all', onTabChange, searchPlaceho
             <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
             <circle cx="12" cy="9" r="2.5" stroke="currentColor" strokeWidth="2" />
           </svg>
-          <span className="text-[13px] sm:text-sm text-neutral-800 truncate">
-            {t('customer.deliverTo', 'Deliver to')}{' '}
-            <span className="font-bold text-neutral-900">
-              {customerName ? `${customerName} — ` : ''}
-              {locationDisplayText || shortLocationLabel}
+          <span className="min-w-0 flex flex-col">
+            {customerName && (
+              <span className="text-[11px] sm:text-xs font-semibold text-neutral-600 truncate">
+                {t('customer.welcome', 'Welcome')}, {customerName} 👋
+              </span>
+            )}
+            <span className="text-[13px] sm:text-sm text-neutral-800 truncate">
+              {t('customer.deliverTo', 'Deliver to')}{' '}
+              <span className="font-bold text-neutral-900">
+                {locationDisplayText || shortLocationLabel}
+              </span>
             </span>
           </span>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 text-neutral-800">
@@ -428,6 +434,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange, searchPlaceho
           </svg>
         </button>
 
+        {mode === 'Quick' && (
         <div className="flex-shrink-0 inline-flex items-center gap-1 bg-white/90 rounded-full pl-2 pr-2.5 py-1 shadow-sm">
           <svg width="13" height="13" viewBox="0 0 24 24" className="flex-shrink-0">
             <path d="M13 2L4.09 12.69a1 1 0 0 0 .77 1.64H11l-1 7.31a1 1 0 0 0 1.79.63L20.91 11.3a1 1 0 0 0-.77-1.64H14l1-7.3a1 1 0 0 0-1.79-.63L13 2z" fill="#FF8C00" />
@@ -436,6 +443,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange, searchPlaceho
             {t('customer.deliveringInShort', 'Delivery in')} {cleanDeliveryTime}
           </span>
         </div>
+        )}
       </div>
 
       {/* ── Sticky: search + department circles ── */}

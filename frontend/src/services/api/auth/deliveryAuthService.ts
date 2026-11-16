@@ -44,6 +44,8 @@ export interface RegisterData {
   accountNumber?: string;
   ifscCode?: string;
   bonusType?: string;
+  vehicleType?: string;
+  vehicleNumber?: string;
 }
 
 export interface RegisterResponse {

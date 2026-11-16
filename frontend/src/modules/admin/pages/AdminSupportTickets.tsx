@@ -44,7 +44,14 @@ export default function AdminSupportTickets() {
         }
     };
 
-    const getSellerLabel = (seller: SupportTicket['seller']) => {
+    // Seller tickets show the store, customer tickets the customer (tagged).
+    const getSellerLabel = (ticket: SupportTicket) => {
+        if (ticket.requesterType === 'Customer') {
+            const c = ticket.customer;
+            const name = (typeof c === 'object' && c?.name) || ticket.requesterName || 'Customer';
+            return `Customer: ${name}`;
+        }
+        const seller = ticket.seller;
         if (typeof seller === 'string') return seller;
         return seller?.storeName || seller?.sellerName || '—';
     };
@@ -88,7 +95,7 @@ export default function AdminSupportTickets() {
                         <div>
                             <button onClick={() => setSelectedTicket(null)} className="text-teal-100 hover:text-white text-xs mb-1">← Back to tickets</button>
                             <h2 className="text-lg font-semibold">{selectedTicket.subject}</h2>
-                            <p className="text-sm text-teal-100 mt-1">{getSellerLabel(selectedTicket.seller)} · {selectedTicket.category} · {selectedTicket.priority} priority</p>
+                            <p className="text-sm text-teal-100 mt-1">{getSellerLabel(selectedTicket)} · {selectedTicket.category} · {selectedTicket.priority} priority</p>
                         </div>
                         {statusBadge(selectedTicket.status)}
                     </div>
@@ -103,7 +110,7 @@ export default function AdminSupportTickets() {
                         {selectedTicket.messages.map((msg, idx) => (
                             <div key={idx} className={`flex ${msg.sender === 'Admin' ? 'justify-end' : 'justify-start'}`}>
                                 <div className={`max-w-[75%] rounded-lg px-4 py-2 text-sm ${msg.sender === 'Admin' ? 'bg-teal-600 text-white' : 'bg-neutral-100 text-neutral-800'}`}>
-                                    <p className="text-xs opacity-70 mb-1">{msg.sender === 'Admin' ? 'You (Support)' : getSellerLabel(selectedTicket.seller)} · {new Date(msg.createdAt).toLocaleString('en-GB')}</p>
+                                    <p className="text-xs opacity-70 mb-1">{msg.sender === 'Admin' ? 'You (Support)' : getSellerLabel(selectedTicket)} · {new Date(msg.createdAt).toLocaleString('en-GB')}</p>
                                     <p className="whitespace-pre-wrap">{msg.message}</p>
                                     <AttachmentList urls={msg.attachments} light={msg.sender === 'Admin'} />
                                 </div>
@@ -155,8 +162,8 @@ export default function AdminSupportTickets() {
                 <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
                     <div className="bg-teal-600 text-white px-6 py-4 rounded-t-lg flex items-center justify-between flex-wrap gap-3">
                         <div>
-                            <h2 className="text-lg font-semibold">Seller Support Tickets</h2>
-                            <p className="text-sm text-teal-100 mt-1">Respond to seller support requests.</p>
+                            <h2 className="text-lg font-semibold">Support Tickets</h2>
+                            <p className="text-sm text-teal-100 mt-1">Respond to seller and customer support requests.</p>
                         </div>
                         <select
                             value={statusFilter}
@@ -187,7 +194,7 @@ export default function AdminSupportTickets() {
                                     <div>
                                         <p className="text-sm font-medium text-neutral-800">{ticket.subject}</p>
                                         <p className="text-xs text-neutral-500 mt-0.5">
-                                            {getSellerLabel(ticket.seller)} · {ticket.category} · {ticket.priority} priority · {ticket.messages.length} message(s)
+                                            {getSellerLabel(ticket)} · {ticket.category} · {ticket.priority} priority · {ticket.messages.length} message(s)
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-3 flex-shrink-0">

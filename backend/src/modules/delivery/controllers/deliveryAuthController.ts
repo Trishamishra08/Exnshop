@@ -191,6 +191,8 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     accountNumber,
     ifscCode,
     bonusType,
+    vehicleType,
+    vehicleNumber,
   } = req.body;
 
   // Validation
@@ -207,6 +209,23 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
       message: "Valid 10-digit mobile number is required",
     });
   }
+
+  // Everything the admin has to verify before activating the partner.
+  const str = (v: any) => String(v ?? "").trim();
+  const bad = (message: string) => res.status(400).json({ success: false, message });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str(email))) return bad("Enter a valid email address");
+  if (String(password).length < 6) return bad("Password must be at least 6 characters");
+  if (str(address).length < 5 || !str(city)) return bad("Address and city are required");
+  if (!/^[1-9][0-9]{5}$/.test(str(pincode))) return bad("Enter a valid 6-digit pincode");
+  if (dateOfBirth) {
+    const dob = new Date(dateOfBirth);
+    if (Number.isNaN(dob.getTime()) || (Date.now() - dob.getTime()) / (365.25 * 24 * 3600 * 1000) < 18) return bad("You must be at least 18 years old");
+  }
+  if (!/^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{4}$/.test(str(vehicleNumber).toUpperCase())) return bad("Enter a valid vehicle number, e.g. RJ14AB1234");
+  if (!["Bike", "Scooter", "Car", "Cycle"].includes(str(vehicleType))) return bad("Choose your vehicle type");
+  if (str(accountName).length < 2 || !str(bankName)) return bad("Bank account holder name and bank name are required");
+  if (!/^[0-9]{9,18}$/.test(str(accountNumber))) return bad("Account number must be 9 to 18 digits");
+  if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(str(ifscCode).toUpperCase())) return bad("Enter a valid IFSC code, e.g. SBIN0001234");
 
   // Check if delivery partner already exists
   const existingDelivery = await Delivery.findOne({
@@ -229,14 +248,14 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     password,
     address,
     city,
-    pincode,
-    drivingLicense,
-    nationalIdentityCard,
-    accountName,
-    bankName,
-    accountNumber,
-    ifscCode,
+    pincode: str(pincode),
+    accountName: str(accountName),
+    bankName: str(bankName),
+    accountNumber: str(accountNumber),
+    ifscCode: str(ifscCode).toUpperCase(),
     bonusType,
+    vehicleType: str(vehicleType),
+    vehicleNumber: str(vehicleNumber).toUpperCase(),
     status: "Inactive", // New delivery partners start as Inactive
     balance: 0,
     cashCollected: 0,

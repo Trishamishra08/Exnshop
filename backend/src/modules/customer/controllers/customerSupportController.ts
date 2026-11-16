@@ -2,6 +2,18 @@ import { Request, Response } from "express";
 import CustomerSupportRequest from "../../../models/CustomerSupportRequest";
 import Customer from "../../../models/Customer";
 import { sendSupportEmail } from "../../../services/emailService";
+import SupportTicket from "../../../models/SupportTicket";
+import { sendBroadcastNotification } from "../../../services/notificationService";
+
+// What the customer picked in the form -> ticket category and how urgent it is.
+const CATEGORY_MAP: Record<string, { category: string; priority: "Low" | "Medium" | "High" }> = {
+  "Order Issue": { category: "Order", priority: "Medium" },
+  "Delivery Issue": { category: "Delivery", priority: "High" },
+  "Product Issue": { category: "Product", priority: "Medium" },
+  "Payment Issue": { category: "Payment", priority: "High" },
+  "Return Issue": { category: "Return", priority: "Medium" },
+  "General Inquiry": { category: "General", priority: "Low" },
+};
 
 /**
  * Submit Customer Support / Contact Form
@@ -10,6 +22,7 @@ import { sendSupportEmail } from "../../../services/emailService";
 export const submitCustomerSupport = async (req: Request, res: Response) => {
   try {
     let { name, email, subject, message } = req.body;
+    const picked = CATEGORY_MAP[String(req.body.category || "")] || CATEGORY_MAP["General Inquiry"];
 
     // 1. Sanitize & trim inputs
     name = (name || "").trim().replace(/[\r\n]/g, " ");
@@ -75,6 +88,32 @@ export const submitCustomerSupport = async (req: Request, res: Response) => {
       emailSent: false,
     });
     await supportRequest.save();
+
+    // 4b. Raise a ticket so it shows up in the admin panel (Support Tickets) with a notification.
+    try {
+      const ticket = await SupportTicket.create({
+        customer: customerId,
+        requesterType: "Customer",
+        requesterName: name,
+        requesterEmail: email,
+        category: picked.category,
+        priority: picked.priority,
+        subject,
+        description: message,
+        status: "Open",
+        statusHistory: [{ status: "Open", by: "Customer", at: new Date() }],
+        messages: [],
+      });
+      sendBroadcastNotification(
+        "Admin",
+        `New customer support ticket (${picked.priority} priority)`,
+        `${name} · ${picked.category}: ${subject}`,
+        { type: "Info", priority: picked.priority === "High" ? "High" : "Medium", link: "/admin/support-tickets" }
+      ).catch((err) => console.error("Failed to notify admins of customer ticket:", err?.message));
+      (supportRequest as any).ticket = ticket._id;
+    } catch (err: any) {
+      console.error("[SUPPORT CONTROLLER] Could not create admin ticket:", err?.message);
+    }
 
     // 5. Send Support Email via Nodemailer
     console.log(`[SUPPORT CONTROLLER] Sending support email for Request ID: ${supportRequest._id}`);
