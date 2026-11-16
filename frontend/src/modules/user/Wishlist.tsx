@@ -10,6 +10,7 @@ import LazyImage from '../../components/LazyImage';
 import { motion, AnimatePresence } from 'framer-motion';
 import { calculateProductPrice } from '../../utils/priceUtils';
 import { useUnavailableSellers } from '../../hooks/useUnavailableSellers';
+import { useHomeTheme } from "./components/home/homeTheme";
 
 export default function Wishlist() {
   const navigate = useNavigate();
@@ -29,8 +30,10 @@ export default function Wishlist() {
     }
   };
 
+  // Quick = blue, Shop All = pink (theme-shopall recolours the page, see styles/modeTheme.css)
+  const modeTheme = useHomeTheme();
   return (
-    <div className="pb-24 md:pb-8 bg-white min-h-screen">
+    <div className={`pb-24 md:pb-8 min-h-screen ${modeTheme.quick ? "" : "theme-shopall"}`} style={{ background: modeTheme.pageBg }}>
       <div className="px-4 py-4 bg-white border-b border-neutral-200 mb-4 sticky top-0 z-10 flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="p-1">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>

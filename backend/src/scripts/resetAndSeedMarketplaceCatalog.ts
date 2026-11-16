@@ -26,9 +26,11 @@ dotenv.config({ path: path.join(__dirname, "../../.env") });
 
 import mongoose from "mongoose";
 import { FULL_DEPARTMENTS, DEMO_DEPARTMENTS, AttrDef, RuleDef } from "./data/marketplaceTaxonomy";
+import { MARKETPLACE_DEPARTMENTS } from "./data/meeshoTaxonomy";
 
-// Default: the small demo catalogue (with images). --full seeds the complete tree.
-const DEPARTMENTS = process.argv.includes("--full") ? FULL_DEPARTMENTS : DEMO_DEPARTMENTS;
+// Default: the marketplace tree for the Categories page (18 departments, ~300 tiles).
+// --demo seeds the small 4-department set, --full the older 6-department tree.
+const DEPARTMENTS = process.argv.includes("--demo") ? DEMO_DEPARTMENTS : process.argv.includes("--full") ? FULL_DEPARTMENTS : MARKETPLACE_DEPARTMENTS;
 
 // --catalog-only: replace just the catalogue (categories, their fields/rules,
 // products and anything pointing at them); users, sellers, orders etc. stay.
@@ -216,6 +218,8 @@ async function main() {
         parentId: null,
         headerCategoryId: header._id,
         totalSubcategories: group.items.length,
+        isFeatured: group.featured === true,
+        isBestseller: group.popular === true,
         // Every category under a department has an image: a group uses its
         // first sub-category's photo.
         image: group.items.map((it) => (typeof it === "string" ? undefined : it.image)).find(Boolean),

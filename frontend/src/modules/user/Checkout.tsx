@@ -8,6 +8,7 @@ import { useToast } from "../../context/ToastContext";
 import { useAuth } from "../../context/AuthContext";
 import { useAppSettings } from "../../context/AppSettingsContext";
 import { useCommerceMode } from "../../context/CommerceModeContext";
+import { useHomeTheme } from "./components/home/homeTheme";
 
 // import { products } from '../../data/products'; // Removed
 import { OrderAddress, Order } from "../../types/order";
@@ -79,6 +80,8 @@ export default function Checkout() {
   const [useWallet, setUseWallet] = useState<boolean>(false);
 
   const { mode } = useCommerceMode();
+  // Quick = blue, Shop All = pink (theme-shopall recolours the page, see styles/modeTheme.css)
+  const modeTheme = useHomeTheme();
 
   // Delivery Option State
   const [deliveryOption, setDeliveryOption] = useState<"Instant" | "Standard">(
@@ -836,7 +839,7 @@ export default function Checkout() {
   };
 
   return (
-    <div className="bg-white min-h-screen flex flex-col">
+    <div className={`min-h-screen flex flex-col ${modeTheme.quick ? "" : "theme-shopall"}`} style={{ background: modeTheme.pageBg }}>
       {/* Party Popper Animation */}
       <PartyPopper
         show={showPartyPopper}
@@ -1449,12 +1452,12 @@ export default function Checkout() {
               xmlns="http://www.w3.org/2000/svg">
               <path
                 d="M5 13h14M5 13l4-4m-4 4l4 4"
-                stroke="#3b82f6"
+                stroke="#3b82f6" className="mode-brand-stroke"
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
-              <circle cx="18" cy="5" r="2" fill="#3b82f6" />
+              <circle cx="18" cy="5" r="2" fill="#3b82f6" className="mode-brand-fill" />
             </svg>
             <div className="flex-1">
               <div className="flex items-center justify-between">
@@ -1469,7 +1472,7 @@ export default function Checkout() {
                   xmlns="http://www.w3.org/2000/svg">
                   <path
                     d="M9 18l6-6-6-6"
-                    stroke="#3b82f6"
+                    stroke="#3b82f6" className="mode-brand-stroke"
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"

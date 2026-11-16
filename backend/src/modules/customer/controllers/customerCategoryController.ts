@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import Category from "../../../models/Category";
 import SubCategory from "../../../models/SubCategory";
 import Product from "../../../models/Product";
+import HeaderCategory from "../../../models/HeaderCategory";
 import mongoose from "mongoose";
 import { cache } from "../../../utils/cache";
 
@@ -22,7 +23,7 @@ export const getCategories = async (req: Request, res: Response) => {
         ...(withChildren ? {} : { $or: [{ parentId: null }, { parentId: { $exists: false } }] }),
       })
         .sort({ order: 1 })
-        .select("name image icon description color slug _id headerCategoryId parentId order isBestseller translations")
+        .select("name image icon description color slug _id headerCategoryId parentId order isBestseller isFeatured translations")
         .lean(); // Use lean() for better performance
 
       // Cache for 10 minutes
@@ -343,5 +344,52 @@ export const getCategoryById = async (req: Request, res: Response) => {
       message: "Error fetching category details",
       error: error.message,
     });
+  }
+};
+
+/**
+ * Whole Categories-page menu in one call:
+ *   departments → groups → tiles, plus the Popular tab (Featured row + All Popular).
+ * Cached; admin category edits clear it (key matches /^customer-category-/).
+ */
+export const getCategoryMenu = async (_req: Request, res: Response) => {
+  try {
+    const cacheKey = "customer-category-menu";
+    const hit = cache.get(cacheKey);
+    if (hit) return res.status(200).json({ success: true, data: hit });
+
+    const [headers, cats] = await Promise.all([
+      HeaderCategory.find({ status: "Published" }).sort({ order: 1 }).select("name slug iconName iconLibrary order translations").lean(),
+      Category.find({ status: "Active" })
+        .sort({ order: 1 })
+        .select("name slug image order parentId headerCategoryId isBestseller isFeatured translations")
+        .lean(),
+    ]);
+
+    const idStr = (v: any) => (v ? String(v._id || v) : "");
+    const kids = new Map<string, any[]>();
+    cats.forEach((c: any) => {
+      const p = idStr(c.parentId);
+      if (p) kids.set(p, [...(kids.get(p) || []), c]);
+    });
+    const tile = (c: any) => ({ _id: String(c._id), name: c.name, slug: c.slug, image: c.image || "", translations: c.translations || {} });
+    const groupOf = (c: any) => ({ ...tile(c), tiles: (kids.get(String(c._id)) || []).map(tile) });
+
+    const roots = cats.filter((c: any) => !idStr(c.parentId));
+    const departments = headers
+      .map((h: any) => {
+        const groups = roots.filter((r: any) => idStr(r.headerCategoryId) === String(h._id)).map(groupOf);
+        // Rail thumbnail: the first photo found in the department
+        const thumb = groups.flatMap((g: any) => [g.image, ...g.tiles.map((t: any) => t.image)]).find(Boolean) || "";
+        return { _id: String(h._id), name: h.name, slug: h.slug, iconName: h.iconName, image: thumb, translations: h.translations || {}, groups };
+      })
+      .filter((d: any) => d.groups.length > 0);
+
+    const flagged = (flag: "isFeatured" | "isBestseller") => cats.filter((c: any) => c[flag]).map(tile);
+    const data = { departments, featured: flagged("isFeatured"), popular: flagged("isBestseller") };
+    cache.set(cacheKey, data, 10 * 60 * 1000);
+    return res.status(200).json({ success: true, data });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: "Error fetching category menu", error: error.message });
   }
 };

@@ -48,6 +48,7 @@ export default function CategoryFormModal({
     headerCategoryId: null as string | null,
     status: "Active" as "Active" | "Inactive",
     isBestseller: false,
+    isFeatured: false,
     hasWarning: false,
     groupCategory: "",
     commissionRate: 0,
@@ -135,6 +136,7 @@ export default function CategoryFormModal({
           headerCategoryId: category.headerCategoryId || null,
           status: category.status || "Active",
           isBestseller: category.isBestseller || false,
+          isFeatured: (category as any).isFeatured || false,
           hasWarning: category.hasWarning || false,
           groupCategory: category.groupCategory || "",
           commissionRate: category.commissionRate || 0,
@@ -178,6 +180,7 @@ export default function CategoryFormModal({
           headerCategoryId: inheritedHeaderCategoryId,
           status: "Active",
           isBestseller: false,
+          isFeatured: false,
           hasWarning: false,
           groupCategory: "",
           commissionRate: 0,
@@ -195,6 +198,7 @@ export default function CategoryFormModal({
           headerCategoryId: null,
           status: "Active",
           isBestseller: false,
+          isFeatured: false,
           hasWarning: false,
           groupCategory: "",
           commissionRate: 0,
@@ -393,6 +397,7 @@ export default function CategoryFormModal({
         headerCategoryId: formData.headerCategoryId,
         status: formData.status,
         isBestseller: formData.isBestseller,
+        isFeatured: formData.isFeatured,
         hasWarning: formData.hasWarning,
         groupCategory: formData.groupCategory || undefined,
         commissionRate: formData.commissionRate,
@@ -898,7 +903,24 @@ export default function CategoryFormModal({
                       disabled={submitting}
                     />
                     <span className="text-sm font-medium text-neutral-700">
-                      Is Bestseller Category
+                      Show in "All Popular" (Categories page, Popular tab)
+                    </span>
+                  </label>
+                </div>
+
+                {/* Featured */}
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      name="isFeatured"
+                      checked={formData.isFeatured}
+                      onChange={handleInputChange}
+                      className="mr-2"
+                      disabled={submitting}
+                    />
+                    <span className="text-sm font-medium text-neutral-700">
+                      Show in "Featured" row (Categories page, Popular tab)
                     </span>
                   </label>
                 </div>

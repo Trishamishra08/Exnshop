@@ -6,6 +6,8 @@ export interface ICategory extends Document {
   image?: string;
   order: number;
   isBestseller: boolean;
+  /** Shown in the "Featured" row of the Categories page Popular tab */
+  isFeatured: boolean;
   hasWarning: boolean;
   groupCategory?: string;
   totalSubcategories?: number;
@@ -50,6 +52,10 @@ const CategorySchema = new Schema<ICategory>(
       min: [0, "Order cannot be negative"],
     },
     isBestseller: {
+      type: Boolean,
+      default: false,
+    },
+    isFeatured: {
       type: Boolean,
       default: false,
     },

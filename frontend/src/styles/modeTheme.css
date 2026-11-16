@@ -1,0 +1,60 @@
+/*
+ * Shop All (ECommerce) colour layer.
+ *
+ * Pages built with the green-* / blue-* / emerald-* utilities (green is remapped
+ * to Exnshop blue in tailwind.config.js) stay blue in Quick mode. Put the class
+ * `theme-shopall` on a page's root in Shop All mode and the same classes turn
+ * into the Shop All pink used on the home page. No markup changes needed.
+ *
+ * Pink scale: 50 #FFF0F3 · 100 #FFE0E7 · 200 #FBC5D2 · 300 #F79AB2 · 400 #EF6A8E
+ *             500 #E23E69 · 600 #D7193F · 700 #A50E2D
+ */
+
+/* backgrounds */
+.theme-shopall :is(.bg-green-50, .bg-blue-50, .bg-emerald-50) { background-color: #FFF0F3; }
+.theme-shopall :is(.bg-green-100, .bg-blue-100, .bg-emerald-100) { background-color: #FFE0E7; }
+.theme-shopall :is(.bg-green-200, .bg-blue-200) { background-color: #FBC5D2; }
+.theme-shopall :is(.bg-green-500, .bg-blue-500) { background-color: #E23E69; }
+.theme-shopall :is(.bg-green-600, .bg-blue-600, .bg-emerald-600, .bg-primary) { background-color: #D7193F; }
+.theme-shopall :is(.bg-green-700, .bg-blue-700) { background-color: #A50E2D; }
+.theme-shopall .bg-green-50\/30 { background-color: rgb(255 240 243 / 0.3); }
+.theme-shopall .bg-green-50\/50 { background-color: rgb(255 240 243 / 0.5); }
+.theme-shopall .bg-emerald-50\/40 { background-color: rgb(255 240 243 / 0.4); }
+
+/* text */
+.theme-shopall :is(.text-green-500, .text-blue-500) { color: #E23E69; }
+.theme-shopall :is(.text-green-600, .text-blue-600, .text-emerald-600, .text-primary) { color: #D7193F; }
+.theme-shopall :is(.text-green-700, .text-blue-700, .text-emerald-700) { color: #A50E2D; }
+
+/* borders */
+.theme-shopall :is(.border-green-100, .border-blue-100) { border-color: #FFE0E7; }
+.theme-shopall :is(.border-green-200, .border-blue-200, .border-emerald-200) { border-color: #FBC5D2; }
+.theme-shopall :is(.border-green-300, .border-blue-300) { border-color: #F79AB2; }
+.theme-shopall :is(.border-green-400, .border-blue-400) { border-color: #EF6A8E; }
+.theme-shopall :is(.border-green-500, .border-blue-500) { border-color: #E23E69; }
+.theme-shopall :is(.border-green-600, .border-blue-600, .border-primary) { border-color: #D7193F; }
+
+/* rings, accents, gradients */
+.theme-shopall :is(.ring-green-500, .ring-blue-500) { --tw-ring-color: #E23E69; }
+.theme-shopall :is(.ring-green-600, .ring-blue-600) { --tw-ring-color: #D7193F; }
+.theme-shopall :is(.accent-emerald-600, .accent-green-600) { accent-color: #D7193F; }
+.theme-shopall .from-green-500 {
+  --tw-gradient-from: #E23E69 var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(226 62 105 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+.theme-shopall .to-green-600 { --tw-gradient-to: #D7193F var(--tw-gradient-to-position); }
+
+/* hover / focus states */
+.theme-shopall .hover\:bg-green-50:hover { background-color: #FFF0F3; }
+.theme-shopall .hover\:bg-green-50\/50:hover { background-color: rgb(255 240 243 / 0.5); }
+.theme-shopall .hover\:bg-green-100:hover { background-color: #FFE0E7; }
+.theme-shopall :is(.hover\:bg-green-700, .hover\:bg-blue-700):hover { background-color: #A50E2D; }
+.theme-shopall :is(.hover\:text-green-700, .hover\:text-blue-700):hover { color: #A50E2D; }
+.theme-shopall .hover\:border-green-400:hover { border-color: #EF6A8E; }
+.theme-shopall .focus\:border-green-500:focus { border-color: #E23E69; }
+.theme-shopall .focus\:ring-green-500:focus { --tw-ring-color: #E23E69; }
+
+/* elements that use inline brand blue */
+.theme-shopall .mode-brand-stroke { stroke: #D7193F; }
+.theme-shopall .mode-brand-fill { fill: #D7193F; }

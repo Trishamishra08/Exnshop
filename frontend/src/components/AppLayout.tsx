@@ -9,6 +9,7 @@ import { useThemeContext } from '../context/ThemeContext';
 import ServiceNotAvailable from './ServiceNotAvailable';
 import { checkServiceability } from '../services/api/customerHomeService';
 import { useAppSettings } from '../context/AppSettingsContext';
+import { useCommerceMode } from '../context/CommerceModeContext';
 import LanguageSelector from './LanguageSelector';
 import { useTranslation } from '../hooks/useTranslation';
 
@@ -29,7 +30,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [showLocationRequest, setShowLocationRequest] = useState(false);
   const [showLocationChangeModal, setShowLocationChangeModal] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { currentTheme } = useThemeContext();
+  const { currentTheme: categoryTheme } = useThemeContext();
+  const { mode: commerceMode } = useCommerceMode();
+  // Shop All uses a pink header (matching the home page); Quick keeps the blue category theme.
+  const currentTheme = commerceMode === 'ECommerce'
+    ? { ...categoryTheme, primary: ['#C8174E', '#E0476F', ...categoryTheme.primary.slice(2)], headerTextColor: '#ffffff' }
+    : categoryTheme;
   const { settings: appSettings } = useAppSettings();
 
   // State to track if service is available at user's location

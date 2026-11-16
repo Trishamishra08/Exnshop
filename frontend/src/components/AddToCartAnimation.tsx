@@ -4,6 +4,7 @@ import { useCart } from '../context/CartContext';
 import { useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { Product } from '../types/domain';
+import { useCommerceMode } from '../context/CommerceModeContext';
 
 interface AddToCartAnimationProps {
   /**
@@ -49,6 +50,11 @@ export default function AddToCartAnimation({
   linkTo = '/checkout',
 }: AddToCartAnimationProps) {
   const { cart, lastAddEvent } = useCart();
+  const { mode } = useCommerceMode();
+  // Shop All = pink pill, Quick = blue (same palette as the home page)
+  const pillBg = mode === 'ECommerce'
+    ? 'linear-gradient(90deg, #A50E2D 0%, #D7193F 50%, #A50E2D 100%)'
+    : 'linear-gradient(90deg, #003ECC 0%, #0056FF 50%, #003ECC 100%)';
   const location = useLocation();
   const linkRef = useRef<HTMLAnchorElement>(null);
   const [removedProduct, setRemovedProduct] = useState<Product | null>(null);
@@ -330,7 +336,8 @@ export default function AddToCartAnimation({
             <Link
               ref={linkRef}
               to={linkTo}
-              className={`bg-gradient-to-r from-green-700 via-green-600 to-green-700 text-white rounded-full shadow-xl shadow-green-900/30 px-3 py-2 flex items-center gap-2 hover:from-green-800 hover:via-green-700 hover:to-green-800 transition-all duration-300 pointer-events-auto border border-green-800/30 backdrop-blur-sm ${pillClassName}`}
+              style={{ background: pillBg }}
+              className={`text-white rounded-full shadow-xl shadow-black/25 px-3 py-2 flex items-center gap-2 hover:brightness-110 transition-all duration-300 pointer-events-auto border border-white/10 backdrop-blur-sm ${pillClassName}`}
             >
               {/* Left: Product thumbnails */}
               <div className="flex items-center -space-x-4">

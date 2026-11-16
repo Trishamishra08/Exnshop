@@ -42,11 +42,17 @@ export interface LeafDef {
   rule?: RuleDef;
   /** Tile image, e.g. "/category-images/kurtis.jpg" (served from frontend/public). */
   image?: string;
+  /** Shown in the "All Popular" list of the Popular tab */
+  popular?: boolean;
 }
 
 export interface GroupDef {
   name: string;
   attrs?: AttrDef[];
+  /** Shown in the "Featured" row of the Popular tab */
+  featured?: boolean;
+  /** Shown in the "All Popular" list of the Popular tab */
+  popular?: boolean;
   items: Array<string | LeafDef>;
 }
 

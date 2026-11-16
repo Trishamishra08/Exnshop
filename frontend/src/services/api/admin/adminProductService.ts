@@ -34,6 +34,7 @@ export interface CreateCategoryData {
   image?: string;
   order?: number;
   isBestseller?: boolean;
+  isFeatured?: boolean;
   hasWarning?: boolean;
   groupCategory?: string;
   parentId?: string | null;

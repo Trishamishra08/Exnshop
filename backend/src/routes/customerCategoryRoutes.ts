@@ -1,11 +1,12 @@
 import { Router } from "express";
-import { getCategories, getCategoriesWithSubs, getCategoryById } from "../modules/customer/controllers/customerCategoryController";
+import { getCategories, getCategoriesWithSubs, getCategoryById, getCategoryMenu } from "../modules/customer/controllers/customerCategoryController";
 
 const router = Router();
 
 // Public routes
 router.get("/", getCategories);
 router.get("/tree", getCategoriesWithSubs);
+router.get("/menu", getCategoryMenu);
 router.get("/:id", getCategoryById);
 
 export default router;
