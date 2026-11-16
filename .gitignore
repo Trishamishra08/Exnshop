@@ -1,5 +1,7 @@
 
 # Environment files (CRITICAL: NEVER COMMIT SECRETS)
+.env
+.env.*
 !.env.example
 !.env.production
 *.env
@@ -53,6 +55,7 @@ frontend/assets/Demo 2.gif
 frontend/assets/Thumnails.png
 
 # IDE / Editor
+.vscode/
 .idea/
 *.swp
 *.swo
@@ -86,4 +89,3 @@ temp_interactive_push.bat
 /Trisha Mishra-Resume*
 /Return_Replacement_Flow.pdf
 backend/backups/
-config.bat
