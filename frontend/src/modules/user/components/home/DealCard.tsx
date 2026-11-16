@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "../../../../context/CartContext";
 import { useWishlist } from "../../../../hooks/useWishlist";
@@ -13,6 +13,7 @@ import type { HomeTheme } from "./homeTheme";
  */
 function DealCard({ product, theme }: { product: any; theme: HomeTheme }) {
   const navigate = useNavigate();
+  const [imgFailed, setImgFailed] = useState(false);
   const { getTranslatedField, t } = useTranslation();
   const { cart, addToCart, updateQuantity } = useCart();
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -63,8 +64,8 @@ function DealCard({ product, theme }: { product: any; theme: HomeTheme }) {
       className="bg-white rounded-xl border border-neutral-100 shadow-[0_1px_6px_rgba(0,0,0,0.05)] overflow-hidden flex flex-col cursor-pointer h-full"
     >
       <div className="relative aspect-square" style={{ background: theme.tint }}>
-        {image ? (
-          <img src={image} alt={name} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
+        {image && !imgFailed ? (
+          <img src={image} alt={name} loading="lazy" onError={() => setImgFailed(true)} className="absolute inset-0 w-full h-full object-cover" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-2xl">🛍️</div>
         )}

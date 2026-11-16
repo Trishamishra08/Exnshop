@@ -25,6 +25,9 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import RouteTransition from "./components/RouteTransition";
 import { useEffect } from "react";
 import lazyWithRetry from "./utils/lazyWithRetry";
+import { installImageFallback } from "./utils/imageFallback";
+
+installImageFallback();
 
 // Critical routes - load immediately (Home, Cart)
 import Home from "./modules/user/Home";

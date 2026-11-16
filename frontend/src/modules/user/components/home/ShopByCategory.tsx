@@ -16,6 +16,7 @@ export default function ShopByCategory({ theme, config }: { theme: HomeTheme; co
   const navigate = useNavigate();
   const { t, getTranslatedField } = useTranslation();
   const [categories, setCategories] = useState<any[]>(categoriesCache || []);
+  const [failed, setFailed] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (categoriesCache) return;
@@ -53,8 +54,8 @@ export default function ShopByCategory({ theme, config }: { theme: HomeTheme; co
               className="flex flex-col items-center rounded-xl p-1 pb-1.5 bg-white border border-neutral-100 shadow-[0_1px_4px_rgba(0,0,0,0.06)] active:scale-95 transition-transform hover:shadow-md"
             >
               <div className="w-full aspect-square rounded-lg overflow-hidden flex items-center justify-center" style={{ background: theme.tint }}>
-                {c.image ? (
-                  <img src={c.image} alt={name} loading="lazy" className="w-full h-full object-cover" />
+                {c.image && !failed[c._id] ? (
+                  <img src={c.image} alt={name} loading="lazy" onError={() => setFailed((f) => ({ ...f, [c._id]: true }))} className="w-full h-full object-cover" />
                 ) : (
                   <span className="text-2xl">{categoryEmoji(c.name)}</span>
                 )}
