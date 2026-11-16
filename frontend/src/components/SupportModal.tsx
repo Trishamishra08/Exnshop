@@ -79,8 +79,11 @@ export default function SupportModal({ isOpen, onClose, orderId }: SupportModalP
       });
 
       if (response.success) {
+        const tn = response.data?.ticketNumber;
         showToast(
-          response.message || 'Your message has been sent successfully. Our support team will get back to you.',
+          tn
+            ? `Ticket ${tn} created. Track it in Account → My Support Tickets.`
+            : response.message || 'Your message has been sent successfully. Our support team will get back to you.',
           'success'
         );
         // Reset non-user fields

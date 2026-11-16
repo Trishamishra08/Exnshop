@@ -294,3 +294,38 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
+
+/** Customer-facing ticket update (created / replied / escalated / resolved). */
+export async function sendTicketEmail(
+  to: string,
+  ticketNumber: string,
+  title: string,
+  message: string,
+  link?: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await getTransporter().sendMail({
+      from: `"${process.env.MAIL_FROM_NAME || "Exnshop"}" <${process.env.MAIL_FROM || process.env.SMTP_USER}>`,
+      to,
+      subject: `[Exnshop Support] ${ticketNumber}: ${title}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+          <div style="background-color: #16a34a; color: #ffffff; padding: 16px 24px;">
+            <h2 style="margin: 0; font-size: 20px;">Exnshop Support</h2>
+            <p style="margin: 4px 0 0 0; font-size: 13px; opacity: .9;">Ticket ${escapeHtml(ticketNumber)}</p>
+          </div>
+          <div style="padding: 24px; background-color: #ffffff;">
+            <h3 style="margin: 0 0 12px 0; font-size: 16px;">${escapeHtml(title)}</h3>
+            <p style="margin: 0; font-size: 14px; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(message)}</p>
+            ${link ? `<p style="margin: 20px 0 0 0;"><a href="${escapeHtml(link)}" style="background:#16a34a;color:#fff;text-decoration:none;padding:10px 18px;border-radius:6px;font-size:14px;">Track your ticket</a></p>` : ""}
+          </div>
+        </div>
+      `,
+      text: `${ticketNumber} - ${title}\n\n${message}${link ? `\n\nTrack your ticket: ${link}` : ""}`,
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error("[EMAIL SERVICE ERROR] Failed to send ticket email:", error?.message);
+    return { success: false, error: error?.message };
+  }
+}

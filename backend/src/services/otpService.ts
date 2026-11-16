@@ -234,7 +234,7 @@ function handleSmsResponse(
  * Send SMS via SMS India HUB — official pushsms.aspx:
  * user + password + msisdn + sid + msg + fl=0 + gwid=2 + DLT_TE_ID + EntityId
  */
-async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
+async function sendSmsViaApi(mobile: string, message: string, templateIdOverride?: string): Promise<void> {
   const username = getSmsUsername();
   const password = getSmsAuthPassword();
   const senderId = getSmsSenderId();
@@ -262,7 +262,7 @@ async function sendSmsViaApi(mobile: string, message: string): Promise<void> {
       params.password = password;
     }
 
-    const dltId = getSmsDltTemplateId();
+    const dltId = templateIdOverride || getSmsDltTemplateId();
     if (dltId && process.env.SMS_INDIA_HUB_SKIP_DLT_TE_ID !== "true") {
       params.templateid = dltId;
       params.DLT_TE_ID = dltId;
@@ -927,4 +927,21 @@ export async function verifyOTP(
   }
 
   return verifyOtpFromDb(normalizedMobile, normalizedOtp, userType);
+}
+
+/**
+ * Ticket-update SMS. Indian SMS needs a DLT-approved template, so this only sends when
+ * SMS_INDIA_HUB_TICKET_DLT_TEMPLATE_ID is set (the template body must match the message
+ * built by the caller). Without it the SMS is skipped — email and in-app still go out.
+ */
+export async function sendTicketSms(mobile: string, message: string): Promise<boolean> {
+  const templateId = process.env.SMS_INDIA_HUB_TICKET_DLT_TEMPLATE_ID?.trim();
+  if (!templateId || isMockMode()) return false;
+  try {
+    await sendSmsViaApi(mobile, message, templateId);
+    return true;
+  } catch (err: any) {
+    console.error("[SMS] ticket SMS failed:", err?.message);
+    return false;
+  }
 }

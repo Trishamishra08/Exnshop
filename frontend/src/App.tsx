@@ -71,6 +71,8 @@ const StorePage = lazyWithRetry(() => import("./modules/user/StorePage"), "Store
 const CustomerWallet = lazyWithRetry(() => import("./modules/Customer/pages/CustomerWallet"), "CustomerWallet");
 const AccountStatement = lazyWithRetry(() => import("./modules/Customer/pages/AccountStatement"), "AccountStatement");
 const BankDetails = lazyWithRetry(() => import("./modules/Customer/pages/BankDetails"), "BankDetails");
+const MyTickets = lazyWithRetry(() => import("./modules/Customer/pages/MyTickets"), "MyTickets");
+const TrackTicket = lazyWithRetry(() => import("./modules/Customer/pages/TrackTicket"), "TrackTicket");
 
 // Lazy load delivery routes
 const DeliveryLayout = lazyWithRetry(
@@ -1190,6 +1192,8 @@ function App() {
                                     />
                                     <Route path="/account/statement" element={<AccountStatement />} />
                                     <Route path="/account/bank-details" element={<BankDetails />} />
+                                    <Route path="/account/support-tickets" element={<MyTickets />} />
+                                    <Route path="/account/support-tickets/:id" element={<TrackTicket />} />
                                     <Route
                                       path="/notifications"
                                       element={<UserNotifications />}

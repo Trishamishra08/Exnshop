@@ -1,7 +1,7 @@
 import { SupportTicket, TICKET_FLOW } from '../services/api/supportTicketService';
 
 export default function TicketTimeline({ ticket }: { ticket: SupportTicket }) {
-    const currentIdx = TICKET_FLOW.findIndex((s) => s.status === ticket.status);
+    const currentIdx = TICKET_FLOW.findIndex((s) => s.status === (ticket.status === 'Waiting' ? 'In Progress' : ticket.status));
     const reachedAt = (status: string) => {
         const entries = (ticket.statusHistory || []).filter((h) => h.status === status);
         if (entries.length) return entries[entries.length - 1].at;

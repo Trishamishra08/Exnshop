@@ -61,6 +61,7 @@ import {
   getAllTickets,
   getTicketByIdAdmin,
   replyToTicketAsAdmin,
+  escalateTicketAsAdmin,
 } from "../modules/seller/controllers/supportTicketController";
 import { getAllCampaignsAdmin, forcePauseCampaign } from "../modules/seller/controllers/campaignController";
 
@@ -394,6 +395,7 @@ router.patch("/claims/:id/decide", decideClaim);
 router.get("/support-tickets", getAllTickets);
 router.get("/support-tickets/:id", getTicketByIdAdmin);
 router.post("/support-tickets/:id/reply", replyToTicketAsAdmin);
+router.post("/support-tickets/:id/escalate", escalateTicketAsAdmin);
 
 // ==================== Advertisement Campaign Routes ====================
 router.get("/campaigns", getAllCampaignsAdmin);

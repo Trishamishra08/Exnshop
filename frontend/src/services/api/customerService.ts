@@ -78,6 +78,8 @@ export interface SupportContactResponse {
   message: string;
   data?: {
     requestId: string;
+    ticketId?: string;
+    ticketNumber?: string;
   };
 }
 

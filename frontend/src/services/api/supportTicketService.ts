@@ -1,13 +1,13 @@
 import api from "./config";
 
 export interface TicketMessage {
-  sender: "Seller" | "Admin";
+  sender: "Seller" | "Customer" | "Admin";
   message: string;
   attachments: string[];
   createdAt: string;
 }
 
-export type TicketStatus = "Open" | "Assigned" | "In Progress" | "Resolved" | "Closed";
+export type TicketStatus = "Open" | "Assigned" | "In Progress" | "Waiting" | "Resolved" | "Closed";
 
 /** The client-facing flow: Ticket Created → Support Team → Investigation → Resolution → Closed */
 export const TICKET_FLOW: { status: TicketStatus; label: string }[] = [
@@ -19,19 +19,20 @@ export const TICKET_FLOW: { status: TicketStatus; label: string }[] = [
 ];
 
 export const ticketStatusLabel = (status: TicketStatus) =>
-  TICKET_FLOW.find((s) => s.status === status)?.label || status;
+  status === "Waiting" ? "Waiting for reply" : TICKET_FLOW.find((s) => s.status === status)?.label || status;
 
 export const TICKET_STATUS_STYLES: Record<TicketStatus, string> = {
   Open: "bg-blue-100 text-blue-800",
   Assigned: "bg-indigo-100 text-indigo-800",
   "In Progress": "bg-amber-100 text-amber-800",
+  Waiting: "bg-purple-100 text-purple-800",
   Resolved: "bg-green-100 text-green-800",
   Closed: "bg-neutral-100 text-neutral-600",
 };
 
 export interface TicketStatusChange {
   status: TicketStatus;
-  by: "Seller" | "Admin" | "System";
+  by: "Seller" | "Customer" | "Admin" | "System";
   note?: string;
   at: string;
 }
@@ -44,7 +45,17 @@ export interface SupportTicket {
   requesterName?: string;
   requesterEmail?: string;
   category: "Payment" | "Product" | "Order" | "Technical" | "Account" | "Other" | "Delivery" | "Return" | "General";
-  priority: "Low" | "Medium" | "High";
+  priority: "Low" | "Medium" | "High" | "Critical";
+  ticketNumber?: string;
+  escalationLevel?: number;
+  escalationHistory?: { level: number; by: "Customer" | "Admin" | "System"; reason?: string; at: string }[];
+  slaDueAt?: string;
+  levelDueAt?: string;
+  slaBreached?: boolean;
+  resolvedAt?: string;
+  closedAt?: string;
+  rating?: { stars: number; feedback?: string; at: string };
+  levelName?: string;
   subject: string;
   description: string;
   attachments?: string[];
@@ -54,6 +65,28 @@ export interface SupportTicket {
   createdAt: string;
   updatedAt: string;
 }
+
+/** Escalation ladder: who has the ticket, and how long each level has before it moves up. */
+export const ESCALATION_LEVELS = [
+  { level: 0, name: "Support Executive", note: "First response" },
+  { level: 1, name: "Support Manager", note: "within 4 hours" },
+  { level: 2, name: "Senior Admin", note: "within 8 hours" },
+  { level: 3, name: "Grievance Officer", note: "final review within 24 hours" },
+];
+
+export const PRIORITY_SLA: Record<string, string> = { Critical: "30 min", High: "2 hours", Medium: "6 hours", Low: "24 hours" };
+
+/** "2h 15m left" / "Overdue by 40m" for a deadline. */
+export const timeLeft = (due?: string, now = Date.now()) => {
+  if (!due) return { text: "—", overdue: false };
+  const diff = new Date(due).getTime() - now;
+  const abs = Math.abs(diff);
+  const d = Math.floor(abs / 86400000);
+  const h = Math.floor((abs % 86400000) / 3600000);
+  const m = Math.floor((abs % 3600000) / 60000);
+  const span = d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${m}m`;
+  return diff >= 0 ? { text: `${span} left`, overdue: false } : { text: `Overdue by ${span}`, overdue: true };
+};
 
 interface ApiResponse<T> {
   success: boolean;

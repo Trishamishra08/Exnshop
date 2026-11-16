@@ -1,12 +1,14 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../../utils/asyncHandler";
-import SupportTicket, { ISupportTicket, TICKET_STATUSES, TicketStatus } from "../../../models/SupportTicket";
-import { sendNotification, sendBroadcastNotification } from "../../../services/notificationService";
+import SupportTicket, { TICKET_STATUSES, TicketStatus } from "../../../models/SupportTicket";
+import { sendBroadcastNotification } from "../../../services/notificationService";
+import { applyPriority, escalateTicket, levelName, notifyRequester, setTicketStatus } from "../../../services/supportTicketService";
 
 const STATUS_LABELS: Record<TicketStatus, string> = {
   Open: "Ticket Created",
   Assigned: "With Support Team",
   "In Progress": "Under Investigation",
+  Waiting: "Waiting for your reply",
   Resolved: "Resolved",
   Closed: "Closed",
 };
@@ -14,12 +16,7 @@ const STATUS_LABELS: Record<TicketStatus, string> = {
 const cleanAttachments = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((v) => typeof v === "string" && v.trim()).slice(0, 5) : [];
 
-const setStatus = (ticket: ISupportTicket, status: TicketStatus, by: "Seller" | "Admin" | "System", note?: string) => {
-  if (ticket.status === status) return false;
-  ticket.status = status;
-  ticket.statusHistory.push({ status, by, note, at: new Date() });
-  return true;
-};
+const setStatus = setTicketStatus;
 
 export const createTicket = asyncHandler(async (req: Request, res: Response) => {
   const sellerId = (req as any).user.userId;
@@ -34,6 +31,7 @@ export const createTicket = asyncHandler(async (req: Request, res: Response) => 
 
   const ticket = await SupportTicket.create({
     seller: sellerId,
+    requesterType: "Seller",
     category: category || "Other",
     priority: priority || "Medium",
     subject,
@@ -48,7 +46,7 @@ export const createTicket = asyncHandler(async (req: Request, res: Response) => 
     "Admin",
     `New support ticket (${ticket.priority} priority)`,
     `${ticket.category}: ${ticket.subject}`,
-    { type: "Info", priority: ticket.priority === "High" ? "High" : "Medium", link: "/admin/support-tickets" }
+    { type: "Info", priority: ticket.priority === "High" || ticket.priority === "Critical" ? "High" : "Medium", link: "/admin/support-tickets" }
   ).catch((err) => console.error("Failed to notify admins of new support ticket:", err?.message));
 
   return res.status(201).json({
@@ -104,8 +102,10 @@ export const replyToTicketAsSeller = asyncHandler(async (req: Request, res: Resp
     attachments: files,
     createdAt: new Date(),
   });
-  // A seller reply on a resolved ticket means the issue isn't fixed: back to investigation.
+  // A seller reply on a resolved ticket means the issue isn't fixed; an answer to a question
+  // from support puts the ticket back with the support team.
   if (ticket.status === "Resolved") setStatus(ticket, "In Progress", "Seller", "Reopened by seller reply");
+  else if (ticket.status === "Waiting") setStatus(ticket, "In Progress", "Seller", "Seller replied");
   await ticket.save();
 
   return res.status(200).json({ success: true, message: "Reply sent", data: ticket });
@@ -129,10 +129,11 @@ export const closeTicketAsSeller = asyncHandler(async (req: Request, res: Respon
 // ==================== Admin ====================
 
 export const getAllTickets = asyncHandler(async (req: Request, res: Response) => {
-  const { status, priority } = req.query;
+  const { status, priority, requesterType } = req.query;
   const query: any = {};
   if (status) query.status = status;
   if (priority) query.priority = priority;
+  if (requesterType) query.requesterType = requesterType;
 
   const tickets = await SupportTicket.find(query)
     .populate("seller", "sellerName storeName")
@@ -153,10 +154,13 @@ export const getTicketByIdAdmin = asyncHandler(async (req: Request, res: Respons
 });
 
 export const replyToTicketAsAdmin = asyncHandler(async (req: Request, res: Response) => {
-  const { message, attachments, status } = req.body;
+  const { message, attachments, status, priority } = req.body;
 
   if (status && !(TICKET_STATUSES as readonly string[]).includes(status)) {
     return res.status(400).json({ success: false, message: `Status must be one of: ${TICKET_STATUSES.join(", ")}` });
+  }
+  if (priority && !["Low", "Medium", "High", "Critical"].includes(priority)) {
+    return res.status(400).json({ success: false, message: "Priority must be Low, Medium, High or Critical" });
   }
 
   const ticket = await SupportTicket.findById(req.params.id);
@@ -174,6 +178,8 @@ export const replyToTicketAsAdmin = asyncHandler(async (req: Request, res: Respo
     });
   }
 
+  if (priority) applyPriority(ticket, priority);
+
   let statusChanged = false;
   if (status) {
     statusChanged = setStatus(ticket, status, "Admin");
@@ -184,23 +190,33 @@ export const replyToTicketAsAdmin = asyncHandler(async (req: Request, res: Respo
 
   await ticket.save();
 
-  const isCustomerTicket = ticket.requesterType === "Customer";
-  const recipientId = (isCustomerTicket ? ticket.customer : ticket.seller)?.toString();
-  (recipientId
-    ? sendNotification(
-        isCustomerTicket ? "Customer" : "Seller",
-        recipientId,
-        `Support Ticket Update: ${ticket.subject}`,
-        hasMessage
-          ? message.trim()
-          : `Your ticket is now: ${STATUS_LABELS[ticket.status]}.`,
-        { type: "Info", priority: "Medium", link: isCustomerTicket ? "/account" : "/seller/support-tickets" }
-      )
-    : Promise.resolve()).catch((err) => console.error("Failed to send support ticket notification:", err));
+  const resolved = statusChanged && ticket.status === "Resolved";
+  await notifyRequester(
+    ticket,
+    resolved ? "Your ticket is resolved" : hasMessage ? "New reply from support" : "Ticket status updated",
+    hasMessage
+      ? `${message.trim()}${resolved ? "\n\nPlease rate your experience from Track Ticket." : ""}`
+      : resolved
+        ? "We have resolved your ticket. Please rate your experience from Track Ticket."
+        : `Your ticket is now: ${STATUS_LABELS[ticket.status]}.`
+  );
 
   return res.status(200).json({
     success: true,
     message: statusChanged && !hasMessage ? `Ticket moved to ${STATUS_LABELS[ticket.status]}` : "Reply sent",
     data: ticket,
   });
+});
+
+/** Admin moves a ticket up one escalation level (Support Manager → Senior Admin → Grievance Officer). */
+export const escalateTicketAsAdmin = asyncHandler(async (req: Request, res: Response) => {
+  const ticket = await SupportTicket.findById(req.params.id);
+  if (!ticket) return res.status(404).json({ success: false, message: "Ticket not found" });
+  const reason = String(req.body.reason || "").trim().slice(0, 300);
+  if (!escalateTicket(ticket, "Admin", reason || undefined)) {
+    return res.status(400).json({ success: false, message: "This ticket is already with the Grievance Officer" });
+  }
+  await ticket.save();
+  await notifyRequester(ticket, "Your ticket was escalated", `Your ticket is now with our ${levelName(ticket.escalationLevel)} for a closer look.`);
+  return res.status(200).json({ success: true, message: `Escalated to ${levelName(ticket.escalationLevel)}`, data: ticket });
 });

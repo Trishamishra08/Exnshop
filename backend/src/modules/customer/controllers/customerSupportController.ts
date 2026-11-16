@@ -4,6 +4,7 @@ import Customer from "../../../models/Customer";
 import { sendSupportEmail } from "../../../services/emailService";
 import SupportTicket from "../../../models/SupportTicket";
 import { sendBroadcastNotification } from "../../../services/notificationService";
+import { notifyRequester } from "../../../services/supportTicketService";
 
 // What the customer picked in the form -> ticket category and how urgent it is.
 const CATEGORY_MAP: Record<string, { category: string; priority: "Low" | "Medium" | "High" }> = {
@@ -89,6 +90,7 @@ export const submitCustomerSupport = async (req: Request, res: Response) => {
     });
     await supportRequest.save();
 
+    let ticketInfo: { ticketId: string; ticketNumber?: string } | undefined;
     // 4b. Raise a ticket so it shows up in the admin panel (Support Tickets) with a notification.
     try {
       const ticket = await SupportTicket.create({
@@ -110,7 +112,10 @@ export const submitCustomerSupport = async (req: Request, res: Response) => {
         `${name} · ${picked.category}: ${subject}`,
         { type: "Info", priority: picked.priority === "High" ? "High" : "Medium", link: "/admin/support-tickets" }
       ).catch((err) => console.error("Failed to notify admins of customer ticket:", err?.message));
-      (supportRequest as any).ticket = ticket._id;
+      ticketInfo = { ticketId: String(ticket._id), ticketNumber: ticket.ticketNumber };
+      if (customerId) {
+        notifyRequester(ticket, "Ticket created", `We received your request "${subject}". Our team will reply soon; you can follow it from Track Ticket.`).catch(() => undefined);
+      }
     } catch (err: any) {
       console.error("[SUPPORT CONTROLLER] Could not create admin ticket:", err?.message);
     }
@@ -136,6 +141,7 @@ export const submitCustomerSupport = async (req: Request, res: Response) => {
         message: "Your support request has been sent successfully. Our support team will get back to you.",
         data: {
           requestId: supportRequest._id,
+          ...(ticketInfo || {}),
         },
       });
     } else {

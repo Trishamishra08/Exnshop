@@ -201,6 +201,14 @@ async function startServer() {
       console.error("[SellerTimeout] Initial check failed:", err)
     );
 
+    // Support tickets: escalate tickets that missed their SLA deadline and auto-close
+    // resolved ones nobody reacted to. Every 5 minutes.
+    const { runTicketSweep } = await import("./services/supportTicketService");
+    setInterval(() => {
+      runTicketSweep().catch((err) => console.error("[Tickets] Scheduled sweep failed:", err));
+    }, 5 * 60 * 1000);
+    runTicketSweep().catch((err) => console.error("[Tickets] Initial sweep failed:", err));
+
     console.log(`   [DEBUG] Fully started at: ${new Date().toISOString()}\n`);
   } catch (err) {
     console.error("\n\x1b[31m✗ Startup init failed (API is up but DB/features may be down)\x1b[0m");

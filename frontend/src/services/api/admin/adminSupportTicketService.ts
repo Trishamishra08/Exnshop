@@ -20,11 +20,18 @@ export const getTicketByIdAdmin = async (id: string): Promise<ApiResponse<Suppor
 export const replyToTicketAsAdmin = async (
   id: string,
   message: string,
-  status?: string
+  status?: string,
+  priority?: string
 ): Promise<ApiResponse<SupportTicket>> => {
   const response = await api.post<ApiResponse<SupportTicket>>(`/admin/support-tickets/${id}/reply`, {
     message,
     status,
+    priority,
   });
+  return response.data;
+};
+
+export const escalateTicketAsAdmin = async (id: string, reason?: string): Promise<ApiResponse<SupportTicket>> => {
+  const response = await api.post<ApiResponse<SupportTicket>>(`/admin/support-tickets/${id}/escalate`, { reason });
   return response.data;
 };

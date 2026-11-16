@@ -99,6 +99,7 @@ router.put("/language", authenticate, customerController.updateLanguagePreferenc
 import * as walletController from "../modules/customer/controllers/customerWalletController";
 import { uploadDocument as bankProofUpload, handleUploadError } from "../middleware/upload";
 import * as supportController from "../modules/customer/controllers/customerSupportController";
+import * as ticketController from "../modules/customer/controllers/customerTicketController";
 
 // Customer Wallet routes (protected)
 router.get("/wallet/balance", authenticate, walletController.getCustomerWalletBalance);
@@ -118,6 +119,13 @@ const optionalAuthenticate = (req: any, res: any, next: any) => {
 };
 
 router.post("/support/contact", optionalAuthenticate, supportController.submitCustomerSupport);
+
+// Track Ticket (customer's own support tickets)
+router.get("/support/tickets", authenticate, ticketController.listMyTickets);
+router.get("/support/tickets/:id", authenticate, ticketController.getMyTicket);
+router.post("/support/tickets/:id/reply", authenticate, ticketController.replyToMyTicket);
+router.post("/support/tickets/:id/rate", authenticate, ticketController.rateMyTicket);
+router.post("/support/tickets/:id/escalate", authenticate, ticketController.appealMyTicket);
 
 // Get active FAQs for customer app
 router.get("/faqs", async (_req, res) => {
