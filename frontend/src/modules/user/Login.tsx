@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { sendOTP, verifyOTP, sendEmailOTP, verifyEmailOTP } from '../../services/api/auth/customerAuthService';
 import SmartLoginField, { parseIdentifier } from '../../components/SmartLoginField';
@@ -14,7 +14,13 @@ interface LoginProps {
 export default function Login({ mode = 'login' }: LoginProps) {
   const isSignup = mode === 'signup';
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
+  // Already logged in (e.g. pressed Back after logging in): go home instead of showing the login form again.
+  useEffect(() => {
+    if (isAuthenticated && (!user?.userType || user.userType === 'Customer')) navigate('/', { replace: true });
+    // Only on opening the page; a login on this page navigates by itself (e.g. to language selection).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const { setLanguage } = useLanguage();
   const [needsMobile, setNeedsMobile] = useState(false);
   // One field for mobile number or email; the kind is detected from what is typed.

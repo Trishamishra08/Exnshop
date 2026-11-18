@@ -35,7 +35,7 @@ export default function AdminHeader({ onMenuClick, isSidebarOpen }: AdminHeaderP
 
   const handleLogout = () => {
     logout();
-    navigate('/admin/login');
+    navigate('/admin/login', { replace: true });
   };
 
   const handleLogoClick = () => {

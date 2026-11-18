@@ -58,7 +58,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange, searchPlaceho
   const { settings: appSettings } = useAppSettings();
   const { t, getTranslatedField } = useTranslation();
   const { cart } = useCart();
-  const { mode, setMode } = useCommerceMode();
+  const { mode, setMode, quickEnabled, ecommerceEnabled } = useCommerceMode();
   const { user } = useAuth();
   const theme = useHomeTheme();
   const [tabs, setTabs] = useState<Tab[]>([ALL_TAB, MORE_TAB]);
@@ -346,6 +346,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange, searchPlaceho
         {/* Quick / Shop All */}
         <div className="flex-1 flex justify-center min-w-0">
           <div className="inline-flex items-center bg-white/80 backdrop-blur-sm rounded-full p-1 gap-0.5 shadow-sm">
+            {quickEnabled && (
             <button
               type="button"
               onClick={() => setMode('Quick')}
@@ -357,6 +358,8 @@ export default function HomeHero({ activeTab = 'all', onTabChange, searchPlaceho
               </svg>
               {t('customer.modeQuick', 'Quick')}
             </button>
+            )}
+            {ecommerceEnabled && (
             <button
               type="button"
               onClick={() => setMode('ECommerce')}
@@ -369,6 +372,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange, searchPlaceho
               </svg>
               {t('customer.modeShopAll', 'Shop All')}
             </button>
+            )}
           </div>
         </div>
 

@@ -129,6 +129,8 @@ export const SERVICE_CATALOG: ServiceDef[] = [
     ["abandoned_cart_reminder", "Abandoned Cart Reminder"],
   ]),
   ...s("Website & App", [
+    ["quick_commerce", "Quick Commerce (10-min delivery)", { enforced: true, offMessage: "Quick delivery is not available right now. Please shop from E-Commerce." }],
+    ["ecommerce", "E-Commerce (courier delivery)", { enforced: true, offMessage: "E-Commerce is not available right now. Please shop from Quick." }],
     ["website", "Website"],
     ["android_app", "Android App"],
     ["ios_app", "iOS App"],
@@ -257,11 +259,16 @@ const GUARDS: Guard[] = [
   { method: "POST", path: /^\/customer\/orders\/?$/, key: "wallet_payment", when: (r) => String(r.body?.paymentMethod || "").toUpperCase() === "WALLET" },
   { method: "POST", path: /^\/customer\/orders\/[^/]+\/cancel\/?$/, key: "order_cancellation" },
   { method: "POST", path: /^\/customer\/coupons\/validate\/?$/, key: "coupon_code" },
+  // A channel switched off by the admin takes no new orders.
+  { method: "POST", path: /^\/customer\/orders\/?$/, key: "quick_commerce", when: (r) => String(r.body?.channel || "") === "Quick" },
+  { method: "POST", path: /^\/customer\/orders\/?$/, key: "ecommerce", when: (r) => String(r.body?.channel || "") === "ECommerce" },
 ];
 
 export const serviceControlGuard = async (req: Request, res: Response, next: NextFunction) => {
-  const guard = GUARDS.find((g) => g.method === req.method && g.path.test(req.path) && (!g.when || g.when(req)));
-  if (!guard) return next();
-  if (await isServiceEnabled(guard.key)) return next();
-  return offResponse(res, guard.key);
+  // Every matching guard must pass (e.g. an order checks its payment method AND its channel).
+  const guards = GUARDS.filter((g) => g.method === req.method && g.path.test(req.path) && (!g.when || g.when(req)));
+  for (const guard of guards) {
+    if (!(await isServiceEnabled(guard.key))) return offResponse(res, guard.key);
+  }
+  return next();
 };

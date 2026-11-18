@@ -55,7 +55,7 @@ export default function Account() {
 
   const handleLogout = () => {
     authLogout();
-    navigate('/login');
+    navigate('/login', { replace: true });
   };
 
   // Show login/signup prompt for unregistered users

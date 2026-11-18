@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import api from "../../../services/api/config";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useLanguage } from "../../../context/LanguageContext";
 
@@ -336,7 +337,23 @@ export default function SellerSidebar({ onClose }: SellerSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useLanguage();
-  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
+  // Menus the seller opened or closed by hand; anything not listed follows the current page.
+  const [menuToggles, setMenuToggles] = useState<Record<string, boolean>>({});
+  // Red numbers: unread notifications, new orders, return requests, ticket replies.
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const load = () =>
+      api.get("/seller/sidebar-counts").then((r) => { if (r.data?.success) setCounts(r.data.data || {}); }).catch(() => undefined);
+    load();
+    const timer = window.setInterval(load, 30000);
+    return () => window.clearInterval(timer);
+  }, [location.pathname]);
+  const badge = (n: number) =>
+    n > 0 ? (
+      <span className="ml-2 flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center">
+        {n > 99 ? "99+" : n}
+      </span>
+    ) : null;
 
   const isActive = (path: string) => {
     if (path === "/seller") {
@@ -363,25 +380,14 @@ export default function SellerSidebar({ onClose }: SellerSidebarProps) {
     }
   };
 
-  const toggleMenu = (path: string) => {
-    setExpandedMenus((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(path)) {
-        newSet.delete(path);
-      } else {
-        newSet.add(path);
-      }
-      return newSet;
-    });
+  const isExpanded = (path: string) => {
+    if (path in menuToggles) return menuToggles[path];
+    return isSubmenuActive(menuItems.find((item) => item.path === path)?.submenuItems);
   };
 
-  const isExpanded = (path: string) => {
-    return (
-      expandedMenus.has(path) ||
-      isSubmenuActive(
-        menuItems.find((item) => item.path === path)?.submenuItems
-      )
-    );
+  const toggleMenu = (path: string) => {
+    const open = isExpanded(path);
+    setMenuToggles((prev) => ({ ...prev, [path]: !open }));
   };
 
   return (
@@ -436,6 +442,7 @@ export default function SellerSidebar({ onClose }: SellerSidebarProps) {
                       {t(item.keyPath, item.label)}
                     </span>
                   </div>
+                  {!item.hasSubmenu && badge(counts[item.path] || 0)}
                   {item.hasSubmenu && (
                     <svg
                       width="16"

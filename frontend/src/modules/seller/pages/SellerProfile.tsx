@@ -312,7 +312,7 @@ export default function SellerProfile() {
 
   const handleLogoutConfirm = () => {
     logout();
-    navigate('/seller/login');
+    navigate('/seller/login', { replace: true });
   };
 
   if (loading) {

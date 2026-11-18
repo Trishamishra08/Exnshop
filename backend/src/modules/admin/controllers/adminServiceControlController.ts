@@ -41,6 +41,19 @@ export const setServiceControl = asyncHandler(async (req: Request, res: Response
     });
   }
 
+  // Quick and E-Commerce can't both be OFF, or customers would have nothing to shop from.
+  const CHANNELS = ["quick_commerce", "ecommerce"];
+  if (!enabled && CHANNELS.includes(def.key)) {
+    const other = CHANNELS.find((k) => k !== def.key)!;
+    const otherRow: any = await ServiceControl.findOne({ key: other }).lean();
+    if (otherRow && otherRow.enabled === false) {
+      return res.status(400).json({
+        success: false,
+        message: `${SERVICE_BY_KEY.get(other)?.label} is already OFF. Turn it ON before switching this one off.`,
+      });
+    }
+  }
+
   const adminId = (req as any).user?.userId;
   const admin: any = adminId ? await Admin.findById(adminId).select("firstName lastName email").lean() : null;
   const adminName = admin ? `${admin.firstName || ""} ${admin.lastName || ""}`.trim() || admin.email : "Admin";

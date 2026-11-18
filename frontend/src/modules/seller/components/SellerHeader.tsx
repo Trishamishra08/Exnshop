@@ -41,7 +41,7 @@ export default function SellerHeader({ onMenuClick, isSidebarOpen }: SellerHeade
 
   const handleLogout = () => {
     logout();
-    navigate('/seller/login');
+    navigate('/seller/login', { replace: true });
   };
 
   const handleSettingsClick = () => {

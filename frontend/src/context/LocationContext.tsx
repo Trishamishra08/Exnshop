@@ -222,7 +222,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
             const tempLocation: Location = {
               latitude,
               longitude,
-              address: `Getting address for ${latitude.toFixed(6)}, ${longitude.toFixed(6)}...`, // More descriptive temporary
+              address: "Fetching your location…", // shown until the place name arrives
               city: undefined,
               state: undefined,
               pincode: undefined,
@@ -363,9 +363,10 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
   // Reverse geocode coordinates to address - OPTIMIZED with caching and retry logic
   const reverseGeocode = async (lat: number, lng: number, signal?: AbortSignal, skipCache: boolean = false): Promise<GeocodeResult> => {
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) {
-      // Google Maps API disabled/commented out - use free OpenStreetMap Nominatim fallback
+    const coords = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    // Free OpenStreetMap lookup: used when there is no Google key, or Google returns nothing / fails
+    // (key restricted, Geocoding API not enabled, quota). Shows a place name instead of raw coordinates.
+    const nominatim = async (): Promise<GeocodeResult> => {
       try {
         const response = await fetch(
           `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=en`,
@@ -377,18 +378,18 @@ export function LocationProvider({ children }: { children: ReactNode }) {
           const city = addr.city || addr.town || addr.village || addr.suburb || addr.county || '';
           const state = addr.state || '';
           const pincode = addr.postcode || '';
-          return {
-            formatted_address: data.display_name ? cleanAddress(data.display_name) : `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
-            city,
-            state,
-            pincode,
-          };
+          if (data.display_name) {
+            return { formatted_address: cleanAddress(data.display_name), city, state, pincode };
+          }
         }
       } catch (e) {
-        console.warn('Reverse geocode fallback:', e);
+        console.warn('Reverse geocode (OpenStreetMap) failed:', e);
       }
-      return { formatted_address: `${lat.toFixed(6)}, ${lng.toFixed(6)}` };
-    }
+      return { formatted_address: coords };
+    };
+
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) return nominatim();
 
     // Validate input coordinates
     if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
@@ -428,7 +429,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         const preciseLng = lng.toFixed(6);
 
         // Use more precise result types and location_type to get better address match
-        const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${preciseLat},${preciseLng}&key=${apiKey}&result_type=street_address|premise|route|sublocality|locality|administrative_area_level_1|postal_code&location_type=ROOFTOP|RANGE_INTERPOLATED&language=en`;
+        const geocodeUrl = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${preciseLat},${preciseLng}&key=${apiKey}&language=en`;
 
         const response = await fetch(geocodeUrl, {
           signal: signal || controller.signal,
@@ -444,15 +445,16 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
         // Handle API errors
         if (data.status === 'ZERO_RESULTS') {
-          return { formatted_address: `${lat}, ${lng}` };
+          return nominatim();
         }
 
         if (data.status !== 'OK') {
-          throw new Error(`Geocoding API error: ${data.status}`);
+          console.warn(`Google Geocoding returned ${data.status}${data.error_message ? `: ${data.error_message}` : ''}`);
+          return nominatim();
         }
 
         if (data.results.length === 0) {
-          return { formatted_address: `${lat}, ${lng}` };
+          return nominatim();
         }
 
         // Find the result that best matches the input coordinates
@@ -567,8 +569,8 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     }
 
     // All retries failed
-    console.error('Reverse geocoding failed after retries:', lastError);
-    return { formatted_address: `${lat}, ${lng}` };
+    console.error('Google reverse geocoding failed, trying OpenStreetMap:', lastError);
+    return nominatim();
   };
 
   // Update location manually - OPTIMIZED for instant UI update
@@ -635,6 +637,37 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(SESSION_PERMISSION_KEY);
     sessionStorage.removeItem(SESSION_PERMISSION_KEY);
   }, [SESSION_PERMISSION_KEY, LOCATION_STORAGE_KEY]);
+
+  // A saved location whose "address" is only coordinates (an earlier lookup failed):
+  // look up the place name once and save it, so the header shows a name, not numbers.
+  const fixingAddressRef = useRef('');
+  useEffect(() => {
+    const addr = String(location?.address || '');
+    const looksLikeCoords = /^\s*-?\d{1,3}\.\d+\s*,\s*-?\d{1,3}\.\d+\s*$/.test(addr) || addr === 'Fetching your location…';
+    if (!location?.latitude || !location?.longitude || !looksLikeCoords) return;
+    const key = `${location.latitude},${location.longitude}`;
+    if (fixingAddressRef.current === key) return;
+    fixingAddressRef.current = key;
+    reverseGeocode(location.latitude, location.longitude, undefined, true)
+      .then((res) => {
+        if (!res.formatted_address || /^\s*-?\d{1,3}\.\d+\s*,/.test(res.formatted_address)) return;
+        const fixed = {
+          ...location,
+          address: res.formatted_address,
+          city: res.city || location.city,
+          state: res.state || location.state,
+          pincode: res.pincode || location.pincode,
+        };
+        setLocation(fixed);
+        try {
+          localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(fixed));
+        } catch {
+          /* private mode */
+        }
+      })
+      .catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location?.address, location?.latitude, location?.longitude]);
 
   // Cleanup on unmount
   useEffect(() => {

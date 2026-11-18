@@ -1198,15 +1198,15 @@ function App() {
                                     />
                                     <Route
                                       path="/orders"
-                                      element={<Orders />}
+                                      element={<ProtectedRoute requiredUserType="Customer" redirectTo="/login"><Orders /></ProtectedRoute>}
                                     />
                                     <Route
                                       path="/orders/:id"
-                                      element={<OrderDetail />}
+                                      element={<ProtectedRoute requiredUserType="Customer" redirectTo="/login"><OrderDetail /></ProtectedRoute>}
                                     />
                                     <Route
                                       path="/order-again"
-                                      element={<OrderAgain />}
+                                      element={<ProtectedRoute requiredUserType="Customer" redirectTo="/login"><OrderAgain /></ProtectedRoute>}
                                     />
                                     <Route
                                       path="/account"
@@ -1214,15 +1214,15 @@ function App() {
                                     />
                                     <Route
                                       path="/account/wallet"
-                                      element={<CustomerWallet />}
+                                      element={<ProtectedRoute requiredUserType="Customer" redirectTo="/login"><CustomerWallet /></ProtectedRoute>}
                                     />
-                                    <Route path="/account/statement" element={<AccountStatement />} />
-                                    <Route path="/account/bank-details" element={<BankDetails />} />
-                                    <Route path="/account/support-tickets" element={<MyTickets />} />
-                                    <Route path="/account/support-tickets/:id" element={<TrackTicket />} />
+                                    <Route path="/account/statement" element={<ProtectedRoute requiredUserType="Customer" redirectTo="/login"><AccountStatement /></ProtectedRoute>} />
+                                    <Route path="/account/bank-details" element={<ProtectedRoute requiredUserType="Customer" redirectTo="/login"><BankDetails /></ProtectedRoute>} />
+                                    <Route path="/account/support-tickets" element={<ProtectedRoute requiredUserType="Customer" redirectTo="/login"><MyTickets /></ProtectedRoute>} />
+                                    <Route path="/account/support-tickets/:id" element={<ProtectedRoute requiredUserType="Customer" redirectTo="/login"><TrackTicket /></ProtectedRoute>} />
                                     <Route
                                       path="/notifications"
-                                      element={<UserNotifications />}
+                                      element={<ProtectedRoute requiredUserType="Customer" redirectTo="/login"><UserNotifications /></ProtectedRoute>}
                                     />
                                     <Route
                                       path="/about-us"

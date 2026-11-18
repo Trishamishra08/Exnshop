@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useLanguage } from "../../../context/LanguageContext";
 import { useAdminMode } from "../context/AdminModeContext";
 import { useProductReviewCounts } from "./useProductReviewCounts";
+import { useSidebarCounts } from "./useSidebarCounts";
 
 interface SubMenuItem {
   label: string;
@@ -1308,7 +1309,8 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
   const location = useLocation();
   const { t } = useLanguage();
   const { mode, setMode } = useAdminMode();
-  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(new Set());
+  // Menus the admin opened or closed by hand; anything not listed follows the current page.
+  const [menuToggles, setMenuToggles] = useState<Record<string, boolean>>({});
   const [searchQuery, setSearchQuery] = useState("");
 
   const menuSections = getMenuSections(mode);
@@ -1330,14 +1332,19 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
   };
 
   const reviewCounts = useProductReviewCounts();
+  const sidebarCounts = useSidebarCounts();
   const badgeFor = (path: string) =>
-    path === "/admin/product/drafts"
+    (sidebarCounts[path] || 0) +
+    (    path === "/admin/product/drafts"
       ? reviewCounts.draft
       : path === "/admin/product/approvals"
         ? reviewCounts.pending
         : path === "/admin/manage-seller/drafts"
           ? reviewCounts.sellerDraft
-          : 0;
+          : 0);
+  // A parent shows the total of its sub-pages so a collapsed group still tells the admin something is waiting.
+  const badgeForItem = (item: MenuItem) =>
+    item.submenuItems ? item.submenuItems.reduce((sum, sub) => sum + badgeFor(sub.path), 0) : badgeFor(item.path);
   const CountBadge = ({ n }: { n: number }) =>
     n > 0 ? (
       <span className="ml-2 flex-shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center">
@@ -1352,26 +1359,17 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
     }
   };
 
-  const toggleMenu = (path: string) => {
-    setExpandedMenus((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(path)) {
-        newSet.delete(path);
-      } else {
-        newSet.add(path);
-      }
-      return newSet;
-    });
-  };
-
   const isExpanded = (path: string) => {
+    if (path in menuToggles) return menuToggles[path];
     const menuItem = menuSections
       .flatMap((section) => section.items)
       .find((item) => item.path === path);
-    return (
-      expandedMenus.has(path) ||
-      (menuItem?.submenuItems && isSubmenuActive(menuItem.submenuItems))
-    );
+    return !!(menuItem?.submenuItems && isSubmenuActive(menuItem.submenuItems));
+  };
+
+  const toggleMenu = (path: string) => {
+    const open = isExpanded(path);
+    setMenuToggles((prev) => ({ ...prev, [path]: !open }));
   };
 
   // Filter menu items based on search query
@@ -1590,12 +1588,7 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
                           {getSidebarTranslation(item.label)}
                         </span>
                       </div>
-                      {item.path === "/admin/product" && !expanded && (
-                        <CountBadge n={reviewCounts.draft + reviewCounts.pending} />
-                      )}
-                      {item.path === "/admin/manage-seller" && !expanded && (
-                        <CountBadge n={reviewCounts.sellerDraft} />
-                      )}
+                      {(!item.hasSubmenu || !expanded) && <CountBadge n={badgeForItem(item)} />}
                       {item.hasSubmenu && (
                         <svg
                           width="16"
