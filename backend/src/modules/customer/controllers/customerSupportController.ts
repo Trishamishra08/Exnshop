@@ -110,7 +110,7 @@ export const submitCustomerSupport = async (req: Request, res: Response) => {
         "Admin",
         `New customer support ticket (${picked.priority} priority)`,
         `${name} · ${picked.category}: ${subject}`,
-        { type: "Info", priority: picked.priority === "High" ? "High" : "Medium", link: "/admin/support-tickets" }
+        { type: "Info", priority: picked.priority === "High" ? "High" : "Medium", link: "/admin/customer-support" }
       ).catch((err) => console.error("Failed to notify admins of customer ticket:", err?.message));
       ticketInfo = { ticketId: String(ticket._id), ticketNumber: ticket.ticketNumber };
       if (customerId) {

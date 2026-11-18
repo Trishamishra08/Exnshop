@@ -3,6 +3,7 @@ import {
   getAllCustomers,
   type Customer,
 } from "../../../services/api/admin/adminCustomerService";
+import { Link } from "react-router-dom";
 import { useAuth } from "../../../context/AuthContext";
 import CustomerPayoutModal from "../components/CustomerPayoutModal";
 
@@ -469,6 +470,12 @@ export default function AdminManageCustomer() {
                       </td>
                       <td className="p-4 border border-neutral-200">
                         <div className="flex items-center gap-2">
+                          <Link
+                            to={`/admin/customers/${customer._id}/account`}
+                            className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-xs font-semibold whitespace-nowrap transition-colors"
+                            title="Orders, statement and tickets">
+                            View Account
+                          </Link>
                           <button
                             onClick={() => setPayoutFor(customer._id)}
                             className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold whitespace-nowrap transition-colors"

@@ -194,7 +194,17 @@ export const getNotifications = asyncHandler(
         {
           $addFields: {
             __groupKey: {
-              $ifNull: ["$broadcastBatchId", { $toString: "$_id" }],
+              $ifNull: [
+                "$broadcastBatchId",
+                {
+                  // Older fan-out rows have no batch id: same text to the same role within a minute is one send.
+                  $cond: [
+                    { $eq: ["$recipientType", "Admin"] },
+                    { $concat: ["legacy|", "$title", "|", { $ifNull: ["$message", ""] }, "|", { $dateToString: { format: "%Y-%m-%dT%H:%M", date: "$createdAt" } }] },
+                    { $toString: "$_id" },
+                  ],
+                },
+              ],
             },
           },
         },
@@ -214,7 +224,17 @@ export const getNotifications = asyncHandler(
         {
           $addFields: {
             __groupKey: {
-              $ifNull: ["$broadcastBatchId", { $toString: "$_id" }],
+              $ifNull: [
+                "$broadcastBatchId",
+                {
+                  // Older fan-out rows have no batch id: same text to the same role within a minute is one send.
+                  $cond: [
+                    { $eq: ["$recipientType", "Admin"] },
+                    { $concat: ["legacy|", "$title", "|", { $ifNull: ["$message", ""] }, "|", { $dateToString: { format: "%Y-%m-%dT%H:%M", date: "$createdAt" } }] },
+                    { $toString: "$_id" },
+                  ],
+                },
+              ],
             },
           },
         },

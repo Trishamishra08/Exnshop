@@ -126,7 +126,7 @@ export const saveCustomerBankDetails = async (req: Request, res: Response) => {
   const anyBank = accountHolderName || accountNumber || ifscCode;
   if (anyBank) {
     if (!accountHolderName) return bad("Enter the account holder's name");
-    if (!/^d{9,18}$/.test(accountNumber)) return bad("Account number must be 9 to 18 digits");
+    if (!/^[0-9]{9,18}$/.test(accountNumber)) return bad("Account number must be 9 to 18 digits");
     if (!IFSC_REGEX.test(ifscCode)) return bad("Enter a valid IFSC code, e.g. SBIN0001234");
   }
   if (upiId && !UPI_REGEX.test(upiId)) return bad("Enter a valid UPI ID, e.g. name@okbank");

@@ -151,3 +151,18 @@ export const getCustomerPayoutInfo = async (id: string): Promise<ApiResponse<Cus
 /** Start paying the customer from their wallet balance to their bank / UPI. */
 export const createCustomerPayout = async (id: string, body: { amount: number; method: 'Bank Transfer' | 'UPI'; note?: string }): Promise<ApiResponse<any>> =>
   (await api.post<ApiResponse<any>>(`/admin/customers/${id}/payouts`, body)).data;
+
+export interface AccountView {
+  profile: Record<string, any>;
+  wallet: { balance: number; totalCredits: number; totalDebits: number; transactions: any[] };
+  orderSummary: { total: number; totalSpent?: number; deliveredSales?: number; commission?: number; byStatus: { status: string; count: number; amount: number }[] };
+  orders: any[];
+  tickets: any[];
+}
+
+/** Read-only account view for support (customer or seller). */
+export const getAccountView = async (kind: 'Customer' | 'Seller', id: string): Promise<ApiResponse<AccountView>> => {
+  const path = kind === 'Customer' ? 'customers' : 'sellers';
+  const response = await api.get<ApiResponse<AccountView>>(`/admin/${path}/${id}/account`);
+  return response.data;
+};

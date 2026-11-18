@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { sendMobileOTP, verifyMobileOTP, sendOTP as sendEmailOTP, verifyOTP as verifyEmailOTP } from '../../../services/api/auth/sellerAuthService';
-import LoginMethodTabs, { DEFAULT_LOGIN_METHOD, LoginMethod, isValidEmail } from '../../../components/LoginMethodTabs';
+import SmartLoginField, { parseIdentifier } from '../../../components/SmartLoginField';
 import OTPInput from '../../../components/OTPInput';
 import { useAuth } from '../../../context/AuthContext';
 import AnimatedLogo from '../../../components/AnimatedLogo';
@@ -11,9 +11,9 @@ export default function SellerLogin() {
   const location = useLocation();
   const { login } = useAuth();
 
-  const [method, setMethod] = useState<LoginMethod>(DEFAULT_LOGIN_METHOD);
-  const [mobileNumber, setMobileNumber] = useState('');
-  const [email, setEmail] = useState('');
+  // One field for mobile number or email; the kind is detected from what is typed.
+  const [identifier, setIdentifier] = useState('');
+  const { method, mobile: mobileNumber, email } = parseIdentifier(identifier);
   const loginTarget = method === 'mobile' ? `+91 ${mobileNumber}` : email.trim();
   const [rememberMe, setRememberMe] = useState(true);
   const [showOTP, setShowOTP] = useState(false);
@@ -23,7 +23,7 @@ export default function SellerLogin() {
   const [bgImgOk, setBgImgOk] = useState(true);
   const [showForgotModal, setShowForgotModal] = useState(false);
 
-  const isFormValid = method === 'mobile' ? mobileNumber.length === 10 : isValidEmail(email);
+  const isFormValid = parseIdentifier(identifier).valid;
 
   const handleLogin = async () => {
     if (!isFormValid) {
@@ -179,45 +179,16 @@ export default function SellerLogin() {
                   Seller Login
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 font-normal mt-0.5">
-                  {method === 'mobile' ? 'Enter your mobile number to continue' : 'Enter your email to continue'}
+                  Enter your mobile number or email to continue
                 </p>
               </div>
 
-              <LoginMethodTabs value={method} onChange={(m) => { setMethod(m); setError(''); }} disabled={loading} />
-
-              {method === 'email' ? (
-                <div className="w-full mb-3">
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                    placeholder="Enter email address"
-                    className="w-full h-11 sm:h-12 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm sm:text-base font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-600/15 transition-all"
-                    disabled={loading}
-                    autoFocus
-                  />
-                </div>
-              ) : (
-              /* Mobile Number Input */
-              <div className="w-full mb-3">
-                <div className="flex items-center h-11 sm:h-12 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:bg-white focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/15 transition-all shadow-xs">
-                  <div className="w-[74px] h-full bg-slate-100/90 border-r border-slate-200/90 text-sm font-bold text-slate-700 flex items-center justify-center gap-1 select-none flex-shrink-0">
-                    <span>🇮🇳</span>
-                    <span>+91</span>
-                  </div>
-                  <input
-                    type="tel"
-                    value={mobileNumber}
-                    onChange={(e) => { setMobileNumber(e.target.value.replace(/\D/g, '').slice(0, 10)); setError(''); }}
-                    placeholder="Enter mobile number"
-                    className="flex-1 h-full px-3.5 text-sm sm:text-base font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none bg-transparent"
-                    maxLength={10}
-                    disabled={loading}
-                    autoFocus
-                  />
-                </div>
-              </div>
-              )}
+              <SmartLoginField
+                value={identifier}
+                onChange={(v) => { setIdentifier(v); setError(''); }}
+                disabled={loading}
+                onSubmit={handleLogin}
+              />
 
               {/* Remember Me & Forgot details row */}
               <div className="flex items-center justify-between text-xs sm:text-[13px] mb-3 px-0.5">

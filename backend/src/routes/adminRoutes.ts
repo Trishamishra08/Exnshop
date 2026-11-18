@@ -22,6 +22,7 @@ import * as returnController from "../modules/admin/controllers/adminReturnContr
 
 // Customer Controllers
 import * as customerController from "../modules/admin/controllers/adminCustomerController";
+import { getCustomerAccountView, getSellerAccountView } from "../modules/admin/controllers/adminAccountViewController";
 
 // Delivery Controllers
 import * as deliveryController from "../modules/admin/controllers/adminDeliveryController";
@@ -238,6 +239,7 @@ router.get("/customers/:id/payouts", customerController.getCustomerPayoutInfo);
 router.get("/customers/:id/bank-proof", customerController.getCustomerBankProofUrl);
 router.post("/customers/:id/bank-decision", customerController.decideCustomerBankChange);
 router.post("/customers/:id/payouts", customerController.createCustomerPayout);
+router.get("/customers/:id/account", getCustomerAccountView);
 
 // ==================== Delivery Routes ====================
 router.post("/delivery", deliveryController.createDeliveryBoy);
@@ -363,6 +365,7 @@ router.delete("/policies/:id", policyController.deletePolicy);
 // ==================== Seller Routes ====================
 router.get("/sellers", sellerController.getAllSellers);
 router.get("/sellers/drafts", sellerController.getDraftSellers);
+router.get("/sellers/:id/account", getSellerAccountView);
 
 // ==================== Courier/Logistics Routes ====================
 router.get("/shipping-method-requests", getShippingMethodRequests);

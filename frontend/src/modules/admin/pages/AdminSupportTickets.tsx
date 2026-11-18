@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
     getAllTickets,
     getTicketByIdAdmin,
@@ -10,7 +11,7 @@ import { useToast } from '../../../context/ToastContext';
 import TicketTimeline from '../../../components/TicketTimeline';
 import AttachmentList from '../../../components/AttachmentList';
 
-export default function AdminSupportTickets() {
+export default function AdminSupportTickets({ type }: { type?: 'Customer' | 'Seller' } = {}) {
     const { showToast } = useToast();
     const [tickets, setTickets] = useState<SupportTicket[]>([]);
     const [loading, setLoading] = useState(true);
@@ -23,7 +24,9 @@ export default function AdminSupportTickets() {
         try {
             setLoading(true);
             const response = await getAllTickets(statusFilter || undefined);
-            if (response.success && response.data) setTickets(response.data);
+            if (response.success && response.data) {
+                setTickets(type ? response.data.filter((t) => (t.requesterType || 'Seller') === type) : response.data);
+            }
         } catch (err) {
             showToast('Failed to load tickets', 'error');
         } finally {
@@ -34,7 +37,7 @@ export default function AdminSupportTickets() {
     useEffect(() => {
         fetchTickets();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [statusFilter]);
+    }, [statusFilter, type]);
 
     const openTicket = async (id: string) => {
         try {
@@ -55,6 +58,18 @@ export default function AdminSupportTickets() {
         const seller = ticket.seller;
         if (typeof seller === 'string') return seller;
         return seller?.storeName || seller?.sellerName || '—';
+    };
+
+    // Link to the read-only account view (orders, statement, wallet) of whoever raised the ticket.
+    const accountLink = (ticket: SupportTicket) => {
+        if (ticket.requesterType === 'Customer') {
+            const c: any = ticket.customer;
+            const id = typeof c === 'object' ? c?._id : c;
+            return id ? { to: `/admin/customers/${id}/account`, label: 'View customer account' } : null;
+        }
+        const sl: any = ticket.seller;
+        const id = typeof sl === 'object' ? sl?._id : sl;
+        return id ? { to: `/admin/sellers/${id}/account`, label: 'View seller account' } : null;
     };
 
     const handleEscalate = async () => {
@@ -143,7 +158,14 @@ export default function AdminSupportTickets() {
                             {selectedTicket.ticketNumber && <p className="text-xs text-teal-100 font-mono">{selectedTicket.ticketNumber}</p>}
                             <p className="text-sm text-teal-100 mt-1">{getSellerLabel(selectedTicket)} · {selectedTicket.category} · {selectedTicket.priority} priority</p>
                         </div>
-                        {statusBadge(selectedTicket.status)}
+                        <div className="flex flex-col items-end gap-2">
+                            {statusBadge(selectedTicket.status)}
+                            {accountLink(selectedTicket) && (
+                                <Link to={accountLink(selectedTicket)!.to} className="px-3 py-1 bg-white text-teal-700 rounded text-xs font-semibold hover:bg-teal-50">
+                                    {accountLink(selectedTicket)!.label} →
+                                </Link>
+                            )}
+                        </div>
                     </div>
                     <div className="px-6 py-4 border-b border-neutral-200">
                         <TicketTimeline ticket={selectedTicket} />
@@ -234,8 +256,8 @@ export default function AdminSupportTickets() {
                 <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
                     <div className="bg-teal-600 text-white px-6 py-4 rounded-t-lg flex items-center justify-between flex-wrap gap-3">
                         <div>
-                            <h2 className="text-lg font-semibold">Support Tickets</h2>
-                            <p className="text-sm text-teal-100 mt-1">Respond to seller and customer support requests.</p>
+                            <h2 className="text-lg font-semibold">{type ? `${type} Support` : 'Support Tickets'}</h2>
+                            <p className="text-sm text-teal-100 mt-1">{type === 'Customer' ? 'Customers raise tickets here; you reply and resolve them. Customers never contact sellers directly.' : type === 'Seller' ? 'Sellers raise tickets here; you reply and resolve them.' : 'Respond to seller and customer support requests.'}</p>
                         </div>
                         <select
                             value={statusFilter}

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import Notification from "../models/Notification";
 import Admin from "../models/Admin";
 import Seller from "../models/Seller";
@@ -191,6 +192,8 @@ export const sendBroadcastNotification = async (
     data?: Record<string, string>;
   },
 ) => {
+  // One shared batch id so the admin history shows a single row, not one per recipient.
+  const batchId = options?.broadcastBatchId || crypto.randomUUID();
   // Get all users of the specified type
   let userIds: string[] = [];
 
@@ -219,7 +222,7 @@ export const sendBroadcastNotification = async (
       Notification.create({
         recipientType,
         recipientId: userId,
-        broadcastBatchId: options?.broadcastBatchId,
+        broadcastBatchId: batchId,
         broadcastRecipientType: options?.broadcastRecipientType,
         title,
         message,

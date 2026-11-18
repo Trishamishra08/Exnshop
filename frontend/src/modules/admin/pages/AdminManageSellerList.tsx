@@ -869,6 +869,13 @@ export default function AdminManageSellerList() {
                                             <td className="p-4 align-middle">
                                                 <div className="flex items-center gap-2">
                                                     <Link
+                                                        to={`/admin/sellers/${seller._id}/account`}
+                                                        className="px-2.5 py-1 rounded text-xs font-semibold whitespace-nowrap bg-indigo-600 text-white hover:bg-indigo-700"
+                                                        title="Orders, statement and tickets"
+                                                    >
+                                                        View Account
+                                                    </Link>
+                                                    <Link
                                                         to={`/admin/manage-seller/review/${seller._id}`}
                                                         className={`px-2.5 py-1 rounded text-xs font-semibold whitespace-nowrap ${seller.onboardingStatus === 'UnderReview'
                                                             ? 'bg-blue-600 text-white hover:bg-blue-700'

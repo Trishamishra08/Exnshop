@@ -46,7 +46,7 @@ export const createTicket = asyncHandler(async (req: Request, res: Response) => 
     "Admin",
     `New support ticket (${ticket.priority} priority)`,
     `${ticket.category}: ${ticket.subject}`,
-    { type: "Info", priority: ticket.priority === "High" || ticket.priority === "Critical" ? "High" : "Medium", link: "/admin/support-tickets" }
+    { type: "Info", priority: ticket.priority === "High" || ticket.priority === "Critical" ? "High" : "Medium", link: "/admin/seller-support" }
   ).catch((err) => console.error("Failed to notify admins of new support ticket:", err?.message));
 
   return res.status(201).json({
