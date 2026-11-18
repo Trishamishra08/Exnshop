@@ -22,33 +22,15 @@ export const parseIdentifier = (raw: string): { method: IdentifierMethod; mobile
 
 const PHRASES = ['Enter mobile number', 'Enter email address'];
 
-/** Typewriter placeholder: types a phrase, pauses, deletes it, then types the next one. */
-function useTypewriter(active: boolean) {
-  const [text, setText] = useState('');
+/** Index of the phrase to show; rolls to the next one every 2.5s (like the home search bar). */
+function useRollingIndex(active: boolean) {
+  const [index, setIndex] = useState(0);
   useEffect(() => {
     if (!active) return;
-    let phrase = 0;
-    let len = 0;
-    let deleting = false;
-    let timer: number;
-    const tick = () => {
-      const current = PHRASES[phrase];
-      if (!deleting) {
-        len += 1;
-        setText(current.slice(0, len));
-        if (len === current.length) { deleting = true; timer = window.setTimeout(tick, 1400); return; }
-        timer = window.setTimeout(tick, 70);
-      } else {
-        len -= 1;
-        setText(current.slice(0, len));
-        if (len === 0) { deleting = false; phrase = (phrase + 1) % PHRASES.length; timer = window.setTimeout(tick, 350); return; }
-        timer = window.setTimeout(tick, 35);
-      }
-    };
-    timer = window.setTimeout(tick, 300);
-    return () => window.clearTimeout(timer);
+    const timer = window.setInterval(() => setIndex((i) => (i + 1) % PHRASES.length), 2500);
+    return () => window.clearInterval(timer);
   }, [active]);
-  return text;
+  return index;
 }
 
 export default function SmartLoginField({
@@ -65,7 +47,7 @@ export default function SmartLoginField({
   const [focused, setFocused] = useState(false);
   const { method } = parseIdentifier(value);
   const showMobile = value !== '' && method === 'mobile';
-  const typed = useTypewriter(value === '');
+  const current = useRollingIndex(value === '');
 
   const handle = (raw: string) => {
     // Digits only once it is clearly a number: keep to 10 digits and no stray letters.
@@ -110,10 +92,21 @@ export default function SmartLoginField({
             autoFocus
           />
           {value === '' && (
-            <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-sm sm:text-base text-slate-400">
-              {typed}
-              <span className="ml-0.5 inline-block w-px h-4 bg-slate-400 animate-pulse" />
-            </span>
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0 left-3.5 overflow-hidden">
+              {PHRASES.map((phrase, i) => {
+                const prev = (current - 1 + PHRASES.length) % PHRASES.length;
+                return (
+                  <div
+                    key={phrase}
+                    className={`absolute inset-0 flex items-center transition-all duration-500 ${
+                      i === current ? 'translate-y-0 opacity-100' : i === prev ? '-translate-y-full opacity-0' : 'translate-y-full opacity-0'
+                    }`}
+                  >
+                    <span className="text-sm sm:text-base text-slate-400 truncate">{phrase}</span>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>

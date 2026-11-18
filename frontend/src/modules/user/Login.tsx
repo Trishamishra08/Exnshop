@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { sendOTP, verifyOTP, sendEmailOTP, verifyEmailOTP } from '../../services/api/auth/customerAuthService';
-import LoginMethodTabs, { DEFAULT_LOGIN_METHOD, LoginMethod, isValidEmail } from '../../components/LoginMethodTabs';
+import SmartLoginField, { parseIdentifier } from '../../components/SmartLoginField';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import OTPInput from '../../components/OTPInput';
@@ -16,12 +16,17 @@ export default function Login({ mode = 'login' }: LoginProps) {
   const navigate = useNavigate();
   const { login } = useAuth();
   const { setLanguage } = useLanguage();
-  const [method, setMethod] = useState<LoginMethod>(DEFAULT_LOGIN_METHOD);
-  const [mobileNumber, setMobileNumber] = useState('');
-  const [email, setEmail] = useState('');
+  const [needsMobile, setNeedsMobile] = useState(false);
+  // One field for mobile number or email; the kind is detected from what is typed.
+  const [identifier, setIdentifier] = useState('');
+  const parsed = parseIdentifier(identifier);
+  const method = parsed.method;
+  // While finishing an email signup the mobile number is typed in its own box.
+  const [signupMobile, setSignupMobile] = useState('');
+  const mobileNumber = needsMobile ? signupMobile : parsed.mobile;
+  const email = parsed.email;
   // Email signup: this email has no account yet, so the mobile number is asked
   // for and the same code is submitted again with it (the server keeps the code).
-  const [needsMobile, setNeedsMobile] = useState(false);
   const [pendingOtp, setPendingOtp] = useState('');
   const [showOTP, setShowOTP] = useState(false);
   const [sessionId, setSessionId] = useState('');
@@ -30,7 +35,7 @@ export default function Login({ mode = 'login' }: LoginProps) {
   const [infoMessage, setInfoMessage] = useState('');
   const [bgImgOk, setBgImgOk] = useState(true);
 
-const canContinue = method === 'mobile' ? mobileNumber.length === 10 : isValidEmail(email);
+const canContinue = parsed.valid;
 
   const handleContinue = async () => {
     if (!canContinue) return;
@@ -192,57 +197,16 @@ const canContinue = method === 'mobile' ? mobileNumber.length === 10 : isValidEm
                   {isSignup ? 'Sign up' : 'Log in'}
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-500 font-normal mt-1">
-                  {method === 'mobile' ? 'Enter your mobile number to continue' : 'Enter your email to continue'}
+                  Enter your mobile number or email to continue
                 </p>
               </div>
 
-              <LoginMethodTabs
-                value={method}
-                onChange={(m) => {
-                  setMethod(m);
-                  setError('');
-                  setNeedsMobile(false);
-                }}
+              <SmartLoginField
+                value={identifier}
+                onChange={(v) => { setIdentifier(v); setError(''); setNeedsMobile(false); }}
                 disabled={loading}
+                onSubmit={handleContinue}
               />
-
-              {method === 'email' ? (
-                <div className="w-full mb-3.5">
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter email address"
-                    className="w-full h-12 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm sm:text-base font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-600/15 transition-all"
-                    disabled={loading}
-                    autoFocus
-                    id="customer-email-input"
-                  />
-                </div>
-              ) : (
-              /* Mobile Number Input */
-              <div className="w-full mb-3.5">
-                <div className="flex items-center h-12 bg-slate-50 border border-slate-200 rounded-xl overflow-hidden focus-within:bg-white focus-within:border-blue-600 focus-within:ring-2 focus-within:ring-blue-600/15 transition-all shadow-xs">
-                  {/* Country Code Block */}
-                  <div className="w-[74px] h-full bg-slate-100/90 border-r border-slate-200/90 text-sm font-bold text-slate-700 flex items-center justify-center gap-1 select-none">
-                    <span>🇮🇳</span>
-                    <span>+91</span>
-                  </div>
-                  {/* Phone Input Field */}
-                  <input
-                    type="tel"
-                    value={mobileNumber}
-                    onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                    placeholder="Enter mobile number"
-                    className="flex-1 h-full px-3.5 text-sm sm:text-base font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none bg-transparent"
-                    maxLength={10}
-                    disabled={loading}
-                    autoFocus
-                    id="customer-mobile-input"
-                  />
-                </div>
-              </div>
-              )}
 
               {/* Info Message */}
               {infoMessage && !error && (
@@ -329,7 +293,7 @@ const canContinue = method === 'mobile' ? mobileNumber.length === 10 : isValidEm
                     <input
                       type="tel"
                       value={mobileNumber}
-                      onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      onChange={(e) => setSignupMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
                       placeholder="Enter mobile number"
                       className="flex-1 h-full px-3.5 text-sm sm:text-base font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none bg-transparent"
                       maxLength={10}
