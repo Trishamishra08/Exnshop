@@ -22,6 +22,8 @@ export const getAllCustomers = asyncHandler(
     const query: any = {};
 
     if (status) query.status = status;
+    // Only customers waiting for bank-detail approval (Bank Change Requests page)
+    if (req.query.bankPending === "true") query["pendingBankChange.status"] = "Pending";
     if (search) {
       query.$or = [
         { name: { $regex: search as string, $options: "i" } },

@@ -732,6 +732,11 @@ const getMenuSections = (mode: "Quick" | "ECommerce"): MenuSection[] => [
             path: "/admin/users",
             icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21V19a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>),
           },
+          {
+            label: "Bank Change Requests",
+            path: "/admin/bank-requests",
+            icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M5 21V10"></path><path d="M19 21V10"></path><path d="M9 21V10"></path><path d="M15 21V10"></path><path d="M12 3L2 9h20L12 3z"></path></svg>),
+          },
       {
         label: "Customer Support",
         path: "/admin/customer-support",

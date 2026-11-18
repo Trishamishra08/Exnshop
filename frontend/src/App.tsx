@@ -271,6 +271,9 @@ const AdminShippingMethodRequests = lazyWithRetry(
 const AdminAccountView = lazyWithRetry(
   () => import("./modules/admin/pages/AdminAccountView"), "AdminAccountView"
 );
+const AdminBankRequests = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminBankRequests"), "AdminBankRequests"
+);
 const AdminSupportTickets = lazyWithRetry(
   () => import("./modules/admin/pages/AdminSupportTickets"), "AdminSupportTickets"
 );
@@ -1053,6 +1056,10 @@ function App() {
                                       <Route
                                         path="users"
                                         element={<AdminUsers />}
+                                      />
+                                      <Route
+                                        path="bank-requests"
+                                        element={<AdminBankRequests />}
                                       />
                                       <Route
                                         path="faq"

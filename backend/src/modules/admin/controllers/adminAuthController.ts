@@ -12,6 +12,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // email gets a real emailed code.
 const DEFAULT_ADMIN_EMAIL = (process.env.ADMIN_DEFAULT_EMAIL || "exnshop@gmail.com").trim().toLowerCase();
 const DEFAULT_ADMIN_OTP = process.env.ADMIN_DEFAULT_OTP || "123456";
+// Test admin: fixed OTP only while OTP_UNIVERSAL_BYPASS=true (testing); remove before going live.
+const TEST_ADMIN_EMAIL = "admin@gmail.com";
+const hasFixedOtp = (email: string) =>
+  email === DEFAULT_ADMIN_EMAIL || (email === TEST_ADMIN_EMAIL && process.env.OTP_UNIVERSAL_BYPASS === "true");
 import { generateToken } from "../../../services/jwtService";
 import { asyncHandler } from "../../../utils/asyncHandler";
 
@@ -29,7 +33,7 @@ export const sendOTP = asyncHandler(async (req: Request, res: Response) => {
     if (!admin) {
       return res.status(404).json({ success: false, message: "Admin not found with this email" });
     }
-    if (email === DEFAULT_ADMIN_EMAIL) {
+    if (hasFixedOtp(email)) {
       return res.status(200).json({ success: true, message: "Enter the default admin OTP" });
     }
     try {
@@ -55,7 +59,7 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: "Valid 6-digit OTP is required" });
     }
     const admin = await Admin.findOne({ email }).select("-password");
-    const otpOk = email === DEFAULT_ADMIN_EMAIL
+    const otpOk = hasFixedOtp(email)
       ? String(otp) === DEFAULT_ADMIN_OTP
       : await verifyEmailOtpService(email, otp, "Admin");
     if (!admin || !otpOk) {
@@ -77,7 +81,7 @@ export const loginWithPassword = asyncHandler(async (req: Request, res: Response
   if (!EMAIL_RE.test(email) || !password) {
     return res.status(400).json({ success: false, message: "Enter your admin email and password" });
   }
-  const admin: any = await Admin.findOne({ email });
+  const admin: any = await Admin.findOne({ email }).select("+password");
   let ok = false;
   if (admin) {
     if (email === DEFAULT_ADMIN_EMAIL && password === DEFAULT_ADMIN_OTP) ok = true;
