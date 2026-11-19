@@ -17,12 +17,18 @@ export interface ServiceDef {
   enforced?: boolean;
   /** Message customers/sellers see when it is OFF */
   offMessage?: string;
+  /** OFF until an admin switches it ON (e.g. SMS OTP, which needs an SMS provider). */
+  defaultOff?: boolean;
 }
+
+/** Whether a service is ON when the admin has never changed it. */
+export const defaultEnabled = (key: string) => !SERVICE_BY_KEY.get(key)?.defaultOff;
 
 const s = (section: string, items: Array<[string, string, Partial<ServiceDef>?]>): ServiceDef[] =>
   items.map(([key, label, extra]) => ({ key, label, section, ...(extra || {}) }));
 
 export const SERVICE_SECTIONS = [
+  "Login & OTP",
   "Customer Services",
   "Order & Payment",
   "Shipping & Delivery",
@@ -35,6 +41,10 @@ export const SERVICE_SECTIONS = [
 ] as const;
 
 export const SERVICE_CATALOG: ServiceDef[] = [
+  ...s("Login & OTP", [
+    ["sms_otp", "SMS / Mobile OTP (Customer, Seller, Delivery)", { enforced: true, defaultOff: true, offMessage: "Mobile OTP is turned off. Please continue with your email." }],
+    ["email_otp", "Email OTP (Customer, Seller, Delivery)", { enforced: true, offMessage: "Email OTP is turned off. Please continue with your mobile number." }],
+  ]),
   ...s("Customer Services", [
     ["customer_registration", "Customer Registration"],
     ["customer_login", "Login / Signup", { enforced: true, offMessage: "Login is temporarily unavailable." }],
@@ -185,11 +195,14 @@ const TTL_MS = 15_000;
 
 async function loadOff() {
   if (cache && Date.now() - cache.at < TTL_MS) return cache.off;
-  const rows = await ServiceControl.find({ enabled: false }).select("key note").lean();
+  const rows = await ServiceControl.find({}).select("key note enabled").lean();
+  const saved = new Map((rows as any[]).map((r) => [r.key, r]));
   const off = new Map<string, string | undefined>();
-  for (const r of rows as any[]) {
-    // Locked controls are always ON, even if a row says otherwise
-    if (!SERVICE_BY_KEY.get(r.key)?.locked) off.set(r.key, r.note);
+  for (const d of SERVICE_CATALOG) {
+    if (d.locked) continue; // Locked controls are always ON, even if a row says otherwise
+    const r: any = saved.get(d.key);
+    const enabled = r ? r.enabled !== false : !d.defaultOff;
+    if (!enabled) off.set(d.key, r?.note);
   }
   cache = { at: Date.now(), off };
   return off;
@@ -249,6 +262,13 @@ interface Guard {
 }
 const GUARDS: Guard[] = [
   { method: "POST", path: /^\/auth\/customer\/(send-sms-otp|verify-sms-otp)$/, key: "customer_login" },
+  // OTP channels (Admin > Service Controls > Login & OTP). Admin login is never blocked.
+  { method: "POST", path: /^\/auth\/(customer|delivery)\/send-sms-otp\/?$/, key: "sms_otp", when: (r) => !r.body?.email },
+  { method: "POST", path: /^\/auth\/(customer|delivery)\/send-sms-otp\/?$/, key: "email_otp", when: (r) => !!r.body?.email },
+  { method: "POST", path: /^\/auth\/seller\/send-otp\/?$/, key: "sms_otp", when: (r) => !r.body?.email },
+  { method: "POST", path: /^\/auth\/seller\/send-otp\/?$/, key: "email_otp", when: (r) => !!r.body?.email },
+  { method: "POST", path: /^\/auth\/seller\/register\/?$/, key: "sms_otp", when: (r) => r.body?.verifyBy === "mobile" },
+  { method: "POST", path: /^\/auth\/seller\/register\/?$/, key: "email_otp", when: (r) => r.body?.verifyBy !== "mobile" },
   { method: "POST", path: /^\/auth\/seller\/register$/, key: "seller_registration" },
   { method: "POST", path: /^\/customer\/wishlist\/?$/, key: "wishlist" },
   { method: "POST", path: /^\/customer\/reviews\/?$/, key: "product_reviews" },

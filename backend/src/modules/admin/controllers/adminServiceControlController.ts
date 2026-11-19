@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../../../utils/asyncHandler";
 import { ServiceControl, ServiceControlLog } from "../../../models/ServiceControl";
-import { SERVICE_CATALOG, SERVICE_BY_KEY, SERVICE_SECTIONS, clearServiceControlCache } from "../../../services/serviceControls";
+import { SERVICE_CATALOG, SERVICE_BY_KEY, SERVICE_SECTIONS, clearServiceControlCache, defaultEnabled } from "../../../services/serviceControls";
 import Admin from "../../../models/Admin";
 
 /** GET /admin/service-controls — every service with its state, who changed it last, and when. */
@@ -16,7 +16,7 @@ export const getServiceControls = asyncHandler(async (_req: Request, res: Respon
       section: d.section,
       locked: Boolean(d.locked),
       enforced: Boolean(d.enforced),
-      enabled: d.locked ? true : r ? r.enabled : true,
+      enabled: d.locked ? true : r ? r.enabled : !d.defaultOff,
       note: r?.note || "",
       updatedByName: r?.updatedByName || "",
       updatedAt: r?.updatedAt || null,
@@ -41,12 +41,15 @@ export const setServiceControl = asyncHandler(async (req: Request, res: Response
     });
   }
 
-  // Quick and E-Commerce can't both be OFF, or customers would have nothing to shop from.
-  const CHANNELS = ["quick_commerce", "ecommerce"];
-  if (!enabled && CHANNELS.includes(def.key)) {
-    const other = CHANNELS.find((k) => k !== def.key)!;
+  // Pairs that can't both be OFF: Quick / E-Commerce (nothing to shop from) and
+  // SMS / Email OTP (nobody could log in).
+  const PAIRS = [["quick_commerce", "ecommerce"], ["sms_otp", "email_otp"]];
+  const pair = PAIRS.find((p) => p.includes(def.key));
+  if (!enabled && pair) {
+    const other = pair.find((k) => k !== def.key)!;
     const otherRow: any = await ServiceControl.findOne({ key: other }).lean();
-    if (otherRow && otherRow.enabled === false) {
+    const otherOn = otherRow ? otherRow.enabled !== false : defaultEnabled(other);
+    if (!otherOn) {
       return res.status(400).json({
         success: false,
         message: `${SERVICE_BY_KEY.get(other)?.label} is already OFF. Turn it ON before switching this one off.`,
@@ -59,7 +62,7 @@ export const setServiceControl = asyncHandler(async (req: Request, res: Response
   const adminName = admin ? `${admin.firstName || ""} ${admin.lastName || ""}`.trim() || admin.email : "Admin";
 
   const before = await ServiceControl.findOne({ key }).lean();
-  const from = before ? (before as any).enabled : true;
+  const from = before ? (before as any).enabled : defaultEnabled(key);
 
   const doc = await ServiceControl.findOneAndUpdate(
     { key },

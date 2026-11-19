@@ -25,6 +25,8 @@ export interface VerifyOTPResponse {
 }
 
 export interface RegisterData {
+  /** How the signup code is sent: email (default) or SMS. */
+  verifyBy?: 'mobile' | 'email';
   sellerName: string;
   mobile: string;
   email: string;

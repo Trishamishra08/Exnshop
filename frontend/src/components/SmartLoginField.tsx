@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { isValidEmail } from './LoginMethodTabs';
+import { isValidEmail, useOtpMethods } from './LoginMethodTabs';
 
 /**
  * One login box for both mobile number and email.
@@ -20,17 +20,18 @@ export const parseIdentifier = (raw: string): { method: IdentifierMethod; mobile
   return { method: 'email', mobile: '', email: value, valid: isValidEmail(value) };
 };
 
-const PHRASES = ['Enter mobile number', 'Enter email address'];
+const MOBILE_PHRASE = 'Enter mobile number';
+const EMAIL_PHRASE = 'Enter email address';
 
 /** Index of the phrase to show; rolls to the next one every 2.5s (like the home search bar). */
-function useRollingIndex(active: boolean) {
+function useRollingIndex(active: boolean, count: number) {
   const [index, setIndex] = useState(0);
   useEffect(() => {
-    if (!active) return;
-    const timer = window.setInterval(() => setIndex((i) => (i + 1) % PHRASES.length), 2500);
+    if (!active || count < 2) return;
+    const timer = window.setInterval(() => setIndex((i) => (i + 1) % count), 2500);
     return () => window.clearInterval(timer);
-  }, [active]);
-  return index;
+  }, [active, count]);
+  return index % Math.max(count, 1);
 }
 
 export default function SmartLoginField({
@@ -47,7 +48,11 @@ export default function SmartLoginField({
   const [focused, setFocused] = useState(false);
   const { method } = parseIdentifier(value);
   const showMobile = value !== '' && method === 'mobile';
-  const current = useRollingIndex(value === '');
+  // Only offer the OTP methods the admin has switched ON (Service Controls > Login & OTP).
+  const otp = useOtpMethods();
+  const PHRASES = [...(otp.mobile ? [MOBILE_PHRASE] : []), ...(otp.email ? [EMAIL_PHRASE] : [])];
+  const current = useRollingIndex(value === '', PHRASES.length);
+  const blocked = value !== '' && ((showMobile && !otp.mobile) || (!showMobile && !otp.email));
 
   const handle = (raw: string) => {
     // Digits only once it is clearly a number: keep to 10 digits and no stray letters.
@@ -110,8 +115,20 @@ export default function SmartLoginField({
           )}
         </div>
       </div>
-      <p className="mt-1.5 text-[11px] text-slate-400 px-0.5">
-        {showMobile ? 'OTP will be sent to your mobile number' : value ? 'OTP will be sent to your email' : 'Log in with your mobile number or email'}
+      <p className={`mt-1.5 text-[11px] px-0.5 ${blocked ? 'text-red-600 font-medium' : 'text-slate-400'}`}>
+        {blocked
+          ? showMobile
+            ? 'Mobile OTP is turned off right now. Please enter your email.'
+            : 'Email OTP is turned off right now. Please enter your mobile number.'
+          : showMobile
+            ? 'OTP will be sent to your mobile number'
+            : value
+              ? 'OTP will be sent to your email'
+              : otp.mobile && otp.email
+                ? 'Log in with your mobile number or email'
+                : otp.mobile
+                  ? 'Log in with your mobile number'
+                  : 'Log in with your email'}
       </p>
     </div>
   );

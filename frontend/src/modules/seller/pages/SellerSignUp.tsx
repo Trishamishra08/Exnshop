@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { register, sendMobileOTP, verifyMobileOTP, sendOTP as sendEmailOTP, verifyOTP as verifyEmailOTP } from '../../../services/api/auth/sellerAuthService';
-import LoginMethodTabs, { DEFAULT_LOGIN_METHOD, LoginMethod } from '../../../components/LoginMethodTabs';
+import LoginMethodTabs, { defaultLoginMethod, LoginMethod, useOtpMethods } from '../../../components/LoginMethodTabs';
 import { removeAuthToken } from '../../../services/api/config';
 import OTPInput from '../../../components/OTPInput';
 import GoogleMapsAutocomplete from '../../../components/GoogleMapsAutocomplete';
@@ -83,7 +83,14 @@ export default function SellerSignUp() {
     );
   };
 
-  const [verifyBy, setVerifyBy] = useState<LoginMethod>(DEFAULT_LOGIN_METHOD);
+  const [verifyBy, setVerifyBy] = useState<LoginMethod>(defaultLoginMethod);
+
+  // Keep the verification method on one the admin allows (Service Controls > Login & OTP).
+  const otpMethods = useOtpMethods();
+  useEffect(() => {
+    if (verifyBy === 'email' && !otpMethods.email && otpMethods.mobile) setVerifyBy('mobile');
+    else if (verifyBy === 'mobile' && !otpMethods.mobile && otpMethods.email) setVerifyBy('email');
+  }, [otpMethods, verifyBy]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,6 +124,7 @@ export default function SellerSignUp() {
         serviceRadiusKm: formData.serviceRadiusKm,
         channels: formData.channels,
         shippingMethod: formData.shippingMethod || undefined,
+        verifyBy,
       });
       if (response.success) {
         removeAuthToken('seller');

@@ -451,8 +451,11 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   // draft stays (so "Resend OTP" can retry) but we tell the caller honestly
   // instead of claiming success. Under OTP_UNIVERSAL_BYPASS (the default),
   // this always resolves immediately with no real SMS sent.
+  // Send the code the way the seller chose: email (works without an SMS provider) or SMS.
+  const byMobile = req.body.verifyBy === "mobile";
   try {
-    await sendOTPService(mobile, "Seller", true);
+    if (byMobile) await sendOTPService(mobile, "Seller", true);
+    else await sendEmailOtp(normalizedEmail, "Seller", sellerName, "register", true);
   } catch (otpErr: any) {
     return res.status(502).json({
       success: false,
@@ -464,7 +467,9 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 
   return res.status(200).json({
     success: true,
-    message: "Verification code sent. Please check your mobile to complete signup.",
+    message: byMobile
+      ? "Verification code sent. Please check your mobile to complete signup."
+      : "Verification code sent. Please check your email to complete signup.",
   });
 });
 

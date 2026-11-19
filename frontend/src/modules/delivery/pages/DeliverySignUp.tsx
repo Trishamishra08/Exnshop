@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   register,
@@ -7,7 +7,7 @@ import {
   sendOTP as sendEmailOTP,
   verifyOTP as verifyEmailOTP,
 } from "../../../services/api/auth/deliveryAuthService";
-import LoginMethodTabs, { DEFAULT_LOGIN_METHOD, LoginMethod } from "../../../components/LoginMethodTabs";
+import LoginMethodTabs, { defaultLoginMethod, LoginMethod, useOtpMethods } from "../../../components/LoginMethodTabs";
 import { removeAuthToken } from "../../../services/api/config";
 import api from "../../../services/api/config";
 import { validateDocumentFile, compressImage } from "../../../utils/imageUpload";
@@ -200,7 +200,8 @@ export default function DeliverySignUp() {
       if (response.success) {
         removeAuthToken("delivery");
         try {
-          const otpRes = await sendMobileOTP(formData.mobile);
+          // Send the code the way the rider chose to verify (email works without an SMS provider).
+          const otpRes = verifyBy === "mobile" ? await sendMobileOTP(formData.mobile) : await sendEmailOTP(formData.email.trim());
           if (otpRes.sessionId) setSessionId(otpRes.sessionId);
           setShowOTP(true);
         } catch (otpErr: any) {
@@ -215,7 +216,14 @@ export default function DeliverySignUp() {
     }
   };
 
-  const [verifyBy, setVerifyBy] = useState<LoginMethod>(DEFAULT_LOGIN_METHOD);
+  const [verifyBy, setVerifyBy] = useState<LoginMethod>(defaultLoginMethod);
+
+  // Keep the verification method on one the admin allows (Service Controls > Login & OTP).
+  const otpMethods = useOtpMethods();
+  useEffect(() => {
+    if (verifyBy === 'email' && !otpMethods.email && otpMethods.mobile) setVerifyBy('mobile');
+    else if (verifyBy === 'mobile' && !otpMethods.mobile && otpMethods.email) setVerifyBy('email');
+  }, [otpMethods, verifyBy]);
 
   const handleOTPComplete = async (otp: string) => {
     setLoading(true);
