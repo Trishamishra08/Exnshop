@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '../../../context/ToastContext';
 import {
   AdminOnboardingView,
@@ -100,6 +100,7 @@ function Row({ label, value }: { label: string; value?: React.ReactNode }) {
 export default function AdminSellerReview() {
   const { id = '' } = useParams();
   const { showToast } = useToast();
+  const navigate = useNavigate();
   const [data, setData] = useState<AdminOnboardingView | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -231,7 +232,7 @@ export default function AdminSellerReview() {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <Link to="/admin/manage-seller/list" className="text-xs text-teal-700 hover:underline">
+          <Link to={status === 'UnderReview' ? '/admin/manage-seller/pending' : '/admin/manage-seller/list'} className="text-xs text-teal-700 hover:underline">
             ← Back to sellers
           </Link>
           <h1 className="text-2xl font-semibold text-neutral-800">{data.seller.storeName}</h1>
@@ -442,7 +443,7 @@ export default function AdminSellerReview() {
             {['UnderReview', 'ActionRequired'].includes(status) && (
               <button
                 disabled={busy || !allApproved}
-                onClick={() => act(() => decideSellerAdmin(id, 'approve'), 'Seller approved')}
+                onClick={() => act(() => decideSellerAdmin(id, 'approve'), 'Seller approved').then((ok) => ok && navigate('/admin/manage-seller/list'))}
                 className="w-full py-2.5 rounded-lg text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
                 title={allApproved ? '' : 'Approve every section first'}
               >

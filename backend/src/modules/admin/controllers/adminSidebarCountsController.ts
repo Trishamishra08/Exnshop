@@ -44,6 +44,7 @@ export const getSidebarCounts = asyncHandler(async (req: Request, res: Response)
     refundRequests,
     claims,
     newOrders,
+    pendingSellers,
   ] = await Promise.all([
     safe(() => Notification.countDocuments({ recipientType: "Admin", recipientId: adminId, isRead: false })),
     safe(() => SupportTicket.countDocuments({ requesterType: "Customer", status: { $in: OPEN_TICKET } })),
@@ -57,6 +58,7 @@ export const getSidebarCounts = asyncHandler(async (req: Request, res: Response)
     safe(() => RefundRequest.countDocuments({ status: "Pending" })),
     safe(() => Claim.countDocuments({ status: { $in: ["Raised", "Under Review"] } })),
     safe(() => Order.countDocuments({ status: "Received" })),
+    safe(() => Seller.countDocuments({ onboardingStatus: "UnderReview" })),
   ]);
 
   return res.json({
@@ -74,6 +76,7 @@ export const getSidebarCounts = asyncHandler(async (req: Request, res: Response)
       "/admin/refund-requests": refundRequests,
       "/admin/claims": claims,
       "/admin/orders/received": newOrders,
+      "/admin/manage-seller/pending": pendingSellers,
     },
   });
 });

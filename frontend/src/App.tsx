@@ -973,6 +973,10 @@ function App() {
                                         element={<AdminManageSellerList />}
                                       />
                                       <Route
+                                        path="manage-seller/pending"
+                                        element={<AdminManageSellerList pending />}
+                                      />
+                                      <Route
                                         path="manage-seller/drafts"
                                         element={<AdminDraftSellers />}
                                       />

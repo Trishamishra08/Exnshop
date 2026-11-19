@@ -111,7 +111,11 @@ const FALLBACK_LOGO =
         </svg>`
     );
 
-export default function AdminManageSellerList() {
+/**
+ * pending = sellers who submitted KYC and wait for the admin's review (Manage Seller > Pending Sellers).
+ * The normal list shows everyone else; once approved, a seller moves from Pending to this list.
+ */
+export default function AdminManageSellerList({ pending = false }: { pending?: boolean } = {}) {
     const { mode } = useAdminMode();
     const [sellers, setSellers] = useState<Seller[]>([]);
     const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -154,7 +158,7 @@ export default function AdminManageSellerList() {
             try {
                 setLoading(true);
                 setError('');
-                const response = await getAllSellers({ channel: mode });
+                const response = await getAllSellers(pending ? {} : { channel: mode }); // pending: every seller waiting for review, whichever mode
                 if (response.success && response.data) {
                     const mappedSellers = response.data.map(mapSellerToFrontend);
                     setSellers(mappedSellers);
@@ -177,7 +181,7 @@ export default function AdminManageSellerList() {
         };
 
         fetchSellers();
-    }, [mode]);
+    }, [mode, pending]);
 
     const handleSort = (column: string) => {
         if (sortColumn === column) {
@@ -197,7 +201,9 @@ export default function AdminManageSellerList() {
     // Filter sellers
     let filteredSellers = sellers.filter(seller => {
         const q = String(searchTerm || "").toLowerCase();
-        if (stageFilter !== 'All' && (seller.onboardingStatus || '') !== stageFilter) return false;
+        const isPending = (seller.onboardingStatus || '') === 'UnderReview';
+        if (pending !== isPending) return false;
+        if (!pending && stageFilter !== 'All' && (seller.onboardingStatus || '') !== stageFilter) return false;
         return (
             String(seller.name || "").toLowerCase().includes(q) ||
             String(seller.storeName || "").toLowerCase().includes(q) ||
@@ -365,7 +371,7 @@ export default function AdminManageSellerList() {
                 }
             }
             if (response.success && response.data) {
-                const refreshed = await getAllSellers({ channel: mode });
+                const refreshed = await getAllSellers(pending ? {} : { channel: mode }); // pending: every seller waiting for review, whichever mode
                 const fresh = refreshed.data?.find((s: SellerType) => s._id === editingSeller._id) || response.data;
                 const updatedSeller = mapSellerToFrontend(fresh);
                 setSellers(prev => prev.map(s => s._id === editingSeller._id ? updatedSeller : s));
@@ -623,7 +629,8 @@ export default function AdminManageSellerList() {
                 <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
                     {/* Header */}
                     <div className="bg-teal-600 text-white px-6 py-4 rounded-t-lg">
-                        <h2 className="text-lg font-semibold">View Seller List</h2>
+                        <h2 className="text-lg font-semibold">{pending ? 'Pending Sellers' : 'View Seller List'}</h2>
+                        {pending && <p className="text-sm text-teal-100 mt-1">Sellers who submitted their documents and are waiting for your review. Open Review to approve them; approved sellers move to Manage Seller.</p>}
                     </div>
 
                     {/* Error Message */}
@@ -663,6 +670,7 @@ export default function AdminManageSellerList() {
                     {/* Controls */}
                     <div className="p-4 border-b border-neutral-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div className="flex items-center gap-2">
+                            {!pending && (<>
                             <span className="text-sm text-neutral-600">Stage</span>
                             <select
                                 value={stageFilter}
@@ -673,13 +681,14 @@ export default function AdminManageSellerList() {
                                 className="bg-white border border-neutral-300 rounded py-1.5 px-3 text-sm focus:ring-1 focus:ring-teal-500 focus:outline-none cursor-pointer"
                             >
                                 <option value="All">All sellers</option>
-                                {(Object.keys(STATUS_META) as OnboardingStatus[]).map((k) => (
+                                {(Object.keys(STATUS_META) as OnboardingStatus[]).filter((k) => k !== 'UnderReview').map((k) => (
                                     <option key={k} value={k}>
                                         {k === 'Draft' ? 'Draft (signup not finished)' : STATUS_META[k].label}
                                     </option>
                                 ))}
                             </select>
-                            <span className="text-sm text-neutral-600 ml-2">Show</span>
+                            </>)}
+                            <span className={`text-sm text-neutral-600 ${pending ? '' : 'ml-2'}`}>Show</span>
                             <select
                                 value={rowsPerPage}
                                 onChange={(e) => {
