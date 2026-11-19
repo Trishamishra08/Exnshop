@@ -43,15 +43,20 @@ export default function Login({ mode = 'login' }: LoginProps) {
 
 const canContinue = parsed.valid;
 
+  // Sign up with an email / mobile that already has an account: offer to log in instead.
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
+
   const handleContinue = async () => {
     if (!canContinue) return;
 
     setLoading(true);
     setError('');
+    setAlreadyRegistered(false);
     setInfoMessage(method === 'mobile' ? 'An OTP will be sent to your mobile number' : 'An OTP will be sent to your email');
 
     try {
-      const response = method === 'mobile' ? await sendOTP(mobileNumber) : await sendEmailOTP(email.trim());
+      const purpose = isSignup ? 'signup' : 'login';
+      const response = method === 'mobile' ? await sendOTP(mobileNumber, purpose) : await sendEmailOTP(email.trim(), purpose);
       if (response.sessionId) {
         setSessionId(response.sessionId);
       }
@@ -59,6 +64,7 @@ const canContinue = parsed.valid;
       setInfoMessage('');
     } catch (err: any) {
       setInfoMessage('');
+      setAlreadyRegistered(err.response?.data?.code === 'ALREADY_REGISTERED');
       setError(err.response?.data?.message || 'Failed to send OTP. Please try again.');
     } finally {
       setLoading(false);
@@ -209,7 +215,7 @@ const canContinue = parsed.valid;
 
               <SmartLoginField
                 value={identifier}
-                onChange={(v) => { setIdentifier(v); setError(''); setNeedsMobile(false); }}
+                onChange={(v) => { setIdentifier(v); setError(''); setAlreadyRegistered(false); setNeedsMobile(false); }}
                 disabled={loading}
                 onSubmit={handleContinue}
               />
@@ -225,6 +231,15 @@ const canContinue = parsed.valid;
               {error && (
                 <div className="w-full mb-3 text-xs font-medium text-red-600 bg-red-50 border border-red-200/80 p-2.5 rounded-xl text-center">
                   {error}
+                  {alreadyRegistered && (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/login', { replace: true })}
+                      className="block mx-auto mt-1.5 font-bold text-blue-700 underline"
+                    >
+                      Log in instead
+                    </button>
+                  )}
                 </div>
               )}
 

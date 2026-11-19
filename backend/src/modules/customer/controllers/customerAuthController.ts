@@ -21,12 +21,21 @@ import { asyncHandler } from "../../../utils/asyncHandler";
 export const sendSmsOtp = asyncHandler(async (req: Request, res: Response) => {
   // Email login: a real OTP is emailed (mobile OTPs stay on the 123456 test code).
   const email = req.body.email ? String(req.body.email).trim().toLowerCase() : '';
+  // The Sign up page sends purpose "signup": an email / mobile that already has an account is refused there.
+  const isSignup = req.body.purpose === "signup";
   if (email) {
     if (!EMAIL_RE.test(email)) {
       return res.status(400).json({ success: false, message: "Valid email address is required" });
     }
     try {
       const existing = await Customer.findOne({ email }).select("name");
+      if (isSignup && existing) {
+        return res.status(409).json({
+          success: false,
+          code: "ALREADY_REGISTERED",
+          message: "This email is already registered. Please log in, or sign up with another email.",
+        });
+      }
       const result = await sendEmailOtpService(email, "Customer", existing?.name, existing ? "login" : "register", true);
       return res.status(200).json({ success: true, message: result.message, sessionId: result.sessionId });
     } catch (error: any) {
@@ -41,6 +50,14 @@ export const sendSmsOtp = asyncHandler(async (req: Request, res: Response) => {
     return res.status(400).json({
       success: false,
       message: "Valid 10-digit mobile number is required",
+    });
+  }
+
+  if (isSignup && (await Customer.exists({ phone: mobile }))) {
+    return res.status(409).json({
+      success: false,
+      code: "ALREADY_REGISTERED",
+      message: "This mobile number is already registered. Please log in, or sign up with another number.",
     });
   }
 

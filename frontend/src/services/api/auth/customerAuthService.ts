@@ -30,8 +30,8 @@ export interface VerifyOTPResponse {
  * Send OTP to customer mobile (real SMS, or the fixed 123456 test code under
  * OTP_UNIVERSAL_BYPASS — no live SMS provider required for that).
  */
-export const sendOTP = async (mobile: string): Promise<SendOTPResponse> => {
-  const response = await api.post<SendOTPResponse>('/auth/customer/send-sms-otp', { mobile });
+export const sendOTP = async (mobile: string, purpose: 'login' | 'signup' = 'login'): Promise<SendOTPResponse> => {
+  const response = await api.post<SendOTPResponse>('/auth/customer/send-sms-otp', { mobile, purpose });
   return response.data;
 };
 
@@ -54,8 +54,8 @@ export const verifyOTP = async (mobile: string, otp: string, sessionId?: string,
 };
 
 /** Send a real login OTP to the customer's email. */
-export const sendEmailOTP = async (email: string): Promise<SendOTPResponse> => {
-  const response = await api.post<SendOTPResponse>('/auth/customer/send-sms-otp', { email });
+export const sendEmailOTP = async (email: string, purpose: 'login' | 'signup' = 'login'): Promise<SendOTPResponse> => {
+  const response = await api.post<SendOTPResponse>('/auth/customer/send-sms-otp', { email, purpose });
   return response.data;
 };
 
