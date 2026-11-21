@@ -176,10 +176,15 @@ const SellerNotificationAlert: React.FC<SellerNotificationAlertProps> = ({ notif
             </div>
             {notification.paymentStatus && (
               <div className="flex items-center gap-2 text-sm">
-                <span className="text-neutral-500">Payment Status:</span>
-                <span className={`font-semibold ${notification.paymentStatus === 'Paid' ? 'text-green-600' : 'text-amber-600'}`}>
-                  {notification.paymentStatus}
-                </span>
+                <span className="text-neutral-500">Payment:</span>
+                {/* A COD order is "Pending" until the cash is collected; show it as COD so it isn't mistaken for an unpaid online order. */}
+                {String(notification.paymentMethod || '').toUpperCase() === 'COD' && notification.paymentStatus !== 'Paid' ? (
+                  <span className="font-semibold text-amber-700">COD · collect cash on delivery</span>
+                ) : (
+                  <span className={`font-semibold ${notification.paymentStatus === 'Paid' ? 'text-green-600' : 'text-amber-600'}`}>
+                    {notification.paymentStatus === 'Paid' ? `Paid${notification.paymentMethod ? ` (${notification.paymentMethod})` : ''}` : notification.paymentStatus}
+                  </span>
+                )}
               </div>
             )}
           </section>

@@ -203,6 +203,7 @@ export default function SellerProductList() {
     if (!product.variations || product.variations.length === 0) {
       return [{
         variationId: `${product._id}-default`,
+        sku: (product as any).sku || "",
         productName: product.productName,
         sellerName: user?.storeName || "",
         productImage:
@@ -224,6 +225,7 @@ export default function SellerProductList() {
     // If product has variations, map them
     return product.variations.map((variation, index) => ({
       variationId: variation._id || `${product._id}-${index}`,
+      sku: (variation as any).sku || (product as any).sku || "",
       productName: product.productName,
       sellerName: user?.storeName || "",
       productImage:
@@ -421,6 +423,7 @@ export default function SellerProductList() {
                 const headers = [
                   "Product Id",
                   "Variation Id",
+                  "SKU",
                   "Product Name",
                   "Seller Name",
                   "Brand Name",
@@ -435,6 +438,7 @@ export default function SellerProductList() {
                     [
                       v.productId,
                       v.variationId,
+                      `"${(v as any).sku || ""}"`,
                       `"${v.productName}"`,
                       `"${v.sellerName}"`,
                       `"${v.brandName}"`,
@@ -494,10 +498,10 @@ export default function SellerProductList() {
               </span>
               <input
                 type="text"
-                className="pl-14 pr-3 py-1.5 bg-neutral-100 border-none rounded text-sm focus:ring-1 focus:ring-teal-500 w-48"
+                className="pl-14 pr-3 py-1.5 bg-neutral-100 border-none rounded text-sm focus:ring-1 focus:ring-teal-500 w-64"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder=""
+                placeholder="Name, SKU, Product / Variation ID"
               />
             </div>
           </div>
@@ -630,6 +634,7 @@ export default function SellerProductList() {
                       Variation Id <SortIcon column="variationId" />
                     </div>
                   </th>
+                  <th className="p-4 border border-neutral-200">SKU</th>
                   <th
                     className="p-4 border border-neutral-200 cursor-pointer hover:bg-neutral-100 transition-colors"
                     onClick={() => handleSort("productName")}>
@@ -751,6 +756,9 @@ export default function SellerProductList() {
                       </td>
                       <td className="p-4 align-middle border border-neutral-200">
                         {variation.variationId}
+                      </td>
+                      <td className="p-4 align-middle border border-neutral-200 font-mono text-xs whitespace-nowrap">
+                        {variation.sku || <span className="text-neutral-400">—</span>}
                       </td>
                       <td className="p-4 align-middle border border-neutral-200">
                         <div className="flex flex-col gap-1">
@@ -912,7 +920,7 @@ export default function SellerProductList() {
                 {displayedVariations.length === 0 && (
                   <tr>
                     <td
-                      colSpan={13}
+                      colSpan={14}
                       className="p-8 text-center text-neutral-400 border border-neutral-200">
                       No products found.
                     </td>

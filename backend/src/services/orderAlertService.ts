@@ -11,6 +11,8 @@ export interface SellerOrderAlert {
   orderNumber: string;
   status: string;
   paymentStatus: string;
+  /** COD, Online, Wallet… so the seller sees "COD" instead of a bare "Pending". */
+  paymentMethod?: string;
   customer: {
     name: string;
     email: string;
@@ -112,6 +114,7 @@ export async function getSellerPendingOrderAlerts(
       orderNumber: order.orderNumber,
       status: order.status,
       paymentStatus: order.paymentStatus,
+      paymentMethod: order.paymentMethod,
       customer: {
         name: order.customerName,
         email: order.customerEmail || "",

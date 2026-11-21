@@ -15,6 +15,9 @@ export interface SalesReport {
     orderItemId: string;
     product: string;
     variant: string;
+    sku?: string;
+    variationId?: string;
+    quantity?: number;
     total: number;
     date: string;
 }

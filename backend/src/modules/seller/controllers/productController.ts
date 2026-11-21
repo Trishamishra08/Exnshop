@@ -332,13 +332,22 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
   // Build query
   const query: any = { seller: sellerId };
 
-  // Search filter
+  // Search by name, description, tag, SKU (product or variation), or an exact Product / Variation ID.
   if (search) {
+    const term = String(search).trim();
+    const rx = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
     query.$or = [
-      { productName: { $regex: search, $options: "i" } },
-      { smallDescription: { $regex: search, $options: "i" } },
-      { tags: { $in: [new RegExp(search as string, "i")] } },
+      { productName: rx },
+      { smallDescription: rx },
+      { tags: { $in: [rx] } },
+      { sku: rx },
+      { "variations.sku": rx },
     ];
+    // A pasted ID: the table shows "<productId>-default" for products without variations.
+    const id = term.replace(/-default$/, "");
+    if (/^[a-f0-9]{24}$/i.test(id)) {
+      query.$or.push({ _id: id }, { "variations._id": id });
+    }
   }
 
   // Category filter

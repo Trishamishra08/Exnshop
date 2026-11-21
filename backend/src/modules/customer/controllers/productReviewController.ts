@@ -196,7 +196,10 @@ export const addReview = async (req: Request, res: Response) => {
             rating: numericRating,
             comment,
             title,
-            images,
+            // Photo links from /upload/review-images: https only, at most 5
+            images: (Array.isArray(images) ? images : [])
+                .filter((u: unknown) => typeof u === 'string' && u.length < 500 && /^https:\/\//.test(u))
+                .slice(0, 5),
             status: 'Approved',
             isVerifiedPurchase: true,
         });

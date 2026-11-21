@@ -1031,6 +1031,16 @@ const getMenuSections = (mode: "Quick" | "ECommerce"): MenuSection[] => [
     title: "Finance",
     items: [
       {
+        label: "Sales Report",
+        path: "/admin/reports/sales",
+        icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"></path><path d="M7 15l4-4 3 3 5-6"></path></svg>),
+      },
+      {
+        label: "Ledger",
+        path: "/admin/reports/ledger",
+        icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h12l4 4v12H4z"></path><path d="M8 10h8M8 14h8M8 18h5"></path></svg>),
+      },
+      {
         label: "Wallet & Earnings",
         path: "/admin/wallet",
         icon: (

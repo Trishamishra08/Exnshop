@@ -11,6 +11,7 @@ import DeliveryPartnerCard from "../../components/DeliveryPartnerCard";
 import { cancelOrder, updateOrderNotes, getSellerLocationsForOrder, refreshDeliveryOtp, requestCustomerReturn } from "../../services/api/customerOrderService";
 import {
   addReview,
+  uploadReviewImages,
   getMyReviewForOrderProduct,
 } from "../../services/api/customerReviewService";
 import StarRating from "../../components/ui/StarRating";
@@ -502,6 +503,8 @@ export default function OrderDetail() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewTitle, setReviewTitle] = useState("");
   const [reviewComment, setReviewComment] = useState("");
+  // Optional photos with the review (up to 5)
+  const [reviewPhotos, setReviewPhotos] = useState<File[]>([]);
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [reviewSuccess, setReviewSuccess] = useState<string | null>(null);
@@ -668,6 +671,7 @@ export default function OrderDetail() {
     setReviewRating(5);
     setReviewTitle("");
     setReviewComment("");
+    setReviewPhotos([]);
     setReviewError(null);
     setReviewSuccess(null);
   };
@@ -683,12 +687,14 @@ export default function OrderDetail() {
     setReviewError(null);
     setReviewSuccess(null);
     try {
+      const images = reviewPhotos.length ? await uploadReviewImages(reviewPhotos) : undefined;
       const res = await addReview({
         productId: activeReviewProductId,
         orderId: id,
         rating: reviewRating,
         title: reviewTitle.trim() || undefined,
         comment: reviewComment.trim() || undefined,
+        images,
       });
       if (res.success) {
         setReviewStatusByProduct((prev) => ({
@@ -702,6 +708,7 @@ export default function OrderDetail() {
         setActiveReviewProductId(null);
         setReviewTitle("");
         setReviewComment("");
+        setReviewPhotos([]);
       } else {
         setReviewError(res.message || "Failed to submit review");
       }
@@ -1606,6 +1613,42 @@ export default function OrderDetail() {
                           maxLength={500}
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                         />
+                        {/* Optional photos of the product (up to 5) */}
+                        <div>
+                          <div className="flex flex-wrap gap-2">
+                            {reviewPhotos.map((file, i) => (
+                              <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-gray-200">
+                                <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
+                                <button
+                                  type="button"
+                                  onClick={() => setReviewPhotos((p) => p.filter((_, j) => j !== i))}
+                                  className="absolute top-0 right-0 w-5 h-5 bg-black/60 text-white text-xs leading-5 text-center"
+                                  aria-label="Remove photo"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                            {reviewPhotos.length < 5 && (
+                              <label className="w-16 h-16 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-500 text-[10px] cursor-pointer hover:border-green-500">
+                                <span className="text-lg leading-none">+</span>
+                                Photo
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const picked = Array.from(e.target.files || []).filter((f) => f.type.startsWith('image/') && f.size <= 5 * 1024 * 1024);
+                                    setReviewPhotos((p) => [...p, ...picked].slice(0, 5));
+                                    e.target.value = '';
+                                  }}
+                                />
+                              </label>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-gray-400 mt-1">Add up to 5 photos (optional, max 5 MB each)</p>
+                        </div>
                         {reviewError && (
                           <p className="text-sm text-red-600">{reviewError}</p>
                         )}

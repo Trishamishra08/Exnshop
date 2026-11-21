@@ -579,6 +579,20 @@ export const updateOrderStatus = asyncHandler(
     if (status === "Accepted" || status === "Rejected") {
       const sellerIdStr = sellerId.toString();
 
+      // Self delivery + COD: the seller collects the cash and the platform's share is taken
+      // from their wallet after delivery, so a wallet already below zero must be topped up first.
+      if (status === "Accepted" && String(order.paymentMethod || "").toUpperCase() === "COD" && (await getSellerShippingMethod(sellerIdStr)) === "Self") {
+        const me: any = await Seller.findById(sellerIdStr).select("balance").lean();
+        const balance = Number(me?.balance || 0);
+        if (balance < 0) {
+          return res.status(402).json({
+            success: false,
+            code: "WALLET_TOPUP_REQUIRED",
+            message: `Your wallet is ₹${balance.toFixed(2)}. Add money to your wallet (Wallet > Add Money) to accept self-delivery COD orders.`,
+          });
+        }
+      }
+
       // Step 1: Mark all items of this seller with the new sellerStatus
       await OrderItem.updateMany(
         { order: id, seller: sellerId },

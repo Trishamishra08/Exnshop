@@ -5,7 +5,7 @@ import Order from '../models/Order';
 import mongoose from 'mongoose';
 
 // Initialize Razorpay instance
-const getRazorpayInstance = () => {
+export const getRazorpayInstance = () => {
     const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
@@ -117,13 +117,13 @@ export const verifyPaymentSignature = (
     razorpaySignature: string
 ): boolean => {
     try {
-        if (
+        // Mock IDs are for local testing only. On the live server they would let anyone
+        // mark an order as paid without paying, so they are refused there.
+        const isMock =
             (razorpayOrderId && razorpayOrderId.startsWith('order_mock_')) ||
             (razorpayPaymentId && razorpayPaymentId.startsWith('pay_mock_')) ||
-            (razorpaySignature && razorpaySignature.startsWith('sig_mock_'))
-        ) {
-            return true;
-        }
+            (razorpaySignature && razorpaySignature.startsWith('sig_mock_'));
+        if (isMock) return process.env.NODE_ENV !== 'production';
 
         const keySecret = process.env.RAZORPAY_KEY_SECRET;
 

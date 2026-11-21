@@ -206,6 +206,12 @@ export default function AdminOrderDetail() {
     'Returned',
   ];
 
+  // COD the seller collected themselves: Quick self delivery, or an E-commerce parcel the seller shipped with their own courier.
+  const sellerCollectedCod =
+    (order as any)?.paymentMethod === 'COD' &&
+    ((order as any)?.deliveryPreference === 'Self' ||
+      ((order as any)?.channel === 'ECommerce' && ((order as any)?.shiprocketShipments || []).some((x: any) => x?.provider === 'Self')));
+
   return (
     <div className="p-4 sm:p-6 lg:p-8">
       <div className="mb-6">
@@ -477,10 +483,35 @@ export default function AdminOrderDetail() {
                     <span className="text-neutral-600">Delivery Charge:</span>
                     <span className="font-medium">₹{(earningBreakdown.totalDeliveryCharge || 0).toFixed(2)}</span>
                   </div>
+                  {/* Lines that explain the total (it was showing less than the sum above with no reason) */}
+                  {Number((order as any).tax || 0) > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-neutral-600">GST:</span>
+                      <span className="font-medium">₹{Number((order as any).tax).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {Number((order as any).tipAmount || 0) > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-neutral-600">Tip:</span>
+                      <span className="font-medium">₹{Number((order as any).tipAmount).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {Number((order as any).discount || 0) > 0 && (
+                    <div className="flex justify-between text-green-700">
+                      <span>Coupon discount{(order as any).couponCode ? ` (${(order as any).couponCode})` : ''}:</span>
+                      <span className="font-medium">−₹{Number((order as any).discount).toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="border-t border-neutral-300 pt-1.5 mt-1.5 flex justify-between font-semibold text-neutral-900">
                     <span>Total Paid by Customer:</span>
                     <span>₹{(order.total || earningBreakdown.totalOrderAmount || 0).toFixed(2)}</span>
                   </div>
+                  {Number((order as any).walletAmountUsed || 0) > 0 && (
+                    <p className="text-[11px] text-neutral-500">
+                      of which ₹{Number((order as any).walletAmountUsed).toFixed(2)} from the Exnshop wallet
+                      {Number((order as any).codAmountPending || 0) > 0 ? `, ₹${Number((order as any).codAmountPending).toFixed(2)} cash on delivery` : ''}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -558,8 +589,20 @@ export default function AdminOrderDetail() {
             </div>
           )}
 
+          {/* COD the seller collected (self delivery / self shipping): no cash comes to the admin;
+              the platform's share is debited from the seller's wallet after delivery. */}
+          {order.paymentMethod === 'COD' && sellerCollectedCod && (
+            <div className="bg-white rounded-lg shadow p-6 border border-teal-100">
+              <h2 className="text-lg font-semibold mb-2">COD collected by the seller</h2>
+              <p className="text-sm text-neutral-600">
+                The seller delivered this order themselves and kept the customer's cash. After delivery, the admin commission and
+                platform fee are debited from the seller's wallet automatically, so there is nothing to mark as received here.
+              </p>
+            </div>
+          )}
+
           {/* COD: Mark as received so it leaves seller settlement pending list */}
-          {order.paymentMethod === 'COD' && (
+          {order.paymentMethod === 'COD' && !sellerCollectedCod && (
             <div className="bg-white rounded-lg shadow p-6 border border-teal-100">
               <h2 className="text-lg font-semibold mb-2">COD settlement</h2>
               {order.codPaidToAdminAt ? (

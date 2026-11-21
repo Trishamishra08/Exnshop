@@ -15,11 +15,36 @@ export interface GstLineResult {
 }
 
 /**
- * Computes per-item GST from each item's own category tax rate, instead of
- * one flat marketplace-wide rate. A category with no tax assigned, or whose
- * tax is Inactive, charges 0% — deliberately strict, so a misconfigured
- * category is immediately visible (customers pay no tax on it) rather than
- * silently papered over by a fallback rate.
+ * GST % for each category id. A category without its own active tax uses its parent's
+ * (then grand-parent's…), so the admin can set GST once on a top-level category for
+ * everything under it. No tax anywhere up the tree = 0%.
+ */
+export async function gstRatesForCategories(categoryIds: string[]): Promise<Map<string, number>> {
+  const rateByCategory = new Map<string, number>();
+  if (categoryIds.length === 0) return rateByCategory;
+  const ownRate = (cat: any): number | null => {
+    const tax = cat?.taxId as any;
+    return tax && tax.status === "Active" ? Number(tax.percentage) || 0 : null;
+  };
+  const categories: any[] = await Category.find({ _id: { $in: categoryIds } }).populate("taxId", "percentage status");
+  for (const cat of categories) {
+    let rate = ownRate(cat);
+    let parentId = cat.parentId;
+    for (let depth = 0; rate === null && parentId && depth < 5; depth++) {
+      const parent: any = await Category.findById(parentId).select("taxId parentId").populate("taxId", "percentage status");
+      if (!parent) break;
+      rate = ownRate(parent);
+      parentId = parent.parentId;
+    }
+    rateByCategory.set((cat._id as mongoose.Types.ObjectId).toString(), rate ?? 0);
+  }
+  return rateByCategory;
+}
+
+/**
+ * Computes per-item GST from each item's category tax rate (inherited from the
+ * parent category when the category has none), instead of one flat
+ * marketplace-wide rate. No tax anywhere up the tree charges 0%.
  */
 export async function computeItemGst(
   lines: GstLineInput[],
@@ -43,19 +68,7 @@ export async function computeItemGst(
     new Set(lines.filter((l) => l.categoryId).map((l) => l.categoryId!.toString()))
   );
 
-  const categories = categoryIds.length
-    ? await Category.find({ _id: { $in: categoryIds } }).populate(
-        "taxId",
-        "percentage status"
-      )
-    : [];
-
-  const rateByCategory = new Map<string, number>();
-  for (const cat of categories) {
-    const tax = cat.taxId as any;
-    const rate = tax && tax.status === "Active" ? Number(tax.percentage) || 0 : 0;
-    rateByCategory.set((cat._id as mongoose.Types.ObjectId).toString(), rate);
-  }
+  const rateByCategory = await gstRatesForCategories(categoryIds);
 
   let totalGst = 0;
   const results: GstLineResult[] = lines.map((line) => {

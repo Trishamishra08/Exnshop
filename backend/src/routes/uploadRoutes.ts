@@ -113,6 +113,28 @@ router.post(
 );
 
 /**
+ * POST /api/v1/upload/review-images
+ * Photos a customer adds to a product review (up to 5).
+ */
+router.post(
+  "/review-images",
+  authenticate,
+  requireUserType("Customer"),
+  uploadMultipleImages.array("images", 5),
+  handleUploadError,
+  asyncHandler(async (req: Request, res: Response) => {
+    const files = (req as any).files as any[] | undefined;
+    if (!files || files.length === 0) {
+      return res.status(400).json({ success: false, message: "No image files provided" });
+    }
+    const results = await Promise.all(
+      files.map((file) => uploadImageFromBuffer(file.buffer, { folder: CLOUDINARY_FOLDERS.REVIEWS, resourceType: "image" }))
+    );
+    return res.status(200).json({ success: true, data: results });
+  })
+);
+
+/**
  * POST /api/v1/upload/return-videos
  * Videos a customer attaches to a return or exchange request (up to 2), e.g. an open-box / unboxing video.
  */

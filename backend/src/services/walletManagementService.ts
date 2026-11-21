@@ -8,7 +8,7 @@ import mongoose from "mongoose";
 import { payoutBlockReason } from "./sellerOnboardingService";
 
 export type WalletUserType = "SELLER" | "DELIVERY_BOY" | "CUSTOMER";
-export type WalletCategory = "COD_RETURN_REFUND" | "ORDER_CANCELLATION_REFUND" | "ORDER_PAYMENT" | "MANUAL_ADMIN_CREDIT" | "MANUAL_ADMIN_DEBIT" | "RTO_REVERSE_SHIPPING_DEBIT" | "AD_SPEND" | "RETURN_SHIPPING_DEBIT" | "PLATFORM_FEE_DEBIT" | "DELIVERY_CANCEL_PENALTY" | "PENALTY_REFUND";
+export type WalletCategory = "COD_RETURN_REFUND" | "ORDER_CANCELLATION_REFUND" | "ORDER_PAYMENT" | "MANUAL_ADMIN_CREDIT" | "MANUAL_ADMIN_DEBIT" | "RTO_REVERSE_SHIPPING_DEBIT" | "AD_SPEND" | "RETURN_SHIPPING_DEBIT" | "PLATFORM_FEE_DEBIT" | "DELIVERY_CANCEL_PENALTY" | "PENALTY_REFUND" | "WALLET_TOPUP";
 
 /**
  * Bill a courier return-pickup charge to a seller. Unlike an ordinary debit it

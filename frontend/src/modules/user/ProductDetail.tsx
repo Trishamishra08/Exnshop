@@ -1240,6 +1240,15 @@ export default function ProductDetail() {
                         {review.comment}
                       </p>
                     )}
+                    {Array.isArray((review as any).images) && (review as any).images.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {((review as any).images as string[]).map((src) => (
+                          <a key={src} href={src} target="_blank" rel="noopener noreferrer" className="block w-16 h-16 rounded-lg overflow-hidden border border-neutral-200">
+                            <img src={src} alt="Customer photo" loading="lazy" className="w-full h-full object-cover" />
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
 

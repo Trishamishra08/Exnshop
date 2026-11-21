@@ -9,7 +9,7 @@ import AppSettings from '../../../models/AppSettings';
 import { getRoadDistances } from '../../../services/mapService';
 import Seller from '../../../models/Seller';
 import { resolveSellerChannel } from '../../../utils/commerceChannelHelper';
-import Category from '../../../models/Category';
+import { gstRatesForCategories } from '../../../services/taxService';
 
 // Resolve the active commerce channel from query (GET) or body (mutations), defaulting to "Quick"
 const getChannel = (req: Request): 'Quick' | 'ECommerce' => {
@@ -106,16 +106,8 @@ const calculateDeliveryStuff = async (total: number, items: any[], userLat: numb
                 )
             );
             if (categoryIds.length > 0) {
-                const categories = await Category.find({ _id: { $in: categoryIds } }).populate(
-                    'taxId',
-                    'percentage status'
-                );
-                const rateByCategory = new Map<string, number>();
-                for (const cat of categories) {
-                    const tax = cat.taxId as any;
-                    const rate = tax && tax.status === 'Active' ? Number(tax.percentage) || 0 : 0;
-                    rateByCategory.set((cat._id as mongoose.Types.ObjectId).toString(), rate);
-                }
+                // Same rule as checkout (inherits the parent category's tax).
+                const rateByCategory = await gstRatesForCategories(categoryIds as string[]);
                 let gstAmountRaw = 0;
                 let taxableSubtotal = 0;
                 for (const item of items) {

@@ -43,6 +43,8 @@ export interface AddReviewPayload {
   rating: number;
   comment?: string;
   title?: string;
+  /** Photo links from uploadReviewImages (up to 5). */
+  images?: string[];
 }
 
 /**
@@ -57,6 +59,16 @@ export const getProductReviews = async (
     params: { page, limit },
   });
   return response.data;
+};
+
+/** Upload review photos (up to 5); returns their https links. */
+export const uploadReviewImages = async (files: File[]): Promise<string[]> => {
+  const form = new FormData();
+  files.slice(0, 5).forEach((f) => form.append('images', f));
+  const response = await api.post<{ success: boolean; data: { secureUrl: string }[] }>('/upload/review-images', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data.data.map((r) => r.secureUrl);
 };
 
 /**

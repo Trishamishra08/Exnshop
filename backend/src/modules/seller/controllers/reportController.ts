@@ -5,6 +5,20 @@ import { asyncHandler } from "../../../utils/asyncHandler";
 /**
  * Get seller's sales report with filters, sorting, and pagination
  */
+/** SKU and the product variation ID behind an order item (matched by SKU, then by option name). */
+const skuAndVariation = (item: any) => {
+    const product: any = item.product;
+    const variations: any[] = (product && product.variations) || [];
+    const label = String(item.variation || "").toLowerCase();
+    const v =
+        variations.find((x) => item.sku && x.sku === item.sku) ||
+        variations.find((x) => label && [x.title, x.value].some((t) => String(t || "").toLowerCase() === label));
+    return {
+        sku: item.sku || (v && v.sku) || (product && product.sku) || "",
+        variationId: v ? String(v._id) : product ? `${product._id}-default` : "",
+    };
+};
+
 export const getSalesReport = asyncHandler(
     async (req: Request, res: Response) => {
         const sellerId = (req as any).user.userId;
@@ -39,6 +53,7 @@ export const getSalesReport = asyncHandler(
         if (search) {
             query.$or = [
                 { productName: { $regex: search, $options: "i" } },
+                { sku: { $regex: search, $options: "i" } },
                 // If orderId is available as a string or regex matchable field
                 // Note: orderId in OrderItem is an ObjectId pointing to Order model
             ];
@@ -59,6 +74,7 @@ export const getSalesReport = asyncHandler(
                 path: "order",
                 select: "orderNumber createdAt"
             })
+            .populate({ path: "product", select: "sku variations._id variations.sku variations.title variations.value" })
             .sort(sort)
             .skip(skip)
             .limit(limitNum);
@@ -72,7 +88,10 @@ export const getSalesReport = asyncHandler(
             orderItemId: item._id.toString().slice(-4), // SR No / Item ID shortcut
             product: item.productName,
             variant: item.variantTitle,
-            total: item.subtotal,
+            ...skuAndVariation(item),
+            quantity: item.quantity,
+            // subtotal is not filled on order items; the line total is unit price x quantity
+            total: item.total || item.subtotal || (item.unitPrice || 0) * (item.quantity || 0),
             date: item.createdAt.toISOString().replace('T', ' ').split('.')[0], // YYYY-MM-DD HH:mm:ss
         }));
 

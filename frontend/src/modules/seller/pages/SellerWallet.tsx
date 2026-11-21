@@ -9,6 +9,7 @@ import {
   getSellerCommissions,
 } from '../../../services/api/sellerWalletService';
 import { getSellerProfile } from '../../../services/api/auth/sellerAuthService';
+import WalletTopup from '../components/WalletTopup';
 
 type Tab = 'transactions' | 'withdrawals' | 'commissions';
 
@@ -116,14 +117,24 @@ export default function SellerWallet() {
               On-Hold (Return Window): <span className="font-semibold">₹{onHoldBalance.toFixed(2)}</span>
             </p>
           </div>
-          <button
-            onClick={() => setShowWithdrawModal(true)}
-            className="bg-white text-blue-600 px-6 py-2.5 rounded-lg font-semibold hover:bg-blue-50 transition-all shadow-md self-stretch sm:self-auto text-center"
-          >
-            Request Withdrawal
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2 self-stretch sm:self-auto">
+            <WalletTopup balance={balance} onDone={fetchWalletData} />
+            <button
+              onClick={() => setShowWithdrawModal(true)}
+              className="bg-white text-blue-600 px-6 py-2.5 rounded-lg font-semibold hover:bg-blue-50 transition-all shadow-md self-stretch sm:self-auto text-center"
+            >
+              Request Withdrawal
+            </button>
+          </div>
         </div>
       </motion.div>
+
+      {balance < 0 && (
+        <div className="mx-4 mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+          <b>Your wallet is ₹{balance.toFixed(2)}.</b> For orders you deliver yourself, the platform charge is taken from this wallet.
+          Add money to keep accepting self-delivery COD orders.
+        </div>
+      )}
 
       {/* Settlement Summary */}
       <div className="mx-4 mb-4 grid grid-cols-2 gap-3">
