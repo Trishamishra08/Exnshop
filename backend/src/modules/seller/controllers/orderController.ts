@@ -787,7 +787,7 @@ export const getShippingLabel = asyncHandler(async (req: Request, res: Response)
   }
   const labels = await buildShippingLabels(id, sellerId.toString());
   if (labels.length === 0) {
-    return res.status(400).json({ success: false, message: "The shipping label is available once the order is packed and the courier AWB is assigned." });
+    return res.status(400).json({ success: false, message: "The shipping label is available once the order is packed and the courier AWB (or, for self shipping, your courier and tracking number) is added." });
   }
   return res.status(200).json({ success: true, data: labels });
 });

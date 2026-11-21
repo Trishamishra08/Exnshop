@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getOrders, Order, GetOrdersParams } from '../../../services/api/orderService';
 import { getPackingSlips, getShippingMethod, type ShippingMethodState } from '../../../services/api/shippingMethodService';
 import { useToast } from '../../../context/ToastContext';
+import { getSellerShippingLabel, type ShippingLabel } from '../../../services/api/shippingLabelService';
 
 const fmtShipBy = (ymd?: string) => (ymd ? new Date(`${ymd}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '');
 const SHIP_STATE_STYLE: Record<string, string> = {
@@ -33,6 +34,7 @@ export default function SellerOrders() {
   const [shipFilter, setShipFilter] = useState<'' | 'today' | 'tomorrow' | 'late'>('');
   const [serverPages, setServerPages] = useState(1);
   const [slipBusy, setSlipBusy] = useState(false);
+  const [labelBusy, setLabelBusy] = useState(false);
   // How this seller's E-commerce orders ship: by the company (Easy Ship) or by themselves.
   const [shipping, setShipping] = useState<ShippingMethodState | null>(null);
   useEffect(() => {
@@ -162,6 +164,37 @@ export default function SellerOrders() {
       setSlipBusy(false);
     }
   };
+  // Courier label (barcode + Data Matrix of the AWB / tracking number) followed by the tax invoice,
+  // the same PDF admin downloads. Orders without an AWB yet are skipped.
+  const printLabels = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    setLabelBusy(true);
+    try {
+      const labels: ShippingLabel[] = [];
+      let lastError = '';
+      for (const id of ids) {
+        try {
+          const res = await getSellerShippingLabel(id);
+          if (res.success && res.data?.length) labels.push(...res.data);
+          else lastError = res.message || '';
+        } catch (err: any) {
+          lastError = err.response?.data?.message || '';
+        }
+      }
+      if (labels.length === 0) {
+        showToast(lastError || 'The shipping label is available once the order is packed and the courier AWB / tracking number is added.', 'error');
+        return;
+      }
+      const { downloadShippingLabels } = await import('../../../utils/shippingLabelPdf');
+      await downloadShippingLabels(labels, labels.length === 1 ? `Shipping_Label_${labels[0].invoice.orderNumber}.pdf` : 'Shipping_Labels.pdf');
+      if (labels.length < ids.length) showToast(`${ids.length - labels.length} order(s) skipped: no courier AWB / tracking number yet`, 'info');
+    } catch (err: any) {
+      showToast(`Could not create the shipping label${err?.message ? `: ${err.message}` : ''}`, 'error');
+    } finally {
+      setLabelBusy(false);
+    }
+  };
+  const packedOnPage = orders.filter((o) => o.channel === 'ECommerce' && ['Processed', 'Shipped'].includes(o.status));
   const ecommerceOnPage = orders.filter((o) => o.channel === 'ECommerce' && ['Received', 'Accepted', 'Processed'].includes(o.status));
 
   const handlePreviousPage = () => {
@@ -288,6 +321,15 @@ export default function SellerOrders() {
                   className="ml-auto px-3 py-1 rounded-full text-xs font-semibold border border-teal-600 text-teal-700 hover:bg-teal-50 disabled:opacity-50"
                 >
                   {slipBusy ? 'Preparing…' : `Print packing slips (${ecommerceOnPage.length})`}
+                </button>
+              )}
+              {packedOnPage.length > 0 && (
+                <button
+                  onClick={() => printLabels(packedOnPage.map((o) => o.id))}
+                  disabled={labelBusy}
+                  className={`${ecommerceOnPage.length > 0 ? '' : 'ml-auto '}px-3 py-1 rounded-full text-xs font-semibold border border-teal-600 bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50`}
+                >
+                  {labelBusy ? 'Preparing…' : `Print shipping labels (${packedOnPage.length})`}
                 </button>
               )}
             </div>
@@ -725,6 +767,15 @@ export default function SellerOrders() {
                               className="ml-3 text-teal-700 hover:text-teal-800 text-xs sm:text-sm font-medium disabled:opacity-50"
                             >
                               Packing slip
+                            </button>
+                          )}
+                          {order.channel === 'ECommerce' && ['Accepted', 'Processed', 'Shipped', 'Delivered'].includes(order.status) && (
+                            <button
+                              onClick={() => printLabels([order.id])}
+                              disabled={labelBusy}
+                              className="ml-3 text-teal-700 hover:text-teal-800 text-xs sm:text-sm font-medium disabled:opacity-50"
+                            >
+                              Shipping label
                             </button>
                           )}
                         </td>

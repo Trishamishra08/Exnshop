@@ -488,14 +488,14 @@ export default function SellerOrderDetail() {
                 Refund order
               </button>
             )}
-            {!isSelf && <button
+            <button
               onClick={handleDownloadLabel}
               disabled={labelBusy || !orderDetail.shipment?.awbCode}
-              title={orderDetail.shipment?.awbCode ? 'Courier label + tax invoice (A4)' : 'Available after the order is packed and the courier AWB is assigned'}
+              title={orderDetail.shipment?.awbCode ? 'Courier label with barcode + tax invoice (A4)' : isSelf ? 'Save the courier and tracking number first' : 'Available after the order is packed and the courier AWB is assigned'}
               className="px-3 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {labelBusy ? 'Please wait…' : 'Download Shipping Label'}
-            </button>}
+            </button>
             <button
               onClick={handleDownloadInvoice}
               disabled={invoiceBusy}
