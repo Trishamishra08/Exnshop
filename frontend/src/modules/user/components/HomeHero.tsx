@@ -126,15 +126,6 @@ export default function HomeHero({ activeTab = 'all', onTabChange, searchPlaceho
     return '';
   }, [userLocation]);
 
-  // Short label for the top bar (city only, like mockup "Indore")
-  const shortLocationLabel = useMemo(() => {
-    if (userLocation?.city) return userLocation.city;
-    if (locationDisplayText) {
-      return locationDisplayText.length > 18 ? `${locationDisplayText.slice(0, 18)}…` : locationDisplayText;
-    }
-    return t('customer.deliverTo', 'Deliver to');
-  }, [userLocation, locationDisplayText, t]);
-
   const [categories, setCategories] = useState<Category[]>([]);
 
   // Fetch categories for search suggestions
@@ -320,7 +311,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange, searchPlaceho
       }}
     >
       {/* ── Row 1: menu · logo · Quick/Shop All · bell · cart ── */}
-      <div className="flex items-center gap-1.5 sm:gap-3 px-3 sm:px-4 md:px-6 lg:px-8 pt-3">
+      <div className="flex items-center gap-1.5 sm:gap-3 px-3 sm:px-4 md:px-6 lg:px-8 pt-3 max-w-[1400px] mx-auto">
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent('openSidebarMenu'))}
@@ -409,7 +400,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange, searchPlaceho
       </div>
 
       {/* ── Row 2: deliver to · delivery time ── */}
-      <div ref={topSectionRef} className="flex items-center gap-2 px-4 md:px-6 lg:px-8 pt-3 pb-1">
+      <div ref={topSectionRef} className="flex items-center gap-2 px-4 md:px-6 lg:px-8 pt-3 pb-1 max-w-[1400px] mx-auto">
         <button
           type="button"
           onClick={openLocationModal}
@@ -429,7 +420,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange, searchPlaceho
             <span className="text-[13px] sm:text-sm text-neutral-800 truncate">
               {t('customer.deliverTo', 'Deliver to')}{' '}
               <span className="font-bold text-neutral-900">
-                {locationDisplayText || shortLocationLabel}
+                {locationDisplayText || t('customer.selectLocation', 'select your location')}
               </span>
             </span>
           </span>
@@ -464,7 +455,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange, searchPlaceho
             : undefined
         }
       >
-        <div className="px-4 md:px-6 lg:px-8 pt-2 pb-1">
+        <div className="px-4 md:px-6 lg:px-8 pt-2 pb-1 max-w-[1400px] mx-auto">
           <div
             onClick={() => navigate('/search')}
             className="w-full rounded-2xl px-4 py-3 flex items-center gap-3 cursor-pointer bg-white border border-white shadow-[0_2px_10px_rgba(0,0,0,0.06)] hover:shadow-md transition-shadow"
@@ -508,7 +499,7 @@ export default function HomeHero({ activeTab = 'all', onTabChange, searchPlaceho
         {/* Department circles */}
         <div
           ref={tabsContainerRef}
-          className="relative flex gap-1 min-[400px]:gap-1.5 md:gap-5 overflow-x-auto scrollbar-hide px-3 md:px-6 lg:px-8 md:justify-center scroll-smooth pt-3 pb-3"
+          className="relative flex gap-1 min-[400px]:gap-1.5 md:gap-5 overflow-x-auto scrollbar-hide px-3 md:px-6 lg:px-8 md:[&>*:first-child]:ml-auto md:[&>*:last-child]:mr-auto scroll-smooth pt-3 pb-3 max-w-[1400px] mx-auto"
         >
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;

@@ -433,8 +433,9 @@ export default function ProductDetail() {
   return (
     <div className="min-h-screen bg-white pb-24">
       {/* Header with back button and action icons */}
-      <div className="fixed top-0 left-0 right-0 z-50 bg-transparent">
-        <div className="flex items-center justify-between px-4 md:px-6 lg:px-8 py-3 md:py-4">
+      {/* Phones/tablets: floats over the photo. Desktop: a normal row under the site nav. */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-transparent lg:static lg:z-auto">
+        <div className="flex items-center justify-between px-4 md:px-6 lg:px-8 py-3 md:py-4 lg:max-w-6xl lg:mx-auto lg:pt-5 lg:pb-0">
           {/* Back button - top left */}
           <button
             onClick={() => navigate(-1)}
@@ -445,6 +446,7 @@ export default function ProductDetail() {
               height="20"
               viewBox="0 0 24 24"
               fill="none"
+              className="lg:rotate-90"
               xmlns="http://www.w3.org/2000/svg">
               <path
                 d="M6 9l6 6 6-6"
@@ -456,8 +458,8 @@ export default function ProductDetail() {
             </svg>
           </button>
 
-          {/* Action icons - top right */}
-          <div className="flex items-center gap-2">
+          {/* Action icons - top right (desktop: the heart is placed inside this box) */}
+          <div className="flex items-center gap-2 lg:relative lg:w-12 lg:h-12">
             {/* Heart icon */}
             {product?.id && (
               <WishlistButton
@@ -471,7 +473,7 @@ export default function ProductDetail() {
       </div>
 
       {/* Scrollable content */}
-      <div className="pt-16">
+      <div className="pt-16 lg:pt-0">
         {/* Seller offline banner (Quick seller has switched their shop off) */}
         {isSellerUnavailable && (
           <div className="bg-neutral-100 border-l-4 border-neutral-500 px-4 py-3 mx-4 mt-4 rounded-r-lg">
@@ -512,7 +514,7 @@ export default function ProductDetail() {
         )}
 
         {/* Large screens: photos on the left (sticky while scrolling), details on the right */}
-        <div className="lg:grid lg:grid-cols-2 lg:gap-10 lg:max-w-6xl lg:mx-auto lg:px-8 lg:pt-6 lg:items-start">
+        <div className="lg:grid lg:grid-cols-2 lg:gap-10 lg:max-w-6xl lg:mx-auto lg:px-8 lg:pt-4 lg:items-start">
         {/* Product Image Gallery */}
         <div className="relative w-full bg-gradient-to-br from-neutral-100 to-neutral-200 overflow-hidden lg:sticky lg:top-20 lg:rounded-2xl lg:border lg:border-neutral-200">
           {/* Main Product Image - Swipeable on mobile */}
@@ -1506,7 +1508,8 @@ export default function ProductDetail() {
 
       {/* Sticky Footer */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-neutral-200 shadow-lg safe-bottom-pad">
-        <div className="px-3 sm:px-4 py-2.5 flex items-center justify-between">
+        {/* Desktop: lined up with the page content instead of stretching edge to edge */}
+        <div className="px-3 sm:px-4 py-2.5 flex items-center justify-between lg:max-w-6xl lg:mx-auto lg:px-8 lg:py-3">
           {/* Left side - Product details (shrinks so the buttons always fit on screen) */}
           <div className="flex-1 min-w-0">
             {/* First line - Pack size */}
@@ -1569,7 +1572,7 @@ export default function ProductDetail() {
                         variant="outline"
                         size="default"
                         onClick={handleAddToCart}
-                        className="px-3 sm:px-4 py-2 text-sm font-semibold h-[38px] border-2 border-green-600 text-green-600 hover:bg-green-50 rounded-lg transition-colors whitespace-nowrap">
+                        className="px-3 sm:px-4 py-2 text-sm font-semibold h-[38px] lg:h-11 lg:px-8 lg:text-base border-2 border-green-600 text-green-600 hover:bg-green-50 rounded-lg transition-colors whitespace-nowrap">
                         {t("customer.addToCart", "Add to Cart")}
                       </Button>
                     </motion.div>
@@ -1580,7 +1583,7 @@ export default function ProductDetail() {
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.9 }}
                       transition={{ duration: 0.2 }}
-                      className="flex items-center gap-2 bg-white border-2 border-green-600 rounded-lg px-2 py-1 h-[38px]">
+                      className="flex items-center gap-2 bg-white border-2 border-green-600 rounded-lg px-2 py-1 h-[38px] lg:h-11 lg:px-3">
                       <motion.button
                         whileTap={{ scale: 0.9 }}
                         onClick={() => {
@@ -1617,7 +1620,7 @@ export default function ProductDetail() {
 
                 <Button
                   onClick={handleBuyNow}
-                  className="px-3 sm:px-5 py-2 text-sm font-semibold h-[38px] bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors shadow-sm whitespace-nowrap">
+                  className="px-3 sm:px-5 py-2 text-sm font-semibold h-[38px] lg:h-11 lg:px-10 lg:text-base bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors shadow-sm whitespace-nowrap">
                   {t("customer.buyNow", "Buy Now")}
                 </Button>
               </>

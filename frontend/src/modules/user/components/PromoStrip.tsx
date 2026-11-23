@@ -403,7 +403,8 @@ export default function PromoStrip({ homeData, loading = false }: PromoStripProp
               </svg>
             </button>
           </div>
-          <div className={`flex gap-1.5 min-[400px]:gap-2 overflow-x-auto scrollbar-hide ${pad} pb-1 snap-x`}>
+          {/* scroll-px keeps the first card off the edge (snap would otherwise scroll the padding away) */}
+          <div className={`flex gap-1.5 min-[400px]:gap-2 overflow-x-auto scrollbar-hide ${pad} scroll-px-3 min-[400px]:scroll-px-4 md:scroll-px-6 lg:scroll-px-8 pb-1 snap-x`}>
             {deals.map((product: any) => (
               <div key={product.id || product._id} className="snap-start flex-shrink-0 w-[30%] min-[360px]:w-[23.5%] md:w-[18%] lg:w-[14%]">
                 <DealCard product={product} theme={homeTheme} />

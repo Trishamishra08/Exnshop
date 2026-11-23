@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import api from "../../../../services/api/config";
 import { useLocation } from "../../../../hooks/useLocation";
 import { useCommerceMode } from "../../../../context/CommerceModeContext";
@@ -49,6 +49,11 @@ export default function ProductRail({ section, theme, onViewAll }: { section: Ho
   const lng = location?.longitude;
   const key = railKey(section, mode, lat, lng);
   const [products, setProducts] = useState<any[] | null>(() => railCache.get(key) || null);
+  const railRef = useRef<HTMLDivElement>(null);
+  const scrollRail = (dir: 1 | -1) => {
+    const el = railRef.current;
+    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: "smooth" });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -72,6 +77,7 @@ export default function ProductRail({ section, theme, onViewAll }: { section: Ho
   const title = getTranslatedField(section, "title") || section.title;
   const subtitle = getTranslatedField(section, "subtitle") || section.subtitle;
   const inner = section.tinted ? "px-2.5 sm:px-3" : "px-3 min-[400px]:px-4 md:px-6 lg:px-8";
+  const scrollPad = section.tinted ? "scroll-px-2.5 sm:scroll-px-3" : "scroll-px-3 min-[400px]:scroll-px-4 md:scroll-px-6 lg:scroll-px-8";
 
   return (
     <section
@@ -96,7 +102,28 @@ export default function ProductRail({ section, theme, onViewAll }: { section: Ho
         )}
       </div>
 
-      <div className={`flex gap-1.5 min-[400px]:gap-2 overflow-x-auto scrollbar-hide pb-1 snap-x ${inner}`}>
+      <div className="relative">
+      {/* Desktop: arrow buttons, since a mouse can't swipe the row sideways */}
+      {products && products.length > 0 && (
+        <>
+          <button
+            type="button"
+            aria-label="Scroll left"
+            onClick={() => scrollRail(-1)}
+            className="hidden lg:flex absolute left-2 top-[38%] -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/95 shadow-md border border-neutral-200 items-center justify-center text-neutral-700 hover:bg-white">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M15 6l-6 6 6 6" /></svg>
+          </button>
+          <button
+            type="button"
+            aria-label="Scroll right"
+            onClick={() => scrollRail(1)}
+            className="hidden lg:flex absolute right-2 top-[38%] -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-white/95 shadow-md border border-neutral-200 items-center justify-center text-neutral-700 hover:bg-white">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M9 6l6 6-6 6" /></svg>
+          </button>
+        </>
+      )}
+      {/* scroll-px keeps the first card off the edge (snap would otherwise scroll the padding away) */}
+      <div ref={railRef} className={`flex gap-1.5 min-[400px]:gap-2 overflow-x-auto scrollbar-hide pb-1 snap-x scroll-smooth ${inner} ${scrollPad}`}>
         {products === null
           ? Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="flex-shrink-0 w-[30%] min-[360px]:w-[23.5%] md:w-[18%] lg:w-[14%]">
@@ -108,6 +135,7 @@ export default function ProductRail({ section, theme, onViewAll }: { section: Ho
                 <DealCard product={p} theme={theme} />
               </div>
             ))}
+      </div>
       </div>
     </section>
   );

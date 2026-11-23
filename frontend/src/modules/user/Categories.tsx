@@ -209,19 +209,19 @@ export default function Categories() {
   const open = (t: Tile) => navigate(`/category/${t.slug || t._id}`);
 
   const tileGrid = (tiles: Tile[], first?: { label: string; image?: string; onClick: () => void }) => (
-    <div className="grid grid-cols-3 gap-x-2 gap-y-3.5">
+    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-x-2 gap-y-3.5 md:gap-x-4 md:gap-y-5">
       {first && (
         <button type="button" onClick={first.onClick} className="flex flex-col items-center text-center active:scale-95 transition-transform">
-          <Thumb image={first.image} name={first.label} size="w-[68px] h-[68px] min-[400px]:w-[76px] min-[400px]:h-[76px]" tint={theme.tint} ring={theme.tintBorder} />
-          <span className="mt-1.5 text-[11px] leading-tight font-medium w-full line-clamp-2" style={{ color: theme.brand }}>
+          <Thumb image={first.image} name={first.label} size="w-[68px] h-[68px] min-[400px]:w-[76px] min-[400px]:h-[76px] md:w-[88px] md:h-[88px]" tint={theme.tint} ring={theme.tintBorder} />
+          <span className="mt-1.5 text-[11px] md:text-xs leading-tight font-medium w-full line-clamp-2" style={{ color: theme.brand }}>
             {first.label}
           </span>
         </button>
       )}
       {tiles.map((t) => (
         <button key={t._id} type="button" onClick={() => open(t)} className="flex flex-col items-center text-center active:scale-95 transition-transform">
-          <Thumb image={t.image} name={t.name} size="w-[68px] h-[68px] min-[400px]:w-[76px] min-[400px]:h-[76px]" tint={theme.tint} />
-          <span className="mt-1.5 text-[11px] leading-tight text-neutral-600 w-full line-clamp-2 break-words">{nameOf(t)}</span>
+          <Thumb image={t.image} name={t.name} size="w-[68px] h-[68px] min-[400px]:w-[76px] min-[400px]:h-[76px] md:w-[88px] md:h-[88px]" tint={theme.tint} />
+          <span className="mt-1.5 text-[11px] md:text-xs leading-tight text-neutral-600 w-full line-clamp-2 break-words">{nameOf(t)}</span>
         </button>
       ))}
     </div>
@@ -295,7 +295,7 @@ export default function Categories() {
           </div>
           <div className="flex-1 p-3">
             <div className="w-28 h-4 rounded skeleton-shimmer mb-4" />
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-3">
               {Array.from({ length: 12 }).map((_, i) => (
                 <div key={i} className="flex flex-col items-center gap-1.5">
                   <div className="w-[68px] h-[68px] rounded-full skeleton-shimmer" />

@@ -230,7 +230,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
     return () => window.removeEventListener('openLocationChangeModal', handleOpen);
   }, []);
 
-  const isProductDetailPage = location.pathname.startsWith('/product/');
   const isSearchPage = location.pathname === '/search';
   const isCheckoutPage = location.pathname === '/checkout' || location.pathname.startsWith('/checkout/');
   const isCartPage = location.pathname === '/cart';
@@ -246,7 +245,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const showHeader = !isCheckoutPage && !isCartPage && !isAuthPage && !isHomePage && !isOrderAgainPage && !isOrderDetailPage;
   // Hide search bar everywhere as requested by user
   const showSearchBar = false;
-  const showFooter = !isCheckoutPage && !isProductDetailPage && !isAuthPage;
+  // Desktop top nav: everywhere except checkout and sign-in pages (product pages included).
+  const showFooter = !isCheckoutPage && !isAuthPage;
   const isPolicyOrInfoPage = [
     '/about-us',
     '/privacy-policy',
@@ -340,11 +340,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
               </Link>
 
               {/* Navigation Links */}
-              <div className="flex items-center gap-4 lg:gap-6">
+              <div className="flex items-center gap-1.5 lg:gap-6">
                 {/* Home */}
                 <Link
                   to="/"
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isActive('/')
+                  title={t("common.home", "Home")}
+                  className={`flex items-center gap-2 px-3 lg:px-4 py-2 rounded-lg transition-colors whitespace-nowrap ${isActive('/')
                     ? 'bg-white shadow-md font-semibold'
                     : 'hover:bg-white/20'
                     }`}
@@ -365,13 +366,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     </>
                   )}
                 </svg>
-                <span className="font-medium text-sm">{t("common.home", "Home")}</span>
+                <span className="hidden lg:inline font-medium text-sm">{t("common.home", "Home")}</span>
               </Link>
 
               {/* Order Again */}
               <Link
                 to="/order-again"
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isActive('/order-again')
+                title={t("common.orderAgain", "Order Again")}
+                className={`flex items-center gap-2 px-3 lg:px-4 py-2 rounded-lg transition-colors whitespace-nowrap ${isActive('/order-again')
                   ? 'bg-white shadow-md font-semibold'
                   : 'hover:bg-white/20'
                   }`}
@@ -386,13 +388,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     <path d="M5 8V6C5 4.34315 6.34315 3 8 3H16C17.6569 3 19 4.34315 19 6V8H21C21.5523 8 22 8.44772 22 9V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V9C2 8.44772 2.44772 8 3 8H5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" fill="none" />
                   )}
                 </svg>
-                <span className="font-medium text-sm">{t("common.orderAgain", "Order Again")}</span>
+                <span className="hidden lg:inline font-medium text-sm">{t("common.orderAgain", "Order Again")}</span>
               </Link>
 
               {/* Categories */}
               <Link
                 to="/categories"
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${(isActive('/categories') || location.pathname.startsWith('/category/'))
+                title={t("common.categories", "Categories")}
+                className={`flex items-center gap-2 px-3 lg:px-4 py-2 rounded-lg transition-colors whitespace-nowrap ${(isActive('/categories') || location.pathname.startsWith('/category/'))
                   ? 'bg-white shadow-md font-semibold'
                   : 'hover:bg-white/20'
                   }`}
@@ -417,7 +420,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     </>
                   )}
                 </svg>
-                <span className="font-medium text-sm">{t("common.categories", "Categories")}</span>
+                <span className="hidden lg:inline font-medium text-sm">{t("common.categories", "Categories")}</span>
               </Link>
 
                 {/* Language Selector */}
@@ -428,7 +431,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 {/* Profile */}
                 <Link
                   to="/account"
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isActive('/account')
+                  title={t("common.profile", "Profile")}
+                  className={`flex items-center gap-2 px-3 lg:px-4 py-2 rounded-lg transition-colors whitespace-nowrap ${isActive('/account')
                     ? 'bg-white shadow-md font-semibold'
                     : 'hover:bg-white/20'
                     }`}
@@ -449,7 +453,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     </>
                   )}
                 </svg>
-                <span className="font-medium text-sm">{t("common.profile", "Profile")}</span>
+                <span className="hidden lg:inline font-medium text-sm">{t("common.profile", "Profile")}</span>
               </Link>
             </div>
           </nav>

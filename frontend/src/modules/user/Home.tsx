@@ -237,7 +237,8 @@ export default function Home() {
       <HomeHero activeTab={activeTab} onTabChange={setActiveTab} searchPlaceholder={pageContent.searchPlaceholder} />
 
       {/* While a mode/tab switch refreshes, keep the current content on screen (slightly dimmed) */}
-      <div className="transition-opacity duration-200" style={{ opacity: loading && hasLoaded ? 0.6 : 1 }}>
+      {/* Content width is capped on large screens so banners and cards don't blow up on wide monitors */}
+      <div className="transition-opacity duration-200 w-full max-w-[1400px] mx-auto" style={{ opacity: loading && hasLoaded ? 0.6 : 1 }}>
       {/* Banner, trust strip, offers, Crazy Deals and category promo banners — all from homeData */}
       <PromoStrip homeData={homeData} loading={loading} />
 
