@@ -440,14 +440,14 @@ const SectionItem = ({
 }) => (
   <motion.button
     onClick={onClick}
-    className="w-full flex items-center gap-3 p-4 lg:px-4 lg:py-2.5 hover:bg-gray-50 transition-colors text-left border-b border-dashed border-gray-200 last:border-0"
+    className="w-full flex items-center gap-3 p-4 lg:px-3 lg:py-2 hover:bg-gray-50 transition-colors text-left border-b border-dashed border-gray-200 last:border-0"
     whileTap={{ scale: 0.99 }}>
-    <div className="w-10 h-10 lg:w-9 lg:h-9 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-      <Icon className="w-5 h-5 text-gray-600" />
+    <div className="w-10 h-10 lg:w-8 lg:h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
+      <Icon className="w-5 h-5 lg:w-4 lg:h-4 text-gray-600" />
     </div>
     <div className="flex-1 min-w-0">
-      <p className="font-medium text-gray-900 truncate">{title}</p>
-      {subtitle && <p className="text-sm text-gray-500 truncate">{subtitle}</p>}
+      <p className="font-medium text-gray-900 truncate lg:text-sm">{title}</p>
+      {subtitle && <p className="text-sm text-gray-500 truncate lg:text-xs">{subtitle}</p>}
     </div>
     {rightContent ||
       (showArrow && <ChevronRightIcon className="w-5 h-5 text-gray-400" />)}
@@ -1013,8 +1013,8 @@ export default function OrderDetail() {
 
       {/* Desktop: two columns. Left: status, product, payment and tracking. Right: delivery
           details, items, summary and help. Phones keep one column in the same order. */}
-      <div className="lg:max-w-[1480px] lg:mx-auto lg:px-6 xl:px-8 lg:py-5 lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-6 lg:items-start">
-      <div className="min-w-0 lg:space-y-4">
+      <div className="lg:max-w-[1480px] lg:mx-auto lg:px-6 xl:px-8 lg:py-4 lg:grid lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-5 lg:items-start">
+      <div className="min-w-0 lg:space-y-3">
 
       {/* Green Header (desktop: a rounded card) */}
       <motion.div
@@ -1027,7 +1027,7 @@ export default function OrderDetail() {
           className="hidden lg:block absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_88%_15%,rgba(255,255,255,0.22),transparent_42%),radial-gradient(circle_at_10%_95%,rgba(255,255,255,0.14),transparent_38%)]"
         />
         {/* Navigation bar */}
-        <div className="relative flex items-center justify-between px-4 py-3 lg:px-6 lg:pt-4 lg:pb-1">
+        <div className="relative flex items-center justify-between px-4 py-3 lg:px-5 lg:pt-3 lg:pb-0">
           <Link to="/orders">
             <motion.button
               className="w-10 h-10 lg:w-auto flex items-center justify-center lg:gap-2"
@@ -1036,7 +1036,7 @@ export default function OrderDetail() {
               <span className="hidden lg:inline text-sm font-medium">Back to Orders</span>
             </motion.button>
           </Link>
-          <h2 className="font-semibold text-lg lg:text-xl">Exnshop</h2>
+          <h2 className="font-semibold text-lg lg:text-base">Exnshop</h2>
           <motion.button
             className="w-10 h-10 lg:w-auto flex items-center justify-center lg:gap-2"
             whileTap={{ scale: 0.9 }}
@@ -1047,13 +1047,13 @@ export default function OrderDetail() {
         </div>
 
         {/* Status section */}
-        <div className="relative px-4 pb-4 text-center lg:pb-6">
+        <div className="relative px-4 pb-4 text-center lg:pb-4">
           <motion.h1
-            className="text-2xl lg:text-4xl font-bold mb-3 lg:mb-4 flex items-center justify-center gap-3"
+            className="text-2xl lg:text-[26px] font-bold mb-3 flex items-center justify-center gap-2.5"
             key={currentStatus.title}
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}>
-            <svg aria-hidden="true" className="hidden lg:block w-9 h-9 opacity-95" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <svg aria-hidden="true" className="hidden lg:block w-7 h-7 opacity-95" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 8l-9-5-9 5 9 5 9-5z" />
               <path d="M3 8v8l9 5 9-5V8" />
               <path d="M12 13v8" />
@@ -1063,11 +1063,11 @@ export default function OrderDetail() {
 
           {/* Status pill */}
           <motion.div
-            className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 lg:px-6 lg:py-2.5 lg:text-base"
+            className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 lg:px-5 lg:py-1.5 lg:text-sm"
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ delay: 0.2 }}>
-            <span className="text-sm lg:text-base">{currentStatus.subtitle}</span>
+            <span className="text-sm">{currentStatus.subtitle}</span>
             {!isECommerce && (orderStatus === "Accepted" || orderStatus === "On the way") && (
               <>
                 <span className="w-1 h-1 rounded-full bg-white" />
@@ -1079,7 +1079,7 @@ export default function OrderDetail() {
               className="ml-1"
               animate={{ rotate: isRefreshing ? 360 : 0 }}
               transition={{ duration: 0.5 }}>
-              <RefreshCwIcon className="w-4 h-4 lg:w-5 lg:h-5" />
+              <RefreshCwIcon className="w-4 h-4" />
             </motion.button>
           </motion.div>
         </div>
@@ -1170,7 +1170,7 @@ export default function OrderDetail() {
       )}
 
       {/* Scrollable Content — left column part */}
-      <div className="px-4 pt-4 space-y-4 lg:p-0">
+      <div className="px-4 pt-4 space-y-4 lg:p-0 lg:space-y-3">
         {/* What was ordered, at a glance: product photos + first product's name (tap for details) */}
         {(order?.items || []).length > 0 && (() => {
           const items: any[] = order.items || [];
@@ -1180,12 +1180,12 @@ export default function OrderDetail() {
             <button
               type="button"
               onClick={() => setShowItemsModal(true)}
-              className="w-full text-left bg-white rounded-xl shadow-sm p-3 flex items-center gap-3 lg:rounded-2xl lg:p-5 lg:gap-5 lg:hover:shadow-md lg:transition-shadow">
+              className="w-full text-left bg-white rounded-xl shadow-sm p-3 flex items-center gap-3 lg:rounded-2xl lg:p-4 lg:gap-4 lg:hover:shadow-md lg:transition-shadow">
               <div className="flex -space-x-3 flex-shrink-0">
                 {items.slice(0, 3).map((it: any, i: number) => {
                   const img = it.product?.mainImage || it.productImage || it.product?.imageUrl || "";
                   return (
-                    <div key={i} className="w-14 h-14 lg:w-24 lg:h-24 rounded-lg lg:rounded-xl bg-gray-100 border-2 border-white shadow-sm overflow-hidden">
+                    <div key={i} className="w-14 h-14 lg:w-16 lg:h-16 rounded-lg lg:rounded-xl bg-gray-100 border-2 border-white shadow-sm overflow-hidden">
                       {img ? (
                         <img src={img} alt={it.product?.productName || it.productName || "Product"} className="w-full h-full object-cover" />
                       ) : (
@@ -1196,8 +1196,8 @@ export default function OrderDetail() {
                 })}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm lg:text-xl font-semibold text-gray-900 line-clamp-2 leading-snug">{firstName}</p>
-                <p className="text-xs lg:text-base text-gray-500 mt-0.5 lg:mt-1.5">
+                <p className="text-sm lg:text-base font-semibold text-gray-900 line-clamp-2 leading-snug">{firstName}</p>
+                <p className="text-xs lg:text-sm text-gray-500 mt-0.5">
                   {items.length > 1 ? `+ ${items.length - 1} more item${items.length - 1 === 1 ? "" : "s"} · ` : ""}View items
                 </p>
               </div>
@@ -1211,24 +1211,24 @@ export default function OrderDetail() {
         {order?.paymentStatus !== "Paid" && order?.paymentStatus !== "Completed" && order?.paymentStatus !== "Refunded" &&
           !['Delivered', 'Cancelled', 'Rejected', 'Returned', 'RTO'].includes(order?.status) && (
           <motion.div
-            className="bg-white rounded-xl p-4 shadow-sm lg:rounded-2xl lg:p-6"
+            className="bg-white rounded-xl p-4 shadow-sm lg:rounded-2xl lg:px-5 lg:py-4"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}>
             <div className="flex items-center justify-between gap-4">
               {/* Wallet icon (desktop) */}
-              <div className="hidden lg:flex w-16 h-16 rounded-2xl bg-rose-50 items-center justify-center flex-shrink-0">
-                <svg aria-hidden="true" className="w-8 h-8 text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <div className="hidden lg:flex w-11 h-11 rounded-xl bg-rose-50 items-center justify-center flex-shrink-0">
+                <svg aria-hidden="true" className="w-6 h-6 text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M19 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
                   <path d="M3 7h16a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H14a3 3 0 0 1 0-6h7" />
                   <circle cx="14.5" cy="14" r="0.8" fill="currentColor" />
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900 lg:text-xl">
+                <p className="font-semibold text-gray-900">
                   Payment of ₹{order.totalAmount?.toFixed(0) || order.total?.toFixed(0) || "0"} pending
                 </p>
-                <p className="text-sm lg:text-base text-gray-500 mt-1">
+                <p className="text-sm text-gray-500 mt-0.5">
                   {isECommerce
                     ? "Pay now, or pay cash on delivery"
                     : "Pay now, or pay to the delivery partner using Cash/UPI"}
@@ -1236,7 +1236,7 @@ export default function OrderDetail() {
               </div>
               <Button
                 onClick={() => setShowRazorpayCheckout(true)}
-                className="bg-gray-900 hover:bg-gray-800 text-white rounded-full px-6 flex-shrink-0 lg:h-12 lg:px-8 lg:text-base">
+                className="bg-gray-900 hover:bg-gray-800 text-white rounded-full px-6 flex-shrink-0 lg:h-10 lg:px-6">
                 Pay now <ChevronRightIcon className="w-4 h-4 ml-1" />
               </Button>
             </div>
@@ -1284,20 +1284,20 @@ export default function OrderDetail() {
                   : 0;
           return (
             <motion.div
-              className="bg-white rounded-xl p-4 shadow-sm lg:rounded-2xl lg:p-6"
+              className="bg-white rounded-xl p-4 shadow-sm lg:rounded-2xl lg:px-5 lg:py-4"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.3 }}>
-              <div className="flex items-center gap-3 mb-3 lg:mb-6">
-                <div className="hidden lg:flex w-12 h-12 rounded-xl bg-rose-50 items-center justify-center flex-shrink-0">
-                  <svg aria-hidden="true" className="w-6 h-6 text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <div className="flex items-center gap-3 mb-3 lg:mb-4">
+                <div className="hidden lg:flex w-9 h-9 rounded-lg bg-rose-50 items-center justify-center flex-shrink-0">
+                  <svg aria-hidden="true" className="w-5 h-5 text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M1 4h13v12H1z" />
                     <path d="M14 8h4l4 4v4h-8z" />
                     <circle cx="5.5" cy="18.5" r="2" />
                     <circle cx="17.5" cy="18.5" r="2" />
                   </svg>
                 </div>
-                <p className="font-semibold text-gray-900 lg:text-xl">Shipping by courier</p>
+                <p className="font-semibold text-gray-900 lg:text-base">Shipping by courier</p>
               </div>
               <ol className="flex items-start mb-3">
                 {ecSteps.map((label, i) => (
@@ -1306,13 +1306,13 @@ export default function OrderDetail() {
                     {i > 0 && (
                       <span
                         aria-hidden="true"
-                        className={`hidden lg:block absolute top-[17px] right-1/2 w-full h-[3px] ${i <= ecStep ? "bg-emerald-600" : "bg-gray-200"}`}
+                        className={`hidden lg:block absolute top-[13px] right-1/2 w-full h-[3px] ${i <= ecStep ? "bg-emerald-600" : "bg-gray-200"}`}
                       />
                     )}
-                    <span className={`relative z-10 w-5 h-5 lg:w-9 lg:h-9 rounded-full text-[10px] lg:text-sm font-bold flex items-center justify-center lg:ring-4 lg:ring-white ${i <= ecStep ? "bg-emerald-600 text-white" : "bg-gray-200 text-gray-500"}`}>
+                    <span className={`relative z-10 w-5 h-5 lg:w-7 lg:h-7 rounded-full text-[10px] lg:text-xs font-bold flex items-center justify-center lg:ring-4 lg:ring-white ${i <= ecStep ? "bg-emerald-600 text-white" : "bg-gray-200 text-gray-500"}`}>
                       {i <= ecStep ? "✓" : i + 1}
                     </span>
-                    <span className={`mt-1 lg:mt-2 text-[11px] lg:text-base ${i <= ecStep ? "text-gray-900 lg:text-emerald-700 font-semibold" : "text-gray-400 lg:text-gray-600"}`}>{label}</span>
+                    <span className={`mt-1 lg:mt-1.5 text-[11px] lg:text-sm ${i <= ecStep ? "text-gray-900 lg:text-emerald-700 font-semibold" : "text-gray-400 lg:text-gray-600"}`}>{label}</span>
                   </li>
                 ))}
               </ol>
@@ -1366,16 +1366,16 @@ export default function OrderDetail() {
       </div>
 
       {/* Right column (desktop); continues the same single column on phones */}
-      <div className="min-w-0 px-4 pt-4 pb-24 space-y-4 lg:p-0 lg:pb-8">
+      <div className="min-w-0 px-4 pt-4 pb-24 space-y-4 lg:p-0 lg:pb-8 lg:space-y-3">
         {/* Delivery details: on desktop the banner is the yellow header of the same card */}
         <div className="space-y-4 lg:space-y-0 lg:bg-white lg:rounded-2xl lg:shadow-sm lg:overflow-hidden lg:p-2">
         {/* Delivery Details Banner */}
         <motion.div
-          className="bg-yellow-50 rounded-xl p-4 text-center lg:py-3 lg:bg-amber-50 lg:border lg:border-amber-100"
+          className="bg-yellow-50 rounded-xl p-4 text-center lg:py-2 lg:bg-amber-50 lg:border lg:border-amber-100"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.65 }}>
-          <p className="text-yellow-800 font-medium lg:font-semibold flex items-center justify-center gap-2">
+          <p className="text-yellow-800 font-medium lg:text-sm lg:font-semibold flex items-center justify-center gap-2">
             <svg aria-hidden="true" className="hidden lg:block w-5 h-5 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 8l-9-5-9 5 9 5 9-5z" />
               <path d="M3 8v8l9 5 9-5V8" />
@@ -1465,9 +1465,9 @@ export default function OrderDetail() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.75 }}>
-          <div className="flex items-center gap-3 p-4 border-b border-dashed border-gray-200 lg:px-5">
-            <div className="w-12 h-12 rounded-full bg-orange-100 overflow-hidden flex items-center justify-center">
-              <span className="text-2xl">🛒</span>
+          <div className="flex items-center gap-3 p-4 border-b border-dashed border-gray-200 lg:px-4 lg:py-3">
+            <div className="w-12 h-12 lg:w-10 lg:h-10 rounded-full bg-orange-100 overflow-hidden flex items-center justify-center">
+              <span className="text-2xl lg:text-xl">🛒</span>
             </div>
             <div className="flex-1">
               <p className="font-semibold text-gray-900">Exnshop Store</p>
@@ -1476,7 +1476,7 @@ export default function OrderDetail() {
               </p>
             </div>
             <motion.button
-              className="w-10 h-10 rounded-full bg-green-100 lg:bg-blue-50 flex items-center justify-center"
+              className="w-10 h-10 lg:w-9 lg:h-9 rounded-full bg-green-100 lg:bg-blue-50 flex items-center justify-center"
               whileTap={{ scale: 0.9 }}
               onClick={handleCallStore}>
               <PhoneIcon className="w-5 h-5 text-green-700 lg:text-blue-600" />
@@ -1485,7 +1485,7 @@ export default function OrderDetail() {
 
           {/* Order Items */}
           <div
-            className="p-4 border-b border-dashed border-gray-200 lg:px-5"
+            className="p-4 border-b border-dashed border-gray-200 lg:px-4 lg:py-3"
             onClick={() => setShowItemsModal(true)}
             style={{ cursor: "pointer" }}>
             <div className="flex items-start gap-3">
@@ -1565,7 +1565,7 @@ export default function OrderDetail() {
           if (discount > 0) rows.push(["Promotion Applied:", `-${rupees(discount)}`]);
           return (
             <motion.div
-              className="bg-white rounded-xl shadow-sm p-4 lg:rounded-2xl lg:p-5"
+              className="bg-white rounded-xl shadow-sm p-4 lg:rounded-2xl lg:text-sm"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.78 }}>
@@ -1990,12 +1990,12 @@ export default function OrderDetail() {
           <div className="flex-1">
             <Button
               onClick={() => setShowInvoiceSheet(true)}
-              className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white lg:h-12 lg:rounded-full lg:from-blue-600 lg:to-blue-600 lg:hover:from-blue-700 lg:hover:to-blue-700 lg:text-base lg:shadow-md lg:shadow-blue-600/20">
+              className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white lg:h-10 lg:rounded-full lg:from-blue-600 lg:to-blue-600 lg:hover:from-blue-700 lg:hover:to-blue-700 lg:text-sm lg:shadow-md lg:shadow-blue-600/20">
               Download Invoice
             </Button>
           </div>
           <Link to="/orders" className="flex-1">
-            <Button variant="outline" className="w-full border-gray-300 lg:h-12 lg:rounded-full lg:border-blue-200 lg:text-blue-700 lg:text-base lg:bg-white lg:hover:bg-blue-50">
+            <Button variant="outline" className="w-full border-gray-300 lg:h-10 lg:rounded-full lg:border-blue-200 lg:text-blue-700 lg:text-sm lg:bg-white lg:hover:bg-blue-50">
               All Orders
             </Button>
           </Link>
