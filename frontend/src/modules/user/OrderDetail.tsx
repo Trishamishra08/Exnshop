@@ -1154,6 +1154,41 @@ export default function OrderDetail() {
 
       {/* Scrollable Content */}
       <div className="px-4 py-4 space-y-4 pb-24">
+        {/* What was ordered, at a glance: product photos + first product's name (tap for details) */}
+        {(order?.items || []).length > 0 && (() => {
+          const items: any[] = order.items || [];
+          const first = items[0];
+          const firstName = first?.product?.productName || first?.product?.name || first?.productName || "Product";
+          return (
+            <button
+              type="button"
+              onClick={() => setShowItemsModal(true)}
+              className="w-full text-left bg-white rounded-xl shadow-sm p-3 flex items-center gap-3">
+              <div className="flex -space-x-3 flex-shrink-0">
+                {items.slice(0, 3).map((it: any, i: number) => {
+                  const img = it.product?.mainImage || it.productImage || it.product?.imageUrl || "";
+                  return (
+                    <div key={i} className="w-14 h-14 rounded-lg bg-gray-100 border-2 border-white shadow-sm overflow-hidden">
+                      {img ? (
+                        <img src={img} alt={it.product?.productName || it.productName || "Product"} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xl" aria-hidden="true">📦</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug">{firstName}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {items.length > 1 ? `+ ${items.length - 1} more item${items.length - 1 === 1 ? "" : "s"} · ` : ""}View items
+                </p>
+              </div>
+              <ChevronRightIcon className="w-5 h-5 text-gray-400 flex-shrink-0" />
+            </button>
+          );
+        })()}
+
         {/* Payment Pending */}
         {/* Not once it's delivered (COD was paid at the door) or closed: nothing left to pay then */}
         {order?.paymentStatus !== "Paid" && order?.paymentStatus !== "Completed" && order?.paymentStatus !== "Refunded" &&
@@ -1404,20 +1439,34 @@ export default function OrderDetail() {
                 <p className="font-medium text-gray-900">
                   Order #{order.id.split("-").slice(-1)[0]}
                 </p>
-                <div className="mt-2 space-y-1">
-                  {order.items?.map((item: any, index: number) => (
-                    <div
-                      key={index}
-                      className="flex items-center gap-2 text-sm text-gray-600">
-                      <span className="w-4 h-4 rounded border border-green-600 flex items-center justify-center">
-                        <span className="w-2 h-2 rounded-full bg-green-600" />
-                      </span>
-                      <span>
-                        {item.quantity} x{" "}
-                        {item.product?.name || item.productName || "Product"}
-                      </span>
-                    </div>
-                  ))}
+                {/* Each product with its photo, so it's easy to recognise */}
+                <div className="mt-3 space-y-2.5">
+                  {order.items?.map((item: any, index: number) => {
+                    const name = item.product?.productName || item.product?.name || item.productName || "Product";
+                    const image = item.product?.mainImage || item.productImage || item.product?.imageUrl || "";
+                    const lineTotal = Number(item.total ?? (item.unitPrice || item.price || 0) * (item.quantity || 1));
+                    return (
+                      <div key={index} className="flex items-center gap-3">
+                        <div className="w-14 h-14 flex-shrink-0 rounded-lg bg-gray-100 border border-gray-200 overflow-hidden">
+                          {image ? (
+                            <img src={image} alt={name} loading="lazy" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xl" aria-hidden="true">📦</div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug">{name}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Qty {item.quantity}
+                            {(item.variation || item.variant) ? ` · ${item.variation || item.variant}` : ""}
+                          </p>
+                        </div>
+                        {lineTotal > 0 && (
+                          <span className="flex-shrink-0 text-sm font-semibold text-gray-900">₹{lineTotal.toFixed(0)}</span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
               <ChevronRightIcon className="w-5 h-5 text-gray-400" />
@@ -2046,12 +2095,12 @@ export default function OrderDetail() {
                   <div
                     key={index}
                     className="flex gap-3 border-b border-gray-200 pb-4 last:border-0">
-                    <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
-                      {item.product?.mainImage ? (
+                    <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+                      {(item.product?.mainImage || item.productImage) ? (
                         <img
-                          src={item.product.mainImage}
+                          src={item.product?.mainImage || item.productImage}
                           alt={
-                            item.product?.name || item.productName || "Product"
+                            item.product?.productName || item.product?.name || item.productName || "Product"
                           }
                           className="w-full h-full object-cover rounded-lg"
                         />
@@ -2061,7 +2110,7 @@ export default function OrderDetail() {
                     </div>
                     <div className="flex-1">
                       <p className="font-medium text-gray-900">
-                        {item.product?.name || item.productName}
+                        {item.product?.productName || item.product?.name || item.productName}
                       </p>
                       <p className="text-sm text-gray-500">
                         Qty: {item.quantity}
