@@ -174,6 +174,10 @@ export interface IAppSettings extends Document {
   // Withdrawal Settings
   minimumWithdrawalAmount?: number;
 
+  // Default seller credit limit (₹): how far a seller's wallet may go below zero for
+  // COD orders and ad clicks, unless the seller has their own limit.
+  defaultSellerCreditLimit?: number;
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -191,6 +195,11 @@ const AppSettingsSchema = new Schema<IAppSettings>(
     minimumWithdrawalAmount: {
       type: Number,
       default: 100
+    },
+    defaultSellerCreditLimit: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
 
     // App Info

@@ -58,6 +58,7 @@ import * as faqController from "../modules/admin/controllers/adminFAQController"
 
 import * as policyController from "../modules/admin/controllers/adminPolicyController";
 import * as sellerController from "../modules/admin/controllers/adminSellerController";
+import * as sellerCreditController from "../modules/admin/controllers/adminSellerCreditController";
 import * as courierController from "../modules/admin/controllers/adminCourierController";
 import { getAllClaims, decideClaim } from "../modules/seller/controllers/claimController";
 import {
@@ -368,6 +369,12 @@ router.delete("/policies/:id", policyController.deletePolicy);
 router.get("/sellers", sellerController.getAllSellers);
 router.get("/sellers/drafts", sellerController.getDraftSellers);
 router.get("/sellers/:id/account", getSellerAccountView);
+
+// Seller credit limit (all sellers / one seller) and balance holds (chargebacks)
+router.get("/seller-credit", sellerCreditController.getSellerCredits);
+router.put("/seller-credit/default", sellerCreditController.setDefaultCreditLimit);
+router.put("/seller-credit/:sellerId/limit", sellerCreditController.setSellerCreditLimit);
+router.post("/seller-credit/:sellerId/hold", sellerCreditController.holdSellerBalance);
 
 // ==================== Courier/Logistics Routes ====================
 router.get("/shipping-method-requests", getShippingMethodRequests);

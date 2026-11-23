@@ -486,6 +486,17 @@ const getMenuSections = (mode: "Quick" | "ECommerce"): MenuSection[] => [
             ),
           },
           {
+            label: "Seller Credit & Hold",
+            path: "/admin/manage-seller/credit",
+            icon: (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+                <path d="M2 10h20"></path>
+                <path d="M6 15h4"></path>
+              </svg>
+            ),
+          },
+          {
             label: "Seller Transaction",
             path: "/admin/manage-seller/transaction",
             icon: (

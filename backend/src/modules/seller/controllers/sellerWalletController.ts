@@ -18,14 +18,16 @@ export const getBalance = async (req: Request, res: Response) => {
         const { releaseExpiredEscrow } = await import('../../../services/commissionService');
         await releaseExpiredEscrow();
 
-        const Seller = (await import('../../../models/Seller')).default;
-        const seller = await Seller.findById(sellerId).select('balance onHoldBalance');
+        // Available + on hold + frozen, what can be paid out now, and the credit limit.
+        const { getSellerBalanceSummary } = await import('../../../services/sellerCreditService');
+        const summary = await getSellerBalanceSummary(String(sellerId));
 
         return res.status(200).json({
             success: true,
             data: {
-                balance: seller?.balance || 0,
-                onHoldBalance: seller?.onHoldBalance || 0,
+                balance: summary.available,
+                onHoldBalance: summary.onHold,
+                ...summary,
             },
         });
     } catch (error: any) {

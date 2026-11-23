@@ -146,6 +146,10 @@ export interface ISeller extends Document {
   status: 'Approved' | 'Pending' | 'Rejected';
   balance: number;
   onHoldBalance: number;
+  /** Admin-set credit: how far below zero `balance` may go for COD orders and ad clicks. null = the platform default. */
+  creditLimit?: number | null;
+  /** Amount the admin has held back from `balance` (e.g. against a chargeback); not withdrawable. */
+  frozenBalance?: number;
   categories: string[];
   logo?: string;
   isShopOpen: boolean;
@@ -457,15 +461,26 @@ const SellerSchema = new Schema<ISeller>(
       enum: ['Approved', 'Pending', 'Rejected'],
       default: 'Pending',
     },
+    // Available balance. It may go below zero (dues on self-delivered COD, ad clicks, courier
+    // charges), down to the seller's credit limit for new COD orders and ads.
     balance: {
       type: Number,
       default: 0,
-      min: [0, 'Balance cannot be negative'],
     },
     onHoldBalance: {
       type: Number,
       default: 0,
       min: [0, 'On-hold balance cannot be negative'],
+    },
+    creditLimit: {
+      type: Number,
+      default: null,
+      min: [0, 'Credit limit cannot be negative'],
+    },
+    frozenBalance: {
+      type: Number,
+      default: 0,
+      min: [0, 'Frozen balance cannot be negative'],
     },
     categories: {
       type: [String],

@@ -238,6 +238,9 @@ const AdminSubCategory = lazyWithRetry(
 );
 const AdminBrand = lazyWithRetry(() => import("./modules/admin/pages/AdminBrand"), "AdminBrand");
 const AdminTaxes = lazyWithRetry(() => import("./modules/admin/pages/AdminTaxes"), "AdminTaxes");
+const AdminSellerCredit = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminSellerCredit"), "AdminSellerCredit"
+);
 const AdminSellerTransaction = lazyWithRetry(
   () => import("./modules/admin/pages/AdminSellerTransaction"), "AdminSellerTransaction"
 );
@@ -1005,6 +1008,10 @@ function App() {
                                       <Route
                                         path="manage-seller/transaction"
                                         element={<AdminSellerTransaction />}
+                                      />
+                                      <Route
+                                        path="manage-seller/credit"
+                                        element={<AdminSellerCredit />}
                                       />
                                       <Route
                                         path="delivery-boy/manage"

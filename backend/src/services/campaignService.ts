@@ -4,8 +4,8 @@ import CampaignDailyStat from "../models/CampaignDailyStat";
 import OrderItem from "../models/OrderItem";
 import AppSettings from "../models/AppSettings";
 import Product from "../models/Product";
-import Seller from "../models/Seller";
 import { chargeAdSpend } from "./walletManagementService";
+import { getSellerSpendable, getSpendableBySeller } from "./sellerCreditService";
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
@@ -25,11 +25,10 @@ export const istDayStart = (now: Date = new Date()): Date => {
   return new Date(ist.getTime() - IST_OFFSET_MS);
 };
 
-/** A seller's payout (available + on hold) must cover a click for their ad to be shown. */
+/** A seller's available balance + credit limit must cover a click for their ad to be shown. */
 const fundsBySeller = async (campaigns: ICampaign[]): Promise<Map<string, number>> => {
   const ids = [...new Set(campaigns.map((c) => c.seller.toString()))];
-  const sellers = await Seller.find({ _id: { $in: ids } }).select("balance onHoldBalance").lean();
-  return new Map(sellers.map((s: any) => [s._id.toString(), (s.balance || 0) + (s.onHoldBalance || 0)]));
+  return getSpendableBySeller(ids);
 };
 
 export interface WinningCampaignEntry {
@@ -447,10 +446,8 @@ export const parseCampaignDate = (value: string, edge: "start" | "end"): Date =>
   return new Date(value);
 };
 
-export const getSellerAdFunds = async (sellerId: string): Promise<number> => {
-  const seller = await Seller.findById(sellerId).select("balance onHoldBalance").lean();
-  return ((seller as any)?.balance || 0) + ((seller as any)?.onHoldBalance || 0);
-};
+/** What the seller's ads can spend: available balance + credit limit. */
+export const getSellerAdFunds = async (sellerId: string): Promise<number> => (await getSellerSpendable(sellerId)).spendable;
 
 /**
  * Auto-complete campaigns whose end date has passed. Safe to call opportunistically

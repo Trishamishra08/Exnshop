@@ -206,7 +206,7 @@ export default function SellerCampaigns() {
             Scheduled: { text: 'Starts at the start time', cls: 'text-neutral-500' },
             DailyBudgetReached: { text: "Today's budget used — resumes tomorrow", cls: 'text-amber-700' },
             TotalBudgetReached: { text: 'Total budget used', cls: 'text-amber-700' },
-            LowPayoutBalance: { text: 'Not showing — payout/wallet balance is lower than your bid. Add money to go live.', cls: 'text-red-600' },
+            LowPayoutBalance: { text: 'Not showing — your wallet balance plus credit limit is lower than your bid. Add money to go live.', cls: 'text-red-600' },
         };
         const note = campaign.servingState ? notes[campaign.servingState] : undefined;
         return note ? <p className={`text-[11px] mt-1 leading-tight max-w-[140px] ${note.cls}`}>{note.text}</p> : null;

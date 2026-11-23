@@ -265,7 +265,7 @@ export const updateCampaignStatus = asyncHandler(async (req: Request, res: Respo
     if (funds < minBid) {
       return res.status(400).json({
         success: false,
-        message: `Ad clicks are charged from your payout. Your payout balance (₹${funds.toFixed(2)}) can't cover a ₹${minBid} click yet.`,
+        message: `Ad clicks are charged from your wallet (available balance + credit limit). You have ₹${funds.toFixed(2)} to spend, which can't cover a ₹${minBid} click yet. Add money to your wallet or ask the admin for a credit limit.`,
       });
     }
   }

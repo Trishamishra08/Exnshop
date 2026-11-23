@@ -18,6 +18,8 @@ export default function SellerWallet() {
   const [activeTab, setActiveTab] = useState<Tab>('transactions');
   const [balance, setBalance] = useState(0);
   const [onHoldBalance, setOnHoldBalance] = useState(0);
+  // Available + on hold + frozen, payout-eligible amount, credit limit (from /balance)
+  const [summary, setSummary] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [commissions, setCommissions] = useState<any>({ commissions: [], total: 0, paid: 0, pending: 0, onHold: 0, nextSettlementDate: null });
@@ -46,6 +48,7 @@ export default function SellerWallet() {
       if (balanceRes.success) {
         setBalance(balanceRes.data.balance || 0);
         setOnHoldBalance(balanceRes.data.onHoldBalance || 0);
+        setSummary(balanceRes.data);
       }
       if (transactionsRes.success) setTransactions(transactionsRes.data.transactions || []);
       if (withdrawalsRes.success) setWithdrawals(withdrawalsRes.data || []);
@@ -58,6 +61,17 @@ export default function SellerWallet() {
     }
   };
 
+  const frozen = Number(summary?.frozen || 0);
+  const totalBalance = Number(summary?.totalBalance ?? balance + onHoldBalance);
+  const eligibleForPayout = Number(summary?.eligibleForPayout ?? Math.max(0, balance));
+  const pendingWithdrawal = Number(summary?.pendingWithdrawal || 0);
+  const creditLimit = Number(summary?.creditLimit || 0);
+  const creditUsed = Number(summary?.creditUsed || 0);
+  const creditRemaining = Number(summary?.creditRemaining || 0);
+  const adSpendTotal = Number(summary?.adSpendTotal || 0);
+  const platformFeeTotal = Number(summary?.platformFeeTotal || 0);
+  const money = (n: number) => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
   const handleWithdrawRequest = async () => {
     try {
       const amount = parseFloat(withdrawAmount);
@@ -66,8 +80,8 @@ export default function SellerWallet() {
         return;
       }
 
-      if (amount > balance) {
-        showToast('Insufficient balance', 'error');
+      if (amount > eligibleForPayout) {
+        showToast(`You can withdraw up to ₹${eligibleForPayout.toFixed(2)}`, 'error');
         return;
       }
 
@@ -111,10 +125,10 @@ export default function SellerWallet() {
       >
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <p className="text-sm opacity-90 mb-1">Available Withdrawable Balance</p>
-            <h1 className="text-4xl font-bold mb-2">₹{balance.toFixed(2)}</h1>
+            <p className="text-sm opacity-90 mb-1">Eligible for payout (to your bank)</p>
+            <h1 className="text-4xl font-bold mb-2">{money(eligibleForPayout)}</h1>
             <p className="text-xs bg-white/20 px-3 py-1 rounded-full inline-block backdrop-blur-sm">
-              On-Hold (Return Window): <span className="font-semibold">₹{onHoldBalance.toFixed(2)}</span>
+              Total balance: <span className="font-semibold">{money(totalBalance)}</span>
             </p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 self-stretch sm:self-auto">
@@ -129,10 +143,65 @@ export default function SellerWallet() {
         </div>
       </motion.div>
 
+      {/* How the balance is made up */}
+      <div className="mx-4 mb-4 bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+        <h2 className="text-sm font-semibold text-gray-900 mb-2">Your balance</h2>
+        <div className="space-y-1.5 text-sm">
+          <div className="flex justify-between gap-3">
+            <span className="text-gray-600">Available</span>
+            <span className={`font-medium ${balance < 0 ? 'text-red-600' : 'text-gray-900'}`}>{money(balance)}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span className="text-gray-600">On hold <span className="text-gray-400">(delivered orders, until the return window ends)</span></span>
+            <span className="font-medium text-gray-900">{money(onHoldBalance)}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span className="text-gray-600">Frozen by admin <span className="text-gray-400">(held for chargebacks)</span></span>
+            <span className={`font-medium ${frozen > 0 ? 'text-amber-700' : 'text-gray-900'}`}>{money(frozen)}</span>
+          </div>
+          <div className="flex justify-between gap-3 border-t border-gray-100 pt-1.5">
+            <span className="font-semibold text-gray-900">Total balance</span>
+            <span className="font-bold text-gray-900">{money(totalBalance)}</span>
+          </div>
+          <p className="text-[11px] text-gray-500 pt-1">
+            Already deducted from Available: ad clicks {money(adSpendTotal)} · platform fees {money(platformFeeTotal)}.
+          </p>
+          <div className="flex justify-between gap-3 border-t border-gray-100 pt-1.5">
+            <span className="font-semibold text-gray-900">Eligible for payout</span>
+            <span className="font-bold text-green-700">{money(eligibleForPayout)}</span>
+          </div>
+          <p className="text-[11px] text-gray-500">
+            Only Available money can go to your bank. On-hold and frozen money can't.
+            {pendingWithdrawal > 0 && <> A withdrawal of {money(pendingWithdrawal)} is already requested.</>}
+          </p>
+        </div>
+
+        {/* Credit limit from the admin */}
+        <div className="mt-3 rounded-lg bg-gray-50 border border-gray-100 p-3 text-sm">
+          <div className="flex justify-between gap-3">
+            <span className="text-gray-600">Credit limit</span>
+            <span className="font-medium text-gray-900">{money(creditLimit)}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span className="text-gray-600">Used</span>
+            <span className={`font-medium ${creditUsed > 0 ? 'text-red-600' : 'text-gray-900'}`}>{money(creditUsed)}</span>
+          </div>
+          <div className="flex justify-between gap-3">
+            <span className="text-gray-600">Remaining</span>
+            <span className="font-medium text-gray-900">{money(creditRemaining)}</span>
+          </div>
+          <p className="text-[11px] text-gray-500 mt-1">
+            Your wallet can go below zero up to this limit for self-delivery COD orders and ad clicks.
+          </p>
+        </div>
+      </div>
+
       {balance < 0 && (
         <div className="mx-4 mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-          <b>Your wallet is ₹{balance.toFixed(2)}.</b> For orders you deliver yourself, the platform charge is taken from this wallet.
-          Add money to keep accepting self-delivery COD orders.
+          <b>Your wallet is {money(balance)}.</b> For orders you deliver yourself, the platform charge is taken from this wallet, and ad clicks too.
+          {creditLimit > 0 && creditRemaining > 0
+            ? <> You still have {money(creditRemaining)} of credit; add money before it runs out.</>
+            : <> Add money to keep accepting self-delivery COD orders and running ads.</>}
         </div>
       )}
 
@@ -343,7 +412,7 @@ export default function SellerWallet() {
                     step="0.01"
                   />
                 </div>
-                <p className="text-xs text-gray-500 mt-1">Available: ₹{balance.toFixed(2)}</p>
+                <p className="text-xs text-gray-500 mt-1">Eligible for payout: {money(eligibleForPayout)}</p>
               </div>
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>

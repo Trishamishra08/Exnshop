@@ -591,15 +591,19 @@ export const updateOrderStatus = asyncHandler(
       const sellerIdStr = sellerId.toString();
 
       // Self delivery + COD: the seller collects the cash and the platform's share is taken
-      // from their wallet after delivery, so a wallet already below zero must be topped up first.
+      // from their wallet after delivery. The wallet may go below zero only as far as the
+      // credit limit the admin gave them; once that is used up, they top up first.
       if (status === "Accepted" && String(order.paymentMethod || "").toUpperCase() === "COD" && (await getSellerShippingMethod(sellerIdStr)) === "Self") {
-        const me: any = await Seller.findById(sellerIdStr).select("balance").lean();
-        const balance = Number(me?.balance || 0);
-        if (balance < 0) {
+        const { getSellerSpendable } = await import("../../../services/sellerCreditService");
+        const { balance, creditLimit, spendable } = await getSellerSpendable(sellerIdStr);
+        if (spendable < 0) {
           return res.status(402).json({
             success: false,
             code: "WALLET_TOPUP_REQUIRED",
-            message: `Your wallet is ₹${balance.toFixed(2)}. Add money to your wallet (Wallet > Add Money) to accept self-delivery COD orders.`,
+            message:
+              creditLimit > 0
+                ? `Your wallet is ₹${balance.toFixed(2)} and your credit limit of ₹${creditLimit.toFixed(2)} is used up. Add money to your wallet (Wallet > Add Money) to accept self-delivery COD orders.`
+                : `Your wallet is ₹${balance.toFixed(2)}. Add money to your wallet (Wallet > Add Money) to accept self-delivery COD orders.`,
           });
         }
       }

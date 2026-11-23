@@ -8,7 +8,7 @@ import mongoose from "mongoose";
 import { payoutBlockReason } from "./sellerOnboardingService";
 
 export type WalletUserType = "SELLER" | "DELIVERY_BOY" | "CUSTOMER";
-export type WalletCategory = "COD_RETURN_REFUND" | "ORDER_CANCELLATION_REFUND" | "ORDER_PAYMENT" | "MANUAL_ADMIN_CREDIT" | "MANUAL_ADMIN_DEBIT" | "RTO_REVERSE_SHIPPING_DEBIT" | "AD_SPEND" | "RETURN_SHIPPING_DEBIT" | "PLATFORM_FEE_DEBIT" | "DELIVERY_CANCEL_PENALTY" | "PENALTY_REFUND" | "WALLET_TOPUP";
+export type WalletCategory = "COD_RETURN_REFUND" | "ORDER_CANCELLATION_REFUND" | "ORDER_PAYMENT" | "MANUAL_ADMIN_CREDIT" | "MANUAL_ADMIN_DEBIT" | "RTO_REVERSE_SHIPPING_DEBIT" | "AD_SPEND" | "RETURN_SHIPPING_DEBIT" | "PLATFORM_FEE_DEBIT" | "DELIVERY_CANCEL_PENALTY" | "PENALTY_REFUND" | "WALLET_TOPUP" | "BALANCE_FREEZE" | "BALANCE_RELEASE" | "CHARGEBACK_DEBIT";
 
 /**
  * Bill a courier return-pickup charge to a seller. Unlike an ordinary debit it
@@ -100,11 +100,11 @@ export const chargeWalletDue = async (
 };
 
 /**
- * Charge an ad click to a seller's payout. The seller's payout is their
- * available balance plus earnings still on hold, so a click is allowed while
- * that total covers it; if it pushes the available balance below zero, the
- * shortfall is recovered automatically from the next settlement credited.
- * Returns false (nothing charged) when the seller's payout can't cover it.
+ * Charge an ad click to a seller's wallet. A click is allowed while the available
+ * balance plus the seller's credit limit (their own, or the platform default) covers
+ * it, so the wallet can go below zero only as far as the credit limit; the shortfall
+ * is recovered automatically from the next settlement credited.
+ * Returns false (nothing charged) when it can't be covered.
  */
 export const chargeAdSpend = async (
   sellerId: string,
@@ -113,11 +113,13 @@ export const chargeAdSpend = async (
   reference: string,
 ): Promise<boolean> => {
   if (amount <= 0) return true;
+  const settings = await AppSettings.findOne().select("defaultSellerCreditLimit").lean();
+  const defaultLimit = Number((settings as any)?.defaultSellerCreditLimit || 0);
   const updated = await Seller.findOneAndUpdate(
     {
       _id: sellerId,
       $expr: {
-        $gte: [{ $add: [{ $ifNull: ["$balance", 0] }, { $ifNull: ["$onHoldBalance", 0] }] }, amount],
+        $gte: [{ $add: [{ $ifNull: ["$balance", 0] }, { $ifNull: ["$creditLimit", defaultLimit] }] }, amount],
       },
     },
     { $inc: { balance: -amount } },
