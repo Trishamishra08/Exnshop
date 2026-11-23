@@ -15,7 +15,7 @@ import { useLoading } from '../../context/LoadingContext';
 import { useAppSettings } from '../../context/AppSettingsContext';
 import Button from '../../components/ui/button';
 import Badge from '../../components/ui/badge';
-import { getProductById } from '../../services/api/customerProductService';
+import { getProductById, getProducts } from '../../services/api/customerProductService';
 import { useCommerceMode } from '../../context/CommerceModeContext';
 import WishlistButton from '../../components/WishlistButton';
 import StarRating from '../../components/ui/StarRating';
@@ -49,6 +49,13 @@ export default function ProductDetail() {
 
   const [product, setProduct] = useState<any>(null);
   const [similarProducts, setSimilarProducts] = useState<any[]>([]);
+  // true when the row holds general picks because this category had nothing else
+  const [similarIsFallback, setSimilarIsFallback] = useState(false);
+  const viewedIdRef = useRef(id);
+  viewedIdRef.current = id;
+  // "Added to cart" card with Continue Shopping / View Cart, shown after Add to Cart
+  const [showAddedCard, setShowAddedCard] = useState(false);
+  const addedCardTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAvailableAtLocation, setIsAvailableAtLocation] =
@@ -69,6 +76,14 @@ export default function ProductDetail() {
   const [reviewPage, setReviewPage] = useState(1);
   const [reviewPages, setReviewPages] = useState(1);
   const [reviewsLoading, setReviewsLoading] = useState(false);
+
+  // Opening another product closes the "Added to cart" card; leaving clears its timer.
+  useEffect(() => {
+    setShowAddedCard(false);
+    return () => {
+      if (addedCardTimer.current) clearTimeout(addedCardTimer.current);
+    };
+  }, [id]);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -119,8 +134,31 @@ export default function ProductDetail() {
           // Reset selected variant and image when product changes
           setSelectedVariantIndex(0);
           setSelectedImageIndex(0);
-          setSimilarProducts(response.data.similarProducts || []);
-
+          // Cards and cart steppers key off `id`, which the API sends as `_id`.
+          const normalize = (list: any[]) =>
+            list.map((p: any) => ({ ...p, id: p.id || p._id, name: p.name || p.productName, imageUrl: p.imageUrl || p.mainImage }));
+          const currentId = productData._id || productData.id;
+          const similar = normalize(response.data.similarProducts || []);
+          setSimilarProducts(similar);
+          setSimilarIsFallback(false);
+          // Nothing else in this category: show other products from the same channel,
+          // so the shopper always has something to carry on browsing.
+          if (similar.length === 0) {
+            getProducts({
+              limit: 12,
+              mode: mode === 'ECommerce' ? 'ecommerce' : 'quick',
+              ...(location?.latitude && location?.longitude ? { latitude: location.latitude, longitude: location.longitude } : {}),
+            })
+              .then((res) => {
+                if (viewedIdRef.current !== id) return;
+                const others = normalize(res?.data || []).filter((p: any) => p.id !== currentId);
+                if (others.length > 0) {
+                  setSimilarProducts(others);
+                  setSimilarIsFallback(true);
+                }
+              })
+              .catch(() => {});
+          }
 
         } else {
           setProduct(null);
@@ -375,7 +413,12 @@ export default function ProductDetail() {
 
   const isSellerUnavailable = isSellerOffline(product);
 
-  const handleAddToCart = () => {
+  const continueShopping = () => {
+    setShowAddedCard(false);
+    navigate("/");
+  };
+
+  const handleAddToCart = async () => {
     if (!isAvailableAtLocation) {
       showToast("This service is not available in your location yet.", "info");
       return;
@@ -399,7 +442,11 @@ export default function ProductDetail() {
       variantId: selectedVariant?._id,
       variantTitle: variantTitle,
     };
-    addToCart(productWithVariant, addButtonRef.current);
+    if (!(await addToCart(productWithVariant, addButtonRef.current))) return;
+    // Offer the next step: keep shopping or open the cart (hides itself after a few seconds)
+    setShowAddedCard(true);
+    if (addedCardTimer.current) clearTimeout(addedCardTimer.current);
+    addedCardTimer.current = setTimeout(() => setShowAddedCard(false), 7000);
   };
 
   const handleBuyNow = async () => {
@@ -1271,12 +1318,24 @@ export default function ProductDetail() {
 
         {/* Top products in this category */}
         {similarProducts.length > 0 && (
-          <div className="mt-6">
-            <div className="bg-neutral-100/50 border-t border-b border-neutral-200/50 py-4 px-3">
-              <h3 className="text-lg font-semibold text-neutral-900 mb-4 px-1">
-                Top products in this category
-              </h3>
-              <div className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth pb-2 px-1">
+          <div className="mt-6 lg:px-8">
+            <div className="bg-neutral-100/50 border-t border-b border-neutral-200/50 py-4 px-3 lg:border lg:rounded-2xl lg:p-5">
+              <div className="flex items-center justify-between gap-3 mb-4 px-1">
+                <h3 className="min-w-0 truncate text-base sm:text-lg font-semibold text-neutral-900">
+                  {similarIsFallback
+                    ? t("product.youMayAlsoLike", "You may also like")
+                    : t("product.topInCategory", "Top products in this category")}
+                </h3>
+                <button
+                  type="button"
+                  onClick={continueShopping}
+                  className="flex-shrink-0 flex items-center gap-0.5 text-xs sm:text-sm font-semibold text-green-700 hover:underline">
+                  {t("customer.continueShopping", "Continue Shopping")}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M9 6l6 6-6 6" /></svg>
+                </button>
+              </div>
+              {/* Phones/tablets: a swipeable row. Desktop: a grid, since a mouse can't swipe sideways. */}
+              <div className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth pb-2 px-1 lg:grid lg:grid-cols-5 xl:grid-cols-6 lg:overflow-visible lg:pb-0">
                 {similarProducts.map((similarProduct) => {
                   const similarCartItem = cart.items.find(
                     (item) =>
@@ -1289,7 +1348,7 @@ export default function ProductDetail() {
                   return (
                     <div
                       key={similarProduct.id}
-                      className="flex-shrink-0 w-40 bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden relative">
+                      className="flex-shrink-0 w-40 lg:w-auto bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden relative hover:shadow-md transition-shadow">
                       {/* Heart icon - top right */}
                       <WishlistButton
                         productId={similarProduct.id || similarProduct._id}
@@ -1306,7 +1365,7 @@ export default function ProductDetail() {
                             { state: { fromStore: true } }
                           )
                         }
-                        className="w-full h-32 bg-neutral-100 flex items-center justify-center overflow-hidden cursor-pointer">
+                        className="w-full h-32 lg:h-auto lg:aspect-square bg-neutral-100 flex items-center justify-center overflow-hidden cursor-pointer">
                         {similarProduct.imageUrl || similarProduct.mainImage ? (
                           <img
                             src={
@@ -1337,13 +1396,16 @@ export default function ProductDetail() {
                         <h4 className="text-sm font-semibold text-neutral-900 mb-1 line-clamp-2 min-h-[2.5rem]">
                           {similarProduct.name || similarProduct.productName}
                         </h4>
-                        <p className="text-[10px] text-neutral-600 flex items-center gap-1">
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
-                            <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                          </svg>
-                          <span>{similarProduct.deliveryTime || 15} MINS</span>
-                        </p>
+                        {/* Minutes-style delivery time only applies to Quick; Shop All ships by courier */}
+                        {mode !== "ECommerce" && (
+                          <p className="text-[10px] text-neutral-600 flex items-center gap-1">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                              <path d="M12 6v6l4 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            </svg>
+                            <span>{similarProduct.deliveryTime || 15} MINS</span>
+                          </p>
+                        )}
 
 
                         {/* Price display for similar products */}
@@ -1458,7 +1520,7 @@ export default function ProductDetail() {
         )}
 
         {/* Service promises, driven by this product's own return policy, the browsing mode and the store settings */}
-        <div className="mt-6 mb-24 px-4">
+        <div className="mt-6 mb-24 px-4 md:px-6 lg:px-8 lg:mb-6">
           <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3">
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="flex flex-col items-center">
@@ -1475,7 +1537,7 @@ export default function ProductDetail() {
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   <path d="M13 8H7M17 12H7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                 </svg>
-                <span className="text-sm font-bold text-neutral-900 break-all">
+                <span className="text-xs sm:text-sm font-bold text-neutral-900 break-all">
                   {appSettings?.supportPhone || appSettings?.contactPhone ? `+91 ${appSettings?.supportPhone || appSettings?.contactPhone}` : "Help"}
                 </span>
                 <span className="text-xs text-neutral-600">Customer support</span>
@@ -1505,6 +1567,61 @@ export default function ProductDetail() {
         </div>
         </div>
       </div>
+
+      {/* "Added to cart" card: sits just above the sticky footer (right-aligned on wider screens) */}
+      <AnimatePresence>
+        {showAddedCard && inCartQty > 0 && (
+          <motion.div
+            key="added-card"
+            role="status"
+            initial={{ y: 24, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 24, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 420, damping: 32 }}
+            className="fixed z-[60] left-3 right-3 bottom-[88px] sm:left-auto sm:right-4 sm:w-[360px] lg:bottom-[84px] lg:right-[max(1rem,calc((100vw-72rem)/2+2rem))]">
+            <div className="bg-white rounded-2xl shadow-2xl border border-neutral-200 p-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-neutral-100 overflow-hidden flex-shrink-0">
+                  {(variantImages[0] || product.imageUrl) && (
+                    <img src={variantImages[0] || product.imageUrl} alt="" className="w-full h-full object-cover" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="flex items-center gap-1 text-xs font-semibold text-green-700">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5L20 7" /></svg>
+                    {t("customer.addedToCart", "Added to cart")}
+                  </p>
+                  <p className="text-sm font-medium text-neutral-900 truncate">{product.name}</p>
+                  <p className="text-[11px] text-neutral-500">
+                    {cart.itemCount || 0} {(cart.itemCount || 0) === 1 ? "item" : "items"} · ₹{(cart.total || 0).toLocaleString("en-IN")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Close"
+                  onClick={() => setShowAddedCard(false)}
+                  className="self-start w-7 h-7 flex items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-2 mt-3">
+                <button
+                  type="button"
+                  onClick={continueShopping}
+                  className="h-10 rounded-lg border-2 border-green-600 text-green-700 text-sm font-semibold hover:bg-green-50 transition-colors">
+                  {t("customer.continueShopping", "Continue Shopping")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/cart")}
+                  className="h-10 rounded-lg bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-colors">
+                  {t("customer.viewCart", "View Cart")}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Sticky Footer */}
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-neutral-200 shadow-lg safe-bottom-pad">
@@ -1558,6 +1675,15 @@ export default function ProductDetail() {
               </Button>
             ) : (
               <>
+                {/* Once it's in the cart, a way back to browsing (tablet/desktop; phones get the card and the row below) */}
+                {inCartQty > 0 && (
+                  <button
+                    type="button"
+                    onClick={continueShopping}
+                    className="hidden md:inline-flex items-center h-[38px] lg:h-11 px-3 lg:px-4 text-sm lg:text-base font-semibold text-green-700 hover:bg-green-50 rounded-lg transition-colors whitespace-nowrap">
+                    {t("customer.continueShopping", "Continue Shopping")}
+                  </button>
+                )}
                 <AnimatePresence mode="wait">
                   {inCartQty === 0 ? (
                     <motion.div
