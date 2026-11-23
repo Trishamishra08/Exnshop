@@ -838,6 +838,45 @@ export default function Checkout() {
     }
   };
 
+  // Open the map to pin the exact delivery spot (used by the mobile and desktop layouts).
+  const openMapPicker = () => {
+    // Prioritize saved address if available, then current GPS location (matches homepage header)
+    const hasOwnPin = Boolean(selectedAddress?.latitude && selectedAddress?.longitude);
+    if (!hasOwnPin && userLocation?.latitude && userLocation?.longitude) {
+      // The typed address has no pin of its own, so the map will open on this
+      // device's live GPS instead — tell the customer so they know to drag the
+      // pin to match the address they typed, instead of confirming it as-is.
+      showGlobalToast(
+        "Your typed address isn't pinned on the map yet, so it opened on your current location. Drag the pin to your actual address, then tap Update Location.",
+        'info'
+      );
+    }
+    setMapLocation({
+      lat: selectedAddress?.latitude || userLocation?.latitude || 0,
+      lng: selectedAddress?.longitude || userLocation?.longitude || 0,
+    });
+    setShowMapPicker(true);
+  };
+
+  // ── Desktop (lg+) layout: stepper, two columns, Order Summary card ──
+  const deskAccent = modeTheme.quick ? modeTheme.brandDark : "#7B1E3E";
+  const deskTint = modeTheme.quick ? modeTheme.tint : "#FCF1F4";
+  const deskTintBorder = modeTheme.quick ? modeTheme.tintBorder : "#EFD3DC";
+  const checkoutStep = isProcessingOrder ? 3 : selectedAddress ? 2 : 1;
+  const coveredByWallet = useWallet && walletDeduction === grandTotal;
+  const canPlaceOrder = cart.items.length > 0 && !isProcessingOrder && meetsMinimumOrder;
+  const addressLine = selectedAddress
+    ? [selectedAddress.flat, selectedAddress.street, selectedAddress.city, selectedAddress.state, selectedAddress.pincode]
+        .filter(Boolean)
+        .join(", ")
+    : "";
+  const changeItemQuantity = (item: any, quantity: number) => {
+    const variantId = item.product?.variantId || item.product?.selectedVariant?._id;
+    const variantTitle = item.product?.variantTitle || item.product?.pack;
+    updateQuantity(item.product?.id, quantity, variantId, variantTitle);
+  };
+  const deskCard = "bg-white border border-neutral-200 rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.04)]";
+
   return (
     <div className={`min-h-screen flex flex-col ${modeTheme.quick ? "" : "theme-shopall"}`} style={{ background: modeTheme.pageBg }}>
       {/* Party Popper Animation */}
@@ -1144,7 +1183,7 @@ export default function Checkout() {
         </div>
       )}
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-white border-b border-neutral-200">
+      <div className="sticky top-0 z-50 bg-white border-b border-neutral-200 lg:hidden">
         <div className="px-4 md:px-6 lg:px-8 py-2 md:py-3 flex items-center justify-between">
           {/* Back Arrow */}
           <button
@@ -1175,8 +1214,66 @@ export default function Checkout() {
         </div>
       </div>
 
+      {/* Desktop header: title + Delivery › Payment › Place Order stepper */}
+      <div className="hidden lg:flex items-center gap-10 max-w-[1440px] mx-auto w-full px-8 xl:px-12 pt-8 pb-6">
+        <div className="flex items-center gap-2 w-[280px] shrink-0">
+          <button
+            onClick={() => goBackOr(navigate, "/")}
+            className="w-9 h-9 flex items-center justify-center text-neutral-700 hover:bg-black/5 rounded-full transition-colors"
+            aria-label="Go back">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 18L9 12L15 6" />
+            </svg>
+          </button>
+          <h1 className="text-[34px] leading-none font-bold text-neutral-900 tracking-tight">Checkout</h1>
+        </div>
+        <ol className="flex-1 flex items-start max-w-[860px]">
+          {["Delivery", "Payment", "Place Order"].map((label, i) => {
+            const n = i + 1;
+            const done = n < checkoutStep;
+            const active = n === checkoutStep;
+            return (
+              <li key={label} className={`flex items-start ${i < 2 ? "flex-1" : ""}`}>
+                <div className="relative z-10 flex flex-col items-center w-28">
+                  <span
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-base font-semibold border"
+                    style={
+                      active || done
+                        ? { background: deskAccent, borderColor: deskAccent, color: "#fff", boxShadow: active ? `0 0 0 4px ${deskTint}` : undefined }
+                        : { background: "#fff", borderColor: "#D4D4D4", color: "#404040" }
+                    }>
+                    {done ? (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : (
+                      n
+                    )}
+                  </span>
+                  <span className="mt-2 text-[17px] whitespace-nowrap" style={{ color: active ? deskAccent : "#404040", fontWeight: active ? 600 : 400 }}>
+                    {label}
+                  </span>
+                </div>
+                {i < 2 && (
+                  <div
+                    className="flex-1 h-[2px] mt-5 -mx-9 rounded-full"
+                    style={{
+                      background: done ? deskAccent : active ? `linear-gradient(90deg, ${deskAccent}, ${deskTintBorder})` : "#E5E5E5",
+                    }}
+                  />
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
+      {/* Desktop: two columns (details | Order Summary). On phones these wrappers add nothing. */}
+      <div className="lg:max-w-[1440px] lg:mx-auto lg:w-full lg:px-8 xl:px-12 lg:pb-12 lg:grid lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_470px] lg:gap-6 lg:items-start">
+      <div className="min-w-0 lg:space-y-4">
+
       {/* Saved Address Section */}
-      <div className="px-4 md:px-6 lg:px-8 py-2 md:py-3 border-b border-neutral-200">
+      <div className="px-4 md:px-6 lg:px-8 py-2 md:py-3 border-b border-neutral-200 lg:hidden">
         <div className="mb-2 flex items-center justify-between gap-2">
           <div>
             <h3 className="text-xs font-semibold text-neutral-900 mb-0.5">
@@ -1249,24 +1346,7 @@ export default function Checkout() {
         {/* Set Location on Map Button */}
         <div className="mt-2.5">
           <button
-            onClick={() => {
-              // Prioritize saved address if available, then current GPS location (matches homepage header)
-              const hasOwnPin = Boolean(selectedAddress?.latitude && selectedAddress?.longitude);
-              if (!hasOwnPin && userLocation?.latitude && userLocation?.longitude) {
-                // The typed address has no pin of its own, so the map will open on this
-                // device's live GPS instead — tell the customer so they know to drag the
-                // pin to match the address they typed, instead of confirming it as-is.
-                showGlobalToast(
-                  "Your typed address isn't pinned on the map yet, so it opened on your current location. Drag the pin to your actual address, then tap Update Location.",
-                  'info'
-                );
-              }
-              setMapLocation({
-                lat: selectedAddress?.latitude || userLocation?.latitude || 0,
-                lng: selectedAddress?.longitude || userLocation?.longitude || 0,
-              });
-              setShowMapPicker(true);
-            }}
+            onClick={openMapPicker}
             className={`flex items-center gap-3 text-base font-bold px-5 py-4 rounded-xl w-full justify-center transition-colors ${
               isMapSelected
                 ? "text-green-700 bg-green-100 border-2 border-green-500 ring-2 ring-green-600"
@@ -1318,8 +1398,166 @@ export default function Checkout() {
         </div>
       </div>
 
+      {/* Delivery Address — desktop */}
+      <section className={`hidden lg:block p-6 ${deskCard}`}>
+        <div className="flex items-start gap-3 mb-4">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={deskAccent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+            <circle cx="12" cy="10" r="3" />
+          </svg>
+          <div>
+            <h2 className="text-xl font-bold leading-tight" style={{ color: deskAccent }}>Delivery Address</h2>
+            <p className="text-[15px] text-neutral-600 mt-1">Set precise location for faster delivery</p>
+          </div>
+        </div>
+
+        {selectedAddress ? (
+          <div className="flex items-center justify-between gap-4 border border-neutral-200 rounded-xl px-5 py-4">
+            <div className="min-w-0 space-y-2.5">
+              <div className="flex items-center gap-3 text-[17px] text-neutral-900">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#525252" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+                <span className="font-semibold">{selectedAddress.name || user?.name || "You"}</span>
+                {selectedAddress.phone && <span>{selectedAddress.phone}</span>}
+              </div>
+              <div className="flex items-start gap-3 text-[17px] text-neutral-800">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#525252" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 mt-0.5">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+                <span className="leading-snug">{addressLine}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate("/checkout/address", { state: { editAddress: selectedAddress } })}
+              className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg border bg-white text-[15px] font-semibold hover:bg-neutral-50 transition-colors"
+              style={{ borderColor: deskAccent, color: deskAccent }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+              </svg>
+              Change
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => navigate("/checkout/address")}
+            className="w-full flex items-center justify-center gap-2 text-base font-semibold px-4 py-4 rounded-xl border-2 border-dashed border-neutral-300 text-neutral-600 hover:bg-neutral-50 transition-colors">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Add Delivery Address
+          </button>
+        )}
+
+        <button
+          onClick={openMapPicker}
+          className="mt-4 w-full flex items-center justify-center gap-3 rounded-xl py-3.5 text-lg font-semibold transition-colors"
+          style={
+            isMapSelected
+              ? { background: "#E4F2E0", color: "#1F2937", border: "1px solid #D3E9CD" }
+              : { background: deskTint, color: deskAccent, border: `1px dashed ${deskTintBorder}` }
+          }>
+          {isMapSelected ? (
+            <span className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: "#2E9D49" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </span>
+          ) : (
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </svg>
+          )}
+          {isMapSelected
+            ? "Precise Location Selected"
+            : selectedAddress?.latitude
+              ? "Update Precise Location on Map"
+              : "Set Exact Location on Map"}
+        </button>
+      </section>
+
+      {/* Shipment — desktop */}
+      <section className={`hidden lg:block overflow-hidden ${deskCard}`}>
+        <div className="flex items-center gap-4 px-6 pt-5 pb-4 border-b border-neutral-100">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke={deskAccent} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+            <path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z" />
+            <circle cx="5.5" cy="18.5" r="2" />
+            <circle cx="18.5" cy="18.5" r="2" />
+          </svg>
+          <div>
+            <h2 className="text-xl font-bold text-neutral-900 leading-tight">Delivery in {appConfig.estimatedDeliveryTime}</h2>
+            <p className="text-[15px] text-neutral-600 mt-0.5">
+              Shipment of {displayCart.itemCount || 0} {(displayCart.itemCount || 0) === 1 ? "item" : "items"}
+            </p>
+          </div>
+        </div>
+        <div className="divide-y divide-neutral-100">
+          {displayItems
+            .filter((item) => item.product)
+            .map((item) => {
+              const { displayPrice, mrp, hasDiscount } = calculateProductPrice(item.product, item.variant);
+              return (
+                <div key={item.product?.id || Math.random()} className="flex items-center gap-5 px-6 py-4">
+                  <div className="w-24 h-24 rounded-lg bg-neutral-50 overflow-hidden flex-shrink-0">
+                    {item.product?.imageUrl ? (
+                      <img src={item.product?.imageUrl} alt={item.product?.name} className="w-full h-full object-contain" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-2xl text-neutral-400">
+                        {(item.product?.name || "").charAt(0)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-neutral-900 line-clamp-2">{item.product?.name}</h3>
+                    <p className="text-base text-neutral-600 mt-0.5">
+                      {item.quantity} × {item.product?.pack}
+                    </p>
+                    <div className="flex items-center gap-8 mt-2.5">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMoveToWishlist(item.product);
+                        }}
+                        className="inline-flex items-center gap-1.5 text-[15px] font-medium underline underline-offset-2 hover:opacity-80"
+                        style={{ color: deskAccent }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                        </svg>
+                        Move to wishlist
+                      </button>
+                      <div className="inline-flex items-center rounded-full border" style={{ borderColor: deskAccent }}>
+                        <button
+                          onClick={() => changeItemQuantity(item, item.quantity - 1)}
+                          aria-label="Decrease quantity"
+                          className="w-10 h-9 flex items-center justify-center text-xl text-neutral-800 hover:bg-black/5 rounded-l-full">
+                          −
+                        </button>
+                        <span className="min-w-[2.75rem] text-center text-base font-semibold text-neutral-900">{item.quantity}</span>
+                        <button
+                          onClick={() => changeItemQuantity(item, item.quantity + 1)}
+                          aria-label="Increase quantity"
+                          className="w-10 h-9 flex items-center justify-center text-xl text-neutral-800 hover:bg-black/5 rounded-r-full">
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    {hasDiscount && <div className="text-sm text-neutral-400 line-through">₹{mrp}</div>}
+                    <div className="text-xl font-bold text-neutral-900">₹{displayPrice}</div>
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+      </section>
+
       {/* Main Product Card */}
-      <div className="px-4 md:px-6 lg:px-8 py-2 md:py-3 bg-white border-b border-neutral-200">
+      <div className="px-4 md:px-6 lg:px-8 py-2 md:py-3 bg-white border-b border-neutral-200 lg:hidden">
         <div className="bg-white rounded-lg border border-neutral-200 p-2.5">
           {/* Delivery info */}
           <div className="flex items-center gap-1.5 mb-2">
@@ -1442,7 +1680,7 @@ export default function Checkout() {
 
       {/* Get FREE delivery banner */}
       {deliveryCharge > 0 && (
-        <div className="px-4 py-2 bg-blue-50 border-b border-blue-100">
+        <div className="px-4 py-2 bg-blue-50 border-b border-blue-100 lg:border lg:rounded-2xl lg:px-6 lg:py-4">
           <div className="flex items-center gap-2 mb-1.5">
             <svg
               width="18"
@@ -1498,8 +1736,8 @@ export default function Checkout() {
 
       {/* Coupon Section */}
       {selectedCoupon ? (
-        <div className="px-4 py-1.5 border-b border-neutral-200">
-          <div className="flex items-center justify-between bg-green-50 rounded-lg p-2 border border-green-200">
+        <div className="px-4 py-1.5 border-b border-neutral-200 lg:bg-white lg:border lg:rounded-2xl lg:shadow-[0_1px_3px_rgba(0,0,0,0.04)] lg:px-6 lg:py-4">
+          <div className="flex items-center justify-between bg-green-50 rounded-lg p-2 border border-green-200 lg:p-3">
             <div className="flex items-center gap-2 flex-1 min-w-0">
               <div className="w-6 h-6 rounded-full bg-green-600 flex items-center justify-center flex-shrink-0">
                 <svg
@@ -1534,10 +1772,17 @@ export default function Checkout() {
           </div>
         </div>
       ) : (
-        <div className="px-4 py-1.5 flex justify-end border-b border-neutral-200">
+        <div className="px-4 py-1.5 flex justify-end border-b border-neutral-200 lg:bg-white lg:border lg:rounded-2xl lg:shadow-[0_1px_3px_rgba(0,0,0,0.04)] lg:px-6 lg:py-4 lg:justify-between lg:items-center">
+          <span className="hidden lg:inline-flex items-center gap-3 text-lg font-bold text-neutral-900">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={deskAccent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+              <line x1="7" y1="7" x2="7.01" y2="7" />
+            </svg>
+            Coupons &amp; Offers
+          </span>
           <button
             onClick={() => setShowCouponSheet(true)}
-            className="text-xs text-neutral-600 flex items-center gap-1">
+            className="text-xs text-neutral-600 flex items-center gap-1 lg:text-[15px] lg:font-semibold lg:text-neutral-800 lg:hover:underline">
             See all coupons
             <svg
               width="12"
@@ -1559,8 +1804,8 @@ export default function Checkout() {
 
       {/* Delivery Option Selection — Quick Commerce only (E-Commerce always ships Standard via Shiprocket) */}
       {mode === "Quick" && (
-      <div className="px-4 md:px-6 lg:px-8 py-3 border-b border-neutral-200">
-        <h2 className="text-sm font-bold text-neutral-900 mb-3">
+      <div className="px-4 md:px-6 lg:px-6 py-3 border-b border-neutral-200 lg:bg-white lg:border lg:rounded-2xl lg:shadow-[0_1px_3px_rgba(0,0,0,0.04)] lg:py-5">
+        <h2 className="text-sm font-bold text-neutral-900 mb-3 lg:text-xl lg:mb-4">
           Select Delivery Option
         </h2>
         <div className="grid grid-cols-2 gap-3">
@@ -1632,8 +1877,121 @@ export default function Checkout() {
       </div>
       )}
 
+      {/* Wallet — desktop */}
+      <label className={`hidden lg:flex items-center gap-5 px-6 py-5 ${walletBalance > 0 ? "cursor-pointer" : "cursor-default"} ${deskCard}`}>
+        <input
+          type="checkbox"
+          checked={useWallet}
+          onChange={(e) => setUseWallet(e.target.checked)}
+          disabled={walletBalance <= 0}
+          className="w-6 h-6 rounded cursor-pointer disabled:cursor-not-allowed"
+          style={{ accentColor: deskAccent }}
+        />
+        <div>
+          <div className="flex items-center gap-3">
+            <span className="text-lg font-bold text-neutral-900">Use Wallet Balance</span>
+            <span className="text-sm font-semibold px-3 py-1 rounded-full" style={{ background: deskTint, color: deskAccent }}>
+              ₹{walletBalance.toFixed(2)}
+            </span>
+          </div>
+          <p className="text-[15px] text-neutral-600 mt-1">
+            {walletBalance > 0
+              ? useWallet
+                ? `₹${walletDeduction.toFixed(2)} applied from wallet balance`
+                : "Use wallet balance to pay for this order"
+              : "Available wallet balance is ₹0.00"}
+          </p>
+        </div>
+      </label>
+
+      {/* Payment Method — desktop */}
+      <section className={`hidden lg:block p-6 ${deskCard}`}>
+        <div className="flex items-center gap-3 mb-5">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={deskAccent} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 7H5a2 2 0 0 1 0-4h13v4" />
+            <path d="M3 5v14a2 2 0 0 0 2 2h15V7" />
+            <path d="M16 14h.01" />
+          </svg>
+          <h2 className="text-xl font-bold text-neutral-900">Select Payment Method</h2>
+        </div>
+        {coveredByWallet ? (
+          <div className="rounded-xl p-4 text-center font-semibold text-base text-white" style={{ background: deskAccent }}>
+            ✓ Order 100% covered by wallet — no additional payment needed
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              {([
+                { key: "Online", title: "Online Payment", sub: "(Card, UPI, Net Banking)", icon: (
+                  <>
+                    <rect x="2" y="5" width="20" height="14" rx="2" />
+                    <line x1="2" y1="10" x2="22" y2="10" />
+                  </>
+                ) },
+                { key: "COD", title: "Cash on Delivery", sub: "Pay when you receive", icon: (
+                  <>
+                    <rect x="2" y="6" width="20" height="12" rx="2" />
+                    <circle cx="12" cy="12" r="2.5" />
+                    <path d="M6 12h.01M18 12h.01" />
+                  </>
+                ) },
+              ] as const).map((m) => {
+                const selected = paymentMethod === m.key;
+                return (
+                  <button
+                    key={m.key}
+                    onClick={() => setPaymentMethod(m.key)}
+                    className="relative flex flex-col items-center justify-center gap-1 rounded-xl border px-4 py-5 transition-colors"
+                    style={selected ? { borderColor: deskAccent, borderWidth: 2, background: deskTint } : { borderColor: "#D4D4D4", background: "#fff" }}>
+                    {selected && (
+                      <span className="absolute left-5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full border-2 flex items-center justify-center" style={{ borderColor: deskAccent }}>
+                        <span className="w-3 h-3 rounded-full" style={{ background: deskAccent }} />
+                      </span>
+                    )}
+                    <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke={selected ? deskAccent : "#404040"} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                      {m.icon}
+                    </svg>
+                    <span className="text-lg font-bold" style={{ color: selected ? deskAccent : "#171717" }}>{m.title}</span>
+                    <span className="text-sm text-neutral-600">{m.sub}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {paymentMethod === "Online" && (
+              <div className="mt-5">
+                <p className="text-sm font-semibold text-neutral-700 mb-2.5">Pay using</p>
+                <div className="grid grid-cols-2 gap-4">
+                  {([
+                    { key: "razorpay", title: "Razorpay" },
+                    { key: "cashfree", title: "Cashfree" },
+                  ] as const).map((g) => {
+                    const selected = selectedGateway === g.key;
+                    return (
+                      <button
+                        key={g.key}
+                        onClick={() => setSelectedGateway(g.key)}
+                        className="flex items-center gap-3 rounded-xl border px-5 py-3.5 text-left transition-colors"
+                        style={selected ? { borderColor: deskAccent, borderWidth: 2, background: deskTint } : { borderColor: "#D4D4D4", background: "#fff" }}>
+                        <span className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0" style={{ borderColor: selected ? deskAccent : "#A3A3A3" }}>
+                          {selected && <span className="w-2.5 h-2.5 rounded-full" style={{ background: deskAccent }} />}
+                        </span>
+                        <span>
+                          <span className="block text-base font-bold text-neutral-900">{g.title}</span>
+                          <span className="block text-sm text-neutral-600">UPI, Cards &amp; More</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
       {/* Wallet Balance Usage Toggle */}
-      <div className="px-4 md:px-6 lg:px-8 py-3 border-b border-neutral-200 bg-emerald-50/40">
+      <div className="px-4 md:px-6 lg:px-8 py-3 border-b border-neutral-200 bg-emerald-50/40 lg:hidden">
         <label className="flex items-center justify-between cursor-pointer">
           <div className="flex items-center gap-3">
             <input
@@ -1663,7 +2021,7 @@ export default function Checkout() {
       </div>
 
       {/* Payment Method Selection */}
-      <div className="px-4 md:px-6 lg:px-8 py-3 border-b border-neutral-200">
+      <div className="px-4 md:px-6 lg:px-8 py-3 border-b border-neutral-200 lg:hidden">
         <h2 className="text-sm font-bold text-neutral-900 mb-3">
           Select Payment Method
         </h2>
@@ -1754,8 +2112,8 @@ export default function Checkout() {
         )}
       </div>
 
-      {/* Bill details */}
-      <div className="px-4 md:px-6 lg:px-8 py-2.5 md:py-3 border-b border-neutral-200">
+      {/* Bill details (phones; desktop shows the Order Summary card) */}
+      <div className="px-4 md:px-6 lg:px-8 py-2.5 md:py-3 border-b border-neutral-200 lg:hidden">
         <h2 className="text-base font-bold text-neutral-900 mb-2.5">
           Bill details
         </h2>
@@ -1985,11 +2343,11 @@ export default function Checkout() {
 
 
       {/* Tip your delivery partner */}
-      <div className="px-4 py-2 border-b border-neutral-200">
-        <h3 className="text-sm font-bold text-neutral-900 mb-0.5">
+      <div className="px-4 py-2 border-b border-neutral-200 lg:bg-white lg:border lg:rounded-2xl lg:shadow-[0_1px_3px_rgba(0,0,0,0.04)] lg:px-6 lg:py-5">
+        <h3 className="text-sm font-bold text-neutral-900 mb-0.5 lg:text-xl lg:mb-1">
           Tip your delivery partner
         </h3>
-        <p className="text-xs text-neutral-600 mb-2">
+        <p className="text-xs text-neutral-600 mb-2 lg:text-[15px] lg:mb-3">
           Your kindness means a lot! 100% of your tip will go directly to your
           delivery partner.
         </p>
@@ -2000,7 +2358,7 @@ export default function Checkout() {
               setTipAmount(20);
               setShowCustomTipInput(false);
             }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs lg:px-5 lg:py-2.5 lg:text-sm ${
               tipAmount === 20 && !showCustomTipInput
                 ? "border-green-600 bg-green-50 text-green-700"
                 : "border-neutral-300 bg-white text-neutral-700"
@@ -2012,7 +2370,7 @@ export default function Checkout() {
               setTipAmount(30);
               setShowCustomTipInput(false);
             }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs lg:px-5 lg:py-2.5 lg:text-sm ${
               tipAmount === 30 && !showCustomTipInput
                 ? "border-green-600 bg-green-50 text-green-700"
                 : "border-neutral-300 bg-white text-neutral-700"
@@ -2024,7 +2382,7 @@ export default function Checkout() {
               setTipAmount(50);
               setShowCustomTipInput(false);
             }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs lg:px-5 lg:py-2.5 lg:text-sm ${
               tipAmount === 50 && !showCustomTipInput
                 ? "border-green-600 bg-green-50 text-green-700"
                 : "border-neutral-300 bg-white text-neutral-700"
@@ -2036,7 +2394,7 @@ export default function Checkout() {
               setShowCustomTipInput(true);
               setTipAmount(null);
             }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs ${
+            className={`flex-shrink-0 px-3 py-1.5 rounded-lg border-2 font-medium text-xs lg:px-5 lg:py-2.5 lg:text-sm ${
               showCustomTipInput
                 ? "border-green-600 bg-green-50 text-green-700"
                 : "border-neutral-300 bg-white text-neutral-700"
@@ -2082,7 +2440,7 @@ export default function Checkout() {
       </div>
 
       {/* Gift Packaging */}
-      <div className="px-4 py-2 border-b border-neutral-200">
+      <div className="px-4 py-2 border-b border-neutral-200 lg:bg-white lg:border lg:rounded-2xl lg:shadow-[0_1px_3px_rgba(0,0,0,0.04)] lg:px-6 lg:py-4">
         <button
           onClick={() => setGiftPackaging(!giftPackaging)}
           className={`w-full flex items-center justify-between rounded-lg p-2 transition-colors ${
@@ -2171,6 +2529,167 @@ export default function Checkout() {
             </span>
           </div>
         </div>
+      </div>
+      </div>
+
+      {/* Order Summary — desktop right column */}
+      <aside className="hidden lg:block sticky top-6">
+        <div className={`overflow-hidden ${deskCard}`}>
+          <div className="flex items-center gap-3 px-6 py-5 bg-[#FAF7F5] border-b border-neutral-100">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke={deskAccent} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="9" cy="21" r="1" />
+              <circle cx="20" cy="21" r="1" />
+              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+            </svg>
+            <h2 className="text-2xl font-bold" style={{ color: deskAccent }}>Order Summary</h2>
+          </div>
+
+          <div className="px-6 pt-5 pb-6">
+            <div className="space-y-4 text-[17px] text-neutral-800">
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2">
+                  Items total
+                  {savedAmount > 0 && (
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: deskTint, color: deskAccent }}>
+                      Saved ₹{savedAmount}
+                    </span>
+                  )}
+                </span>
+                <span className="flex items-baseline gap-2">
+                  {itemsTotal > discountedTotal && <span className="text-sm text-neutral-400 line-through">₹{itemsTotal}</span>}
+                  <span className="font-semibold text-neutral-900">₹{discountedTotal}</span>
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2">
+                  Handling charge
+                  <span title="Charge for packing and handling your order" className="inline-flex text-neutral-500 cursor-help">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="16" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                  </span>
+                </span>
+                <span className="font-semibold text-neutral-900">₹{handlingCharge}</span>
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex items-center gap-2">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#525252" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 3h15v13H1zM16 8h4l3 3v5h-7V8z" />
+                    <circle cx="5.5" cy="18.5" r="1.5" />
+                    <circle cx="18.5" cy="18.5" r="1.5" />
+                  </svg>
+                  Delivery charge
+                  {deliveryOption === "Instant" && cart.estimatedDistanceKm != null && (
+                    <span className="text-sm text-neutral-400">| {cart.estimatedDistanceKm} kms</span>
+                  )}
+                </span>
+                {deliveryCharge === 0 ? (
+                  <span className="font-bold" style={{ color: "#2E9D49" }}>FREE</span>
+                ) : (
+                  <span className="font-semibold text-neutral-900">₹{deliveryCharge}</span>
+                )}
+              </div>
+
+              {selectedCoupon && currentCouponDiscount > 0 && (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="flex items-center gap-2">
+                    Coupon discount
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: deskTint, color: deskAccent }}>
+                      {selectedCoupon.code}
+                    </span>
+                  </span>
+                  <span className="font-semibold" style={{ color: "#2E9D49" }}>-₹{currentCouponDiscount.toLocaleString("en-IN")}</span>
+                </div>
+              )}
+
+              {gstAmount > 0 && (
+                <div className="flex items-center justify-between gap-3">
+                  <span>GST ({gstRate}%)</span>
+                  <span className="font-semibold text-neutral-900">₹{gstAmount.toFixed(2)}</span>
+                </div>
+              )}
+
+              {finalTipAmount > 0 && (
+                <div className="flex items-center justify-between gap-3">
+                  <span>Tip to delivery partner</span>
+                  <span className="font-semibold text-neutral-900">₹{finalTipAmount}</span>
+                </div>
+              )}
+
+              {giftPackaging && (
+                <div className="flex items-center justify-between gap-3">
+                  <span>Gift Packaging</span>
+                  <span className="font-semibold text-neutral-900">₹{giftPackagingFee}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 pt-5 border-t border-neutral-200 flex items-center justify-between">
+              <span className="text-xl font-bold" style={{ color: deskAccent }}>Order Total</span>
+              <span className="text-[28px] font-bold text-neutral-900">₹{Math.max(0, grandTotal).toFixed(2)}</span>
+            </div>
+
+            {useWallet && walletDeduction > 0 && (
+              <>
+                <div className="mt-3 flex items-center justify-between text-[15px] font-medium" style={{ color: "#2E9D49" }}>
+                  <span>Wallet Balance Applied</span>
+                  <span className="font-bold">-₹{walletDeduction.toFixed(2)}</span>
+                </div>
+                <div className="mt-3 pt-3 border-t border-dashed border-neutral-300 flex items-center justify-between">
+                  <span className="text-lg font-bold text-neutral-900">To Pay</span>
+                  <span className="text-2xl font-bold" style={{ color: deskAccent }}>₹{finalPayable.toFixed(2)}</span>
+                </div>
+              </>
+            )}
+
+            {!meetsMinimumOrder && (
+              <div className="mt-4 px-4 py-2.5 rounded-lg text-sm text-amber-800 bg-amber-50 border border-amber-100">
+                Minimum order ₹{minimumOrderValue.toLocaleString("en-IN")}. Add ₹
+                {amountNeededForMinimumOrder.toLocaleString("en-IN")} more to place order.
+              </div>
+            )}
+
+            {selectedAddress ? (
+              <button
+                onClick={handlePlaceOrder}
+                disabled={!canPlaceOrder}
+                className="mt-6 w-full h-14 rounded-xl flex items-center justify-center gap-3 text-lg font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-100"
+                style={{ background: canPlaceOrder ? deskAccent : "#D4D4D4", color: canPlaceOrder ? "#fff" : "#737373" }}>
+                {isProcessingOrder
+                  ? "Processing..."
+                  : !meetsMinimumOrder
+                    ? `Add ₹${amountNeededForMinimumOrder.toLocaleString("en-IN")} more`
+                    : "Place Order"}
+                {canPlaceOrder && (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                    <polyline points="12 5 19 12 12 19" />
+                  </svg>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={() => navigate("/checkout/address")}
+                className="mt-6 w-full h-14 rounded-xl text-lg font-semibold text-white transition-opacity hover:opacity-90"
+                style={{ background: deskAccent }}>
+                Add delivery address to proceed
+              </button>
+            )}
+
+            <p className="mt-4 flex items-center justify-center gap-2 text-[15px] text-neutral-600">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              Secure &amp; Encrypted Payment
+            </p>
+          </div>
+        </div>
+      </aside>
       </div>
 
 
@@ -2392,7 +2911,7 @@ export default function Checkout() {
 
       {/* Bottom Sticky Button */}
       <div
-        className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 z-[60] shadow-lg"
+        className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-200 z-[60] shadow-lg lg:hidden"
         style={{ paddingBottom: 'calc(var(--safe-bottom) + 10px)' }}
       >
         {!meetsMinimumOrder && (
