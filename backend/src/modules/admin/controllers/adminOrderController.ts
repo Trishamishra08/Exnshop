@@ -277,10 +277,14 @@ export const getOrderById = asyncHandler(
       });
     }
 
+    // Seller delivers / ships it themselves: only the seller moves its status.
+    const { isSellerFulfilledOrder } = await import("../../../services/sellerShippingService");
+    const sellerFulfilled = await isSellerFulfilledOrder(order);
+
     return res.status(200).json({
       success: true,
       message: "Order fetched successfully",
-      data: order,
+      data: { ...order.toObject(), sellerFulfilled },
     });
   },
 );
@@ -301,10 +305,8 @@ export const markOrderCODPaid = asyncHandler(
       return res.status(400).json({ success: false, message: "Only COD orders can be marked as paid" });
     }
     // Seller delivered / shipped it themselves and took the cash: the seller marks it paid, not the admin.
-    const sellerCollected =
-      order.channel === "ECommerce"
-        ? (order.shiprocketShipments || []).some((s: any) => s?.provider === "Self")
-        : order.deliveryPreference === "Self" && !order.deliveryBoy;
+    const { isSellerFulfilledOrder } = await import("../../../services/sellerShippingService");
+    const sellerCollected = await isSellerFulfilledOrder(order);
     if (sellerCollected) {
       return res.status(400).json({
         success: false,
@@ -366,6 +368,22 @@ export const updateOrderStatus = asyncHandler(
         success: false,
         message: "Use the dedicated Mark as RTO action — it handles inventory restoration and the seller's reverse-shipping charge correctly.",
       });
+    }
+
+    // Self delivery / self shipping: the seller delivers it and updates its status, not the admin.
+    {
+      const { isSellerFulfilledOrder } = await import("../../../services/sellerShippingService");
+      const target = await Order.findById(id).select("channel deliveryPreference deliveryBoy shiprocketShipments");
+      if (!target) {
+        return res.status(404).json({ success: false, message: "Order not found" });
+      }
+      if (await isSellerFulfilledOrder(target)) {
+        return res.status(403).json({
+          success: false,
+          code: "SELLER_FULFILLED",
+          message: "The seller delivers this order themselves (self delivery / self shipping), so only the seller can update its status.",
+        });
+      }
     }
 
     // A delivered order can no longer be cancelled or rejected (returns use their own flow).
@@ -1057,6 +1075,16 @@ export const updateShipment = asyncHandler(
       });
     }
 
+    // Seller ships it with their own courier: the seller enters tracking and moves its status.
+    const { isSellerFulfilledOrder } = await import("../../../services/sellerShippingService");
+    if (await isSellerFulfilledOrder(order)) {
+      return res.status(403).json({
+        success: false,
+        code: "SELLER_FULFILLED",
+        message: "The seller ships this order with their own courier, so only the seller can update its shipment and status.",
+      });
+    }
+
     if (orderStatus) {
       const matchedStatus = SHIPMENT_STATUSES.find(
         (s) => s.toLowerCase() === String(orderStatus).toLowerCase()
@@ -1200,6 +1228,16 @@ export const getShippingLabels = asyncHandler(async (req: Request, res: Response
     });
   }
   return res.status(200).json({ success: true, data: labels });
+});
+
+/** Simple delivery slips (buyer + seller details, no AWB needed) + tax invoices for every seller of an order. */
+export const getDeliverySlips = asyncHandler(async (req: Request, res: Response) => {
+  const { buildDeliverySlips } = await import("../../../services/shippingLabelService");
+  const slips = await buildDeliverySlips(req.params.id);
+  if (slips.length === 0) {
+    return res.status(400).json({ success: false, message: "No delivery slip: the order was not found, or it is cancelled / rejected." });
+  }
+  return res.status(200).json({ success: true, data: slips });
 });
 
 /** GST tax invoices for every seller of an order (Quick or E-commerce). */

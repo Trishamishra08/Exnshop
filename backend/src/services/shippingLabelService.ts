@@ -206,3 +206,71 @@ export const buildShippingLabels = async (orderId: string, sellerId?: string): P
   }
   return labels;
 };
+
+/**
+ * A simple delivery slip (no AWB needed): who it goes to, who it's from, what's inside
+ * and how it's paid, with that seller's tax invoice. For sellers who hand the parcel to
+ * their own delivery boy, or before a courier / tracking number exists. Works for Quick
+ * and E-commerce orders. A seller gets only their own part; admin gets every seller's.
+ */
+export interface DeliverySlip {
+  orderNumber: string;
+  orderDate: string;
+  channel: "Quick" | "ECommerce";
+  paymentMethod: "COD" | "Prepaid";
+  /** Cash the delivery person collects (COD), 0 when prepaid. */
+  codAmount: number;
+  deliverTo: { name: string; phone: string; address: string; city: string; state: string; pincode: string };
+  from: { name: string; phone: string; address: string; city: string; state: string; pincode: string };
+  /** Courier and tracking number when the seller has entered them (self shipping) or Shiprocket assigned them. */
+  courierName: string;
+  trackingNumber: string;
+  items: { name: string; qty: number }[];
+  invoice: TaxInvoice;
+}
+
+export const buildDeliverySlips = async (orderId: string, sellerId?: string): Promise<DeliverySlip[]> => {
+  const order: any = await Order.findById(orderId).lean();
+  if (!order) return [];
+  if (["Cancelled", "Rejected"].includes(order.status)) return [];
+
+  const invoices = await buildTaxInvoices(orderId, sellerId);
+  const isCod = String(order.paymentMethod || "").toUpperCase() === "COD";
+  const slips: DeliverySlip[] = [];
+  for (const invoice of invoices) {
+    const seller: any = await Seller.findById(invoice.seller.id).select("storeName sellerName mobile").lean();
+    const { shipment } = findSellerShipment(order, invoice.seller.id);
+    slips.push({
+      orderNumber: order.orderNumber,
+      orderDate: new Date(order.orderDate || order.createdAt).toISOString(),
+      channel: order.channel === "ECommerce" ? "ECommerce" : "Quick",
+      paymentMethod: isCod ? "COD" : "Prepaid",
+      codAmount: isCod
+        ? invoice.count === 1 && typeof order.codAmountPending === "number" && order.codAmountPending > 0
+          ? Math.round(order.codAmountPending * 100) / 100
+          : invoice.totals.total
+        : 0,
+      deliverTo: {
+        name: invoice.shipping.name,
+        phone: invoice.shipping.phone,
+        address: invoice.shipping.address,
+        city: invoice.shipping.city,
+        state: invoice.shipping.state,
+        pincode: invoice.shipping.pincode,
+      },
+      from: {
+        name: seller?.storeName || invoice.seller.name,
+        phone: seller?.mobile || "",
+        address: invoice.seller.address,
+        city: invoice.seller.city,
+        state: invoice.seller.state,
+        pincode: invoice.seller.pincode,
+      },
+      courierName: shipment?.courierName || "",
+      trackingNumber: shipment?.awbCode || "",
+      items: invoice.items.map((i) => ({ name: i.name, qty: i.qty })),
+      invoice,
+    });
+  }
+  return slips;
+};

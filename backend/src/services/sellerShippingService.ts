@@ -24,6 +24,28 @@ export const companyShippedSellerIds = async (sellerIds: string[]): Promise<stri
   return sellerIds.filter((id) => !selfIds.has(id));
 };
 
+/**
+ * True when the seller fulfils this order themselves, so only the seller moves its status:
+ * a Quick order they deliver personally (no rider), an E-commerce parcel shipped with their
+ * own courier, or any order from a seller whose shipping method is "Self" (also before they
+ * have entered a tracking number).
+ */
+export const isSellerFulfilledOrder = async (order: any): Promise<boolean> => {
+  if (!order) return false;
+  if (order.channel !== "ECommerce" && order.deliveryPreference === "Self" && !order.deliveryBoy) return true;
+  if ((order.shiprocketShipments || []).some((s: any) => s?.provider === "Self")) return true;
+  const sellerIds = [
+    ...new Set(
+      (await OrderItem.find({ order: order._id, sellerStatus: { $ne: "Rejected" }, status: { $ne: "Cancelled" } }).select("seller").lean()).map(
+        (i: any) => String(i.seller),
+      ),
+    ),
+  ];
+  if (sellerIds.length === 0) return false;
+  const viaCompany = await companyShippedSellerIds(sellerIds);
+  return viaCompany.length < sellerIds.length;
+};
+
 export const activeCourierNames = async (): Promise<string[]> => {
   const couriers = await Courier.find({ isActive: true }).select("name").sort({ name: 1 }).lean();
   return couriers.map((c: any) => c.name);

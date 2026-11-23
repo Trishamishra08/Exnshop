@@ -232,6 +232,8 @@ export default function AdminShipments() {
                 };
                 const customerName =
                   typeof order.customer === "object" ? order.customer.name : order.customerName;
+                // Seller ships it with their own courier: only the seller updates it.
+                const selfShipped = ((order as any).shiprocketShipments || []).some((s: any) => s?.provider === "Self");
                 return (
                   <tr key={order._id} className="border-b border-neutral-100 last:border-0">
                     <td className="px-4 py-3 font-medium text-neutral-900 whitespace-nowrap">
@@ -243,6 +245,7 @@ export default function AdminShipments() {
                         type="text"
                         value={draft.courierName}
                         onChange={(e) => updateDraft(order._id, "courierName", e.target.value)}
+                        disabled={selfShipped}
                         placeholder="e.g. Delhivery"
                         className="w-32 px-2 py-1.5 text-xs border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
                       />
@@ -252,6 +255,7 @@ export default function AdminShipments() {
                         type="text"
                         value={draft.awbCode}
                         onChange={(e) => updateDraft(order._id, "awbCode", e.target.value)}
+                        disabled={selfShipped}
                         placeholder="AWB / Tracking #"
                         className="w-36 px-2 py-1.5 text-xs border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
                       />
@@ -261,6 +265,7 @@ export default function AdminShipments() {
                         type="text"
                         value={draft.trackingUrl}
                         onChange={(e) => updateDraft(order._id, "trackingUrl", e.target.value)}
+                        disabled={selfShipped}
                         placeholder="https://..."
                         className="w-40 px-2 py-1.5 text-xs border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
                       />
@@ -269,6 +274,7 @@ export default function AdminShipments() {
                       <select
                         value={draft.orderStatus}
                         onChange={(e) => updateDraft(order._id, "orderStatus", e.target.value)}
+                        disabled={selfShipped}
                         className="px-2 py-1.5 text-xs border border-neutral-300 rounded focus:outline-none focus:ring-1 focus:ring-primary"
                       >
                         {SHIPMENT_STATUSES.map((s) => (
@@ -280,11 +286,15 @@ export default function AdminShipments() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleSave(order._id)}
-                          disabled={savingId === order._id}
+                          disabled={savingId === order._id || selfShipped}
+                          title={selfShipped ? "The seller ships this order with their own courier and updates it" : undefined}
                           className="px-3 py-1.5 text-xs font-semibold bg-primary text-white rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50"
                         >
                           {savingId === order._id ? "Saving..." : "Save"}
                         </button>
+                        {selfShipped && (
+                          <span className="px-2 py-1 text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200 rounded-lg whitespace-nowrap">Seller ships</span>
+                        )}
                         {order.status === "RTO" ? (
                           <span className="px-2 py-1 text-xs font-semibold bg-red-100 text-red-700 rounded-lg whitespace-nowrap">
                             RTO

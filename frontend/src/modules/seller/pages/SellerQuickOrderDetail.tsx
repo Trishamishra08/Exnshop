@@ -8,6 +8,7 @@ import { formatDeliveryAddress } from '../../../utils/addressUtils';
 import { getSellerTaxInvoice } from '../../../services/api/taxInvoiceService';
 import ExchangeBanner from '../../../components/ExchangeBanner';
 import CodPaymentStatus from '../components/CodPaymentStatus';
+import DeliverySlipButton from '../../../components/DeliverySlipButton';
 
 // Quick-commerce order screen. The flow (accept popup, status dropdown, rider
 // assignment) is unchanged from the original; only the layout was refreshed.
@@ -269,7 +270,7 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
             </p>
             <div className="mt-2"><ExchangeBanner info={orderDetail.exchangeInfo} /></div>
           </div>
-          <div className="flex gap-2 print:hidden">
+          <div className="flex flex-wrap gap-2 print:hidden">
             <button
               onClick={handleDownloadInvoice}
               disabled={invoiceBusy}
@@ -277,6 +278,9 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
             >
               {invoiceBusy ? 'Please wait…' : 'Download Tax Invoice'}
             </button>
+            {!['Cancelled', 'Rejected'].includes(orderStatus) && (
+              <DeliverySlipButton orderId={orderDetail.id} orderRef={orderDetail.orderNumber} />
+            )}
             <button
               onClick={handlePrint}
               className="px-3 py-2 rounded-lg border border-neutral-300 bg-white hover:bg-neutral-50 text-sm font-medium text-neutral-700"

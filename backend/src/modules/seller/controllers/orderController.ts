@@ -11,7 +11,7 @@ import {
   getOrderEarningBreakdown,
 } from "../../../services/commissionService";
 import { getSellerPendingOrderAlerts } from "../../../services/orderAlertService";
-import { buildShippingLabels, ensureSellerAwb } from "../../../services/shippingLabelService";
+import { buildDeliverySlips, buildShippingLabels, ensureSellerAwb } from "../../../services/shippingLabelService";
 import { buildTaxInvoices } from "../../../services/taxInvoiceService";
 import { getHandlingSettings, shipDatesFor } from "../../../services/shipByService";
 import { acceptDeadlineFor, getEcommerceAcceptDays } from "../../../services/sellerOrderTimeoutService";
@@ -895,6 +895,24 @@ export const getShippingLabel = asyncHandler(async (req: Request, res: Response)
     return res.status(400).json({ success: false, message: "The shipping label is available once the order is packed and the courier AWB (or, for self shipping, your courier and tracking number) is added." });
   }
   return res.status(200).json({ success: true, data: labels });
+});
+
+/**
+ * Simple delivery slip for this seller's part of an order: buyer and seller details, items
+ * and payment, plus the tax invoice. No AWB needed, e.g. when the seller's own delivery boy
+ * takes it, or before a courier / tracking number exists.
+ */
+export const getDeliverySlip = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = (req as any).user.userId;
+  const { id } = req.params;
+  if (!mongoose.isValidObjectId(id) || !(await OrderItem.exists({ order: id, seller: sellerId }))) {
+    return res.status(404).json({ success: false, message: "Order not found" });
+  }
+  const slips = await buildDeliverySlips(id, sellerId.toString());
+  if (slips.length === 0) {
+    return res.status(400).json({ success: false, message: "No delivery slip: this order is cancelled / rejected, or none of your items are on it any more." });
+  }
+  return res.status(200).json({ success: true, data: slips });
 });
 
 /** GST tax invoice for this seller's items of an order (Quick or E-commerce). */

@@ -16,6 +16,7 @@ import {
   getPackingSlips,
   getTaxInvoice,
   updateCodPaymentStatus,
+  getDeliverySlip,
 } from "../modules/seller/controllers/orderController";
 import { authenticate, requireUserType, requireApprovedUser } from "../middleware/auth";
 
@@ -56,6 +57,8 @@ router.get("/:id/shipping-label", getShippingLabel);
 router.post("/:id/shipping-label/awb", generateShippingAwb);
 // Self-shipping sellers: courier company + tracking number for this order
 router.put("/:id/self-shipping", saveSelfShippingDetails);
+// Simple delivery slip (buyer + seller details, no AWB needed) + tax invoice
+router.get("/:id/delivery-slip", getDeliverySlip);
 // GST tax invoice for this seller's items (any channel)
 router.get("/:id/tax-invoice", getTaxInvoice);
 

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { getOrderById, updateOrderStatus, getOrderEarningBreakdown, markOrderCODPaid, Order, type EarningBreakdown } from '../../../services/api/admin/adminOrderService';
 import { useToast } from '../../../context/ToastContext';
+import DeliverySlipButton from '../../../components/DeliverySlipButton';
 import { getAdminShippingLabels } from '../../../services/api/shippingLabelService';
 import { getAdminTaxInvoices } from '../../../services/api/taxInvoiceService';
 import { formatDeliveryAddress } from '../../../utils/addressUtils';
@@ -210,8 +211,9 @@ export default function AdminOrderDetail() {
   // COD the seller collected themselves: Quick self delivery, or an E-commerce parcel the seller shipped with their own courier.
   const sellerCollectedCod =
     (order as any)?.paymentMethod === 'COD' &&
-    (((order as any)?.channel !== 'ECommerce' && (order as any)?.deliveryPreference === 'Self' && !(order as any)?.deliveryBoy) ||
-      ((order as any)?.channel === 'ECommerce' && ((order as any)?.shiprocketShipments || []).some((x: any) => x?.provider === 'Self')));
+    ((order as any)?.sellerFulfilled ??
+      (((order as any)?.channel !== 'ECommerce' && (order as any)?.deliveryPreference === 'Self' && !(order as any)?.deliveryBoy) ||
+        ((order as any)?.channel === 'ECommerce' && ((order as any)?.shiprocketShipments || []).some((x: any) => x?.provider === 'Self'))));
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -238,6 +240,14 @@ export default function AdminOrderDetail() {
             >
               {invoiceBusy ? 'Please wait…' : 'Download Tax Invoice'}
             </button>
+            {!['Cancelled', 'Rejected'].includes(order.status) && (
+              <DeliverySlipButton
+                as="admin"
+                orderId={order._id}
+                orderRef={order.orderNumber}
+                className="px-4 py-2 bg-white border border-neutral-300 text-neutral-700 rounded-lg text-sm font-medium hover:bg-neutral-50 disabled:opacity-50"
+              />
+            )}
             {order.channel === 'ECommerce' && (
               <button
                 onClick={handleDownloadLabels}
@@ -261,6 +271,18 @@ export default function AdminOrderDetail() {
               <label className="block text-sm font-medium text-neutral-700 mb-2">
                 Current Status
               </label>
+              {/* Seller delivers / ships it themselves: only the seller moves its status. */}
+              {(order as any).sellerFulfilled ? (
+                <div>
+                  <div className="w-full px-3 py-2 border border-neutral-200 bg-neutral-50 rounded-md font-medium text-neutral-900">
+                    {order.status}
+                  </div>
+                  <p className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                    The seller delivers this order themselves (self delivery / self shipping), so only the seller updates its
+                    status{order.paymentMethod === 'COD' ? ' and its cash payment' : ''}.
+                  </p>
+                </div>
+              ) : (
               <select
                 value={order.status}
                 onChange={(e) => handleStatusUpdate(e.target.value)}
@@ -278,6 +300,7 @@ export default function AdminOrderDetail() {
                   );
                 })}
               </select>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>

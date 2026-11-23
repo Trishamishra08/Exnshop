@@ -11,6 +11,7 @@ import { getSellerTaxInvoice } from '../../../services/api/taxInvoiceService';
 import { getHandlingSettings, getPackingSlips, getShippingMethod, saveSelfShippingDetails } from '../../../services/api/shippingMethodService';
 import RefundOrderModal from '../components/RefundOrderModal';
 import CodPaymentStatus from '../components/CodPaymentStatus';
+import DeliverySlipButton from '../../../components/DeliverySlipButton';
 import ExchangeBanner from '../../../components/ExchangeBanner';
 
 // E-commerce orders are packed by the seller and shipped by courier, so they get
@@ -505,6 +506,8 @@ export default function SellerOrderDetail() {
             >
               {invoiceBusy ? 'Please wait…' : 'Download Tax Invoice'}
             </button>
+            {/* No AWB needed: buyer + seller details for the seller's own delivery boy */}
+            {!isClosed && <DeliverySlipButton orderId={orderDetail.id} orderRef={orderDetail.orderNumber} />}
             <button
               onClick={() => window.print()}
               className="px-3 py-2 rounded-lg border border-neutral-300 bg-white hover:bg-neutral-50 text-sm font-medium text-neutral-700"
