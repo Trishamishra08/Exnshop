@@ -202,11 +202,11 @@ export default function SellerCampaigns() {
 
     const servingNote = (campaign: Campaign) => {
         const notes: Partial<Record<NonNullable<Campaign['servingState']>, { text: string; cls: string }>> = {
-            Running: { text: 'Showing now', cls: 'text-green-700' },
+            Running: { text: 'Live — shown first on the customer app with a Sponsored tag (higher bid = higher spot)', cls: 'text-green-700' },
             Scheduled: { text: 'Starts at the start time', cls: 'text-neutral-500' },
             DailyBudgetReached: { text: "Today's budget used — resumes tomorrow", cls: 'text-amber-700' },
             TotalBudgetReached: { text: 'Total budget used', cls: 'text-amber-700' },
-            LowPayoutBalance: { text: 'Payout balance too low to charge a click', cls: 'text-red-600' },
+            LowPayoutBalance: { text: 'Not showing — payout/wallet balance is lower than your bid. Add money to go live.', cls: 'text-red-600' },
         };
         const note = campaign.servingState ? notes[campaign.servingState] : undefined;
         return note ? <p className={`text-[11px] mt-1 leading-tight max-w-[140px] ${note.cls}`}>{note.text}</p> : null;

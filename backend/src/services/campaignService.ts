@@ -151,6 +151,57 @@ export const getActiveCampaignsForProducts = async (
 };
 
 /**
+ * Products with a running ad that also match a listing's filter (category,
+ * search, channel, location…), highest CPC bid first — these take the top
+ * slots of that listing. Earliest campaign wins a tie.
+ */
+export const getSponsoredForListing = async (listingQuery: any, max: number): Promise<WinningCampaignEntry[]> => {
+  if (max <= 0) return [];
+  const now = new Date();
+  const campaigns = await Campaign.find({
+    status: "Active",
+    archived: { $ne: true },
+    startDate: { $lte: now },
+    endDate: { $gte: now },
+    $expr: servableBudgetExpr(now),
+  });
+  if (campaigns.length === 0) return [];
+  const funds = await fundsBySeller(campaigns);
+
+  const best = new Map<string, WinningCampaignEntry>();
+  for (const campaign of campaigns) {
+    const sellerFunds = funds.get(campaign.seller.toString()) ?? 0;
+    for (const entry of campaign.products) {
+      if (sellerFunds < entry.cpcBid) continue;
+      const pid = entry.product.toString();
+      const existing = best.get(pid);
+      if (
+        !existing ||
+        isBetterEntry(
+          { cpcBid: entry.cpcBid, campaignCreatedAt: campaign.createdAt },
+          { cpcBid: existing.productEntry.cpcBid, campaignCreatedAt: existing.campaign.createdAt }
+        )
+      ) {
+        best.set(pid, { campaign, productEntry: entry });
+      }
+    }
+  }
+  if (best.size === 0) return [];
+
+  const ids = [...best.keys()].map((id) => new mongoose.Types.ObjectId(id));
+  const matching: any[] = await Product.find({ $and: [listingQuery, { _id: { $in: ids } }] }).distinct("_id");
+
+  return matching
+    .map((id) => best.get(String(id))!)
+    .sort((a, b) =>
+      b.productEntry.cpcBid !== a.productEntry.cpcBid
+        ? b.productEntry.cpcBid - a.productEntry.cpcBid
+        : a.campaign.createdAt.getTime() - b.campaign.createdAt.getTime()
+    )
+    .slice(0, max);
+};
+
+/**
  * Fire-and-forget impression logging for a batch of (campaign, product)
  * pairs shown in one listing response. Never awaited by the caller — must
  * never slow down or break a product listing request.

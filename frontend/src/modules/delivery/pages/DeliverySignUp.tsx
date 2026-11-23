@@ -50,6 +50,8 @@ export default function DeliverySignUp() {
   const [docFiles, setDocFiles] = useState<Record<string, File>>({});
   const [uploadingDocs, setUploadingDocs] = useState(false);
   const [showOTP, setShowOTP] = useState(false);
+  // Set once the account exists, so a retry after a failed OTP step doesn't register again.
+  const [registeredAs, setRegisteredAs] = useState<{ mobile: string; email: string } | null>(null);
   const [sessionId, setSessionId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -178,6 +180,13 @@ export default function DeliverySignUp() {
     setLoading(true);
 
     try {
+      // The account may already be created by an earlier attempt whose OTP step failed;
+      // then only the code is sent again (registering twice would fail as a duplicate).
+      if (registeredAs && registeredAs.mobile === formData.mobile && registeredAs.email === formData.email.trim().toLowerCase()) {
+        removeAuthToken("delivery");
+        await sendVerificationCode();
+        return;
+      }
 
       const response = await register({
         name: formData.name,
@@ -198,17 +207,15 @@ export default function DeliverySignUp() {
       });
 
       if (response.success) {
+        setRegisteredAs({ mobile: formData.mobile, email: formData.email.trim().toLowerCase() });
         removeAuthToken("delivery");
-        try {
-          // Send the code the way the rider chose to verify (email works without an SMS provider).
-          const otpRes = verifyBy === "mobile" ? await sendMobileOTP(formData.mobile) : await sendEmailOTP(formData.email.trim());
-          if (otpRes.sessionId) setSessionId(otpRes.sessionId);
-          setShowOTP(true);
-        } catch (otpErr: any) {
-          setError(otpErr.message || "Registration successful but failed to send OTP.");
-        }
+        await sendVerificationCode();
       }
     } catch (err: any) {
+      if (err.response?.status === 409) {
+        setError("An account with this mobile or email already exists. Please log in to finish verification and upload your documents.");
+        return;
+      }
       setError(err.response?.data?.message || err.message || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
@@ -217,6 +224,20 @@ export default function DeliverySignUp() {
   };
 
   const [verifyBy, setVerifyBy] = useState<LoginMethod>(defaultLoginMethod);
+
+  // Send the code the way the rider chose to verify (email works without an SMS provider).
+  const sendVerificationCode = async () => {
+    try {
+      const otpRes = verifyBy === "mobile" ? await sendMobileOTP(formData.mobile) : await sendEmailOTP(formData.email.trim());
+      if (otpRes.sessionId) setSessionId(otpRes.sessionId);
+      setShowOTP(true);
+    } catch (otpErr: any) {
+      setError(
+        (otpErr.response?.data?.message || otpErr.message || "Could not send the verification code.") +
+        " Your account is created — tap Sign Up again to resend the code."
+      );
+    }
+  };
 
   // Keep the verification method on one the admin allows (Service Controls > Login & OTP).
   const otpMethods = useOtpMethods();
@@ -229,7 +250,7 @@ export default function DeliverySignUp() {
     setLoading(true);
     setError("");
     try {
-      const response = verifyBy === "mobile" ? await verifyMobileOTP(formData.mobile, otp, sessionId) : await verifyEmailOTP(formData.email.trim(), otp);
+      const response = verifyBy === "mobile" ? await verifyMobileOTP(formData.mobile, otp, sessionId) : await verifyEmailOTP(formData.email.trim(), otp, sessionId);
       if (response.success) {
         // Now signed in: send the KYC documents to the private, admin-reviewed store.
         setUploadingDocs(true);

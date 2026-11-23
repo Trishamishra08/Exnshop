@@ -112,10 +112,10 @@ export default function AdminManageDeliveryBoy() {
         setCurrentPage(1); // Reset to first page when sorting changes
     };
 
-    const handleStatusChange = async (deliveryBoyId: string, newStatus: 'Active' | 'Inactive', force = false) => {
+    const handleStatusChange = async (deliveryBoyId: string, newStatus: 'Active' | 'Inactive') => {
         try {
             setProcessing(deliveryBoyId);
-            const response = await updateDeliveryBoyStatus(deliveryBoyId, newStatus, force);
+            const response = await updateDeliveryBoyStatus(deliveryBoyId, newStatus);
 
             if (response.success) {
                 // Update local state
@@ -147,14 +147,11 @@ export default function AdminManageDeliveryBoy() {
                 setSuccessMessage('');
             }
         } catch (err: any) {
-            // Activation needs every KYC document approved; the admin may knowingly activate anyway.
+            // Activation needs every KYC document approved first: show what's missing and open the documents.
             if (err.response?.data?.code === 'DOCUMENTS_INCOMPLETE') {
-                setProcessing(null);
-                if (window.confirm(`${err.response.data.message}\n\nOpen the documents to review them? (Cancel to activate anyway without full documents)`)) {
-                    setDocsFor(deliveryBoyId);
-                } else if (window.confirm('Activate this delivery partner WITHOUT approved documents? This is recorded in their history.')) {
-                    return handleStatusChange(deliveryBoyId, newStatus, true);
-                }
+                setSuccessMessage('');
+                setError(`${err.response.data.message}. Approve the documents first, then activate.`);
+                setDocsFor(deliveryBoyId);
                 return;
             }
             console.error('Error updating delivery boy status:', err);
@@ -601,12 +598,12 @@ export default function AdminManageDeliveryBoy() {
                                                     </button>
                                                     <button
                                                         onClick={() => handleAvailabilityChange(deliveryBoy._id, deliveryBoy.available === 'Available' ? 'Not Available' : 'Available')}
-                                                        disabled={processing === deliveryBoy._id}
-                                                        className={`p-1.5 rounded transition-colors ${deliveryBoy.available === 'Available'
+                                                        disabled={processing === deliveryBoy._id || (deliveryBoy.status !== 'Active' && deliveryBoy.available !== 'Available')}
+                                                        className={`p-1.5 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${deliveryBoy.available === 'Available'
                                                             ? 'text-yellow-600 hover:bg-yellow-50'
                                                             : 'text-green-600 hover:bg-green-50'
                                                             }`}
-                                                        title={deliveryBoy.available === 'Available' ? 'Mark as Not Available' : 'Mark as Available'}
+                                                        title={deliveryBoy.status !== 'Active' && deliveryBoy.available !== 'Available' ? 'Activate the partner first' : deliveryBoy.available === 'Available' ? 'Mark as Not Available' : 'Mark as Available'}
                                                     >
                                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                                             <circle cx="12" cy="12" r="10"></circle>

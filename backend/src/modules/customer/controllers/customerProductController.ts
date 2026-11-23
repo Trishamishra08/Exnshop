@@ -7,7 +7,10 @@ import mongoose from "mongoose";
 import { findSellersWithinRange } from "../../../utils/locationHelper";
 import AppSettings from "../../../models/AppSettings";
 import { parseChannelQueryParam, resolveSellerChannel, sellerIdsForLocation } from "../../../utils/commerceChannelHelper";
-import { getActiveCampaignsForProducts, recordImpressions, recordClick } from "../../../services/campaignService";
+import { getActiveCampaignsForProducts, getSponsoredForListing, recordImpressions, recordClick } from "../../../services/campaignService";
+
+/** Top slots of page 1 of a listing reserved for sponsored products. */
+const MAX_SPONSORED_SLOTS = 4;
 import { configForProduct } from "../../../services/productListingService";
 import { buildSpecGroups } from "../../../services/listingConfigService";
 
@@ -181,16 +184,39 @@ export const getProducts = async (req: Request, res: Response) => {
     if (sort === "discount") sortOptions = { discount: -1 };
     if (sort === "popular") sortOptions = { popular: -1, dealOfDay: -1 };
 
-    const products = await Product.find(query)
-      .populate("category", "name icon image")
-      .populate("subcategory", "name")
-      .populate("brand", "name")
-      .populate("seller", "storeName sellerName viewCustomerDetails channels")
-      .sort(sortOptions)
-      .skip(skip)
-      .limit(Number(limit));
+    // Sponsored products (running ads that match this listing) take the top slots,
+    // highest bid first. Skipped when the customer sorts by price — they asked for that order.
+    // They're left out of the regular results on every page so they never appear twice.
+    let sponsoredIds: mongoose.Types.ObjectId[] = [];
+    if (sort !== "price_asc" && sort !== "price_desc") {
+      try {
+        const winners = await getSponsoredForListing(query, Math.min(MAX_SPONSORED_SLOTS, Number(limit) || MAX_SPONSORED_SLOTS));
+        sponsoredIds = winners.map((w) => new mongoose.Types.ObjectId(String(w.productEntry.product)));
+      } catch (err) {
+        console.error("Failed to load sponsored products:", err);
+      }
+    }
+    const organicQuery = sponsoredIds.length ? { $and: [query, { _id: { $nin: sponsoredIds } }] } : query;
 
-    const total = await Product.countDocuments(query);
+    const populateListing = (q: any) =>
+      q
+        .populate("category", "name icon image")
+        .populate("subcategory", "name")
+        .populate("brand", "name")
+        .populate("seller", "storeName sellerName viewCustomerDetails channels");
+
+    const [organic, sponsoredDocs, organicTotal] = await Promise.all([
+      populateListing(Product.find(organicQuery)).sort(sortOptions).skip(skip).limit(Number(limit)),
+      Number(page) === 1 && sponsoredIds.length ? populateListing(Product.find({ _id: { $in: sponsoredIds } })) : Promise.resolve([]),
+      Product.countDocuments(organicQuery),
+    ]);
+    // Keep the bid order for the sponsored slots.
+    const sponsoredOrder = new Map(sponsoredIds.map((id, i) => [String(id), i]));
+    const sponsoredFirst = (sponsoredDocs as any[]).sort(
+      (a, b) => (sponsoredOrder.get(String(a._id)) ?? 0) - (sponsoredOrder.get(String(b._id)) ?? 0)
+    );
+    const products: any[] = [...sponsoredFirst, ...(organic as any[])];
+    const total = organicTotal + sponsoredIds.length;
 
     const formattedProducts = products.map((p: any) => {
       const prodObj = p.toObject ? p.toObject() : { ...p };
@@ -219,6 +245,8 @@ export const getProducts = async (req: Request, res: Response) => {
           const winner = campaignMap.get(p._id.toString());
           if (winner) {
             p.isSponsored = true;
+            // When the ad stops running (null = runs until the seller stops it) — for the card's countdown.
+            p.sponsoredUntil = winner.campaign.noEndDate ? null : winner.campaign.endDate;
             impressionEntries.push({ campaignId: winner.campaign._id, productId: p._id });
           }
         });

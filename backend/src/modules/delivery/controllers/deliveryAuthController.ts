@@ -60,7 +60,7 @@ export const sendSmsOtp = asyncHandler(async (req: Request, res: Response) => {
   if (!mobile || mobile.length !== 10) {
     return res.status(400).json({
       success: false,
-      message: "Valid email address is required",
+      message: "Valid 10-digit mobile number is required",
     });
   }
 
@@ -107,7 +107,8 @@ export const verifySmsOtp = asyncHandler(
       });
     }
 
-    if (!sessionId) {
+    // Only the SMS flow needs the provider's session id; email codes are checked by address.
+    if (!email && !sessionId) {
       return res.status(400).json({
         success: false,
         message: "Session ID is required",
@@ -129,7 +130,7 @@ export const verifySmsOtp = asyncHandler(
       if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
         return res.status(400).json({
           success: false,
-          message: "Valid email address is required",
+          message: "Valid 10-digit mobile number is required",
         });
       }
 

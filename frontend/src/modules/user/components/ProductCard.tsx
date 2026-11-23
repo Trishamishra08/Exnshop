@@ -9,6 +9,7 @@ import { useTranslation } from '../../../hooks/useTranslation';
 import Button from '../../../components/ui/button';
 import Badge from '../../../components/ui/badge';
 import StarRating from '../../../components/ui/StarRating';
+import SponsoredTag from './SponsoredTag';
 
 import { calculateProductPrice } from '../../../utils/priceUtils';
 
@@ -292,6 +293,10 @@ export default function ProductCard({
             </span>
           </div>
         )}
+
+        {product.isSponsored && (
+          <SponsoredTag until={product.sponsoredUntil} className="absolute bottom-1.5 right-2 z-10" />
+        )}
       </div>
 
       {/* 2. Product Info Section */}
@@ -346,11 +351,6 @@ export default function ProductCard({
           {isQuick && isECommerce && (
             <span className="text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-1 py-0.5 rounded uppercase tracking-tight whitespace-nowrap">
               Also ships
-            </span>
-          )}
-          {product.isSponsored && (
-            <span className="text-[9px] font-medium text-neutral-400 ml-auto uppercase tracking-tight">
-              Sponsored
             </span>
           )}
         </div>

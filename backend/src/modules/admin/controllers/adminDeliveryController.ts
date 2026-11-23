@@ -155,6 +155,11 @@ export const updateDeliveryBoy = asyncHandler(
 
     // Don't allow password update through this endpoint
     delete updateData.password;
+    // Activation, duty status and KYC go through their own checked endpoints only.
+    delete updateData.status;
+    delete updateData.available;
+    delete updateData.isOnline;
+    delete updateData.documents;
     const before: any = await Delivery.findById(id).lean();
 
     const deliveryBoy = await Delivery.findByIdAndUpdate(id, updateData, {
@@ -255,8 +260,8 @@ export const updateDeliveryStatus = asyncHandler(
       });
     }
 
-    // A partner is activated only once all required documents are approved (admin can override knowingly).
-    if (status === "Active" && req.body.force !== true) {
+    // A partner is activated only once all required documents and details are approved — no override.
+    if (status === "Active") {
       const current: any = await Delivery.findById(id).select("documents status accountNumber ifscCode accountName vehicleNumber");
       if (current && current.status !== "Active") {
         const { missingApprovedDocuments } = await import("../../../services/deliveryDocumentService");
@@ -274,9 +279,11 @@ export const updateDeliveryStatus = asyncHandler(
       }
     }
 
+    // A deactivated partner is taken offline so no orders are offered to them.
+    const statusUpdate: any = status === "Inactive" ? { status, isOnline: false, available: "Not Available" } : { status };
     const deliveryBoy = await Delivery.findByIdAndUpdate(
       id,
-      { status },
+      statusUpdate,
       { new: true, runValidators: true }
     ).select("-password");
 
@@ -329,9 +336,21 @@ export const updateDeliveryBoyAvailability = asyncHandler(
       });
     }
 
+    // Only an approved (Active) partner can be put on duty.
+    if (available === "Available") {
+      const current = await Delivery.findById(id).select("status");
+      if (current && current.status !== "Active") {
+        return res.status(409).json({
+          success: false,
+          code: "NOT_APPROVED",
+          message: "This delivery partner is not approved yet. Approve their documents and activate them first.",
+        });
+      }
+    }
+
     const deliveryBoy = await Delivery.findByIdAndUpdate(
       id,
-      { available },
+      available === "Available" ? { available } : { available, isOnline: false },
       { new: true, runValidators: true }
     ).select("-password");
 

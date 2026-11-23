@@ -5,6 +5,7 @@ import { useWishlist } from "../../../../hooks/useWishlist";
 import { useTranslation } from "../../../../hooks/useTranslation";
 import { calculateProductPrice } from "../../../../utils/priceUtils";
 import type { HomeTheme } from "./homeTheme";
+import SponsoredTag from "../SponsoredTag";
 
 /**
  * Compact "Crazy Deals" product card (4 across on a phone, like the mockup):
@@ -77,6 +78,7 @@ function DealCard({ product, theme }: { product: any; theme: HomeTheme }) {
             {discount}% OFF
           </span>
         )}
+        {product.isSponsored && <SponsoredTag until={product.sponsoredUntil} className="absolute bottom-1 left-1" />}
         <button
           type="button"
           aria-label={isWishlisted ? t("common.removeFromWishlist", "Remove from wishlist") : t("common.addToWishlist", "Add to wishlist")}

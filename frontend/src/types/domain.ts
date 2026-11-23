@@ -14,6 +14,8 @@ export interface Product {
   productName?: string;
   /** True when this product has an active ad campaign running — shown as a "Sponsored" badge. */
   isSponsored?: boolean;
+  /** When the ad stops running (ISO date); null/absent when it runs until the seller stops it. */
+  sponsoredUntil?: string | null;
   description?: string;
   smallDescription?: string;
   pack: string;
