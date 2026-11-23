@@ -1,3 +1,4 @@
+import { importWithRetry } from '../../../utils/lazyWithRetry';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { getOrderById, updateOrderStatus, getOrderEarningBreakdown, type OrderDetail, type SellerEarningBreakdown } from '../../../services/api/orderService';
@@ -96,7 +97,7 @@ export default function SellerOrderDetail() {
     setSlipBusy(true);
     try {
       const slips = await getPackingSlips([orderDetail.id]);
-      const { downloadPackingSlips } = await import('../../../utils/packingSlipPdf');
+      const { downloadPackingSlips } = await importWithRetry(() => import('../../../utils/packingSlipPdf'));
       await downloadPackingSlips(slips, `Packing_Slip_${slips[0].orderNumber}.pdf`);
     } catch (err: any) {
       showToast(err.response?.data?.message || 'Could not create the packing slip', 'error');
@@ -163,7 +164,7 @@ export default function SellerOrderDetail() {
     try {
       const res = await getSellerShippingLabel(orderDetail.id);
       if (res.success && res.data.length) {
-        const { downloadShippingLabels } = await import('../../../utils/shippingLabelPdf');
+        const { downloadShippingLabels } = await importWithRetry(() => import('../../../utils/shippingLabelPdf'));
         await downloadShippingLabels(res.data, `Shipping_Label_${orderDetail.orderNumber || orderDetail.id}.pdf`);
       } else {
         showToast(res.message || 'Shipping label is not available yet', 'error');
@@ -294,7 +295,7 @@ export default function SellerOrderDetail() {
     try {
       const res = await getSellerTaxInvoice(orderDetail.id);
       if (res.success && res.data.length) {
-        const { downloadTaxInvoices } = await import('../../../utils/taxInvoicePdf');
+        const { downloadTaxInvoices } = await importWithRetry(() => import('../../../utils/taxInvoicePdf'));
         await downloadTaxInvoices(res.data, `Invoice_${orderDetail.orderNumber || orderDetail.id}.pdf`);
       } else {
         showToast(res.message || 'Invoice is not available', 'error');

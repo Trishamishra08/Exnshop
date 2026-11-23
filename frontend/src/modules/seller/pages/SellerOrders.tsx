@@ -1,3 +1,4 @@
+import { importWithRetry } from '../../../utils/lazyWithRetry';
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getOrders, Order, GetOrdersParams } from '../../../services/api/orderService';
@@ -156,7 +157,7 @@ export default function SellerOrders() {
     setSlipBusy(true);
     try {
       const slips = await getPackingSlips(ids);
-      const { downloadPackingSlips } = await import('../../../utils/packingSlipPdf');
+      const { downloadPackingSlips } = await importWithRetry(() => import('../../../utils/packingSlipPdf'));
       await downloadPackingSlips(slips, ids.length === 1 ? `Packing_Slip_${slips[0].orderNumber}.pdf` : 'Packing_Slips.pdf');
     } catch (err: any) {
       showToast(err.response?.data?.message || 'Could not create the packing slip', 'error');
@@ -185,7 +186,7 @@ export default function SellerOrders() {
         showToast(lastError || 'The shipping label is available once the order is packed and the courier AWB / tracking number is added.', 'error');
         return;
       }
-      const { downloadShippingLabels } = await import('../../../utils/shippingLabelPdf');
+      const { downloadShippingLabels } = await importWithRetry(() => import('../../../utils/shippingLabelPdf'));
       await downloadShippingLabels(labels, labels.length === 1 ? `Shipping_Label_${labels[0].invoice.orderNumber}.pdf` : 'Shipping_Labels.pdf');
       if (labels.length < ids.length) showToast(`${ids.length - labels.length} order(s) skipped: no courier AWB / tracking number yet`, 'info');
     } catch (err: any) {

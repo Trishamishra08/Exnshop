@@ -1,3 +1,4 @@
+import { importWithRetry } from '../utils/lazyWithRetry';
 import { useState } from 'react';
 import { useToast } from '../context/ToastContext';
 import { getCustomerOrderInvoice } from '../services/api/taxInvoiceService';
@@ -24,7 +25,7 @@ export default function InvoiceDocumentsPicker({
   const download = async () => {
     setBusy(true);
     try {
-      const pdf = await import('../utils/taxInvoicePdf');
+      const pdf = await importWithRetry(() => import('../utils/taxInvoicePdf'));
       if (choice === 'summary') {
         await pdf.downloadOrderSummary(order);
       } else {

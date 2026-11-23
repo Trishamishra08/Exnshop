@@ -67,3 +67,28 @@ export function lazyWithRetry<T extends ComponentType<any>>(
 
 export default lazyWithRetry;
 
+
+/**
+ * import() for on-demand modules (PDF generators, …) that survives a new deployment:
+ * retries once, and if the file is gone (old asset hash after a deploy) reloads the page
+ * so the next tap gets the current version, instead of failing every time.
+ */
+export async function importWithRetry<T>(load: () => Promise<T>): Promise<T> {
+  try {
+    return await load();
+  } catch (first) {
+    if (!isDynamicImportError(first)) throw first;
+    await new Promise((r) => setTimeout(r, 600));
+    try {
+      return await load();
+    } catch (second) {
+      const lastReloadTs = Number(sessionStorage.getItem('chunk_reload_ts') || '0');
+      if (isDynamicImportError(second) && Date.now() - lastReloadTs > 10000) {
+        sessionStorage.setItem('chunk_reload_ts', String(Date.now()));
+        window.location.reload();
+        throw new Error('The app was updated. Reloading — please tap again.');
+      }
+      throw second;
+    }
+  }
+}

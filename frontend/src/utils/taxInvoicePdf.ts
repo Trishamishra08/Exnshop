@@ -10,6 +10,77 @@ const PAGE_W = 595;
 const PAGE_H = 842;
 const M = 20;
 const CONTENT_W = PAGE_W - 2 * M;
+
+/** Any value as printable text (null/undefined → ""). */
+export const str = (v: unknown): string => (v === null || v === undefined ? '' : String(v));
+const num = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const normalizeParty = (p: any): TaxInvoiceParty => ({
+  name: str(p?.name),
+  phone: str(p?.phone),
+  address: str(p?.address),
+  city: str(p?.city),
+  state: str(p?.state),
+  stateCode: str(p?.stateCode),
+  pincode: str(p?.pincode),
+});
+
+/**
+ * Fills every field the PDF reads with a safe value (text → string, amounts → number,
+ * lists → array), so an order with a missing name, SKU or charge list still prints.
+ */
+export const normalizeInvoice = (inv: any): TaxInvoice => {
+  const shipping = normalizeParty(inv?.shipping || inv?.billing);
+  return {
+    ...inv,
+    invoiceNumber: str(inv?.invoiceNumber || inv?.orderNumber),
+    invoiceDate: str(inv?.invoiceDate || inv?.orderDate || new Date().toISOString()),
+    orderNumber: str(inv?.orderNumber),
+    orderDate: str(inv?.orderDate || inv?.invoiceDate || new Date().toISOString()),
+    channel: inv?.channel === 'Quick' ? 'Quick' : 'ECommerce',
+    seller: {
+      id: str(inv?.seller?.id),
+      name: str(inv?.seller?.name || inv?.seller?.storeName || 'Seller'),
+      storeName: str(inv?.seller?.storeName),
+      address: str(inv?.seller?.address),
+      city: str(inv?.seller?.city),
+      state: str(inv?.seller?.state),
+      stateCode: str(inv?.seller?.stateCode),
+      pincode: str(inv?.seller?.pincode),
+      pan: str(inv?.seller?.pan),
+      gstin: str(inv?.seller?.gstin),
+    },
+    billing: normalizeParty(inv?.billing || inv?.shipping),
+    shipping,
+    placeOfSupply: str(inv?.placeOfSupply || shipping.state),
+    placeOfDelivery: str(inv?.placeOfDelivery || shipping.state),
+    taxType: inv?.taxType === 'CGST_SGST' ? 'CGST_SGST' : 'IGST',
+    items: (Array.isArray(inv?.items) ? inv.items : []).map((it: any) => ({
+      ...it,
+      name: str(it?.name || 'Product'),
+      sku: str(it?.sku),
+      size: str(it?.size || 'NA'),
+      color: str(it?.color || 'NA'),
+      hsn: str(it?.hsn),
+      qty: num(it?.qty),
+      unitPrice: num(it?.unitPrice),
+      gross: num(it?.gross),
+      discount: num(it?.discount),
+      netAmount: num(it?.netAmount),
+      gstRate: num(it?.gstRate),
+      gstAmount: num(it?.gstAmount),
+      total: num(it?.total),
+    })),
+    charges: (Array.isArray(inv?.charges) ? inv.charges : []).map((c: any) => ({ label: str(c?.label), amount: num(c?.amount) })),
+    totals: { netAmount: num(inv?.totals?.netAmount), tax: num(inv?.totals?.tax), total: num(inv?.totals?.total) },
+    paymentMethod: str(inv?.paymentMethod),
+    sequence: num(inv?.sequence) || 1,
+    count: num(inv?.count) || 1,
+  };
+};
 const FOOTER_Y = PAGE_H - 28;
 
 const money = (n: number) =>
@@ -76,31 +147,41 @@ class Writer {
     this.doc.setFontSize(size);
   }
 
+  // jsPDF throws on anything but a string, so a missing field prints blank instead of breaking the PDF.
   text(value: string, x: number, y: number, size: number, bold = false, align: 'left' | 'right' | 'center' = 'left') {
     this.font(size, bold);
-    this.doc.text(value, x, y, { align });
+    this.doc.text(str(value), x, y, { align });
   }
 
   /** Wrapped text; returns the y just below the last line. */
   wrap(value: string, x: number, y: number, width: number, size: number, bold = false, align: 'left' | 'right' = 'left') {
     this.font(size, bold);
     const lineH = size * 1.25;
-    const lines: string[] = this.doc.splitTextToSize(value || '', width);
+    const lines: string[] = this.doc.splitTextToSize(str(value), width);
     lines.forEach((l, i) => this.doc.text(l, x, y + i * lineH, { align }));
     return y + lines.length * lineH;
   }
 
   lines(value: string, width: number, size: number, bold = false): string[] {
     this.font(size, bold);
-    return this.doc.splitTextToSize(value || '', width);
+    return this.doc.splitTextToSize(str(value), width);
   }
 }
 
 // ── Tax invoice ──
 
 const header = (w: Writer, logo: string | null) => {
-  if (logo) w.doc.addImage(logo, 'PNG', M, 14, 58, 40, undefined, 'FAST');
-  else w.text('Exnshop', M, 40, 20, true);
+  let drewLogo = false;
+  if (logo) {
+    // A logo that can't be decoded must not stop the invoice/label from downloading.
+    try {
+      w.doc.addImage(logo, 'PNG', M, 14, 58, 40, undefined, 'FAST');
+      drewLogo = true;
+    } catch {
+      drewLogo = false;
+    }
+  }
+  if (!drewLogo) w.text('Exnshop', M, 40, 20, true);
   w.text('Tax Invoice/Bill of Supply/Cash Memo', PAGE_W - M, 30, 10, true, 'right');
   w.text('(Original for Recipient)', PAGE_W - M, 42, 9, false, 'right');
 };
@@ -309,7 +390,7 @@ export async function appendTaxInvoices(doc: jsPDF, invoices: TaxInvoice[], star
   const w = new Writer(doc);
   invoices.forEach((inv, i) => {
     if (startOnNewPage || i > 0) doc.addPage();
-    drawTaxInvoice(w, inv, logo);
+    drawTaxInvoice(w, normalizeInvoice(inv), logo);
   });
 }
 

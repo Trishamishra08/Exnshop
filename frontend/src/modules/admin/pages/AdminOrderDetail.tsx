@@ -1,3 +1,4 @@
+import { importWithRetry } from '../../../utils/lazyWithRetry';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { getOrderById, updateOrderStatus, getOrderEarningBreakdown, markOrderCODPaid, Order, type EarningBreakdown } from '../../../services/api/admin/adminOrderService';
@@ -25,7 +26,7 @@ export default function AdminOrderDetail() {
     try {
       const res = await getAdminShippingLabels(id);
       if (res.success && res.data.length) {
-        const { downloadShippingLabels } = await import('../../../utils/shippingLabelPdf');
+        const { downloadShippingLabels } = await importWithRetry(() => import('../../../utils/shippingLabelPdf'));
         await downloadShippingLabels(res.data, `Shipping_Labels_${res.data[0].invoice.orderNumber}.pdf`);
       } else {
         showToast(res.message || 'Shipping label is not available yet', 'error');
@@ -45,7 +46,7 @@ export default function AdminOrderDetail() {
     try {
       const res = await getAdminTaxInvoices(id);
       if (res.success && res.data.length) {
-        const { downloadTaxInvoices } = await import('../../../utils/taxInvoicePdf');
+        const { downloadTaxInvoices } = await importWithRetry(() => import('../../../utils/taxInvoicePdf'));
         await downloadTaxInvoices(res.data, `Invoice_${res.data[0].orderNumber}.pdf`);
       } else {
         showToast(res.message || 'Invoice is not available', 'error');
