@@ -289,7 +289,7 @@ export const getSettlementOrders = async (params?: {
  */
 export const markOrderCODPaid = async (
   id: string,
-): Promise<ApiResponse<{ orderId: string; codPaidToAdminAt: string }>> => {
+): Promise<ApiResponse<{ orderId: string; codPaidToAdminAt: string; paymentStatus?: string }>> => {
   const response = await api.patch(
     `/admin/orders/${id}/mark-cod-paid`,
   );

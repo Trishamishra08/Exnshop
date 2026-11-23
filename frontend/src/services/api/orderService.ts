@@ -79,6 +79,10 @@ export interface OrderDetail {
   grandTotal: number;
   paymentMethod: string;
   paymentStatus: string;
+  /** COD only: "Seller" when this seller delivers/ships it and takes the cash, "Admin" otherwise. */
+  codSettledBy?: 'Seller' | 'Admin' | null;
+  /** True when this seller can mark the COD cash as received (Paid) or not yet (Pending). */
+  canUpdatePaymentStatus?: boolean;
   deliveryAddress: DeliveryAddress;
   deliveryOption?: 'Instant' | 'Standard';
 }
@@ -159,6 +163,15 @@ export const getOrderById = async (id: string): Promise<ApiResponse<OrderDetail>
  */
 export const updateOrderStatus = async (id: string, data: UpdateOrderStatusData): Promise<ApiResponse<{ id: string; status: string }>> => {
   const response = await api.patch<ApiResponse<{ id: string; status: string }>>(`/orders/${id}/status`, data);
+  return response.data;
+};
+
+/**
+ * COD the seller collected themselves (self delivery / self shipping): mark the cash as
+ * received ("Paid") or not received yet ("Pending").
+ */
+export const updateCodPaymentStatus = async (id: string, paymentStatus: 'Paid' | 'Pending'): Promise<ApiResponse<{ paymentStatus: string }>> => {
+  const response = await api.patch<ApiResponse<{ paymentStatus: string }>>(`/orders/${id}/payment-status`, { paymentStatus });
   return response.data;
 };
 

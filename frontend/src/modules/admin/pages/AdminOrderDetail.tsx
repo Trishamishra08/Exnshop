@@ -103,8 +103,8 @@ export default function AdminOrderDetail() {
     try {
       const res = await markOrderCODPaid(id);
       if (res.success && res.data) {
-        setOrder({ ...order, codPaidToAdminAt: res.data.codPaidToAdminAt });
-        showToast('COD marked as received. This order will no longer appear in seller pending settlement.', 'success');
+        setOrder({ ...order, codPaidToAdminAt: res.data.codPaidToAdminAt, paymentStatus: (res.data.paymentStatus || 'Paid') as any });
+        showToast('COD marked as received. Payment status is now Paid.', 'success');
       } else {
         showToast(res.message || 'Failed to mark COD as paid', 'error');
       }
@@ -209,7 +209,7 @@ export default function AdminOrderDetail() {
   // COD the seller collected themselves: Quick self delivery, or an E-commerce parcel the seller shipped with their own courier.
   const sellerCollectedCod =
     (order as any)?.paymentMethod === 'COD' &&
-    ((order as any)?.deliveryPreference === 'Self' ||
+    (((order as any)?.channel !== 'ECommerce' && (order as any)?.deliveryPreference === 'Self' && !(order as any)?.deliveryBoy) ||
       ((order as any)?.channel === 'ECommerce' && ((order as any)?.shiprocketShipments || []).some((x: any) => x?.provider === 'Self')));
 
   return (
@@ -595,8 +595,15 @@ export default function AdminOrderDetail() {
             <div className="bg-white rounded-lg shadow p-6 border border-teal-100">
               <h2 className="text-lg font-semibold mb-2">COD collected by the seller</h2>
               <p className="text-sm text-neutral-600">
-                The seller delivered this order themselves and kept the customer's cash. After delivery, the admin commission and
-                platform fee are debited from the seller's wallet automatically, so there is nothing to mark as received here.
+                The seller delivered or shipped this order themselves and takes the customer's cash, so the seller updates its
+                payment status (it also turns Paid when they mark the order delivered). The admin commission and platform fee
+                are debited from the seller's wallet automatically after delivery.
+              </p>
+              <p className="text-sm mt-2">
+                Payment status:{' '}
+                <span className={`font-semibold ${order.paymentStatus === 'Paid' ? 'text-green-700' : 'text-amber-700'}`}>
+                  {order.paymentStatus === 'Paid' ? 'Paid (cash received by seller)' : `${order.paymentStatus || 'Pending'} (seller to confirm cash)`}
+                </span>
               </p>
             </div>
           )}
@@ -605,13 +612,16 @@ export default function AdminOrderDetail() {
           {order.paymentMethod === 'COD' && !sellerCollectedCod && (
             <div className="bg-white rounded-lg shadow p-6 border border-teal-100">
               <h2 className="text-lg font-semibold mb-2">COD settlement</h2>
-              {order.codPaidToAdminAt ? (
+              {order.codPaidToAdminAt && order.paymentStatus === 'Paid' ? (
                 <p className="text-sm text-green-700">
-                  COD received on {new Date(order.codPaidToAdminAt).toLocaleString('en-IN')}. This order no longer appears in seller pending settlement.
+                  COD received on {new Date(order.codPaidToAdminAt).toLocaleString('en-IN')}. Payment status is Paid and this order no longer appears in seller pending settlement.
                 </p>
               ) : (
                 <div className="flex flex-wrap items-center gap-3">
-                  <p className="text-sm text-neutral-600">When seller/delivery boy pays you, mark as received. The order will then be removed from seller’s pending settlement list.</p>
+                  <p className="text-sm text-neutral-600">
+                    The delivery partner or the courier collects this cash, so the admin updates its payment status. When the cash reaches
+                    you, mark it as received: the payment turns Paid and the order leaves the seller’s pending settlement list.
+                  </p>
                   <button
                     type="button"
                     onClick={handleMarkCodPaid}

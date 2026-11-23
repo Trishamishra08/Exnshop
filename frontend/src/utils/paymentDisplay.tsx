@@ -2,7 +2,7 @@
  * What to show in an order's "Payment" badge. The stored paymentStatus alone is misleading
  * ("Pending" on a cancelled or delivered order), so the order status decides:
  *  - cancelled / rejected / RTO: nothing was collected (or the money was refunded)
- *  - delivered: cash orders were paid on delivery
+ *  - delivered: paid, or for COD "cash pending" until the collector marks it paid
  *  - otherwise: the payment's own state ("Pay on delivery" for COD)
  */
 export interface PaymentOrderLike {
@@ -36,7 +36,12 @@ export const paymentDisplay = (order: PaymentOrderLike): { label: string; classN
     return { label: 'Not collected', className: tone.grey };
   }
   if (status === 'Returned') return paidOnline || isCod ? { label: 'Refund due', className: tone.amber } : { label: 'Refunded', className: tone.blue };
-  if (status === 'Delivered') return { label: isCod ? 'Paid (cash)' : 'Paid', className: tone.green };
+  if (status === 'Delivered') {
+    // COD is only paid once whoever collected the cash marks it: the seller for self delivery /
+    // self shipping, the admin for rider and company-courier orders (riders mark it on delivery).
+    if (isCod && pay !== 'Paid') return { label: 'COD · cash pending', className: tone.amber };
+    return { label: isCod ? 'Paid (cash)' : 'Paid', className: tone.green };
+  }
 
   if (pay === 'Paid') return { label: 'Paid', className: tone.green };
   return { label: isCod ? 'Pay on delivery' : 'Pending', className: tone.amber };

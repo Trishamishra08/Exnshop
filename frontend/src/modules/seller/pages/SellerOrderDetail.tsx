@@ -9,6 +9,7 @@ import { getSellerShippingLabel, generateSellerAwb } from '../../../services/api
 import { getSellerTaxInvoice } from '../../../services/api/taxInvoiceService';
 import { getHandlingSettings, getPackingSlips, getShippingMethod, saveSelfShippingDetails } from '../../../services/api/shippingMethodService';
 import RefundOrderModal from '../components/RefundOrderModal';
+import CodPaymentStatus from '../components/CodPaymentStatus';
 import ExchangeBanner from '../../../components/ExchangeBanner';
 
 // E-commerce orders are packed by the seller and shipped by courier, so they get
@@ -699,10 +700,10 @@ export default function SellerOrderDetail() {
           )}
 
           <Card title="Payment">
-            <InfoRow label="Method">{orderDetail.paymentMethod}</InfoRow>
-            <InfoRow label="Status">
-              <span className={orderDetail.paymentStatus === 'Paid' ? 'text-green-700' : 'text-amber-700'}>{orderDetail.paymentStatus}</span>
-            </InfoRow>
+            <CodPaymentStatus
+              order={orderDetail}
+              onUpdated={(paymentStatus) => setOrderDetail({ ...orderDetail, paymentStatus })}
+            />
           </Card>
         </div>
       </div>

@@ -6,6 +6,7 @@ import ConfirmationModal from '../../../components/ConfirmationModal';
 import { formatDeliveryAddress } from '../../../utils/addressUtils';
 import { getSellerTaxInvoice } from '../../../services/api/taxInvoiceService';
 import ExchangeBanner from '../../../components/ExchangeBanner';
+import CodPaymentStatus from '../components/CodPaymentStatus';
 
 // Quick-commerce order screen. The flow (accept popup, status dropdown, rider
 // assignment) is unchanged from the original; only the layout was refreshed.
@@ -76,6 +77,9 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
         setOrderStatus(newStatus);
         setOrderDetail({ ...orderDetail, status: newStatus as any });
         showToast(`Order status updated to ${newStatus}`, 'success');
+        // Reload so the payment section reflects the server (a self-delivered COD order turns Paid on delivery).
+        const fresh = await getOrderById(orderDetail.id).catch(() => null);
+        if (fresh?.success && fresh.data) setOrderDetail(fresh.data);
       } else {
         showToast('Failed to update order status', 'error');
       }
@@ -504,14 +508,11 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
           <section className={cardCls}>
             <h2 className={cardTitleCls}>Payment</h2>
             <div className="p-4">
-              <div className={rowCls}>
-                <span className="text-neutral-500">Method</span>
-                <span className="font-medium text-neutral-900">{orderDetail.paymentMethod}</span>
-              </div>
-              <div className={rowCls}>
-                <span className="text-neutral-500">Status</span>
-                <span className={`font-medium ${orderDetail.paymentStatus === 'Paid' ? 'text-green-700' : 'text-amber-700'}`}>{orderDetail.paymentStatus}</span>
-              </div>
+              <CodPaymentStatus
+                order={orderDetail}
+                rowClassName={rowCls}
+                onUpdated={(paymentStatus) => setOrderDetail({ ...orderDetail, paymentStatus })}
+              />
             </div>
           </section>
         </div>

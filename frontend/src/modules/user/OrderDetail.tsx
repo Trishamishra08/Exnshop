@@ -1155,7 +1155,9 @@ export default function OrderDetail() {
       {/* Scrollable Content */}
       <div className="px-4 py-4 space-y-4 pb-24">
         {/* Payment Pending */}
-        {order?.paymentStatus !== "Paid" && order?.paymentStatus !== "Completed" && order?.paymentStatus !== "Refunded" && (
+        {/* Not once it's delivered (COD was paid at the door) or closed: nothing left to pay then */}
+        {order?.paymentStatus !== "Paid" && order?.paymentStatus !== "Completed" && order?.paymentStatus !== "Refunded" &&
+          !['Delivered', 'Cancelled', 'Rejected', 'Returned', 'RTO'].includes(order?.status) && (
           <motion.div
             className="bg-white rounded-xl p-4 shadow-sm"
             initial={{ opacity: 0, y: 20 }}

@@ -291,22 +291,37 @@ export const getOrderById = asyncHandler(
 export const markOrderCODPaid = asyncHandler(
   async (req: Request, res: Response) => {
     const { id } = req.params;
-    const order = await Order.findById(id).select("paymentMethod status codPaidToAdminAt");
+    const order = await Order.findById(id).select(
+      "paymentMethod paymentStatus status codPaidToAdminAt channel deliveryPreference deliveryBoy shiprocketShipments",
+    );
     if (!order) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
     if (order.paymentMethod !== "COD") {
       return res.status(400).json({ success: false, message: "Only COD orders can be marked as paid" });
     }
-    if (order.codPaidToAdminAt) {
+    // Seller delivered / shipped it themselves and took the cash: the seller marks it paid, not the admin.
+    const sellerCollected =
+      order.channel === "ECommerce"
+        ? (order.shiprocketShipments || []).some((s: any) => s?.provider === "Self")
+        : order.deliveryPreference === "Self" && !order.deliveryBoy;
+    if (sellerCollected) {
+      return res.status(400).json({
+        success: false,
+        message: "The seller collected this order's cash themselves (self delivery / self shipping), so the seller updates its payment status.",
+      });
+    }
+    if (order.codPaidToAdminAt && order.paymentStatus === "Paid") {
       return res.status(400).json({ success: false, message: "COD for this order is already marked as paid" });
     }
-    order.codPaidToAdminAt = new Date();
+    if (!order.codPaidToAdminAt) order.codPaidToAdminAt = new Date();
+    // The cash has reached the platform, so the order's payment is complete.
+    if (order.paymentStatus !== "Refunded") order.paymentStatus = "Paid" as any;
     await order.save();
     return res.status(200).json({
       success: true,
-      message: "COD marked as received. Order will no longer appear in seller pending settlement.",
-      data: { orderId: order._id, codPaidToAdminAt: order.codPaidToAdminAt },
+      message: "COD marked as received. Payment status is now Paid and the order leaves seller pending settlement.",
+      data: { orderId: order._id, codPaidToAdminAt: order.codPaidToAdminAt, paymentStatus: order.paymentStatus },
     });
   },
 );

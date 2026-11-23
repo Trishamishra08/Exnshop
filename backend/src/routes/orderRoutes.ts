@@ -15,6 +15,7 @@ import {
   saveSelfShippingDetails,
   getPackingSlips,
   getTaxInvoice,
+  updateCodPaymentStatus,
 } from "../modules/seller/controllers/orderController";
 import { authenticate, requireUserType, requireApprovedUser } from "../middleware/auth";
 
@@ -59,6 +60,8 @@ router.put("/:id/self-shipping", saveSelfShippingDetails);
 router.get("/:id/tax-invoice", getTaxInvoice);
 
 // Update order status (support both PATCH and PUT)
+// COD the seller collected themselves (self delivery / self shipping): mark cash received
+router.patch("/:id/payment-status", updateCodPaymentStatus);
 router.patch("/:id/status", updateOrderStatus);
 router.put("/:id/status", updateOrderStatus);
 

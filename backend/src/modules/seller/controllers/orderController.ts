@@ -490,6 +490,17 @@ export const getOrderById = asyncHandler(
       grandTotal: order.total || 0,
       paymentMethod: order.paymentMethod || "N/A",
       paymentStatus: order.paymentStatus || "Pending",
+      // COD: "Seller" when this seller delivers/ships it and takes the cash (they mark it paid),
+      // "Admin" when a rider or the company courier collects it (the admin marks it paid).
+      codSettledBy:
+        String(order.paymentMethod || "").toUpperCase() === "COD"
+          ? codCollectedBySeller(order, sellerIdStr) ? "Seller" : "Admin"
+          : null,
+      canUpdatePaymentStatus:
+        codCollectedBySeller(order, sellerIdStr) &&
+        !(await hasOtherActiveSellers(String(order._id), sellerIdStr)) &&
+        !["Cancelled", "Rejected", "Returned", "RTO"].includes(order.status) &&
+        order.paymentStatus !== "Refunded",
       deliveryAddress: order.deliveryAddress || {},
     };
 
@@ -675,6 +686,15 @@ export const updateOrderStatus = asyncHandler(
         }
       }
 
+      // Seller delivered it themselves (no rider): the customer paid the seller in cash at the
+      // door, so the order is paid now, same as when a delivery partner completes a COD order.
+      if (order.status === "Delivered" && previousStatus !== "Delivered" && !order.deliveryBoy) {
+        if (!order.deliveredAt) order.deliveredAt = new Date();
+        if (String(order.paymentMethod || "").toUpperCase() === "COD" && order.paymentStatus !== "Paid") {
+          order.paymentStatus = "Paid" as any;
+        }
+      }
+
       await order.save();
 
       // ─── PRE-FULFILLMENT CANCELLATION REFUND ────────────────────────────
@@ -774,6 +794,87 @@ export const updateOrderStatus = asyncHandler(
     });
   },
 );
+
+/**
+ * Who settles a COD order's payment status. "Seller" when this seller hands the
+ * parcel over and takes the cash themselves: a Quick order they deliver personally
+ * (no rider), or an E-commerce parcel they ship with their own courier. Every other
+ * COD order (rider, company courier) is settled by the admin.
+ */
+const codCollectedBySeller = (order: any, sellerId: string): boolean => {
+  if (String(order?.paymentMethod || "").toUpperCase() !== "COD") return false;
+  if (order.channel === "ECommerce") {
+    const shipments: any[] = order.shiprocketShipments || [];
+    return shipments.some(
+      (s) => s?.provider === "Self" && (String(s.seller?._id || s.seller || "") === sellerId || (!s.seller && shipments.length === 1)),
+    );
+  }
+  return order.deliveryPreference === "Self" && !order.deliveryBoy;
+};
+
+/** True when another seller still has live items on this order (their parcel has its own cash). */
+const hasOtherActiveSellers = async (orderId: string, sellerId: string) =>
+  !!(await OrderItem.exists({
+    order: orderId,
+    seller: { $ne: sellerId },
+    sellerStatus: { $ne: "Rejected" },
+    status: { $ne: "Cancelled" },
+  }));
+
+/**
+ * COD the seller collected themselves: the seller marks the cash as received (Paid)
+ * or not received yet (Pending). Admin-settled COD orders are refused here.
+ */
+export const updateCodPaymentStatus = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = String((req as any).user.userId);
+  const { id } = req.params;
+  const next = String(req.body?.paymentStatus || "");
+  if (!mongoose.isValidObjectId(id)) {
+    return res.status(400).json({ success: false, message: "Invalid order id" });
+  }
+  if (next !== "Paid" && next !== "Pending") {
+    return res.status(400).json({ success: false, message: "Payment status must be Paid or Pending" });
+  }
+  if (!(await OrderItem.exists({ order: id, seller: sellerId }))) {
+    return res.status(404).json({ success: false, message: "Order not found" });
+  }
+  const order = await Order.findById(id);
+  if (!order) {
+    return res.status(404).json({ success: false, message: "Order not found" });
+  }
+  if (String(order.paymentMethod || "").toUpperCase() !== "COD") {
+    return res.status(400).json({ success: false, message: "Only cash on delivery orders have a cash payment to mark." });
+  }
+  if (!codCollectedBySeller(order, sellerId)) {
+    return res.status(403).json({
+      success: false,
+      message: "This order's cash is collected by the delivery partner or the courier, so the admin updates its payment status.",
+    });
+  }
+  if (await hasOtherActiveSellers(id, sellerId)) {
+    return res.status(400).json({
+      success: false,
+      message: "This order has items from other sellers too. Its payment is marked paid automatically once every parcel is delivered.",
+    });
+  }
+  if (["Cancelled", "Rejected", "Returned", "RTO"].includes(order.status) || order.paymentStatus === "Refunded") {
+    return res.status(400).json({ success: false, message: `This order is ${String(order.status).toLowerCase()}, so its payment can't be changed.` });
+  }
+  if (next === "Paid" && order.status !== "Delivered") {
+    return res.status(400).json({ success: false, message: "Mark the order as delivered first. The cash is collected at delivery." });
+  }
+  if (order.paymentStatus === next) {
+    return res.status(200).json({ success: true, message: `Payment is already ${next}`, data: { paymentStatus: next } });
+  }
+
+  order.paymentStatus = next as any;
+  await order.save();
+  return res.status(200).json({
+    success: true,
+    message: next === "Paid" ? "Cash marked as received. Payment status is now Paid." : "Payment status set back to Pending.",
+    data: { paymentStatus: order.paymentStatus },
+  });
+});
 
 /**
  * Courier shipping label + tax invoice data for this seller's shipment
