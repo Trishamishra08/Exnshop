@@ -251,7 +251,12 @@ export default function SellerProfile() {
           });
         }
         setIsEditModalOpen(false);
-        showToast('Profile updated successfully', 'success');
+        // Approved sellers' changes go to the admin first: say so instead of "updated".
+        const pendingApproval = Boolean((res as any).approvalPending);
+        showToast(
+          res.message || (pendingApproval ? 'Your changes were sent to the admin for approval.' : 'Profile updated successfully'),
+          pendingApproval ? 'info' : 'success',
+        );
       } else {
         showToast(res.message || 'Failed to update profile', 'error');
       }
@@ -630,6 +635,33 @@ export default function SellerProfile() {
           </div>
         </div>
       </div>
+
+      {/* Changes waiting for the admin: the live details below stay until they are approved */}
+      {(() => {
+        const pending = (profile as any)?.pendingProfileChange;
+        const fields = Object.keys(pending?.data || {}).filter((f) => f !== 'location');
+        if (!fields.length) return null;
+        const labels: Record<string, string> = {
+          sellerName: 'Owner name', storeName: 'Store name', address: 'Address', city: 'City',
+          searchLocation: 'Location', latitude: 'Map location', longitude: 'Map location',
+          serviceRadiusKm: 'Service radius', logo: 'Logo', channels: 'Commerce channels',
+          accountName: 'Account holder', accountNumber: 'Account number', ifsc: 'IFSC', bankName: 'Bank',
+          gstin: 'GSTIN', panCard: 'PAN', legalBusinessName: 'Legal business name', returnAddress: 'Return address',
+        };
+        const changed = [...new Set(fields.map((f) => labels[f] || f))];
+        const when = pending?.submittedAt ? new Date(pending.submittedAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+        return (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 flex gap-3">
+            <span className="text-xl leading-none" aria-hidden="true">⏳</span>
+            <div className="text-sm text-amber-900">
+              <p className="font-semibold">Waiting for admin approval</p>
+              <p className="mt-0.5">
+                Your changes to <b>{changed.join(', ')}</b>{when ? ` (sent ${when})` : ''} are with the admin. Your current details below stay live until they are approved.
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 2. Account Information Card */}
       <div className="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-neutral-200 space-y-4">

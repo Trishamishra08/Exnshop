@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from '../../../context/AuthContext';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { uploadImage, uploadImages } from '../../../services/api/uploadService';
 import { compressImage, createImagePreview, validateImageFile } from '../../../utils/imageUpload';
@@ -107,6 +108,39 @@ function DimsInput({ l, w, h, onChange }: { l: string; w: string; h: string; onC
 }
 
 const idOf = (v: any): string => (v && typeof v === 'object' ? v._id || '' : v || '');
+
+// ── Device autosave ──
+// Everything typed in the wizard (photos included) is kept on this device, so leaving the
+// page, closing the app or losing the internet never loses it: the seller comes back to the
+// same step with the same details, and the server copy catches up on the next "Next".
+const DRAFT_VERSION = 1;
+const STEP_KEYS: StepKey[] = ['category', 'basic', 'attributes', 'variants', 'price', 'shipping', 'review'];
+const readLocalDraft = (key: string): any | null => {
+  try {
+    const raw = localStorage.getItem(key);
+    const d = raw ? JSON.parse(raw) : null;
+    return d && d.v === DRAFT_VERSION ? d : null;
+  } catch {
+    return null;
+  }
+};
+const removeLocalDraft = (key: string) => {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* storage unavailable */
+  }
+};
+const dataUrlToFile = async (dataUrl: string, name: string): Promise<File | null> => {
+  try {
+    const blob = await (await fetch(dataUrl)).blob();
+    return new File([blob], name, { type: blob.type || 'image/jpeg' });
+  } catch {
+    return null;
+  }
+};
+const isOfflineError = (err: any) =>
+  (typeof navigator !== 'undefined' && navigator.onLine === false) || (err && err.isAxiosError && !err.response);
 const nameOf = (v: any) => v?.name || v?.subcategoryName || v?.subSubCategoryName || '';
 
 export default function SellerProductWizard() {
@@ -249,19 +283,186 @@ export default function SellerProductWizard() {
     setRows(variants.rows);
   }, []);
 
+  // ── Device autosave: state ──
+  const { user } = useAuth();
+  const draftOwner = String((user as any)?.id || (user as any)?._id || 'seller');
+  const draftKey = useCallback((pid?: string) => `exn_product_draft:${draftOwner}:${pid || 'new'}`, [draftOwner]);
+  const restoredRef = useRef(false);
+  const [restoredAt, setRestoredAt] = useState<number | null>(null);
+  const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener('online', on);
+    window.addEventListener('offline', off);
+    return () => {
+      window.removeEventListener('online', on);
+      window.removeEventListener('offline', off);
+    };
+  }, []);
+
+  const applySnapshot = useCallback(async (s: any, { fields = true } = {}) => {
+    if (STEP_KEYS.includes(s.step)) setStep(s.step);
+    if (!fields) return;
+    setHeaderCategory(s.headerCategory || '');
+    setCategory(s.category || '');
+    setSubcategory(s.subcategory || '');
+    setSubSubCategory(s.subSubCategory || '');
+    setProductName(s.productName || '');
+    setBrand(s.brand || '');
+    setCondition(s.condition || 'New');
+    setModelNumber(s.modelNumber || '');
+    setSku(s.sku || '');
+    setBarcode(s.barcode || '');
+    setSmallDescription(s.smallDescription || '');
+    setManufacturer(s.manufacturer || '');
+    setMadeIn(s.madeIn || '');
+    setAttributes(s.attributes || {});
+    if (Array.isArray(s.axes)) setAxes(s.axes);
+    if (Array.isArray(s.combinedAxes)) setCombinedAxes(s.combinedAxes);
+    if (Array.isArray(s.rows) && s.rows.length) setRows(s.rows);
+    setTaxId(s.taxId || '');
+    setHsnCode(s.hsnCode || '');
+    setHandlingTimeDays(s.handlingTimeDays || '1');
+    setWeightGrams(s.weightGrams || '');
+    setDimL(s.dimL || '');
+    setDimW(s.dimW || '');
+    setDimH(s.dimH || '');
+    setIsReturnable(s.isReturnable !== false);
+    // Photos: already-uploaded URLs, plus picked-but-not-uploaded files kept as data URLs.
+    setMainImageUrl(s.mainImageUrl || '');
+    if (s.mainImageData) {
+      const f = await dataUrlToFile(s.mainImageData, 'main-image.jpg');
+      setMainImageFile(f);
+      setMainPreview(s.mainImageData);
+    } else {
+      setMainImageFile(null);
+      setMainPreview(s.mainImageUrl || '');
+    }
+    const urls: string[] = Array.isArray(s.galleryUrls) ? s.galleryUrls : [];
+    const datas: string[] = Array.isArray(s.galleryData) ? s.galleryData : [];
+    const files = (await Promise.all(datas.map((d, i) => dataUrlToFile(d, `gallery-${i + 1}.jpg`)))).filter(Boolean) as File[];
+    setGalleryUrls(urls);
+    setGalleryFiles(files);
+    setGalleryPreviews([...urls, ...datas]);
+  }, []);
+
+  useEffect(() => {
+    if (routeId) return;
+    // New product: bring back what was being typed last time (and the server draft it belongs to).
+    const saved = readLocalDraft(draftKey());
+    if (saved && (saved.productName || saved.category || saved.productId)) {
+      if (saved.productId) {
+        // It already has a server draft: open that (server copy + this device's newer changes).
+        navigate(`/seller/product/edit/${saved.productId}`, { replace: true });
+        return;
+      }
+      applySnapshot(saved).finally(() => {
+        setRestoredAt(saved.savedAt || Date.now());
+        restoredRef.current = true;
+      });
+    } else {
+      restoredRef.current = true;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (!routeId) return;
+    // Also covers arriving here from "Add product" (same component, new route).
+    setProductId(routeId);
+    setLoading(true);
+    restoredRef.current = false;
     (async () => {
+      const saved = readLocalDraft(draftKey(routeId));
       try {
         const res = await getProductById(routeId);
-        if (res.success && res.data) applyProduct(res.data);
+        if (res.success && res.data) {
+          applyProduct(res.data);
+          // Unsaved device changes newer than the server copy win; otherwise just reopen the same step.
+          if (saved) {
+            const serverAt = Date.parse((res.data as any).updatedAt || '') || 0;
+            const newer = (saved.savedAt || 0) > serverAt;
+            await applySnapshot(saved, { fields: newer });
+            if (newer) setRestoredAt(saved.savedAt);
+          }
+        }
       } catch (err) {
-        setError(listingErrorMessage(err, 'Failed to load the product'));
+        if (saved) {
+          // Offline / server unreachable: carry on from this device's copy.
+          await applySnapshot(saved);
+          setStatus((s) => s || 'Draft');
+          setRestoredAt(saved.savedAt || Date.now());
+        } else {
+          setError(listingErrorMessage(err, 'Failed to load the product'));
+        }
       } finally {
+        restoredRef.current = true;
         setLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeId, applyProduct]);
+
+  // ── Device autosave: write ──
+  useEffect(() => {
+    if (loading || !restoredRef.current) return;
+    if (!productId && !productName.trim() && !category) return; // nothing worth keeping yet
+    const timer = setTimeout(() => {
+      const snapshot: any = {
+        v: DRAFT_VERSION,
+        savedAt: Date.now(),
+        productId: productId || null,
+        step,
+        headerCategory, category, subcategory, subSubCategory,
+        productName, brand, condition, modelNumber, sku, barcode, smallDescription, manufacturer, madeIn,
+        mainImageUrl,
+        mainImageData: mainImageFile ? mainPreview : '',
+        galleryUrls,
+        galleryData: galleryFiles.length ? galleryPreviews.slice(galleryUrls.length) : [],
+        attributes, axes, combinedAxes, rows,
+        taxId, hsnCode, handlingTimeDays,
+        weightGrams, dimL, dimW, dimH, isReturnable,
+      };
+      const key = draftKey(productId);
+      try {
+        localStorage.setItem(key, JSON.stringify(snapshot));
+      } catch {
+        // Storage full (large photos): keep the details at least; photos can be picked again.
+        try {
+          localStorage.setItem(key, JSON.stringify({ ...snapshot, mainImageData: '', galleryData: [] }));
+        } catch {
+          /* storage unavailable */
+        }
+      }
+      // While it is still an unsubmitted draft, "Add product" also reopens it where the seller left off.
+      if (productId) {
+        if (status === 'Draft' || status === '') {
+          try {
+            localStorage.setItem(draftKey(), localStorage.getItem(key) || '');
+          } catch {
+            /* storage unavailable */
+          }
+        } else {
+          removeLocalDraft(draftKey());
+        }
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    loading, productId, step, headerCategory, category, subcategory, subSubCategory, productName, brand, condition,
+    modelNumber, sku, barcode, smallDescription, manufacturer, madeIn, mainImageUrl, mainImageFile, mainPreview,
+    galleryUrls, galleryFiles, galleryPreviews, attributes, axes, combinedAxes, rows, taxId, hsnCode,
+    handlingTimeDays, weightGrams, dimL, dimW, dimH, isReturnable, status,
+  ]);
+
+  /** Throw away this device's unsaved copy and start the form again. */
+  const discardLocalDraft = () => {
+    removeLocalDraft(draftKey(productId));
+    removeLocalDraft(draftKey());
+    window.location.href = productId ? `/seller/product/edit/${productId}` : '/seller/product/add';
+  };
 
   // Category lists follow the selections
   useEffect(() => {
@@ -394,7 +595,11 @@ export default function SellerProductWizard() {
       await fn();
       return true;
     } catch (err) {
-      setError(listingErrorMessage(err));
+      setError(
+        isOfflineError(err)
+          ? "You're offline. Everything you entered is saved on this device — tap Next again when the internet is back."
+          : listingErrorMessage(err),
+      );
       return false;
     } finally {
       setSaving(false);
@@ -561,6 +766,9 @@ export default function SellerProductWizard() {
       await submitListing(productId);
     });
     if (ok) {
+      // Submitted: the device copy is no longer needed.
+      removeLocalDraft(draftKey(productId));
+      removeLocalDraft(draftKey());
       showToast('Submitted for review. You\'ll be notified once it is approved.', 'success');
       navigate('/seller/product/list');
     }
@@ -719,6 +927,31 @@ export default function SellerProductWizard() {
         </Link>
       </div>
 
+      {!online && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-sm text-amber-900">
+          <p className="font-semibold">You're offline</p>
+          <p className="text-xs mt-0.5">Keep filling in the details — they are saved on this device. Tap Next once the internet is back to save them online.</p>
+        </div>
+      )}
+      {restoredAt && (
+        <div className="rounded-xl border border-teal-200 bg-teal-50 p-3.5 text-sm text-teal-900 flex flex-wrap items-center justify-between gap-2">
+          <p>
+            <span className="font-semibold">Continuing where you left off.</span>{' '}
+            <span className="text-xs">
+              Restored your details from {new Date(restoredAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}.
+            </span>
+          </p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setRestoredAt(null)} className="px-3 py-1.5 rounded-lg bg-teal-600 text-white text-xs font-semibold">
+              OK
+            </button>
+            <button type="button" onClick={discardLocalDraft} className="px-3 py-1.5 rounded-lg border border-teal-300 text-teal-800 text-xs font-semibold">
+              {productId ? 'Discard unsaved changes' : 'Start over'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {status === 'Rejected' && (
         <div className="rounded-xl border border-orange-200 bg-orange-50 p-3.5 text-sm text-orange-900">
           <p className="font-semibold">Changes needed</p>
@@ -773,7 +1006,7 @@ export default function SellerProductWizard() {
           <>
             <h2 className="text-base font-bold text-neutral-900">Choose the category</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Department" required>
+              <Field label="Header category" required>
                 <select
                   className={inputCls}
                   value={headerCategory}
@@ -784,7 +1017,7 @@ export default function SellerProductWizard() {
                     setSubSubCategory('');
                   }}
                 >
-                  <option value="">Select department</option>
+                  <option value="">Select header category</option>
                   {headerCategories.map((h) => (
                     <option key={h._id} value={h._id}>
                       {h.name}
