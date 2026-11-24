@@ -539,11 +539,12 @@ export default function ProductDetail() {
                 </svg>
               </button>
             )}
-            {/* Heart icon */}
+            {/* Heart icon: in the row next to Share (not pinned to the corner, or it covers Share) */}
             {product?.id && (
               <WishlistButton
                 productId={product.id}
                 size="md"
+                position="relative"
                 className="bg-white rounded-full shadow-sm"
               />
             )}
