@@ -31,7 +31,9 @@ export const getProducts = async (req: Request, res: Response) => {
       latitude, // User location latitude
       longitude, // User location longitude
       mode, // 'quick' | 'ecommerce' — which catalog tab the customer is browsing
+      sponsoredOnly, // "true": only the running ads that match (home page "Sponsored" row)
     } = req.query;
+    const onlySponsored = String(sponsoredOnly) === "true";
 
     const query: any = {
       status: "Active",
@@ -190,7 +192,8 @@ export const getProducts = async (req: Request, res: Response) => {
     let sponsoredIds: mongoose.Types.ObjectId[] = [];
     if (sort !== "price_asc" && sort !== "price_desc") {
       try {
-        const winners = await getSponsoredForListing(query, Math.min(MAX_SPONSORED_SLOTS, Number(limit) || MAX_SPONSORED_SLOTS));
+        const slots = onlySponsored ? Math.min(12, Number(limit) || 8) : Math.min(MAX_SPONSORED_SLOTS, Number(limit) || MAX_SPONSORED_SLOTS);
+        const winners = await getSponsoredForListing(query, slots);
         sponsoredIds = winners.map((w) => new mongoose.Types.ObjectId(String(w.productEntry.product)));
       } catch (err) {
         console.error("Failed to load sponsored products:", err);
@@ -206,9 +209,9 @@ export const getProducts = async (req: Request, res: Response) => {
         .populate("seller", "storeName sellerName viewCustomerDetails channels");
 
     const [organic, sponsoredDocs, organicTotal] = await Promise.all([
-      populateListing(Product.find(organicQuery)).sort(sortOptions).skip(skip).limit(Number(limit)),
+      onlySponsored ? Promise.resolve([]) : populateListing(Product.find(organicQuery)).sort(sortOptions).skip(skip).limit(Number(limit)),
       Number(page) === 1 && sponsoredIds.length ? populateListing(Product.find({ _id: { $in: sponsoredIds } })) : Promise.resolve([]),
-      Product.countDocuments(organicQuery),
+      onlySponsored ? Promise.resolve(0) : Product.countDocuments(organicQuery),
     ]);
     // Keep the bid order for the sponsored slots.
     const sponsoredOrder = new Map(sponsoredIds.map((id, i) => [String(id), i]));

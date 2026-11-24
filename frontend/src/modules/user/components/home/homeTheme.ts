@@ -86,7 +86,8 @@ export interface HomeProductSection {
   title: string;
   subtitle?: string;
   emoji?: string;
-  sort: "popular" | "discount" | "newest";
+  /** "sponsored": only products with a running ad (the home page "Sponsored" row). */
+  sort: "popular" | "discount" | "newest" | "sponsored";
   limit: number;
   tinted: boolean;
   translations?: Record<string, Record<string, string>>;

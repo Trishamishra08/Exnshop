@@ -23,7 +23,8 @@ const railKey = (section: Pick<HomeProductSection, "sort" | "limit">, mode: stri
 
 export async function fetchRail(section: Pick<HomeProductSection, "sort" | "limit">, mode: "Quick" | "ECommerce", lat?: number, lng?: number) {
   const params: any = { limit: section.limit || 12, mode: mode === "ECommerce" ? "ecommerce" : "quick" };
-  if (section.sort && section.sort !== "newest") params.sort = section.sort;
+  if (section.sort === "sponsored") params.sponsoredOnly = true;
+  else if (section.sort && section.sort !== "newest") params.sort = section.sort;
   if (lat && lng) {
     params.latitude = lat;
     params.longitude = lng;

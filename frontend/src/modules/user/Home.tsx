@@ -15,6 +15,16 @@ import { useThemeContext } from "../../context/ThemeContext";
 import { useTranslation } from "../../hooks/useTranslation";
 import { useCommerceMode } from "../../context/CommerceModeContext";
 
+const SPONSORED_SECTION = {
+  _id: "sponsored",
+  title: "Sponsored",
+  subtitle: "Promoted by sellers",
+  emoji: "📣",
+  sort: "sponsored" as const,
+  limit: 8,
+  tinted: false,
+};
+
 export default function Home() {
   const navigate = useNavigate();
   const { location } = useLocation();
@@ -241,6 +251,9 @@ export default function Home() {
       <div className="transition-opacity duration-200 w-full max-w-[1400px] mx-auto" style={{ opacity: loading && hasLoaded ? 0.6 : 1 }}>
       {/* Banner, trust strip, offers, Crazy Deals and category promo banners — all from homeData */}
       <PromoStrip homeData={homeData} loading={loading} />
+
+      {/* Sellers' running ads for this location and mode, highest bid first; hidden when there are none */}
+      <ProductRail section={SPONSORED_SECTION} theme={homeTheme} />
 
       {/* Shop by Category tiles */}
       {activeTab === "all" && <ShopByCategory theme={homeTheme} config={pageContent.shopByCategory} />}
