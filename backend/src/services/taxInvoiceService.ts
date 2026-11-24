@@ -32,6 +32,16 @@ const normalizeState = (state: string) => {
   const s = (state || "").trim().toLowerCase().replace(/\s+/g, " ");
   return STATE_ALIASES[s] || s;
 };
+/**
+ * A state named in free text (e.g. "Vijay Nagar, Indore, Madhya Pradesh 452001, India"),
+ * for when the maps lookup gives no state. Longest names first, so "west bengal" wins over "bengal"-like overlaps.
+ */
+export const stateFromText = (text: string): string => {
+  const t = ` ${(text || "").toLowerCase().replace(/[^a-z&]+/g, " ")} `;
+  const names = Object.keys(GST_STATE_CODES).sort((a, b) => b.length - a.length);
+  return names.find((n) => t.includes(` ${n} `)) || "";
+};
+
 export const gstStateCode = (state: string, gstin?: string) =>
   GST_STATE_CODES[normalizeState(state)] || (gstin && /^\d{2}/.test(gstin) ? gstin.slice(0, 2) : "");
 
@@ -178,7 +188,9 @@ export const buildTaxInvoices = async (orderId: string, sellerId?: string): Prom
     const seller: any = await Seller.findById(sid);
     if (!seller) continue;
     const resolved = await resolveSellerAddress(seller).catch(() => null);
-    const sellerState = resolved?.state || "";
+    // No state from the maps lookup: read it from the seller's saved address text.
+    const sellerState =
+      resolved?.state || stateFromText([seller.searchLocation, seller.address, seller.returnAddress, seller.city].filter(Boolean).join(", "));
     const taxType: TaxInvoice["taxType"] =
       sellerState && customerState && normalizeState(sellerState) === normalizeState(customerState) ? "CGST_SGST" : "IGST";
 

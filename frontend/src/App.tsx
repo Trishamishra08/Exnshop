@@ -277,6 +277,9 @@ const AdminAccountView = lazyWithRetry(
 const AdminSalesReport = lazyWithRetry(
   () => import("./modules/admin/pages/AdminSalesReport"), "AdminSalesReport"
 );
+const AdminReportsHub = lazyWithRetry(
+  () => import("./modules/admin/pages/AdminReportsHub"), "AdminReportsHub"
+);
 const AdminEarningsLedger = lazyWithRetry(
   () => import("./modules/admin/pages/AdminEarningsLedger"), "AdminEarningsLedger"
 );
@@ -1081,6 +1084,7 @@ function App() {
                                         path="bank-requests"
                                         element={<AdminBankRequests />}
                                       />
+                                      <Route path="reports" element={<AdminReportsHub />} />
                                       <Route path="reports/sales" element={<AdminSalesReport />} />
                                       <Route path="reports/ledger" element={<AdminLedger />} />
                                       <Route path="reports/admin-ledger" element={<AdminEarningsLedger />} />

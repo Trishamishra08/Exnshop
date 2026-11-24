@@ -235,3 +235,51 @@ export const getAdminEarningsLedgerReport = asyncHandler(async (req: Request, re
   });
   return res.status(200).json({ success: true, data: data.rows, summary: data.summary, pagination: { page, limit, total: data.total, pages: Math.ceil(data.total / limit) } });
 });
+
+/**
+ * GET /admin/reports/overview?from=YYYY-MM-DD&to=YYYY-MM-DD
+ * KPI cards, sales trend, seller / customer / commission ledgers and GST reconciliation
+ * for the period (default: this month so far).
+ */
+export const getAdminReportsOverview = asyncHandler(async (req: Request, res: Response) => {
+  const { getReportsOverview } = await import("../../../services/reportsOverviewService");
+  const day = (v: any) => (/^d{4}-d{2}-d{2}$/.test(String(v || "")) ? String(v) : "");
+  const todayIst = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const fromDay = day(req.query.from) || `${todayIst.slice(0, 8)}01`;
+  const toDay = day(req.query.to) || todayIst;
+  const from = new Date(`${fromDay}T00:00:00.000+05:30`);
+  const to = new Date(`${toDay}T23:59:59.999+05:30`);
+  if (from > to) return res.status(400).json({ success: false, message: "The start date must be before the end date" });
+  if (to.getTime() - from.getTime() > 400 * 24 * 60 * 60 * 1000) {
+    return res.status(400).json({ success: false, message: "Choose a period of up to 13 months" });
+  }
+  const data = await getReportsOverview(from, to);
+  return res.status(200).json({ success: true, data: { ...data, range: { from: fromDay, to: toDay } } });
+});
+
+/**
+ * GET /admin/reports/sales-orders?from&to&channel&status&search&page&limit
+ * One row per order and seller: sales value, GST with CGST / SGST / IGST, returns and
+ * exchanges, and a remark. Totals cover the whole filter.
+ */
+export const getAdminSalesOrderReport = asyncHandler(async (req: Request, res: Response) => {
+  const { getSalesOrderReport } = await import("../../../services/salesOrderReportService");
+  const { page, limit } = paging(req);
+  const day = (v: any, end: boolean) =>
+    /^d{4}-d{2}-d{2}$/.test(String(v || "")) ? new Date(`${v}T${end ? "23:59:59.999" : "00:00:00.000"}+05:30`) : undefined;
+  const data = await getSalesOrderReport({
+    from: day(req.query.from, false),
+    to: day(req.query.to, true),
+    channel: req.query.channel ? String(req.query.channel) : undefined,
+    status: req.query.status ? String(req.query.status) : "",
+    search: String(req.query.search || "").trim() || undefined,
+    page,
+    limit,
+  });
+  return res.status(200).json({
+    success: true,
+    data: data.rows,
+    totals: data.totals,
+    pagination: { page, limit, total: data.total, pages: Math.ceil(data.total / limit) },
+  });
+});
