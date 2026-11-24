@@ -1,3 +1,4 @@
+import { deliveryStatusLabel, needsRider } from '../../../utils/deliveryLabel';
 import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getOrdersByStatus, type Order } from '../../../services/api/admin/adminOrderService';
@@ -115,7 +116,7 @@ export default function AdminCancelledOrders() {
           `"${order.paymentMethod || ''}"`,
           `"${order.paymentStatus || ''}"`,
           `"${order.status || ''}"`,
-          `"${order.deliveryBoyStatus || 'Not Assigned'}"`,
+          `"${deliveryStatusLabel(order)}"`,
           `"${order.total?.toFixed(2) || '0.00'}"`
         ].join(',')
       )
@@ -594,11 +595,11 @@ export default function AdminCancelledOrders() {
                       {/* Delivery Boy Assign Status */}
                       <td className="px-4 py-3.5 text-center whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          order.deliveryBoyStatus === 'Assigned'
+                          (order.deliveryBoyStatus === 'Assigned' || !needsRider(order))
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : 'bg-red-50 text-red-600 border border-red-100'
                         }`}>
-                          {order.deliveryBoyStatus || 'Not Assigned'}
+                          {deliveryStatusLabel(order)}
                         </span>
                       </td>
 

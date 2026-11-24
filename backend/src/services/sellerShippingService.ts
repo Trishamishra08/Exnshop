@@ -46,6 +46,39 @@ export const isSellerFulfilledOrder = async (order: any): Promise<boolean> => {
   return viaCompany.length < sellerIds.length;
 };
 
+/**
+ * Who takes each order to the customer, for admin lists (one query for the whole page):
+ *  - "Seller":  self delivery / self shipping (no rider, no Exnshop courier)
+ *  - "Courier": E-commerce parcel on the Exnshop courier (Shiprocket)
+ *  - "Rider":   Quick order delivered by an Exnshop delivery partner
+ */
+export const deliveredByForOrders = async (orders: any[]): Promise<Map<string, "Seller" | "Courier" | "Rider">> => {
+  const sellerIdsOf = (o: any): string[] =>
+    (o.items || [])
+      .filter((i: any) => i && typeof i === "object" && i.sellerStatus !== "Rejected" && i.status !== "Cancelled")
+      .map((i: any) => String(i.seller?._id || i.seller || ""))
+      .filter(Boolean);
+  const allIds = [...new Set(orders.flatMap(sellerIdsOf))];
+  const selfIds = new Set(
+    allIds.length
+      ? (await Seller.find({ _id: { $in: allIds }, shippingMethod: "Self" }).select("_id").lean()).map((s: any) => String(s._id))
+      : [],
+  );
+  const result = new Map<string, "Seller" | "Courier" | "Rider">();
+  for (const o of orders) {
+    const ids = sellerIdsOf(o);
+    const sellerDelivers =
+      (o.channel !== "ECommerce" && o.deliveryPreference === "Self" && !o.deliveryBoy) ||
+      (o.shiprocketShipments || []).some((s: any) => s?.provider === "Self") ||
+      ids.some((id) => selfIds.has(id));
+    result.set(String(o._id), sellerDelivers ? "Seller" : o.channel === "ECommerce" ? "Courier" : "Rider");
+  }
+  return result;
+};
+
+/** Courier name a self-shipping seller picks when their own delivery person takes the parcel. */
+export const OWN_DELIVERY = "Own delivery";
+
 export const activeCourierNames = async (): Promise<string[]> => {
   const couriers = await Courier.find({ isActive: true }).select("name").sort({ name: 1 }).lean();
   return couriers.map((c: any) => c.name);
@@ -62,7 +95,8 @@ export const getShippingMethodState = async (sellerId: string) => {
     chosenAt: seller.shippingMethodChosenAt || null,
     request: seller.shippingMethodRequest || null,
     shipsEcommerce: true, // every seller has a delivery method now (Quick and E-commerce)
-    couriers: await activeCourierNames(),
+    // "Own delivery" first: works without any courier partner (seller's own delivery person).
+    couriers: [OWN_DELIVERY, ...(await activeCourierNames())],
   };
 };
 
@@ -219,19 +253,21 @@ export const saveSelfShipment = async (
   input: { courierName?: string; trackingNumber?: string; trackingUrl?: string },
 ) => {
   const courierName = (input.courierName || "").trim();
-  const trackingNumber = (input.trackingNumber || "").trim();
+  let trackingNumber = (input.trackingNumber || "").trim();
   const trackingUrl = (input.trackingUrl || "").trim();
+  // The seller's own delivery person (no courier company): no courier list or tracking needed.
+  const ownDelivery = normalize(courierName) === normalize(OWN_DELIVERY);
 
   if (!courierName) throw fail("Select the courier company");
-  if (!trackingNumber) throw fail("Enter the tracking number");
-  if (trackingNumber.length < 4 || trackingNumber.length > 40 || !/^[A-Za-z0-9\-_/]+$/.test(trackingNumber)) {
+  if (!ownDelivery && !trackingNumber) throw fail("Enter the tracking number");
+  if (trackingNumber && (trackingNumber.length < 4 || trackingNumber.length > 40 || !/^[A-Za-z0-9\-_/]+$/.test(trackingNumber))) {
     throw fail("Tracking number should be 4–40 letters, numbers or dashes");
   }
   if (trackingUrl && !/^https?:\/\/\S+$/i.test(trackingUrl)) throw fail("Tracking link must start with http:// or https://");
 
-  const couriers = await activeCourierNames();
-  if (!couriers.some((c) => normalize(c) === normalize(courierName))) {
-    throw fail("Pick a courier from the list. Ask admin to add yours if it's missing.");
+  const couriers = ownDelivery ? [] : await activeCourierNames();
+  if (!ownDelivery && !couriers.some((c) => normalize(c) === normalize(courierName))) {
+    throw fail(`Pick a courier from the list, or "${OWN_DELIVERY}" if your own delivery person takes it.`);
   }
 
   const seller: any = await Seller.findById(sellerId).select("shippingMethod");
@@ -242,7 +278,9 @@ export const saveSelfShipment = async (
   if (order.channel !== "ECommerce") throw fail("Self shipping applies to E-commerce orders only");
   if (["Cancelled", "Rejected", "Returned", "Delivered"].includes(order.status)) throw fail(`This order is ${order.status.toLowerCase()}`);
 
-  const canonicalName = couriers.find((c) => normalize(c) === normalize(courierName))!;
+  // Own delivery without a number: the order number is the parcel's reference (label / slip barcode).
+  if (!trackingNumber) trackingNumber = String(order.orderNumber || "").slice(0, 40);
+  const canonicalName = ownDelivery ? OWN_DELIVERY : couriers.find((c) => normalize(c) === normalize(courierName))!;
   const entry = {
     seller: new mongoose.Types.ObjectId(sellerId),
     channelOrderId: order.orderNumber,

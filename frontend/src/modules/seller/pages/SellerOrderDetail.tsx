@@ -76,6 +76,8 @@ export default function SellerOrderDetail() {
   // Self-shipping seller: the courier list (admin-managed) and the form fields.
   const [couriers, setCouriers] = useState<string[]>([]);
   const [selCourier, setSelCourier] = useState('');
+  // The seller's own delivery person: no courier partner or tracking number needed.
+  const isOwnDelivery = selCourier.trim().toLowerCase() === 'own delivery';
   const [trackingNo, setTrackingNo] = useState('');
   const [trackingLink, setTrackingLink] = useState('');
   const [savingShip, setSavingShip] = useState(false);
@@ -194,7 +196,7 @@ export default function SellerOrderDetail() {
   const handleSaveShipping = async () => {
     if (!orderDetail) return;
     if (!selCourier) return showToast('Select the courier company', 'error');
-    if (!trackingNo.trim()) return showToast('Enter the tracking number', 'error');
+    if (!isOwnDelivery && !trackingNo.trim()) return showToast('Enter the tracking number', 'error');
     setSavingShip(true);
     try {
       const res = await saveSelfShippingDetails(orderDetail.id, {
@@ -654,10 +656,17 @@ export default function SellerOrderDetail() {
                       {couriers.length === 0 && (
                         <p className="text-[11px] text-amber-700 mt-1">No courier companies are available yet. Ask admin to add them.</p>
                       )}
+                      {isOwnDelivery && (
+                        <p className="text-[11px] text-teal-700 mt-1">
+                          Your own delivery person takes it. No courier or tracking number needed — use "Print Delivery Slip" and send it with the parcel.
+                        </p>
+                      )}
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold text-neutral-600 mb-1">Tracking number</label>
-                      <input value={trackingNo} onChange={(e) => setTrackingNo(e.target.value)} disabled={!canEdit} maxLength={40} placeholder="e.g. 1234567890" className={field} />
+                      <label className="block text-xs font-semibold text-neutral-600 mb-1">
+                        Tracking number {isOwnDelivery && <span className="font-normal text-neutral-400">(optional — the order number is used)</span>}
+                      </label>
+                      <input value={trackingNo} onChange={(e) => setTrackingNo(e.target.value)} disabled={!canEdit} maxLength={40} placeholder={isOwnDelivery ? 'Leave blank' : 'e.g. 1234567890'} className={field} />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-neutral-600 mb-1">Tracking link <span className="font-normal text-neutral-400">(optional)</span></label>

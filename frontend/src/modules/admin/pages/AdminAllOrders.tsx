@@ -1,3 +1,4 @@
+import { deliveryStatusLabel } from '../../../utils/deliveryLabel';
 import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -146,7 +147,7 @@ export default function AdminAllOrders() {
           `"${(order.deliveryAddress?.address || '').replace(/"/g, '""')}"`,
           `"${order.orderDate ? new Date(order.orderDate).toLocaleDateString('en-IN') : ''}"`,
           `"${order.status || ""}"`,
-          `"${order.deliveryPreference === 'Self' ? 'Self Assigned' : (order.deliveryBoyStatus || "Not Assigned")}"`,
+          `"${deliveryStatusLabel(order)}"`,
           `"${order.total?.toFixed(2) || "0.00"}"`,
         ].join(",")
       ),
@@ -607,7 +608,7 @@ export default function AdminAllOrders() {
                   const custPhone = order.customerPhone || (typeof order.customer === 'object' ? order.customer?.phone : '');
                   const fullAddress = order.deliveryAddress?.address || 'No address provided';
                   const statusInfo = getStatusBadge(order.status);
-                  const deliveryStatus = order.deliveryPreference === 'Self' ? 'Self Assigned' : (order.deliveryBoyStatus || 'Not Assigned');
+                  const deliveryStatus = deliveryStatusLabel(order);
 
                   return (
                     <tr key={order._id} className="hover:bg-neutral-50/80 transition-colors group">
@@ -676,7 +677,7 @@ export default function AdminAllOrders() {
                       {/* Delivery Boy Assign Status */}
                       <td className="px-4 py-3.5 text-center whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          deliveryStatus === 'Assigned' || deliveryStatus === 'Self Assigned'
+                          deliveryStatus === 'Assigned' || deliveryStatus === 'Seller delivers' || deliveryStatus === 'By courier'
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : 'bg-red-50 text-red-600 border border-red-100'
                         }`}>

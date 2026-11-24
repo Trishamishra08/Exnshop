@@ -1,3 +1,4 @@
+import { needsRider } from '../../../utils/deliveryLabel';
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -40,9 +41,10 @@ export default function AdminAssignDeliveryBoy() {
             if (receivedRes.success) combinedOrders = [...combinedOrders, ...receivedRes.data];
             if (acceptedRes.success) combinedOrders = [...combinedOrders, ...acceptedRes.data];
 
-            // Filter out self-assigned orders; exclude Instant delivery (auto-assigned, never go to admin)
+            // Only orders a rider takes: not seller-delivered (self delivery / self shipping), not
+            // E-commerce courier parcels, and not Instant (auto-assigned, never comes to the admin).
             combinedOrders = combinedOrders.filter(
-                order => order.deliveryPreference !== "Self" && order.deliveryOption !== "Instant"
+                order => needsRider(order) && order.deliveryOption !== "Instant"
             );
 
             // Sort orders by date descending (newest first)

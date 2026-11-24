@@ -87,10 +87,17 @@ export const getAllOrders = asyncHandler(
       Order.countDocuments(query),
     ]);
 
+    // Who delivers each order (seller / Exnshop courier / rider) for the delivery-status column.
+
+    const { deliveredByForOrders } = await import("../../../services/sellerShippingService");
+
+    const deliveredBy = await deliveredByForOrders(orders);
+
+
     return res.status(200).json({
       success: true,
       message: "Orders fetched successfully",
-      data: orders,
+      data: orders.map((o: any) => ({ ...o.toObject(), deliveredBy: deliveredBy.get(String(o._id)) })),
       pagination: {
         page: parseInt(page as string),
         limit: parseInt(limit as string),
@@ -656,10 +663,15 @@ export const getOrdersByStatus = asyncHandler(
       Order.countDocuments(byStatusQuery),
     ]);
 
+    // Who delivers each order (seller / Exnshop courier / rider), so the rider-assignment
+    // screens leave out orders no rider will ever take.
+    const { deliveredByForOrders } = await import("../../../services/sellerShippingService");
+    const deliveredBy = await deliveredByForOrders(orders);
+
     return res.status(200).json({
       success: true,
       message: `Orders with status ${status} fetched successfully`,
-      data: orders,
+      data: orders.map((o: any) => ({ ...o.toObject(), deliveredBy: deliveredBy.get(String(o._id)) })),
       pagination: {
         page: parseInt(page as string),
         limit: parseInt(limit as string),
