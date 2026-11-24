@@ -9,6 +9,7 @@ import WithdrawRequest from "../../../models/WithdrawRequest";
 import RefundRequest from "../../../models/RefundRequest";
 import Claim from "../../../models/Claim";
 import Order from "../../../models/Order";
+import Delivery from "../../../models/Delivery";
 import { listPendingSellerChanges } from "../../../services/sellerProfileChangeService";
 import { listPendingDeliveryChanges } from "../../../services/deliveryProfileChangeService";
 
@@ -45,6 +46,7 @@ export const getSidebarCounts = asyncHandler(async (req: Request, res: Response)
     claims,
     newOrders,
     pendingSellers,
+    pendingDelivery,
   ] = await Promise.all([
     safe(() => Notification.countDocuments({ recipientType: "Admin", recipientId: adminId, isRead: false })),
     safe(() => SupportTicket.countDocuments({ requesterType: "Customer", status: { $in: OPEN_TICKET } })),
@@ -59,6 +61,8 @@ export const getSidebarCounts = asyncHandler(async (req: Request, res: Response)
     safe(() => Claim.countDocuments({ status: { $in: ["Raised", "Under Review"] } })),
     safe(() => Order.countDocuments({ status: "Received" })),
     safe(() => Seller.countDocuments({ onboardingStatus: "UnderReview" })),
+    // Delivery partners with documents waiting for review
+    safe(() => Delivery.countDocuments({ "documents.status": "Pending" })),
   ]);
 
   return res.json({
@@ -77,6 +81,7 @@ export const getSidebarCounts = asyncHandler(async (req: Request, res: Response)
       "/admin/claims": claims,
       "/admin/orders/received": newOrders,
       "/admin/manage-seller/pending": pendingSellers,
+      "/admin/delivery-boy/manage": pendingDelivery,
     },
   });
 });

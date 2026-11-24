@@ -136,51 +136,14 @@ export default function SellerBottomNav() {
       ),
     },
     {
-      path: '/seller/notifications',
-      label: t('common.notifications', 'Alerts'),
-      badge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : null,
+      // Middle slot: add a product (notifications open from the header bell)
+      path: '/seller/product/add',
+      label: t('seller.addProduct', 'Add'),
+      badge: null as string | number | null,
       icon: (active: boolean) => (
-        <svg
-          width="22"
-          height="22"
-          viewBox="0 0 24 24"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          {active ? (
-            <>
-              <path
-                d="M18 8A6 6 0 0 0 6 8C6 11.3137 4 14 4 14H20C20 14 18 11.3137 18 8Z"
-                fill="#ccfbf1"
-                stroke="#0d9488"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M13.73 21a2 2 0 0 1-3.46 0"
-                stroke="#0d9488"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </>
-          ) : (
-            <>
-              <path
-                d="M18 8A6 6 0 0 0 6 8C6 11.3137 4 14 4 14H20C20 14 18 11.3137 18 8Z"
-                stroke="#6b7280"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M13.73 21a2 2 0 0 1-3.46 0"
-                stroke="#6b7280"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </>
-          )}
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="3" y="3" width="18" height="18" rx="5" fill={active ? '#ccfbf1' : 'none'} stroke={active ? '#0d9488' : '#6b7280'} strokeWidth="1.8" />
+          <path d="M12 8v8M8 12h8" stroke={active ? '#0d9488' : '#6b7280'} strokeWidth="1.8" strokeLinecap="round" />
         </svg>
       ),
     },

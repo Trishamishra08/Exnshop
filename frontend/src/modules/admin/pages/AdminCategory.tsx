@@ -350,32 +350,43 @@ export default function AdminCategory() {
 
   // Handle export
   const handleExport = () => {
-    const headers = [
-      "ID",
-      "Name",
-      "Parent",
-      "Status",
-      "Order",
-      "Image",
-      "Created At",
-    ];
+    // Every category with its real parent (name + id), so sub-categories don't look like roots.
+    const all = flattenTree(categories);
+    const byId = new Map(all.map((c) => [String(c._id), c]));
+    const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const levelOf = (c: Category) => {
+      let level = 0;
+      let cur: Category | undefined = c;
+      while (cur && cur.parentId && level < 10) {
+        cur = byId.get(String(cur.parentId));
+        level += 1;
+      }
+      return level;
+    };
+    const headerName = (c: Category) => {
+      const h: any = (c as any).headerCategoryId;
+      return h && typeof h === "object" ? h.name || "" : "";
+    };
+    const headers = ["ID", "Name", "Level", "Parent Category", "Parent ID", "Header Category", "Status", "Order", "Image", "Created At"];
     const csvContent = [
       headers.join(","),
-      ...filteredCategories.map((category) =>
-        [
-          category._id,
-          `"${category.name}"`,
-          category.parent
-            ? typeof category.parent === "string"
-              ? category.parent
-              : category.parent.name
-            : category.parentId || "Root",
-          category.status,
-          category.order || 0,
-          category.image || "",
-          category.createdAt || "",
-        ].join(",")
-      ),
+      ...filteredCategories.map((category) => {
+        const parentId = category.parentId ? String(category.parentId) : "";
+        const parent = parentId ? byId.get(parentId) : undefined;
+        const level = levelOf(category);
+        return [
+          q(category._id),
+          q(category.name),
+          q(level === 0 ? "Category" : level === 1 ? "Subcategory" : "Sub-subcategory"),
+          q(parentId ? parent?.name || "(parent not found)" : "— (top level)"),
+          q(parentId),
+          q(headerName(category)),
+          q(category.status),
+          q(category.order || 0),
+          q(category.image || ""),
+          q(category.createdAt || ""),
+        ].join(",");
+      }),
     ].join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });

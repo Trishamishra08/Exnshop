@@ -4,6 +4,7 @@ import exnshopLogo from '@assets/exnshop_logo.png';
 import { useAuth } from '../../../context/AuthContext';
 import { useLanguage } from '../../../context/LanguageContext';
 import LanguageSelector from '../../../components/LanguageSelector';
+import { getSellerNotifications } from '../../../services/api/sellerNotificationService';
 
 interface SellerHeaderProps {
   onMenuClick: () => void;
@@ -16,6 +17,15 @@ export default function SellerHeader({ onMenuClick, isSidebarOpen }: SellerHeade
   const { t } = useLanguage();
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  // Unread notifications for the header bell (the dot only shows when there are some)
+  const [unreadCount, setUnreadCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => getSellerNotifications().then((list) => !cancelled && setUnreadCount((list || []).filter((n) => !n.isRead).length)).catch(() => {});
+    load();
+    const timer = setInterval(load, 60000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [location.pathname]);
   const { user, logout } = useAuth();
   const settingsRef = useRef<HTMLDivElement>(null);
   const locationRef = useRef<HTMLDivElement>(null);
@@ -115,14 +125,14 @@ export default function SellerHeader({ onMenuClick, isSidebarOpen }: SellerHeade
               <LanguageSelector variant="dropdown" />
             </div>
             
-            <button className="relative p-1.5 text-neutral-600 hover:text-neutral-900 transition-colors hidden sm:flex">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-            </button>
-
-            <button className="relative p-1.5 text-neutral-800 hover:text-black transition-colors sm:hidden">
+            <button
+              type="button"
+              onClick={() => navigate('/seller/notifications')}
+              aria-label="Notifications"
+              className="relative p-1.5 text-neutral-800 hover:text-black transition-colors"
+            >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-[1.5px] border-white"></span>
+              {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border-[1.5px] border-white"></span>}
             </button>
             
             <button

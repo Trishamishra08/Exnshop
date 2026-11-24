@@ -119,7 +119,7 @@ export default function AdminLogin() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your admin email"
-                autoComplete="username"
+                autoComplete="off"
                 className="w-full px-3 py-2.5 text-sm border border-neutral-300 rounded-lg placeholder:text-neutral-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
                 disabled={loading || otpSent}
                 autoFocus
@@ -134,7 +134,7 @@ export default function AdminLogin() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    autoComplete="current-password"
+                    autoComplete="new-password"
                     className="w-full px-3 py-2.5 pr-16 text-sm border border-neutral-300 rounded-lg placeholder:text-neutral-400 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
                     disabled={loading}
                   />
@@ -184,13 +184,6 @@ export default function AdminLogin() {
           </button>
         </div>
       </div>
-
-      {/* Footer Text */}
-      <p className="mt-6 text-xs text-neutral-500 text-center max-w-md">
-        By continuing, you agree to Exnshop's{' '}
-        <a href="/terms-and-conditions" className="text-primary font-medium hover:underline">Terms of Service</a>
-        {' '}and Privacy Policy
-      </p>
     </div>
   );
 }

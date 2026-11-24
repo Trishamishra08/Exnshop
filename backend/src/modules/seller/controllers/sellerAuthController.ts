@@ -200,6 +200,8 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
 
       await PendingSellerRegistration.deleteOne({ _id: pending._id });
       await auditSeller({ sellerId: seller._id, actorType: "Seller", actorId: seller._id, actorName: seller.sellerName, action: "REGISTERED" });
+      // Admin bell + push: a new seller signed up and needs onboarding review
+      await notifyAdmins("New seller registered", `${seller.storeName || seller.sellerName} (${seller.city || "—"}) signed up. Their onboarding will come in for review.`);
     }
   } else {
     if (!mobile || !/^[0-9]{10}$/.test(mobile)) {
@@ -257,6 +259,8 @@ export const verifyOTP = asyncHandler(async (req: Request, res: Response) => {
 
       await PendingSellerRegistration.deleteOne({ _id: pending._id });
       await auditSeller({ sellerId: seller._id, actorType: "Seller", actorId: seller._id, actorName: seller.sellerName, action: "REGISTERED" });
+      // Admin bell + push: a new seller signed up and needs onboarding review
+      await notifyAdmins("New seller registered", `${seller.storeName || seller.sellerName} (${seller.city || "—"}) signed up. Their onboarding will come in for review.`);
     }
   }
 

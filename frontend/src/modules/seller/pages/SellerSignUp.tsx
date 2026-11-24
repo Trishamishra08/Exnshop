@@ -9,8 +9,11 @@ import { useAuth } from '../../../context/AuthContext';
 import { getHeaderCategoriesPublic, HeaderCategory } from '../../../services/api/headerCategoryService';
 import LocationPickerMap from '../../../components/LocationPickerMap';
 import AnimatedLogo from '../../../components/AnimatedLogo';
+import PolicyModal, { type PolicyDoc } from '../../../components/PolicyModal';
 
 export default function SellerSignUp() {
+  // Terms / Privacy open in a popup, so the form being filled in is kept
+  const [policyDoc, setPolicyDoc] = useState<PolicyDoc | null>(null);
   const navigate = useNavigate();
   const { login } = useAuth();
   const [bgImgOk, setBgImgOk] = useState(true);
@@ -94,15 +97,21 @@ export default function SellerSignUp() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.sellerName) { setError('Please enter your name'); return; }
-    if (!formData.mobile || formData.mobile.length !== 10) { setError('Enter a valid 10-digit mobile'); return; }
-    if (!formData.email) { setError('Please enter your email'); return; }
-    if (!formData.storeName) { setError('Please enter your store name'); return; }
+    // Format checks, not just "is it filled in"
+    const nameRe = /^[A-Za-z][A-Za-z .'-]*$/;
+    if (!formData.sellerName.trim()) { setError('Please enter your name'); return; }
+    if (formData.sellerName.trim().length < 2 || !nameRe.test(formData.sellerName.trim())) { setError('Enter a valid name (letters only)'); return; }
+    if (!/^[6-9][0-9]{9}$/.test(formData.mobile)) { setError('Enter a valid 10-digit Indian mobile number'); return; }
+    if (!formData.email.trim()) { setError('Please enter your email'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(formData.email.trim())) { setError('Enter a valid email address'); return; }
+    if (!formData.storeName.trim()) { setError('Please enter your store name'); return; }
+    if (formData.storeName.trim().length < 2 || !/[A-Za-z]/.test(formData.storeName)) { setError('Enter a valid store name'); return; }
     if (formData.categories.length === 0) { setError('Select at least one category'); return; }
     if (formData.channels.length === 0) { setError('Select at least one commerce channel'); return; }
     if (!formData.shippingMethod) { setError('Choose how your orders will be delivered'); return; }
     if (!formData.searchLocation || !formData.latitude || !formData.longitude) { setError('Please select your store location'); return; }
-    if (!formData.city) { setError('Please enter your city'); return; }
+    if (!formData.city.trim()) { setError('Please enter your city'); return; }
+    if (!nameRe.test(formData.city.trim())) { setError('Enter a valid city name'); return; }
     const radius = Number(formData.serviceRadiusKm);
     if (!Number.isInteger(radius) || radius < 1 || radius > 300) { setError('Service radius must be a whole number between 1 and 300 km'); return; }
 
@@ -501,15 +510,18 @@ export default function SellerSignUp() {
             </div>
           )}
 
-          {/* Card Footer */}
+          {/* Card Footer (not on the OTP step) */}
+          {!showOTP && (
           <div className="px-5 pb-4">
             <p className="text-[11px] text-slate-400 text-center leading-relaxed pt-3 border-t border-slate-100">
               By continuing, you agree to Exnshop's{' '}
-              <span onClick={() => navigate('/terms-and-conditions')} className="text-blue-700 font-medium hover:underline cursor-pointer">Terms of Service</span>
+              <span onClick={() => setPolicyDoc('terms')} className="text-blue-700 font-medium hover:underline cursor-pointer">Terms of Service</span>
               {' '}&{' '}
-              <span onClick={() => navigate('/privacy-policy')} className="text-blue-700 font-medium hover:underline cursor-pointer">Privacy Policy</span>.
+              <span onClick={() => setPolicyDoc('privacy')} className="text-blue-700 font-medium hover:underline cursor-pointer">Privacy Policy</span>.
             </p>
           </div>
+          )}
+          <PolicyModal app="seller" doc={policyDoc} onClose={() => setPolicyDoc(null)} />
         </div>
       </div>
     </div>

@@ -145,11 +145,12 @@ router.get(
 // ==================== Category Routes ====================
 router.post("/categories", productController.createCategory);
 router.get("/categories", productController.getCategories);
+// "/reorder" must come before "/:id", or Express treats "reorder" as a category id
+router.put("/categories/reorder", productController.updateCategoryOrder);
 router.put("/categories/:id", productController.updateCategory);
 router.delete("/categories/:id", productController.deleteCategory);
 router.patch("/categories/:id/status", productController.toggleCategoryStatus);
 router.post("/categories/bulk-delete", productController.bulkDeleteCategories);
-router.put("/categories/reorder", productController.updateCategoryOrder);
 
 // ==================== SubCategory Routes ====================
 router.post("/subcategories", productController.createSubCategory);

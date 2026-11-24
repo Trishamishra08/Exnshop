@@ -23,5 +23,9 @@ router.put(
   sellerNotificationController.markNotificationRead
 );
 
+// Delete the seller's own notifications (one, or all)
+router.delete("/notifications/:id", authenticate, requireUserType("Seller"), sellerNotificationController.deleteNotification);
+router.delete("/notifications", authenticate, requireUserType("Seller"), sellerNotificationController.clearNotifications);
+
 export default router;
 

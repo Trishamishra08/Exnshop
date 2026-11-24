@@ -4,6 +4,7 @@ import { useAuth } from '../../../context/AuthContext';
 import { useLanguage } from '../../../context/LanguageContext';
 import exnshopLogo from '@assets/exnshop_logo.png';
 import LanguageSelector from '../../../components/LanguageSelector';
+import { getNotifications, markAsRead, type Notification as AdminNotificationItem } from '../../../services/api/admin/adminNotificationService';
 
 interface AdminHeaderProps {
   onMenuClick: () => void;
@@ -13,10 +14,41 @@ interface AdminHeaderProps {
 export default function AdminHeader({ onMenuClick, isSidebarOpen }: AdminHeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const { t } = useLanguage();
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const notificationsRef = useRef<HTMLDivElement>(null);
+
+  // This admin's own notifications (new seller/delivery signups, approvals needed, …)
+  const adminId = String((user as any)?.id || (user as any)?._id || '');
+  const [recent, setRecent] = useState<AdminNotificationItem[]>([]);
+  const [unread, setUnread] = useState(0);
+  const loadNotifications = async () => {
+    if (!adminId) return;
+    try {
+      const [list, unreadRes] = await Promise.all([
+        getNotifications({ recipientType: 'Admin', recipientId: adminId, limit: 6 }),
+        getNotifications({ recipientType: 'Admin', recipientId: adminId, isRead: false, limit: 1 }),
+      ]);
+      if (list.success) setRecent((list.data || []) as AdminNotificationItem[]);
+      if (unreadRes.success) setUnread(Number((unreadRes as any).pagination?.total ?? (unreadRes.data || []).length) || 0);
+    } catch {
+      /* keep the last list */
+    }
+  };
+  useEffect(() => {
+    loadNotifications();
+    const timer = setInterval(loadNotifications, 60000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminId]);
+  const openNotification = async (n: AdminNotificationItem) => {
+    setShowNotificationsDropdown(false);
+    if (!n.isRead) {
+      markAsRead(n._id).then(loadNotifications).catch(() => {});
+    }
+    navigate(n.link && n.link.startsWith('/admin') ? n.link : '/admin/notification');
+  };
 
   const isActive = (path: string) => location.pathname.includes(path);
 
@@ -123,6 +155,7 @@ export default function AdminHeader({ onMenuClick, isSidebarOpen }: AdminHeaderP
           <div className="relative" ref={notificationsRef}>
             <button
               onClick={() => {
+                if (!showNotificationsDropdown) loadNotifications();
                 setShowNotificationsDropdown(!showNotificationsDropdown);
               }}
               className="p-2 text-neutral-600 hover:text-neutral-900 transition-colors relative"
@@ -132,16 +165,47 @@ export default function AdminHeader({ onMenuClick, isSidebarOpen }: AdminHeaderP
                 <path d="M18 8A6 6 0 0 0 6 8C6 11.3137 4 14 4 17H20C20 14 18 11.3137 18 8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 <path d="M13.73 21C13.5542 21.3031 13.3019 21.5547 12.9982 21.7295C12.6946 21.9044 12.3504 21.9965 12 21.9965C11.6496 21.9965 11.3054 21.9044 11.0018 21.7295C10.6982 21.5547 10.4458 21.3031 10.27 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
+              {unread > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {unread > 9 ? '9+' : unread}
+                </span>
+              )}
             </button>
             {showNotificationsDropdown && (
               <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-neutral-200 py-2 z-50 max-h-96 overflow-y-auto">
                 <div className="px-4 py-2 border-b border-neutral-200">
                   <h3 className="text-sm font-semibold text-neutral-900">Notifications</h3>
                 </div>
-                <div className="py-4 px-4 text-center text-sm text-neutral-500">
-                  <p>No new notifications</p>
-                </div>
+                {recent.length === 0 ? (
+                  <div className="py-4 px-4 text-center text-sm text-neutral-500">
+                    <p>No new notifications</p>
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-neutral-100">
+                    {recent.map((n) => (
+                      <li key={n._id}>
+                        <button
+                          type="button"
+                          onClick={() => openNotification(n)}
+                          className={`w-full text-left px-4 py-2.5 hover:bg-neutral-50 ${n.isRead ? '' : 'bg-teal-50/60'}`}
+                        >
+                          <div className="flex items-start gap-2">
+                            {!n.isRead && <span className="mt-1.5 w-2 h-2 rounded-full bg-teal-600 shrink-0" />}
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-neutral-900 truncate">{n.title}</p>
+                              <p className="text-xs text-neutral-600 line-clamp-2">{n.message}</p>
+                              {(n as any).createdAt && (
+                                <p className="text-[10px] text-neutral-400 mt-0.5">
+                                  {new Date((n as any).createdAt).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <div className="px-4 py-2 border-t border-neutral-200">
                   <button
                     onClick={() => {

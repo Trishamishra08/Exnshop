@@ -10,6 +10,7 @@ import { themes } from '../../../utils/themes';
 import { ICON_LIBRARY, getIconByName, IconDef } from '../../../utils/iconLibrary';
 import { useToast } from '../../../context/ToastContext';
 import ConfirmationModal from '../../../components/ConfirmationModal';
+import { uploadImage } from '../../../services/api/uploadService';
 
 export default function AdminHeaderCategory() {
   const { showToast } = useToast();
@@ -21,6 +22,9 @@ export default function AdminHeaderCategory() {
   const [headerCategoryName, setHeaderCategoryName] = useState('');
   const [selectedIconLibrary, setSelectedIconLibrary] = useState('Custom'); // Default to Custom for SVG
   const [headerCategoryIcon, setHeaderCategoryIcon] = useState('');
+  // Optional picture for the customer app tab; when empty the icon is used
+  const [headerCategoryImage, setHeaderCategoryImage] = useState('');
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(''); // This maps to relatedCategory
   const [selectedTheme, setSelectedTheme] = useState(''); // This maps to slug
   const [selectedStatus, setSelectedStatus] = useState<'Published' | 'Unpublished'>('Published');
@@ -114,6 +118,7 @@ export default function AdminHeaderCategory() {
     setHeaderCategoryIcon('');
     setSelectedCategory('');
     setSelectedTheme('');
+    setHeaderCategoryImage('');
     setSelectedStatus('Published');
     setReturnWindowDays('');
     setEditingId(null);
@@ -130,6 +135,7 @@ export default function AdminHeaderCategory() {
         name: headerCategoryName,
         iconLibrary: selectedIconLibrary,
         iconName: headerCategoryIcon,
+        image: headerCategoryImage,
         slug: selectedTheme, // Use theme as slug for color mapping
         relatedCategory: selectedCategory,
         status: selectedStatus,
@@ -158,6 +164,7 @@ export default function AdminHeaderCategory() {
     setHeaderCategoryName(category.name);
     setSelectedIconLibrary(category.iconLibrary);
     setHeaderCategoryIcon(category.iconName);
+    setHeaderCategoryImage(category.image || '');
     setSelectedCategory(category.relatedCategory || '');
     setSelectedTheme(category.slug);
     setSelectedStatus(category.status);
@@ -267,6 +274,54 @@ export default function AdminHeaderCategory() {
               <p className="mt-1 text-xs text-neutral-500">
                 Icons are automatically suggested based on category name.
               </p>
+            </div>
+
+            {/* Optional image (customer app tab shows it instead of the icon) */}
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">
+                Image <span className="text-neutral-400 font-normal">(optional)</span>
+              </label>
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-xl border border-neutral-200 bg-neutral-50 overflow-hidden flex items-center justify-center shrink-0">
+                  {headerCategoryImage ? (
+                    <img src={headerCategoryImage} alt="" className="w-full h-full object-contain" />
+                  ) : (
+                    <span className="text-[10px] text-neutral-400">No image</span>
+                  )}
+                </div>
+                <label className="px-3 py-2 rounded-lg border border-neutral-300 text-sm font-medium text-neutral-700 hover:bg-neutral-50 cursor-pointer">
+                  {uploadingImage ? 'Uploading…' : headerCategoryImage ? 'Change image' : 'Upload image'}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="hidden"
+                    disabled={uploadingImage}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (!file) return;
+                      if (!file.type.startsWith('image/')) return showToast('Please choose an image file', 'error');
+                      setUploadingImage(true);
+                      try {
+                        const r: any = await uploadImage(file, 'exnshop/header-categories');
+                        const url = r?.secureUrl || r?.url;
+                        if (url) setHeaderCategoryImage(url);
+                        else showToast('Upload failed', 'error');
+                      } catch (err: any) {
+                        showToast(err?.response?.data?.message || 'Upload failed', 'error');
+                      } finally {
+                        setUploadingImage(false);
+                      }
+                    }}
+                  />
+                </label>
+                {headerCategoryImage && (
+                  <button type="button" onClick={() => setHeaderCategoryImage('')} className="text-sm font-medium text-red-600 hover:underline">
+                    Remove
+                  </button>
+                )}
+              </div>
+              <p className="mt-1 text-xs text-neutral-500">Leave empty to show the selected icon in the customer app.</p>
             </div>
 
             {/* Theme / Color Selection */}

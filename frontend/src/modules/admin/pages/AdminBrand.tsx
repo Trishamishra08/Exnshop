@@ -217,11 +217,11 @@ export default function AdminBrand() {
       ...brands.map((brand) =>
         [
           brand._id.slice(-6),
-          `"${brand.name}"`,
+          `"${String(brand.name || "").replace(/"/g, '""')}"`,
           `"${brand.image || ""}"`,
         ].join(",")
       ),
-    ].join("\\n");
+    ].join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");

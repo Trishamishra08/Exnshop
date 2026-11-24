@@ -206,9 +206,9 @@ export default function DeliveryUnderReview() {
       {/* Footer Info */}
       <div className="relative z-10 text-center text-xs text-slate-500 pt-4">
         Need assistance? Contact{' '}
-        <span className="text-teal-700 font-medium hover:underline cursor-pointer">
+        <a href="mailto:support@exnshop.com" className="text-teal-700 font-medium hover:underline">
           support@exnshop.com
-        </span>
+        </a>
       </div>
     </div>
   );

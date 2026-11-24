@@ -11,6 +11,8 @@ export default function SellerUnderReview() {
   const [isRejected, setIsRejected] = useState(user?.status === 'Rejected');
   const [onboardingStatus, setOnboardingStatus] = useState<string | undefined>(user?.onboardingStatus);
   const [statusReason, setStatusReason] = useState('');
+  // Notes the admin left on sections it wants changed (shown while the review is still open)
+  const [sectionNotes, setSectionNotes] = useState<{ section: string; remarks: string }[]>([]);
   const isSuspended = onboardingStatus === 'Suspended';
   const isMountedRef = useRef(true);
 
@@ -35,6 +37,13 @@ export default function SellerUnderReview() {
       }
       setOnboardingStatus(onboardingStatus);
       setStatusReason(res?.data?.onboardingStatusReason || '');
+      const review = res?.data?.onboardingReview || {};
+      const labels: Record<string, string> = { business: 'Business details', kyc: 'Documents', bank: 'Bank details', store: 'Store details' };
+      setSectionNotes(
+        Object.entries(review)
+          .filter(([, v]: any) => v?.status === 'ChangesRequired' && v?.remarks)
+          .map(([k, v]: any) => ({ section: labels[k] || k, remarks: String(v.remarks) }))
+      );
 
       if (updatedStatus === 'Approved') {
         // Update user state in auth context
@@ -165,6 +174,19 @@ export default function SellerUnderReview() {
             ? 'Thank you for your interest in Exnshop. Unfortunately, your seller application could not be approved at this time.'
             : "Thank you for registering with Exnshop. Our team is reviewing your business details, documents and bank account. You'll be able to access your seller dashboard once your account is approved."}
         </p>
+        {!isSuspended && !isRejected && sectionNotes.length > 0 && (
+          <div className="-mt-3 mb-5 text-left text-xs text-orange-900 bg-orange-50 border border-orange-200 rounded-xl px-3 py-2.5">
+            <p className="font-semibold mb-1">Our team has asked for some changes:</p>
+            <ul className="space-y-0.5 list-disc pl-4">
+              {sectionNotes.map((n) => (
+                <li key={n.section}>
+                  <b>{n.section}:</b> {n.remarks}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1 text-[11px] text-orange-800">You will be able to edit these once the review is sent back to you.</p>
+          </div>
+        )}
         {statusReason && (isSuspended || isRejected) && (
           <p className="-mt-3 mb-5 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-xl px-3 py-2">Reason: {statusReason}</p>
         )}
@@ -246,9 +268,9 @@ export default function SellerUnderReview() {
       {/* Footer Info */}
       <div className="relative z-10 text-center text-xs text-slate-500 pt-4">
         Need assistance? Contact{' '}
-        <span className="text-blue-700 font-medium hover:underline cursor-pointer">
+        <a href="mailto:support@exnshop.com" className="text-blue-700 font-medium hover:underline">
           support@exnshop.com
-        </span>
+        </a>
       </div>
     </div>
   );

@@ -142,7 +142,9 @@ export default function AdminSellerReview() {
     setRunningCheck(checks?.length === 1 ? checks[0] : 'ALL');
     try {
       const res = await runVerificationsAdmin(id, checks);
-      setData(res.data);
+      // The checks response has no seller header / audit log: keep those from the page load
+      // (replacing them crashed the page with "reading 'storeName'").
+      setData((prev: any) => (prev ? { ...prev, ...res.data, seller: prev.seller, auditLog: prev.auditLog } : res.data));
       showToast('Checks completed', 'success');
     } catch (err) {
       showToast(apiErrorMessage(err, 'Could not run the checks'), 'error');
@@ -204,11 +206,11 @@ export default function AdminSellerReview() {
             Request changes
           </button>
           <button
-            disabled={busy || !sec.complete}
+            disabled={busy || !sec.complete || sec.reviewStatus === 'Approved'}
             onClick={() => act(() => reviewSellerSectionAdmin(id, section, 'Approved'), `${SECTION_TITLES[section]} approved`)}
-            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {section === 'bank' ? 'Mark bank verified' : 'Approve section'}
+            {sec.reviewStatus === 'Approved' ? (section === 'bank' ? 'Bank verified ✓' : 'Approved ✓') : section === 'bank' ? 'Mark bank verified' : 'Approve section'}
           </button>
         </div>
       </div>
@@ -235,9 +237,9 @@ export default function AdminSellerReview() {
           <Link to={status === 'UnderReview' ? '/admin/manage-seller/pending' : '/admin/manage-seller/list'} className="text-xs text-teal-700 hover:underline">
             ← Back to sellers
           </Link>
-          <h1 className="text-2xl font-semibold text-neutral-800">{data.seller.storeName}</h1>
+          <h1 className="text-2xl font-semibold text-neutral-800">{data.seller?.storeName || data.store?.storeName || "Seller"}</h1>
           <p className="text-sm text-neutral-500">
-            {data.seller.sellerName} · {data.seller.mobile} · {data.seller.email}
+            {data.seller?.sellerName} · {data.seller?.mobile} · {data.seller?.email}
           </p>
         </div>
         <span className={`self-start px-3 py-1 rounded-full text-xs font-bold border ${meta.tone}`}>{meta.label}</span>
@@ -414,18 +416,23 @@ export default function AdminSellerReview() {
                 label="Map location"
                 value={
                   data.store.latitude && data.store.longitude ? (
-                    <a
-                      className="text-teal-700 hover:underline"
-                      target="_blank"
-                      rel="noreferrer"
-                      href={`https://www.google.com/maps?q=${data.store.latitude},${data.store.longitude}`}
-                    >
-                      Open in Google Maps
-                    </a>
+                    <span>
+                      {(data.store.searchLocation || data.store.address) && (
+                        <span className="block text-neutral-800">{data.store.searchLocation || data.store.address}</span>
+                      )}
+                      <a
+                        className="text-teal-700 hover:underline"
+                        target="_blank"
+                        rel="noreferrer"
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${data.store.latitude},${data.store.longitude}`)}`}
+                      >
+                        Open in Google Maps (exact pin)
+                      </a>
+                    </span>
                   ) : undefined
                 }
               />
-              <Row label="Channels" value={(data.seller.channels || []).join(', ')} />
+              <Row label="Channels" value={(data.seller?.channels || []).join(', ')} />
             </div>
           )}
         </div>
@@ -490,7 +497,7 @@ export default function AdminSellerReview() {
               <p className="text-[11px] text-neutral-500">Approve all four sections (including bank verification) to approve the seller.</p>
             )}
             <p className="text-[11px] text-neutral-500">
-              Product approval is separate: {data.seller.requireProductApproval ? 'this seller’s products need approval.' : 'this seller’s products go live without approval.'}
+              Product approval is separate: {data.seller?.requireProductApproval ? 'this seller’s products need approval.' : 'this seller’s products go live without approval.'}
             </p>
           </section>
 

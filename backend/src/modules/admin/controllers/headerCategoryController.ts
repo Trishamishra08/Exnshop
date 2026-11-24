@@ -63,6 +63,7 @@ export const createHeaderCategory = async (req: Request, res: Response) => {
       status,
       order,
       returnWindowDays,
+      image,
     } = req.body;
 
     if (isReservedSlug(slug)) {
@@ -84,6 +85,7 @@ export const createHeaderCategory = async (req: Request, res: Response) => {
       name,
       iconLibrary,
       iconName,
+      image: typeof image === "string" ? image.trim() : "",
       slug,
       relatedCategory,
       status,
@@ -114,6 +116,7 @@ export const updateHeaderCategory = async (req: Request, res: Response) => {
       status,
       order,
       returnWindowDays,
+      image,
     } = req.body;
     const category = await HeaderCategory.findById(req.params.id);
 
@@ -136,6 +139,8 @@ export const updateHeaderCategory = async (req: Request, res: Response) => {
       category.name = name || category.name;
       category.iconLibrary = iconLibrary || category.iconLibrary;
       category.iconName = iconName || category.iconName;
+      // Picture is optional: an empty string removes it (the icon is shown instead).
+      if (image !== undefined) category.image = typeof image === "string" ? image.trim() : "";
       category.slug = slug || category.slug;
       category.relatedCategory = relatedCategory; // Allow clearing it (undefined or null or empty string)
       category.status = status || category.status;

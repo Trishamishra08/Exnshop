@@ -270,6 +270,18 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
     message: "Delivery partner registered successfully.",
     // No token returned here, flow continues to OTP
   });
+
+  // Admin bell + push: a new delivery partner needs document review and approval
+  try {
+    const { sendBroadcastNotification } = await import("../../../services/notificationService");
+    await sendBroadcastNotification("Admin", "New delivery partner registered", `${name} (${city || "—"}, ${mobile}) signed up. Review their documents to approve them.`, {
+      type: "Info",
+      priority: "High",
+      link: "/admin/delivery-boy/manage",
+    });
+  } catch (err: any) {
+    console.error("[Delivery signup] Admin notification failed:", err?.message);
+  }
 });
 
 /**

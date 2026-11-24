@@ -28,3 +28,15 @@ export const markSellerNotificationRead = async (id: string) => {
   return response.data;
 };
 
+
+/** Delete one of the seller's own notifications. */
+export const deleteSellerNotification = async (id: string) => {
+  const response = await api.delete(`${BASE_URL}/notifications/${id}`);
+  return response.data;
+};
+
+/** Delete all of the seller's own notifications. */
+export const clearSellerNotifications = async () => {
+  const response = await api.delete(`${BASE_URL}/notifications`);
+  return response.data;
+};

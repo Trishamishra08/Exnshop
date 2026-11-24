@@ -1341,20 +1341,35 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
 
   const menuSections = getMenuSections(mode);
 
+  // A path matches the page itself or a page under it ("/admin/category" matches
+  // "/admin/category/123", not "/admin/category-x").
+  const matches = (path: string) => location.pathname === path || location.pathname.startsWith(path + "/");
+  // Of several menu paths, only the most specific match is highlighted, so
+  // "/admin/category/header" selects "Header Category" and not "Category" too.
+  const bestMatch = (paths: string[]) =>
+    paths.filter((p) => p && matches(p)).sort((a, b) => b.length - a.length)[0];
+  const allMenuPaths = (() => {
+    const out: string[] = [];
+    getMenuSections(mode).forEach((sec: any) =>
+      (sec.items || []).forEach((it: any) => {
+        if (it.path) out.push(it.path);
+        (it.submenuItems || []).forEach((sub: any) => sub.path && out.push(sub.path));
+      })
+    );
+    return out;
+  })();
+  const activePath = bestMatch(allMenuPaths);
+
   const isActive = (path: string) => {
     if (path === "/admin") {
       return location.pathname === "/admin" || location.pathname === "/admin/";
     }
-    return location.pathname.startsWith(path);
+    return activePath === path;
   };
 
   const isSubmenuActive = (submenuItems?: SubMenuItem[]) => {
     if (!submenuItems) return false;
-    return submenuItems.some(
-      (item) =>
-        location.pathname === item.path ||
-        location.pathname.startsWith(item.path + "/")
-    );
+    return submenuItems.some((item) => item.path === activePath);
   };
 
   const reviewCounts = useProductReviewCounts();
@@ -1636,9 +1651,7 @@ export default function AdminSidebar({ onClose }: AdminSidebarProps) {
                       <ul className="mt-1 space-y-1 ml-4">
                         {item.submenuItems &&
                           item.submenuItems.map((subItem) => {
-                            const subActive =
-                              location.pathname === subItem.path ||
-                              location.pathname.startsWith(subItem.path + "/");
+                            const subActive = subItem.path === activePath;
                             return (
                               <li key={subItem.path}>
                                 <button

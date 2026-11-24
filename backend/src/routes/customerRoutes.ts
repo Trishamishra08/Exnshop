@@ -146,6 +146,30 @@ router.get("/faqs", async (_req, res) => {
   }
 });
 
+// Public policy text for the seller / delivery sign-in screens (shown in a popup there,
+// so the half-filled form is kept). Read-only; no account needed.
+router.get("/app-policy", async (req, res) => {
+  try {
+    const app = String(req.query.app || "").toLowerCase();
+    const doc = String(req.query.doc || "terms").toLowerCase();
+    let policy: any = null;
+    if (app === "delivery") {
+      const titleRe = doc === "privacy" ? /privacy/i : /terms|condition/i;
+      policy =
+        (await Policy.findOne({ type: "delivery", isActive: true, title: { $regex: titleRe } }).sort({ createdAt: -1 }).lean()) ||
+        (doc === "terms" ? await Policy.findOne({ type: "delivery", isActive: true }).sort({ createdAt: -1 }).lean() : null);
+    }
+    if (!policy) {
+      const settings: any = await AppSettings.findOne().select("privacyPolicy termsOfService").lean();
+      const content = doc === "privacy" ? settings?.privacyPolicy : settings?.termsOfService;
+      if (content) policy = { title: doc === "privacy" ? "Privacy Policy" : "Terms & Conditions", content };
+    }
+    return res.status(200).json({ success: true, data: policy ? { title: policy.title, content: policy.content } : null });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // Get active Customer Terms & Conditions (auto-seed ExnShop terms if missing/outdated)
 router.get("/policy", async (_req, res) => {
   try {

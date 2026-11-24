@@ -79,3 +79,25 @@ export const markNotificationRead = asyncHandler(async (req: Request, res: Respo
   });
 });
 
+
+/**
+ * Delete one of the seller's own notifications. Announcements sent to every seller
+ * (no recipient) are shared, so they can't be deleted from here.
+ */
+export const deleteNotification = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = req.user?.userId;
+  const deleted = await Notification.findOneAndDelete({ _id: req.params.id, recipientType: "Seller", recipientId: sellerId });
+  if (!deleted) {
+    return res.status(404).json({ success: false, message: "This notification can't be deleted" });
+  }
+  return res.status(200).json({ success: true, message: "Notification deleted" });
+});
+
+/** Delete all of the seller's own notifications (optionally only the read ones). */
+export const clearNotifications = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = req.user?.userId;
+  const filter: any = { recipientType: "Seller", recipientId: sellerId };
+  if (String(req.query.readOnly || "") === "true") filter.isRead = true;
+  const r = await Notification.deleteMany(filter);
+  return res.status(200).json({ success: true, message: `${r.deletedCount || 0} notification(s) deleted`, data: { deleted: r.deletedCount || 0 } });
+});

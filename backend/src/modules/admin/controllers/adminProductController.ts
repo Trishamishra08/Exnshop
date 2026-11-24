@@ -476,6 +476,12 @@ export const updateCategoryOrder = asyncHandler(
     );
 
     await Promise.all(updatePromises);
+    // New order must show to customers right away (the category lists are cached)
+    cache.delete("customer-categories-list-v3");
+    cache.delete("customer-categories-list-v4");
+    cache.delete("customer-category-list-with-children");
+    cache.delete("customer-categories-tree");
+    cache.delete("customer-category-menu");
 
     return res.status(200).json({
       success: true,

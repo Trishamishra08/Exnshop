@@ -4,6 +4,8 @@ export interface IHeaderCategory extends Document {
     name: string;
     iconLibrary: string;
     iconName: string;
+    /** Optional picture for the customer app's category tab; without it the icon is shown. */
+    image?: string;
     slug: string;
     relatedCategory?: string; // Links to a product category
     order: number;
@@ -20,6 +22,7 @@ const HeaderCategorySchema: Schema = new Schema(
         name: { type: String, required: true },
         iconLibrary: { type: String, required: true },
         iconName: { type: String, required: true },
+        image: { type: String, trim: true, default: "" },
         slug: { type: String, required: true, unique: true },
         relatedCategory: { type: String, required: false },
         order: { type: Number, default: 0 },

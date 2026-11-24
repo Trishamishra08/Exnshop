@@ -6,6 +6,8 @@ export interface HeaderCategory {
     name: string;
     iconLibrary: string; // 'IonIcons' | 'MaterialIcons' | 'FontAwesome' | 'Feather'
     iconName: string;
+    /** Optional picture for the customer app tab (otherwise the icon is shown). */
+    image?: string;
     slug: string; // Maps to theme key
     relatedCategory?: string;
     status: 'Published' | 'Unpublished';

@@ -69,18 +69,6 @@ export default function HomeHero({ activeTab = 'all', onTabChange, searchPlaceho
       try {
         const cats = await getHeaderCategoriesPublic();
         if (cats && cats.length > 0) {
-          const mapSlugToImage = (slug: string) => {
-            switch(slug) {
-              case 'grocery': return '/grocery_icon.jpg';
-              case 'fruits-vegetables': return '/fruits_veg_icon.jpg';
-              case 'dairy-milk': return '/dairy_icon.jpg';
-              case 'snacks-drinks': return '/snacks_icon.jpg';
-              case 'home-furniture': return '/home_essentials_icon.jpg';
-              case 'beauty': return '/personal_care_icon.jpg';
-              default: return undefined;
-            }
-          };
-
           const mapped = cats
             .filter(c => c.slug !== 'all' && c.status === 'Published')
             .sort((a, b) => (a.order || 0) - (b.order || 0))
@@ -88,7 +76,8 @@ export default function HomeHero({ activeTab = 'all', onTabChange, searchPlaceho
               id: c.slug,
               label: getTranslatedField(c, "name") || c.name,
               icon: getIconByName(c.iconName),
-              imageUrl: mapSlugToImage(c.slug)
+              // Only a picture the admin uploaded; otherwise the icon they chose
+              imageUrl: (c as any).image || undefined
             }));
           setTabs([ALL_TAB, ...mapped, MORE_TAB]);
         } else {

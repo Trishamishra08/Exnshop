@@ -13,6 +13,7 @@ import api from "../../../services/api/config";
 import { validateDocumentFile, compressImage } from "../../../utils/imageUpload";
 import OTPInput from "../../../components/OTPInput";
 import AnimatedLogo from "../../../components/AnimatedLogo";
+import PolicyModal, { type PolicyDoc } from '../../../components/PolicyModal';
 
 // KYC documents an agent must provide; reviewed by the admin before activation.
 const KYC_DOCS = [
@@ -27,6 +28,8 @@ const KYC_DOCS = [
 ] as const;
 
 export default function DeliverySignUp() {
+  // Terms / Privacy open in a popup, so the form being filled in is kept
+  const [policyDoc, setPolicyDoc] = useState<PolicyDoc | null>(null);
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: "",
@@ -58,6 +61,7 @@ export default function DeliverySignUp() {
   const [isCityLoading, setIsCityLoading] = useState(false);
   const [bgImgOk, setBgImgOk] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [showPassword, setShowPassword] = useState(false);
 
   // What a field accepts while typing — a stray letter in a phone/account
   // number, or more characters than the real format has, is rejected as it's
@@ -72,7 +76,7 @@ export default function DeliverySignUp() {
   // code; the three bank fields become required together once any one of
   // them is filled in, so the (optional) bank section can be left empty.
   const validators: Record<string, (value: string, data: typeof formData) => string | undefined> = {
-    name: (v) => (!v.trim() ? "Full name is required" : v.trim().length < 2 ? "Enter a valid name" : undefined),
+    name: (v) => (!v.trim() ? "Full name is required" : v.trim().length < 2 || !/^[A-Za-z][A-Za-z .'-]*$/.test(v.trim()) ? "Enter a valid name (letters only)" : undefined),
     mobile: (v) => (!v ? "Mobile number is required" : !/^[6-9][0-9]{9}$/.test(v) ? "Enter a valid 10-digit Indian mobile number" : undefined),
     email: (v) => (!v.trim() ? "Email is required" : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? "Enter a valid email address" : undefined),
     password: (v) => (!v ? "Password is required" : v.length < 6 ? "Password must be at least 6 characters" : undefined),
@@ -84,7 +88,7 @@ export default function DeliverySignUp() {
       return age < 18 ? "You must be at least 18 years old" : undefined;
     },
     address: (v) => (!v.trim() ? "Address is required" : v.trim().length < 5 ? "Enter your full address" : undefined),
-    city: (v) => (!v.trim() ? "City is required" : undefined),
+    city: (v) => (!v.trim() ? "City is required" : !/^[A-Za-z][A-Za-z .'-]*$/.test(v.trim()) ? "Enter a valid city name" : undefined),
     pincode: (v) => (!v ? "Pincode is required" : !/^[1-9][0-9]{5}$/.test(v) ? "Enter a valid 6-digit pincode" : undefined),
     vehicleNumber: (v) => (!v ? "Vehicle number is required" : !/^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{4}$/.test(v) ? "Enter a valid vehicle number, e.g. RJ14AB1234" : undefined),
     accountName: (v) => (!v.trim() ? "Account holder name is required" : v.trim().length < 2 ? "Enter the name on the account" : undefined),
@@ -409,8 +413,15 @@ export default function DeliverySignUp() {
                     <div className="w-10 h-full bg-slate-100/90 border-r border-slate-200 flex items-center justify-center text-slate-400 flex-shrink-0">
                       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                     </div>
-                    <input type="password" name="password" value={formData.password} onChange={handleInputChange} onBlur={handleFieldBlur} placeholder="Min 6 characters" required minLength={6} disabled={loading}
+                    <input type={showPassword ? "text" : "password"} name="password" value={formData.password} onChange={handleInputChange} onBlur={handleFieldBlur} placeholder="Min 6 characters" required minLength={6} disabled={loading}
                       className="flex-1 h-full px-3 text-xs font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal focus:outline-none bg-transparent" />
+                    <button type="button" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? "Hide password" : "Show password"} className="w-10 h-full flex items-center justify-center text-slate-400 hover:text-slate-600 flex-shrink-0">
+                      {showPassword ? (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      ) : (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      )}
+                    </button>
                   </div>
                   {fieldErrors.password && <p className="text-[11px] text-red-600 mt-1 ml-1">{fieldErrors.password}</p>}
                 </div>
@@ -608,15 +619,18 @@ export default function DeliverySignUp() {
             </div>
           )}
 
-          {/* Footer inside card */}
+          {/* Footer inside card (not on the OTP step) */}
+          {!showOTP && (
           <div className="px-5 pb-4">
             <p className="text-[11px] text-slate-400 text-center leading-relaxed pt-3 border-t border-slate-100">
               By continuing, you agree to Exnshop's{" "}
-              <span onClick={() => navigate("/terms-and-conditions")} className="text-blue-700 font-medium hover:underline cursor-pointer">Terms of Service</span>
+              <span onClick={() => setPolicyDoc('terms')} className="text-blue-700 font-medium hover:underline cursor-pointer">Terms of Service</span>
               {" "}&{" "}
-              <span onClick={() => navigate("/privacy-policy")} className="text-blue-700 font-medium hover:underline cursor-pointer">Privacy Policy</span>.
+              <span onClick={() => setPolicyDoc('privacy')} className="text-blue-700 font-medium hover:underline cursor-pointer">Privacy Policy</span>.
             </p>
           </div>
+          )}
+          <PolicyModal app="delivery" doc={policyDoc} onClose={() => setPolicyDoc(null)} />
         </div>
       </div>
     </div>

@@ -101,6 +101,32 @@ export default function SellerOnboarding() {
   const [locLoading, setLocLoading] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  // In-page document viewer (a blank new tab showed a white screen in the app)
+  const [docPreview, setDocPreview] = useState<{ url: string; name: string } | null>(null);
+
+  // Steps the seller has saved themselves. Signup already fills the store basics, so the
+  // server alone would show those steps done before the seller ever opened them.
+  const uid = String((user as any)?.id || (user as any)?._id || 'seller');
+  const savedKey = `exn_onboarding_saved:${uid}`;
+  const formKey = `exn_onboarding_form:${uid}`;
+  const [savedSections, setSavedSections] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(`exn_onboarding_saved:${String((user as any)?.id || (user as any)?._id || 'seller')}`) || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const markSaved = (s: Step) =>
+    setSavedSections((prev) => {
+      if (s === 'review' || prev.includes(s)) return prev;
+      const next = [...prev, s];
+      try {
+        localStorage.setItem(savedKey, JSON.stringify(next));
+      } catch {
+        /* storage unavailable */
+      }
+      return next;
+    });
 
   const applyView = useCallback(
     (v: OnboardingView, resetForms = false) => {
@@ -144,10 +170,32 @@ export default function SellerOnboarding() {
       applyView(res.data, true);
       if (!initialised.current) {
         initialised.current = true;
+        // Bring back what was typed before a refresh (kept for this browser tab only).
+        let draft: any = null;
+        try {
+          draft = JSON.parse(sessionStorage.getItem(formKey) || 'null');
+        } catch {
+          draft = null;
+        }
+        if (draft) {
+          if (draft.business && res.data.sections.business.editable) setBusiness((p) => ({ ...p, ...draft.business }));
+          if (draft.bank && res.data.sections.bank.editable) setBank((p) => ({ ...p, ...draft.bank }));
+          if (draft.store && res.data.sections.store.editable) setStore((p) => ({ ...p, ...draft.store }));
+        }
+        let saved: string[] = [];
+        try {
+          saved = JSON.parse(localStorage.getItem(savedKey) || '[]');
+        } catch {
+          saved = [];
+        }
+        const preSubmit = ['Draft', 'KYCPending'].includes(res.data.onboardingStatus);
         const firstOpen = (['business', 'kyc', 'bank', 'store'] as SectionKey[]).find(
-          (s) => res.data.sections[s].reviewStatus === 'ChangesRequired' || !res.data.sections[s].complete
+          (s) =>
+            res.data.sections[s].reviewStatus === 'ChangesRequired' ||
+            !res.data.sections[s].complete ||
+            (preSubmit && !saved.includes(s))
         );
-        setStep(firstOpen || 'review');
+        setStep(draft?.step && STEPS.some((x) => x.key === draft.step) ? draft.step : firstOpen || 'review');
       }
     } catch (err) {
       showToast(apiErrorMessage(err, 'Failed to load onboarding'), 'error');
@@ -161,6 +209,20 @@ export default function SellerOnboarding() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Keep the form (and the open step) for this tab, so a refresh doesn't wipe it.
+  useEffect(() => {
+    if (loading || !initialised.current) return;
+    const t = setTimeout(() => {
+      try {
+        sessionStorage.setItem(formKey, JSON.stringify({ business, bank, store, step }));
+      } catch {
+        /* storage unavailable */
+      }
+    }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [business, bank, store, step, loading]);
+
   const goNext = (from: Step) => {
     const idx = STEPS.findIndex((s) => s.key === from);
     setStep(STEPS[Math.min(idx + 1, STEPS.length - 1)].key);
@@ -173,7 +235,10 @@ export default function SellerOnboarding() {
       const res = await fn();
       applyView(res.data, resetForms);
       showToast(res.message || 'Saved', 'success');
-      if (next) goNext(next);
+      if (next) {
+        markSaved(next);
+        goNext(next);
+      }
       return true;
     } catch (err) {
       showToast(apiErrorMessage(err), 'error');
@@ -261,20 +326,36 @@ export default function SellerOnboarding() {
   };
 
   const viewDoc = async (docId: string) => {
-    const tab = window.open('', '_blank');
     try {
       const res = await getMyDocumentUrl(docId);
-      if (tab) tab.location.href = res.data.url;
+      const doc = view.documents.find((d) => d._id === docId);
+      setDocPreview({ url: res.data.url, name: doc?.originalName || 'Document' });
     } catch (err) {
-      tab?.close();
       showToast(apiErrorMessage(err, 'Could not open document'), 'error');
     }
   };
 
   const handleSubmit = async () => {
     const ok = await run(() => submitOnboarding());
-    if (ok) navigate('/seller/under-review', { replace: true });
+    if (ok) {
+      try {
+        sessionStorage.removeItem(formKey);
+      } catch {
+        /* storage unavailable */
+      }
+      navigate('/seller/under-review', { replace: true });
+    }
   };
+
+  // A step counts as done once it is complete AND the seller has saved it (or it was submitted/reviewed).
+  const preSubmit = ['Draft', 'KYCPending'].includes(status);
+  const stepDone = (key: Step): boolean => {
+    if (key === 'review') return view.canSubmit;
+    const sec = view.sections[key];
+    return sec.complete && (!preSubmit || savedSections.includes(key) || sec.reviewStatus !== 'NotSubmitted');
+  };
+  // A step opens only when every step before it is done.
+  const stepReachable = (i: number) => STEPS.slice(0, i).every((s) => s.key === 'review' || stepDone(s.key));
 
   // ── Render helpers ──
   const banner = (() => {
@@ -312,7 +393,7 @@ export default function SellerOnboarding() {
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
           <p className="font-bold mb-1">{status === 'Rejected' ? 'Application not approved' : 'Account suspended'}</p>
           {view.statusReason && <p className="text-xs">Reason: {view.statusReason}</p>}
-          <p className="text-xs mt-1">Contact support@exnshop.com for help.</p>
+          <p className="text-xs mt-1">Contact <a href="mailto:support@exnshop.com" className="font-semibold underline">support@exnshop.com</a> for help.</p>
         </div>
       );
     }
@@ -371,47 +452,52 @@ export default function SellerOnboarding() {
             </button>
           </div>
         </div>
-      </header>
 
-      <main className="max-w-4xl mx-auto px-4 py-5 space-y-4">
-        {banner}
-
-        <div className="bg-white rounded-2xl border border-neutral-200 p-4">
-          <div className="flex items-center justify-between text-xs font-semibold text-neutral-600 mb-2">
+        {/* Progress + steps stay fixed with the header; only the form below scrolls */}
+        <div className="max-w-4xl mx-auto px-4 pb-3">
+          <div className="flex items-center justify-between text-[11px] font-semibold text-neutral-600 mb-1.5">
             <span>Profile completion</span>
             <span>{completedCount} of 4 sections</span>
           </div>
-          <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden">
             <div className="h-full bg-teal-500 transition-all" style={{ width: `${(completedCount / 4) * 100}%` }} />
           </div>
-          <div className="grid grid-cols-5 gap-1.5 mt-4">
+          <div className="grid grid-cols-5 gap-1 sm:gap-1.5 mt-2.5">
             {STEPS.map((s, i) => {
               const sec = s.key !== 'review' ? view.sections[s.key] : null;
-              const done = sec ? sec.complete : view.canSubmit;
+              const done = stepDone(s.key);
               const flagged = sec?.reviewStatus === 'ChangesRequired';
               const active = step === s.key;
+              const reachable = active || stepReachable(i);
               return (
                 <button
                   key={s.key}
+                  type="button"
+                  disabled={!reachable}
                   onClick={() => setStep(s.key)}
-                  className={`rounded-xl px-1.5 py-2 text-center border transition-colors ${
+                  title={reachable ? undefined : 'Complete the earlier steps first'}
+                  className={`min-w-0 overflow-hidden rounded-xl px-0.5 sm:px-1.5 py-1.5 sm:py-2 text-center border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                     active ? 'border-teal-500 bg-teal-50' : 'border-transparent hover:bg-neutral-50'
                   }`}
                 >
                   <span
-                    className={`mx-auto mb-1 flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${
+                    className={`mx-auto mb-1 flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-full text-[11px] sm:text-xs font-bold ${
                       flagged ? 'bg-orange-500 text-white' : done ? 'bg-teal-600 text-white' : active ? 'bg-teal-100 text-teal-800' : 'bg-neutral-100 text-neutral-500'
                     }`}
                   >
                     {flagged ? '!' : done && s.key !== 'review' ? '✓' : i + 1}
                   </span>
-                  <span className="block text-[11px] font-semibold text-neutral-800 leading-tight">{s.title}</span>
-                  <span className="hidden sm:block text-[10px] text-neutral-500">{s.hint}</span>
+                  <span className="block truncate text-[10px] sm:text-[11px] font-semibold text-neutral-800 leading-tight">{s.title}</span>
+                  <span className="hidden sm:block truncate text-[10px] text-neutral-500">{s.hint}</span>
                 </button>
               );
             })}
           </div>
         </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto px-4 py-5 space-y-4">
+        {banner}
 
         <section className="bg-white rounded-2xl border border-neutral-200 p-4 sm:p-6">
           {step === 'business' && (
@@ -550,7 +636,11 @@ export default function SellerOnboarding() {
                   );
                 })}
               </ul>
-              {editable('kyc') && saveBtn('Continue', !view.sections.kyc.complete, () => goNext('kyc'))}
+              {editable('kyc') &&
+                saveBtn('Continue', !view.sections.kyc.complete, () => {
+                  markSaved('kyc');
+                  goNext('kyc');
+                })}
               {!view.sections.kyc.complete && view.sections.kyc.missing.length > 0 && (
                 <p className="text-[11px] text-neutral-500 text-right">Still needed: {view.sections.kyc.missing.join(', ')}</p>
               )}
@@ -754,6 +844,32 @@ export default function SellerOnboarding() {
           )}
         </section>
       </main>
+
+      {/* Uploaded document, shown in the page (images inline, PDFs in a frame) */}
+      {docPreview && (
+        <div className="fixed inset-0 z-[120] bg-black/70 flex items-center justify-center p-3" onClick={() => setDocPreview(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-neutral-200">
+              <p className="text-sm font-semibold text-neutral-900 truncate">{docPreview.name}</p>
+              <div className="flex items-center gap-2 shrink-0">
+                <a href={docPreview.url} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-teal-700 hover:underline">
+                  Open in new tab
+                </a>
+                <button type="button" onClick={() => setDocPreview(null)} aria-label="Close" className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-neutral-100 text-neutral-500">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto bg-neutral-100 flex items-center justify-center min-h-[50vh]">
+              {/\.pdf(\?|$)/i.test(docPreview.url) || /pdf/i.test(docPreview.name) ? (
+                <iframe title={docPreview.name} src={docPreview.url} className="w-full h-[75vh] bg-white" />
+              ) : (
+                <img src={docPreview.url} alt={docPreview.name} className="max-w-full max-h-[75vh] object-contain" />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

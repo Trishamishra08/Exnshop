@@ -30,8 +30,13 @@ const loadImage = async (seller: ISeller, docType: string): Promise<{ buffer: Bu
   if (!doc) return { problem: `The seller hasn't uploaded the ${docType.replace(/_/g, " ").toLowerCase()} yet` };
   const format = (doc.format || "").toLowerCase();
   if (!IMAGE_FORMATS.has(format)) return { problem: "This document is a PDF. Automatic checks need a photo (JPG/PNG); ask the seller to re-upload as an image" };
-  const res = await fetch(signedDocumentUrl(doc), { signal: AbortSignal.timeout(30_000) });
-  if (!res.ok) return { problem: "Could not read the stored document" };
+  let res: Response;
+  try {
+    res = await fetch(signedDocumentUrl(doc), { signal: AbortSignal.timeout(30_000) });
+  } catch (err: any) {
+    return { problem: `Could not download the stored document (${err?.name === "TimeoutError" ? "timed out" : err?.message || "network error"})` };
+  }
+  if (!res.ok) return { problem: `Could not read the stored document (HTTP ${res.status})` };
   return { buffer: Buffer.from(await res.arrayBuffer()), mime: MIME[format] };
 };
 
@@ -170,7 +175,8 @@ export const runVerificationChecks = async (
       outcome = await RUNNERS[type](seller);
     } catch (err: any) {
       console.error(`[Verification] ${type} check crashed:`, err?.message);
-      outcome = { status: "Error", summary: "The check failed unexpectedly. Please try again." };
+      // Show the real reason, so the admin knows whether to retry, fix the API key or ask the seller.
+      outcome = { status: "Error", summary: `The check failed: ${err?.message || "unexpected error"}. Please try again.` };
     }
     results.push({ type, ...outcome, ranAt: new Date(), ranBy: actor.actorName });
   }

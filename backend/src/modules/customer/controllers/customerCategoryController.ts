@@ -359,7 +359,7 @@ export const getCategoryMenu = async (_req: Request, res: Response) => {
     if (hit) return res.status(200).json({ success: true, data: hit });
 
     const [headers, cats] = await Promise.all([
-      HeaderCategory.find({ status: "Published" }).sort({ order: 1 }).select("name slug iconName iconLibrary order translations").lean(),
+      HeaderCategory.find({ status: "Published" }).sort({ order: 1 }).select("name slug iconName iconLibrary image order translations").lean(),
       Category.find({ status: "Active" })
         .sort({ order: 1 })
         .select("name slug image order parentId headerCategoryId isBestseller isFeatured translations")

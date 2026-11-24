@@ -5,8 +5,11 @@ import SmartLoginField, { parseIdentifier } from '../../../components/SmartLogin
 import OTPInput from '../../../components/OTPInput';
 import { useAuth } from '../../../context/AuthContext';
 import AnimatedLogo from '../../../components/AnimatedLogo';
+import PolicyModal, { type PolicyDoc } from '../../../components/PolicyModal';
 
 export default function SellerLogin() {
+  // Terms / Privacy open in a popup, so the form being filled in is kept
+  const [policyDoc, setPolicyDoc] = useState<PolicyDoc | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
@@ -317,14 +320,14 @@ export default function SellerLogin() {
           <p className="text-[11px] text-slate-400 text-center leading-relaxed mt-4 pt-3 border-t border-slate-100">
             By continuing, you agree to Exnshop's{' '}
             <span
-              onClick={() => navigate('/terms-and-conditions')}
+              onClick={() => setPolicyDoc('terms')}
               className="text-blue-700 font-medium hover:underline cursor-pointer"
             >
               Terms of Service
             </span>{' '}
             &{' '}
             <span
-              onClick={() => navigate('/privacy-policy')}
+              onClick={() => setPolicyDoc('privacy')}
               className="text-blue-700 font-medium hover:underline cursor-pointer"
             >
               Privacy Policy
@@ -332,6 +335,8 @@ export default function SellerLogin() {
           </p>
         </div>
       </div>
+
+      <PolicyModal app="seller" doc={policyDoc} onClose={() => setPolicyDoc(null)} />
 
       {/* Forgot Details Modal */}
       {showForgotModal && (

@@ -6,8 +6,11 @@ import OTPInput from '../../../components/OTPInput';
 import { useAuth } from '../../../context/AuthContext';
 import { removeAuthToken, getAuthToken } from '../../../services/api/config';
 import AnimatedLogo from '../../../components/AnimatedLogo';
+import PolicyModal, { type PolicyDoc } from '../../../components/PolicyModal';
 
 export default function DeliveryLogin() {
+  // Terms / Privacy open in a popup, so the form being filled in is kept
+  const [policyDoc, setPolicyDoc] = useState<PolicyDoc | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
@@ -118,15 +121,8 @@ export default function DeliveryLogin() {
 
       {/* Top Bar / Clean Circular Back Button & Delivery Pill */}
       <div className="w-full max-w-sm sm:max-w-md mx-auto flex items-center justify-between relative z-10 pt-1 pb-1">
-        <button
-          onClick={() => navigate(-1)}
-          className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/95 hover:bg-white text-slate-700 border border-slate-200/80 flex items-center justify-center transition-all active:scale-95 shadow-xs cursor-pointer backdrop-blur-xs"
-          aria-label="Go back"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M15 18L9 12L15 6" />
-          </svg>
-        </button>
+        {/* Login is the first screen: nothing to go back to (keeps the pill in place) */}
+        <div className="w-9 h-9 sm:w-10 sm:h-10" aria-hidden="true" />
 
         {/* Exnshop Delivery Pill Badge */}
         <div className="bg-white/95 backdrop-blur-xs rounded-full shadow-xs border border-slate-200/80 px-3 py-1 flex items-center gap-1">
@@ -337,14 +333,14 @@ export default function DeliveryLogin() {
           <p className="text-[11px] text-slate-400 text-center leading-relaxed mt-4 pt-3 border-t border-slate-100">
             By continuing, you agree to Exnshop's{' '}
             <span
-              onClick={() => navigate('/terms-and-conditions')}
+              onClick={() => setPolicyDoc('terms')}
               className="text-blue-700 font-medium hover:underline cursor-pointer"
             >
               Terms of Service
             </span>{' '}
             &{' '}
             <span
-              onClick={() => navigate('/privacy-policy')}
+              onClick={() => setPolicyDoc('privacy')}
               className="text-blue-700 font-medium hover:underline cursor-pointer"
             >
               Privacy Policy
@@ -352,6 +348,8 @@ export default function DeliveryLogin() {
           </p>
         </div>
       </div>
+
+      <PolicyModal app="delivery" doc={policyDoc} onClose={() => setPolicyDoc(null)} />
 
       {/* Forgot Details Modal */}
       {showForgotModal && (
@@ -365,7 +363,7 @@ export default function DeliveryLogin() {
               Please enter your registered mobile number on the login screen to receive a one-time OTP for direct login.
             </p>
             <p className="text-xs text-slate-500 mt-2">
-              For assistance, email Delivery Support at <strong className="text-slate-800">support@exnshop.com</strong>
+              For assistance, email Delivery Support at <a href="mailto:support@exnshop.com" className="font-semibold text-slate-800 underline">support@exnshop.com</a>
             </p>
             <button
               onClick={() => setShowForgotModal(false)}
