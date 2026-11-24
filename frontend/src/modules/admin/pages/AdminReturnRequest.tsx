@@ -886,6 +886,39 @@ export default function AdminReturnRequest() {
                           </div>
                         ) : request.doorstepSwap && request.status === "Pickup Pending" ? (
                           <span className="text-[11px] text-blue-700 font-semibold">Doorstep swap: the rider collects the old item with the replacement</span>
+                        ) : (request as any).shiprocketReturn && ["Pickup Pending", "Picked Up", "In Transit"].includes(request.status) ? (
+                          // E-commerce: a courier brings the item back, not a delivery partner.
+                          <div className="flex flex-col gap-1 items-center text-center">
+                            {(request as any).shiprocketReturn.awbCode ? (
+                              <>
+                                <span className="text-[11px] text-sky-700 font-semibold">
+                                  Courier: {(request as any).shiprocketReturn.courierName || "Courier"}
+                                </span>
+                                <span className="text-[11px] text-neutral-600">
+                                  AWB {(request as any).shiprocketReturn.awbCode}
+                                  {(request as any).shiprocketReturn.status ? ` · ${(request as any).shiprocketReturn.status}` : ""}
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-[11px] text-red-700 font-semibold">Courier pickup not booked</span>
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      const res = await api.post(`/admin/returns/${request._id}/ring-again`);
+                                      showToast(res.data?.message || "Courier pickup booked", res.data?.success ? "success" : "error");
+                                      setReloadKey((k) => k + 1);
+                                    } catch (err: any) {
+                                      showToast(err?.response?.data?.message || "Could not book the courier", "error");
+                                    }
+                                  }}
+                                  className="px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded text-xs font-medium whitespace-nowrap"
+                                >
+                                  Retry booking
+                                </button>
+                              </>
+                            )}
+                          </div>
                         ) : request.status === "Pickup Pending" ? (
                           <div className="flex flex-col gap-1 items-center">
                             <span className="text-[11px] text-sky-700 font-semibold">Waiting for a delivery partner to accept</span>

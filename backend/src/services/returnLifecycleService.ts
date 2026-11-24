@@ -196,7 +196,7 @@ export async function generateReturnPickupOtp(
  * without waiting for the item to reach the seller. A failure never undoes the pickup; it is
  * flagged for the admin to retry.
  */
-async function settleRefundOnPickup(returnId: string): Promise<boolean> {
+export async function settleRefundOnPickup(returnId: string): Promise<boolean> {
   const r: any = await Return.findById(returnId).select("requestType financialSettlementStatus customer");
   if (!r || r.requestType !== "RETURN") return false;
   if (r.financialSettlementStatus === "Completed") return true;
@@ -209,7 +209,7 @@ async function settleRefundOnPickup(returnId: string): Promise<boolean> {
       "Customer",
       String(r.customer),
       "Refund processed",
-      "The delivery partner has collected your item, so your refund has been issued.",
+      "Your item has been picked up, so your refund has been issued.",
       { type: "Success", priority: "High", link: "/account/statement" },
     ).catch(() => undefined);
     return true;

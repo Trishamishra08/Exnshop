@@ -99,6 +99,9 @@ export const getReturnRequests = asyncHandler(
         sellerProof: (ret as any).sellerProof,
         sellerIssue: (ret as any).sellerIssue,
         handoverOtp: handoverCodes.get(String(ret._id)),
+        shiprocketReturn: (ret as any).shiprocketReturn?.awbCode
+          ? { awbCode: (ret as any).shiprocketReturn.awbCode, courierName: (ret as any).shiprocketReturn.courierName, status: (ret as any).shiprocketReturn.status }
+          : undefined,
         price,
         discPrice: price,
         quantity,

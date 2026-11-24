@@ -84,8 +84,8 @@ export const startCourierReturn = async (returnId: string): Promise<{ success: b
   return { success: result.success, message: result.message };
 };
 
-// Courier status → return status. Reaching the seller = "Handed To Seller";
-// the seller then confirms receipt, which triggers the refund.
+// Courier status → return status. The refund is issued at pickup; reaching the
+// seller ("Handed To Seller") closes the return.
 const RETURN_STATUS_RANK: Record<string, number> = {
   "Pickup Pending": 0,
   "Picked Up": 1,
@@ -129,7 +129,25 @@ export const applyCourierReturnUpdate = async (body: any): Promise<boolean> => {
   const next = mapCourierReturnStatus(current_status);
   if (next && (RETURN_STATUS_RANK[next] ?? -1) > (RETURN_STATUS_RANK[ret.status] ?? 99)) {
     ret.status = next;
+    if (next === "Picked Up" && !ret.pickedUpAt) ret.pickedUpAt = new Date();
   }
   await ret.save();
+
+  // Same as a rider pickup: once the courier has the item, the customer's refund is issued
+  // (a return only; an exchange sends a replacement instead). Safe to repeat: a settled
+  // refund is never paid twice.
+  const rank = RETURN_STATUS_RANK[ret.status] ?? -1;
+  if (rank >= RETURN_STATUS_RANK["Picked Up"] && (ret.requestType || "RETURN") === "RETURN" && ret.financialSettlementStatus !== "Completed") {
+    const { settleRefundOnPickup } = await import("./returnLifecycleService");
+    await settleRefundOnPickup(String(ret._id));
+  }
+
+  // Delivered to the seller: like the rider's handover code, this closes the return (an
+  // exchange gets its replacement order). The seller can still report a problem afterwards.
+  // (Once closed the return is "Completed", so a repeated webhook does not run this again.)
+  if (ret.status === "Handed To Seller" && !(ret.flags || []).includes("RECEIPT_SETTLEMENT_FAILED")) {
+    const { autoConfirmReceipt } = await import("./returnHandoverService");
+    await autoConfirmReceipt(String(ret._id));
+  }
   return true;
 };

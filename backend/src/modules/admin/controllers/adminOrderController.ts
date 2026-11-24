@@ -788,6 +788,10 @@ export const getReturnRequests = asyncHandler(
       processedAt: req.processedAt,
       requestType: req.requestType || "RETURN",
       doorstepSwap: Boolean(req.doorstepSwap),
+      // E-commerce: the courier bringing the item back (instead of a delivery partner).
+      shiprocketReturn: req?.shiprocketReturn?.awbCode || req?.shiprocketReturn?.error
+        ? { awbCode: req.shiprocketReturn.awbCode, courierName: req.shiprocketReturn.courierName, status: req.shiprocketReturn.status, error: req.shiprocketReturn.error }
+        : undefined,
       exchangeShipping: req.exchangeShipping,
       exchangeState: req.exchangeState,
       requestedVariation: req.requestedVariation,

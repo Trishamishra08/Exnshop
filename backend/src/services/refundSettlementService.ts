@@ -9,7 +9,7 @@ import Refund from "../models/Refund";
 import WithdrawRequest from "../models/WithdrawRequest";
 import { processRefund } from "./paymentService";
 import { processCashfreeRefundForPayment } from "./cashfreeService";
-import { debitWallet, creditWallet, chargeSellerShipping } from "./walletManagementService";
+import { creditWallet, chargeSellerShipping, chargeWalletDue } from "./walletManagementService";
 import { returnPickupCharge } from "./shippingChargeService";
 
 export interface IItemRefundCalculation {
@@ -400,7 +400,48 @@ export const executeReturnRefundAndReversal = async (
       let sellerReversed = false;
       const sellerId = orderItem.seller.toString();
 
-      if (existingCommission && existingCommission.status === "OnHold") {
+      // COD the seller delivered or shipped themselves: the seller kept the customer's cash
+      // and only the platform's share was taken from their wallet. The customer's refund is
+      // paid by Exnshop below, so the seller gives back the cash for this item, less the
+      // commission they were charged on it (that commission is refunded to them).
+      const isCod = String(order.paymentMethod || "").toUpperCase() === "COD";
+      const sellerShipment = ((order as any).shiprocketShipments || []).find(
+        (s: any) => String(s.seller?._id || s.seller) === sellerId
+      );
+      const sellerKeptCash =
+        isCod &&
+        ((order as any).channel === "ECommerce"
+          ? sellerShipment?.provider === "Self"
+          : !order.deliveryBoy);
+
+      if (sellerKeptCash) {
+        const commissionCharged =
+          existingCommission && existingCommission.status === "Paid"
+            ? Math.round(
+                (Number(existingCommission.commissionAmount) || 0) *
+                  (Math.min(returnReq.quantity, orderItem.quantity) / (orderItem.quantity || 1)) * 100
+              ) / 100
+            : 0;
+        // Whatever the customer paid from their Exnshop wallet never reached the seller in cash.
+        const cashCollected = Math.max(0, productRefundTotal - Math.min(order.walletAmountUsed || 0, productRefundTotal));
+        const cashBack = Math.max(0, Math.round((cashCollected - commissionCharged) * 100) / 100);
+        await chargeWalletDue(
+          "SELLER",
+          sellerId,
+          cashBack,
+          `Return of COD order #${order.orderNumber} (${returnReq.quantity}x ${orderItem.productName}): cash you collected ₹${cashCollected.toFixed(2)}` +
+            (commissionCharged > 0 ? ` less commission refunded ₹${commissionCharged.toFixed(2)}` : ""),
+          `RETCASH-${returnReq._id.toString()}`,
+          "COD_RETURN_REFUND",
+          order._id.toString(),
+          session
+        );
+        if (existingCommission && existingCommission.status !== "Cancelled") {
+          existingCommission.status = "Cancelled";
+          await existingCommission.save({ session });
+        }
+        sellerReversed = true;
+      } else if (existingCommission && existingCommission.status === "OnHold") {
         // Debit exact net seller earning from Seller On-Hold Balance
         const { default: Seller } = await import("../models/Seller");
         await Seller.findByIdAndUpdate(
@@ -413,12 +454,16 @@ export const executeReturnRefundAndReversal = async (
         await existingCommission.save({ session });
         sellerReversed = true;
       } else if (existingCommission && existingCommission.status === "Paid") {
-        // Debit exact net seller earning from Seller Available Wallet
-        await debitWallet(
-          sellerId,
+        // Take the seller's earning for this item back from their wallet. Always applied, so
+        // the customer's refund never fails: if the seller already withdrew it, the wallet
+        // goes below zero and is recovered from their next settlement.
+        await chargeWalletDue(
           "SELLER",
+          sellerId,
           breakdown.sellerNetReversal,
           `Return reversal for order #${order.orderNumber} (${returnReq.quantity}x ${orderItem.productName})`,
+          `RETREV-${returnReq._id.toString()}`,
+          "COD_RETURN_REFUND",
           order._id.toString(),
           session
         );

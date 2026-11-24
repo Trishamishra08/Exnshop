@@ -313,6 +313,16 @@ export const decideReturn = asyncHandler(async (req: Request, res: Response) => 
 /** POST /admin/returns/:id/ring-again — alert the nearest live delivery partners again. */
 export const ringReturnAgain = asyncHandler(async (req: Request, res: Response) => {
   try {
+    // E-commerce returns come back by courier: retry the courier booking instead of ringing riders.
+    const ret: any = await Return.findById(req.params.id).populate("order", "channel").select("order");
+    if (ret?.order?.channel === "ECommerce") {
+      const { startCourierReturn } = await import("../../../services/courierReturnService");
+      const booked = await startCourierReturn(req.params.id);
+      return res.status(200).json({
+        success: booked.success,
+        message: booked.success ? "Courier pickup is booked." : `Courier booking failed: ${booked.message}`,
+      });
+    }
     const { dispatchReturnPickup } = await import("../../../services/returnDispatchService");
     const sent = await dispatchReturnPickup(req.params.id, req.app.get("io"));
     return res.status(200).json({ success: sent.offered > 0, message: sent.message });

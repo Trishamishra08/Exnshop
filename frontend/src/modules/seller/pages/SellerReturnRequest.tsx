@@ -983,7 +983,10 @@ export default function SellerReturnRequest() {
               <p className="font-bold text-sm">Product: {selectedReturn.product || 'Product'}</p>
               <p>Value: <span className="font-bold">₹{Number(selectedReturn.total || (selectedReturn as any).amount || 0).toFixed(2)}</span></p>
               <p className="mt-2 text-neutral-700">
-                You already confirmed this item with the handover code. If it is defective, damaged or not the product you sold, tell the Exnshop admin here with a photo or video. The admin reviews it.
+                {(selectedReturn as any).shiprocketReturn?.awbCode
+                  ? 'The courier delivered this item back to you.'
+                  : 'You already confirmed this item with the handover code.'}{' '}
+                If it is defective, damaged or not the product you sold, tell the Exnshop admin here with a photo or video. The admin reviews it.
               </p>
             </div>
             <div className="space-y-2">

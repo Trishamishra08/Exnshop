@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import RTOEvent from "../models/RTOEvent";
 import Return from "../models/Return";
 import OrderItem from "../models/OrderItem";
+import Order from "../models/Order";
 
 interface PeriodRange {
   start: Date;
@@ -26,6 +27,26 @@ function getThisAndLastMonth(): { thisMonth: PeriodRange; lastMonth: PeriodRange
  * that reached Delivered, Returned, or RTO in the period, since the schema
  * doesn't track a distinct "shipped" milestone separately.
  */
+/**
+ * The seller's items that reached the customer (or came back) in the period. An item's own
+ * status is not moved to "Delivered" when its order is delivered, so the order's status counts too.
+ */
+async function countReachedItems(sellerObjectId: mongoose.Types.ObjectId, createdAt: Record<string, Date>) {
+  const items: any[] = await OrderItem.find({
+    seller: sellerObjectId,
+    createdAt,
+    status: { $ne: "Cancelled" },
+    sellerStatus: { $ne: "Rejected" },
+  })
+    .select("order status")
+    .lean();
+  if (items.length === 0) return 0;
+  const reachedOrders = new Set(
+    (await Order.find({ _id: { $in: items.map((i) => i.order) }, status: { $in: ["Delivered", "Returned", "RTO"] } }).distinct("_id")).map(String)
+  );
+  return items.filter((i) => ["Delivered", "Returned", "RTO"].includes(i.status) || reachedOrders.has(String(i.order))).length;
+}
+
 export async function getSellerRtoAndReturnRates(sellerId: string) {
   const { thisMonth, lastMonth } = getThisAndLastMonth();
   const sellerObjectId = new mongoose.Types.ObjectId(sellerId);
@@ -38,16 +59,8 @@ export async function getSellerRtoAndReturnRates(sellerId: string) {
     returnsThisMonth,
     returnsLastMonth,
   ] = await Promise.all([
-    OrderItem.countDocuments({
-      seller: sellerObjectId,
-      status: { $in: ["Delivered", "Returned", "RTO"] },
-      createdAt: { $gte: thisMonth.start, $lte: thisMonth.end },
-    }),
-    OrderItem.countDocuments({
-      seller: sellerObjectId,
-      status: { $in: ["Delivered", "Returned", "RTO"] },
-      createdAt: { $gte: lastMonth.start, $lt: lastMonth.end },
-    }),
+    countReachedItems(sellerObjectId, { $gte: thisMonth.start, $lte: thisMonth.end }),
+    countReachedItems(sellerObjectId, { $gte: lastMonth.start, $lt: lastMonth.end }),
     RTOEvent.countDocuments({
       seller: sellerObjectId,
       createdAt: { $gte: thisMonth.start, $lte: thisMonth.end },

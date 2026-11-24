@@ -746,9 +746,18 @@ export const updateOrderStatus = asyncHandler(
     // Distribute commissions on delivery (unchanged)
     if (order.status === "Delivered" && previousStatus !== "Delivered") {
       try {
-        const { distributeCommissions } = await import(
+        const { distributeCommissions, createPendingCommissions } = await import(
           "../../../services/commissionService"
         );
+        // E-commerce COD has no earning records yet (those are made on online payment), so
+        // make them first, as the courier's "delivered" update does. Without them the
+        // commission was never taken from a self-shipping seller who collected the cash.
+        if ((order as any).channel === "ECommerce") {
+          const Commission = (await import("../../../models/Commission")).default;
+          if (!(await Commission.exists({ order: order._id, type: "SELLER" }))) {
+            await createPendingCommissions(order._id.toString());
+          }
+        }
         await distributeCommissions(order._id.toString());
       } catch (commissionError) {
         console.error("Error distributing commissions on seller delivery:", commissionError);
