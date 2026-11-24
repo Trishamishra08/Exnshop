@@ -259,7 +259,8 @@ export default function AdminReturnRequest() {
         setAssignError(res.message || 'Assignment failed');
       }
     } catch (err: any) {
-      setAssignError(err.message || 'Assignment failed');
+      // Show the server's reason (e.g. why the courier booking failed), not "status code 400".
+      setAssignError(err?.response?.data?.message || err.message || 'Assignment failed');
     } finally {
       setAssigning(false);
     }

@@ -126,39 +126,91 @@ export interface ResolvedAddress {
   pincode: string;
 }
 
+// Reverse-geocode results by map pin, so a pin is looked up once a day at most.
+const geoCache = new Map<string, { at: number; formatted: string; city: string; state: string; pincode: string }>();
+const GEO_TTL_MS = 24 * 60 * 60 * 1000;
+let googleDeniedLogged = false;
+
+/** Free OpenStreetMap lookup, used when Google gives no state or pincode. */
+const reverseGeocodeOsm = async (lat: number, lng: number) => {
+  const { data } = await axios.get("https://nominatim.openstreetmap.org/reverse", {
+    params: { format: "jsonv2", lat, lon: lng, addressdetails: 1, zoom: 18 },
+    headers: { "User-Agent": "Exnshop-Server/1.0 (+https://exnshop.in)" },
+    timeout: 8000,
+  });
+  const a = data?.address || {};
+  const postcode = String(a.postcode || "").replace(/\s+/g, "");
+  return {
+    formatted: data?.display_name || "",
+    city: a.city || a.town || a.village || a.state_district || a.county || "",
+    state: a.state || "",
+    pincode: /^\d{6}$/.test(postcode) ? postcode : "",
+  };
+};
+
 /**
  * Sellers store a free-text address plus a map pin, but Shiprocket needs a
- * state and pincode — derive them by reverse-geocoding the pin.
+ * state and pincode — derive them by reverse-geocoding the pin: Google first
+ * (GOOGLE_MAPS_SERVER_KEY, a key without website restrictions), then OpenStreetMap.
  */
 export const resolveSellerAddress = async (seller: ISeller): Promise<ResolvedAddress> => {
   const lat = seller.location?.coordinates?.[1] ?? parseFloat(seller.latitude || "");
   const lng = seller.location?.coordinates?.[0] ?? parseFloat(seller.longitude || "");
-  const key = process.env.GOOGLE_MAPS_API_KEY;
+  // A website-restricted key is refused for server calls, so a separate server key can be set.
+  const key = process.env.GOOGLE_MAPS_SERVER_KEY || process.env.GOOGLE_MAPS_API_KEY;
 
   let formatted = "";
   let city = "";
   let state = "";
   let pincode = "";
 
-  if (key && !isNaN(lat) && !isNaN(lng)) {
-    const { data } = await axios.get("https://maps.googleapis.com/maps/api/geocode/json", {
-      params: { latlng: `${lat},${lng}`, key },
-    });
-    const result = data?.results?.[0];
-    if (result) {
-      const part = (type: string) =>
-        result.address_components?.find((c: any) => c.types?.includes(type))?.long_name || "";
-      formatted = result.formatted_address || "";
-      city = part("locality") || part("administrative_area_level_3") || part("administrative_area_level_2");
-      state = part("administrative_area_level_1");
-      pincode = part("postal_code");
+  const hasPin = !isNaN(lat) && !isNaN(lng) && !(lat === 0 && lng === 0);
+  const cacheKey = hasPin ? `${lat.toFixed(5)},${lng.toFixed(5)}` : "";
+  const cached = cacheKey ? geoCache.get(cacheKey) : undefined;
+
+  if (cached && Date.now() - cached.at < GEO_TTL_MS) {
+    ({ formatted, city, state, pincode } = cached);
+  } else if (hasPin) {
+    if (key) {
+      try {
+        const { data } = await axios.get("https://maps.googleapis.com/maps/api/geocode/json", {
+          params: { latlng: `${lat},${lng}`, key },
+          timeout: 8000,
+        });
+        const result = data?.results?.[0];
+        if (result) {
+          const part = (type: string) =>
+            result.address_components?.find((c: any) => c.types?.includes(type))?.long_name || "";
+          formatted = result.formatted_address || "";
+          city = part("locality") || part("administrative_area_level_3") || part("administrative_area_level_2");
+          state = part("administrative_area_level_1");
+          pincode = part("postal_code");
+        } else if (data?.status && data.status !== "ZERO_RESULTS" && !googleDeniedLogged) {
+          googleDeniedLogged = true;
+          console.warn(`[Geocode] Google refused the lookup (${data.status}): ${data.error_message || ""}. Set GOOGLE_MAPS_SERVER_KEY to a key without website restrictions.`);
+        }
+      } catch (err: any) {
+        console.warn("[Geocode] Google lookup failed:", err?.message);
+      }
     }
+    if (!state || !pincode) {
+      try {
+        const osm = await reverseGeocodeOsm(lat, lng);
+        formatted = formatted || osm.formatted;
+        city = city || osm.city;
+        state = state || osm.state;
+        pincode = pincode || osm.pincode;
+      } catch (err: any) {
+        console.warn("[Geocode] OpenStreetMap lookup failed:", err?.message);
+      }
+    }
+    if (state || pincode) geoCache.set(cacheKey, { at: Date.now(), formatted, city, state, pincode });
   }
 
   const typed = (seller.address || "").trim();
-  if (!pincode) {
-    pincode = `${typed} ${seller.searchLocation || ""}`.match(/\b\d{6}\b/)?.[0] || "";
-  }
+  // A pincode the seller typed in their address is more exact than one from the map pin.
+  const typedPincode = `${typed} ${seller.searchLocation || ""}`.match(/\b\d{6}\b/)?.[0] || "";
+  if (typedPincode) pincode = typedPincode;
 
   // Shiprocket rejects line 1 unless it is 10+ chars and contains a house/flat/road number.
   const typedIsUsable = typed.length >= 10 && /\d/.test(typed);
