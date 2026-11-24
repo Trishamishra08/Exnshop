@@ -64,9 +64,9 @@ function DealCard({ product, theme }: { product: any; theme: HomeTheme }) {
       }}
       className="bg-white rounded-xl border border-neutral-100 shadow-[0_1px_6px_rgba(0,0,0,0.05)] overflow-hidden flex flex-col cursor-pointer h-full"
     >
-      <div className="relative aspect-square" style={{ background: theme.tint }}>
+      <div className="relative aspect-[4/5] bg-white">
         {image && !imgFailed ? (
-          <img src={image} alt={name} loading="lazy" onError={() => setImgFailed(true)} className="absolute inset-0 w-full h-full object-cover" />
+          <img src={image} alt={name} loading="lazy" onError={() => setImgFailed(true)} className="absolute inset-0 w-full h-full object-contain p-1" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-2xl">🛍️</div>
         )}
@@ -108,38 +108,40 @@ function DealCard({ product, theme }: { product: any; theme: HomeTheme }) {
           </div>
         )}
         <p className="text-[9.5px] min-[400px]:text-[10.5px] sm:text-[13px] font-semibold text-neutral-900 leading-tight tracking-tight line-clamp-2 min-h-[2.5em] mt-0.5">{name}</p>
-        <div className="flex items-baseline gap-1 mt-0.5 flex-wrap">
-          <span className="text-[11px] min-[400px]:text-[12.5px] sm:text-base font-bold text-neutral-900 leading-none">{fmt(displayPrice)}</span>
-          {mrp && mrp > displayPrice && <span className="text-[8px] min-[400px]:text-[9px] sm:text-[11px] text-neutral-400 line-through leading-none">{fmt(mrp)}</span>}
-        </div>
-
-        <div className="mt-auto pt-1.5">
-          {qty > 0 ? (
-            <div
-              onClick={stop}
-              className="flex items-center justify-between rounded-full h-6 sm:h-8 px-0.5 text-white text-[11px] sm:text-sm"
-              style={{ background: theme.brand }}
-            >
-              <button type="button" className="w-5 h-5 font-bold" onClick={(e) => { stop(e); run(() => updateQuantity(productId, qty - 1)); }}>−</button>
-              <span className="font-bold">{qty}</span>
-              <button type="button" className="w-5 h-5 font-bold" onClick={(e) => { stop(e); run(() => updateQuantity(productId, qty + 1)); }}>+</button>
-            </div>
-          ) : (
+        <div className="mt-auto pt-1 flex items-end justify-between gap-1">
+          <div className="min-w-0">
+            <span className="block text-[11px] min-[400px]:text-[12.5px] sm:text-base font-bold text-neutral-900 leading-none">{fmt(displayPrice)}</span>
+            {mrp && mrp > displayPrice && <span className="block mt-0.5 text-[8px] min-[400px]:text-[9px] sm:text-[11px] text-neutral-400 line-through leading-none">{fmt(mrp)}</span>}
+          </div>
+          {qty === 0 && (
             <button
               ref={btnRef}
               type="button"
+              aria-label={t("common.addToCart", "Add to Cart")}
+              title={t("common.addToCart", "Add to Cart")}
               onClick={(e) => {
                 stop(e);
                 run(() => addToCart(product, btnRef.current));
               }}
-              className="w-full h-6 sm:h-8 rounded-full flex items-center justify-center gap-0.5 sm:gap-1.5 text-[8.5px] min-[400px]:text-[9.5px] sm:text-[13px] font-semibold border whitespace-nowrap"
-              style={{ color: theme.brand, borderColor: theme.tintBorder, background: theme.tint }}
+              className="flex-shrink-0 w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-white shadow-sm active:scale-95 transition-transform"
+              style={{ background: theme.brand }}
             >
-              <BagIcon className="w-2.5 h-2.5 sm:w-4 sm:h-4" />
-              {t("common.addToCart", "Add to Cart")}
+              <BagIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
           )}
         </div>
+
+        {qty > 0 && (
+          <div
+            onClick={stop}
+            className="mt-1.5 flex items-center justify-between rounded-full h-6 sm:h-8 px-0.5 text-white text-[11px] sm:text-sm"
+            style={{ background: theme.brand }}
+          >
+            <button type="button" aria-label="Remove one" className="w-5 h-5 font-bold" onClick={(e) => { stop(e); run(() => updateQuantity(productId, qty - 1)); }}>−</button>
+            <span className="font-bold">{qty}</span>
+            <button type="button" aria-label="Add one" className="w-5 h-5 font-bold" onClick={(e) => { stop(e); run(() => updateQuantity(productId, qty + 1)); }}>+</button>
+          </div>
+        )}
       </div>
     </div>
   );
