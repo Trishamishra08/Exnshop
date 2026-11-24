@@ -57,7 +57,7 @@ function DealCard({ product, theme }: { product: any; theme: HomeTheme }) {
         if (product.isSponsored) {
           // Same fire-and-forget ad-click tracking as ProductCard
           import("../../../../services/api/config").then(({ default: api }) => {
-            api.post(`/products/${productId}/ad-click`).catch(() => {});
+            api.post(`/customer/products/${productId}/ad-click`).catch(() => {});
           });
         }
         navigate(`/product/${productId}`);

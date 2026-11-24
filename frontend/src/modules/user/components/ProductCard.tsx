@@ -120,7 +120,7 @@ export default function ProductCard({
     if (product.isSponsored && productId) {
       // Fire-and-forget ad-click tracking — never blocks navigation.
       import('../../../services/api/config').then(({ default: api }) => {
-        api.post(`/products/${productId}/ad-click`).catch(() => { });
+        api.post(`/customer/products/${productId}/ad-click`).catch(() => { });
       });
     }
     navigate(`/product/${productId}`);
