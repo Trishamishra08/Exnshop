@@ -112,10 +112,17 @@ export default function SellerCampaigns() {
         setSelectedProducts([]);
         setDailyBudget('');
         setTotalBudget('');
-        const today = new Date().toISOString().split('T')[0];
-        const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        setStartDate(today);
-        setEndDate(nextWeek);
+        // The date-time boxes need "YYYY-MM-DDTHH:mm" in local time; a bare date shows as an
+        // empty box and was then sent unchanged, so the ad ran to a date the seller never chose.
+        const local = (d: Date) => {
+            const p = (n: number) => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+        };
+        const now = new Date();
+        const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+        nextWeek.setHours(23, 59, 0, 0);
+        setStartDate(local(now));
+        setEndDate(local(nextWeek));
         setIsModalOpen(true);
     };
 
@@ -376,11 +383,11 @@ export default function SellerCampaigns() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-neutral-700 mb-1">Start (date &amp; time)</label>
-                                    <input type="datetime-local" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500" />
+                                    <DateTimeFields value={startDate} onChange={setStartDate} />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-neutral-700 mb-1">End (date &amp; time)</label>
-                                    <input type="datetime-local" value={endDate} disabled={noEndDate} onChange={(e) => setEndDate(e.target.value)} className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 disabled:bg-neutral-100 disabled:text-neutral-400" />
+                                    <DateTimeFields value={endDate} disabled={noEndDate} onChange={setEndDate} />
                                     <label className="mt-1.5 flex items-center gap-1.5 text-xs text-neutral-600 cursor-pointer">
                                         <input type="checkbox" checked={noEndDate} onChange={(e) => setNoEndDate(e.target.checked)} />
                                         No end date (runs until I stop it)
@@ -459,6 +466,18 @@ export default function SellerCampaigns() {
                     </div>
                 </div>
             )}
+        </div>
+    );
+}
+
+/** Separate date and time boxes (clearer than one date-time box); value is "YYYY-MM-DDTHH:mm". */
+function DateTimeFields({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled?: boolean }) {
+    const [d = '', t = ''] = (value || '').split('T');
+    const set = (date: string, time: string) => onChange(date ? `${date}T${time || '00:00'}` : '');
+    return (
+        <div className="flex gap-2">
+            <input type="date" aria-label="Date" value={d} disabled={disabled} onChange={(e) => set(e.target.value, t)} className="flex-1 min-w-0 px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 disabled:bg-neutral-100 disabled:text-neutral-400" />
+            <input type="time" aria-label="Time" value={t} disabled={disabled} onChange={(e) => set(d, e.target.value)} className="w-28 px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 disabled:bg-neutral-100 disabled:text-neutral-400" />
         </div>
     );
 }

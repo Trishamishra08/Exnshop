@@ -292,7 +292,23 @@ export const getUnavailableSellers = async (_req: Request, res: Response) => {
 // Log a click on a sponsored product card (public, fire-and-forget from the frontend)
 export const logAdClick = async (req: Request, res: Response) => {
   try {
-    await recordClick(req.params.id);
+    // Who clicked: the signed-in customer, otherwise their network address + browser.
+    let viewer = "";
+    const auth = String(req.headers.authorization || "");
+    if (auth.startsWith("Bearer ")) {
+      try {
+        const { verifyToken } = await import("../../../services/jwtService");
+        const t: any = verifyToken(auth.slice(7));
+        if (t?.userId) viewer = `u:${t.userId}`;
+      } catch { /* not signed in / expired: fall back below */ }
+    }
+    if (!viewer) {
+      const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.ip || "";
+      const ua = String(req.headers["user-agent"] || "").slice(0, 200);
+      const crypto = await import("crypto");
+      viewer = `a:${crypto.createHash("sha256").update(`${ip}|${ua}`).digest("hex").slice(0, 32)}`;
+    }
+    await recordClick(req.params.id, viewer);
     return res.status(200).json({ success: true, message: "Click recorded" });
   } catch (error: any) {
     // Never let ad-tracking failures surface as a real error to the customer app.

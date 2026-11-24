@@ -227,11 +227,22 @@ export const recordImpressions = (
  * and the campaign's shared spend/today-spend, and auto-pauses the campaign
  * if it just exhausted its total or daily budget.
  */
-export const recordClick = async (productId: string): Promise<void> => {
+export const recordClick = async (productId: string, viewerKey?: string): Promise<void> => {
   const winner = await resolveWinningCampaignEntry(productId);
   if (!winner) return;
 
   const { campaign, productEntry } = winner;
+
+  // Charge only the first click by this viewer on this ad in 24 hours.
+  if (viewerKey) {
+    const AdClickLog = (await import("../models/AdClickLog")).default;
+    try {
+      await AdClickLog.create({ key: `${campaign._id}:${productId}:${viewerKey}` });
+    } catch (err: any) {
+      if (err?.code === 11000) return; // already clicked recently: not charged again
+      throw err;
+    }
+  }
   const now = new Date();
   const costPerClick = productEntry.cpcBid;
 
