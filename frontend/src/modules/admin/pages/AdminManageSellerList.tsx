@@ -40,6 +40,7 @@ interface Seller {
     latitude?: string;
     longitude?: string;
     serviceRadiusKm?: number;
+    channels?: string[];
     accountName?: string;
     bankName?: string;
     branch?: string;
@@ -87,6 +88,7 @@ const mapSellerToFrontend = (seller: SellerType): Seller => {
         latitude: seller.latitude,
         longitude: seller.longitude,
         serviceRadiusKm: seller.serviceRadiusKm,
+        channels: (seller as any).channels,
         accountName: seller.accountName,
         bankName: seller.bankName,
         branch: seller.branch,
@@ -1327,9 +1329,15 @@ export default function AdminManageSellerList({ pending = false }: { pending?: b
                                 </h4>
                                 {editForm.latitude && editForm.longitude ? (
                                     <div className="space-y-4">
+                                        {/* Delivery radius is for Quick only; E-commerce ships anywhere by courier */}
+                                        {!(editingSeller.channels || ['Quick']).includes('Quick') ? (
+                                            <p className="text-xs text-neutral-600 bg-white border border-neutral-200 rounded px-3 py-2">
+                                                This seller sells E-commerce only. Orders ship anywhere in India by courier, so there is no delivery radius.
+                                            </p>
+                                        ) : (
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                                             <div>
-                                                <label className="text-xs font-medium text-neutral-600 mb-1 block">Service Radius (km)</label>
+                                                <label className="text-xs font-medium text-neutral-600 mb-1 block">Quick delivery radius (km)</label>
                                                 <div className="flex gap-2">
                                                     <input
                                                         type="number"
@@ -1352,11 +1360,12 @@ export default function AdminManageSellerList({ pending = false }: { pending?: b
                                                 </div>
                                             </div>
                                         </div>
+                                        )}
                                         <div className="h-[300px] w-full">
                                             <SellerServiceMap
                                                 latitude={parseFloat(editForm.latitude)}
                                                 longitude={parseFloat(editForm.longitude)}
-                                                radiusKm={newRadius}
+                                                radiusKm={(editingSeller.channels || ['Quick']).includes('Quick') ? newRadius : 0}
                                                 storeName={editForm.storeName || editingSeller.storeName}
                                             />
                                         </div>

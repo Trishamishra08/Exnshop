@@ -75,6 +75,9 @@ const SellerAccountSettings = () => {
         isEmailVerified: false,
         profileCompletionPercentage: 0,
     });
+    // Delivery radius applies to Quick only (E-commerce ships anywhere by courier).
+    const sellerChannels: string[] | undefined = (sellerData as any).channels;
+    const sellsQuick = !Array.isArray(sellerChannels) || sellerChannels.length === 0 || sellerChannels.includes('Quick');
     const [sameAsReturnAddress, setSameAsReturnAddress] = useState(true);
     const [emailVerifyLoading, setEmailVerifyLoading] = useState(false);
     const [emailCodeSent, setEmailCodeSent] = useState(false);
@@ -260,18 +263,20 @@ const SellerAccountSettings = () => {
             // Validate service radius
             // Whole kilometres only
             const radius = Math.round(Number(sellerData.serviceRadiusKm));
-            if (!Number.isFinite(radius) || radius < 1 || radius > 300) {
-                setError('Service radius must be between 1 and 300 km');
+            if (sellsQuick && (!Number.isFinite(radius) || radius < 1 || radius > 300)) {
+                setError('Quick delivery radius must be between 1 and 300 km');
                 setSaveLoading(false);
                 return;
             }
 
-            const updateData = {
+            const updateData: any = {
                 ...sellerData,
                 serviceRadiusKm: radius,
                 returnAddress: sameAsReturnAddress ? sellerData.address : sellerData.returnAddress,
             };
 
+            // Delivery radius is for Quick only; E-commerce ships anywhere by courier.
+            if (!sellsQuick) delete updateData.serviceRadiusKm;
             const response = await updateSellerProfile(updateData);
             if (response.success) {
                 setIsEditing(false);
@@ -786,9 +791,10 @@ const SellerAccountSettings = () => {
                                                         />
                                                     </div>
 
+                                                    {sellsQuick && (
                                                     <div className="space-y-1.5">
                                                         <label className="text-sm font-semibold text-gray-700 ml-1">
-                                                            Service Radius (KM) <span className="text-red-500">*</span>
+                                                            Quick delivery radius (KM) <span className="text-red-500">*</span>
                                                         </label>
                                                         <select
                                                             name="serviceRadiusKm"
@@ -815,10 +821,11 @@ const SellerAccountSettings = () => {
                                                         </select>
                                                         {isEditing && (
                                                             <p className="mt-1 text-xs text-gray-500">
-                                                                Products will be shown to users within this radius from your store location
+                                                                Quick products are shown to customers within this radius from your store. E-commerce products ship anywhere by courier.
                                                             </p>
                                                         )}
                                                     </div>
+                                                    )}
 
                                                 </div>
                                             </div>

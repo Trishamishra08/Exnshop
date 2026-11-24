@@ -53,7 +53,7 @@ export default function SellerServiceMap({
         <Marker position={position} icon={storeIcon}>
           <Popup>
             <div className="font-semibold">{storeName}</div>
-            <div className="text-xs text-neutral-600">Service Radius: {radiusKm} km</div>
+            {radiusKm > 0 && <div className="text-xs text-neutral-600">Service Radius: {radiusKm} km</div>}
           </Popup>
         </Marker>
         <Circle

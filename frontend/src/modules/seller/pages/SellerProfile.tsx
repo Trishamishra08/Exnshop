@@ -208,9 +208,11 @@ export default function SellerProfile() {
       return;
     }
 
+    // Delivery radius is for Quick only; E-commerce ships anywhere by courier.
+    const sellsQuick = editFormData.channels.includes('Quick');
     const radius = Math.round(Number(editFormData.serviceRadiusKm));
-    if (!Number.isFinite(radius) || radius < 1 || radius > 300) {
-      showToast('Service radius must be between 1 and 300 km', 'error');
+    if (sellsQuick && (!Number.isFinite(radius) || radius < 1 || radius > 300)) {
+      showToast('Quick delivery radius must be between 1 and 300 km', 'error');
       return;
     }
     if (editFormData.channels.length === 0) {
@@ -236,7 +238,7 @@ export default function SellerProfile() {
         searchLocation: editFormData.searchLocation,
         latitude: lat.toString(),
         longitude: lng.toString(),
-        serviceRadiusKm: radius,
+        ...(sellsQuick ? { serviceRadiusKm: radius } : {}),
         logo: editFormData.logo,
         channels: editFormData.channels,
       });
@@ -982,7 +984,7 @@ export default function SellerProfile() {
                 </div>
 
                 {/* City & Radius */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className={`grid ${editFormData.channels.includes('Quick') ? 'grid-cols-2' : 'grid-cols-1'} gap-3`}>
                   <div>
                     <label className="block text-xs font-semibold text-neutral-700 mb-1">
                       City
@@ -998,9 +1000,10 @@ export default function SellerProfile() {
                     />
                   </div>
 
+                  {editFormData.channels.includes('Quick') && (
                   <div>
                     <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                      Service Radius (km)
+                      Quick delivery radius (km)
                     </label>
                     <input
                       type="number"
@@ -1021,7 +1024,11 @@ export default function SellerProfile() {
                       placeholder="10"
                     />
                   </div>
+                  )}
                 </div>
+                {!editFormData.channels.includes('Quick') && (
+                  <p className="text-[11px] text-neutral-500 -mt-1">E-commerce orders ship anywhere in India by courier, so no delivery radius is needed.</p>
+                )}
 
                 <div>
                   <label className="block text-xs font-semibold text-neutral-700 mb-1">

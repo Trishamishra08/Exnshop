@@ -359,8 +359,9 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
   }
 
   // Parse and validate service radius
-  let serviceRadiusKm = 10; // Default 10km
+  let serviceRadiusKm = 10; // Default 10km (used by Quick only)
   if (
+    channels.includes("Quick") &&
     req.body.serviceRadiusKm !== undefined &&
     req.body.serviceRadiusKm !== null &&
     req.body.serviceRadiusKm !== ""
@@ -682,6 +683,11 @@ export const updateProfile = asyncHandler(
         delete updates.longitude;
       }
     }
+
+    // Delivery radius applies to Quick only (E-commerce ships anywhere by courier):
+    // a seller without Quick keeps whatever was stored and isn't asked for it.
+    const sellsQuick = (Array.isArray(updates.channels) ? updates.channels : (current as any)?.channels || []).includes("Quick");
+    if (!sellsQuick) delete updates.serviceRadiusKm;
 
     // Handle serviceRadiusKm update
     if (

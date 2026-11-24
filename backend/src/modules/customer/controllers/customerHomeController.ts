@@ -869,7 +869,8 @@ export const getHomeContent = async (req: Request, res: Response) => {
 export const getStoreProducts = async (req: Request, res: Response) => {
   try {
     const { storeId } = req.params;
-    const { latitude, longitude } = req.query; // User location for filtering
+    const { latitude, longitude, mode } = req.query; // User location for filtering
+    const storeChannel = parseChannelQueryParam(mode);
     let query: any = {
       status: "Active",
       publish: true,
@@ -999,8 +1000,10 @@ export const getStoreProducts = async (req: Request, res: Response) => {
 
     let nearbySellerIds: mongoose.Types.ObjectId[] = [];
     if (userLat && userLng && !isNaN(userLat) && !isNaN(userLng)) {
-      nearbySellerIds = await findSellersWithinRange(userLat, userLng);
-      console.log(`[getStoreProducts] Found ${nearbySellerIds.length} sellers within range`);
+      // Quick: sellers whose delivery radius covers the customer. E-commerce: every
+      // approved E-commerce seller (courier ships anywhere, no radius).
+      nearbySellerIds = await sellerIdsForLocation(userLat, userLng, storeChannel);
+      console.log(`[getStoreProducts] Found ${nearbySellerIds.length} sellers for this location`);
     }
 
     if (nearbySellerIds.length > 0) {

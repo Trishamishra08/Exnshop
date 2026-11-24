@@ -113,7 +113,8 @@ export default function SellerSignUp() {
     if (!formData.city.trim()) { setError('Please enter your city'); return; }
     if (!nameRe.test(formData.city.trim())) { setError('Enter a valid city name'); return; }
     const radius = Number(formData.serviceRadiusKm);
-    if (!Number.isInteger(radius) || radius < 1 || radius > 300) { setError('Service radius must be a whole number between 1 and 300 km'); return; }
+    // Delivery radius is for Quick only; E-commerce ships anywhere by courier.
+    if (formData.channels.includes('Quick') && (!Number.isInteger(radius) || radius < 1 || radius > 300)) { setError('Quick delivery radius must be a whole number between 1 and 300 km'); return; }
 
     setLoading(true);
     setError('');
@@ -130,7 +131,7 @@ export default function SellerSignUp() {
         searchLocation: formData.searchLocation,
         latitude: formData.latitude,
         longitude: formData.longitude,
-        serviceRadiusKm: formData.serviceRadiusKm,
+        ...(formData.channels.includes('Quick') ? { serviceRadiusKm: formData.serviceRadiusKm } : {}),
         channels: formData.channels,
         shippingMethod: formData.shippingMethod || undefined,
         verifyBy,
@@ -413,14 +414,16 @@ export default function SellerSignUp() {
                 </div>
 
                 {/* Service Radius + City */}
-                <div className="grid grid-cols-2 gap-2 mb-3">
+                <div className={`grid ${formData.channels.includes('Quick') ? 'grid-cols-2' : 'grid-cols-1'} gap-2 mb-3`}>
+                  {formData.channels.includes('Quick') && (
                   <div>
-                    <label className={labelCls}>Radius (km) <span className="text-red-500">*</span></label>
+                    <label className={labelCls}>Quick radius (km) <span className="text-red-500">*</span></label>
                     <input type="number" name="serviceRadiusKm" value={formData.serviceRadiusKm} onChange={handleInputChange}
                       onKeyDown={(e) => ['e', 'E', '+', '-', '.', ','].includes(e.key) && e.preventDefault()}
                       placeholder="e.g. 10" required min="1" max="300" step="1" inputMode="numeric" disabled={loading}
                       className="w-full h-10 px-3 text-xs font-semibold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 focus:bg-white transition-all placeholder:text-slate-400 placeholder:font-normal" />
                   </div>
+                  )}
                   <div>
                     <label className={labelCls}>City <span className="text-red-500">*</span></label>
                     <input type="text" name="city" value={formData.city} onChange={handleInputChange} placeholder="Your city" required disabled={loading}
