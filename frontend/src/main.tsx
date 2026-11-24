@@ -11,13 +11,26 @@ if (document.documentElement) {
 }
 
 // Handle Vite dynamic import / asset preload errors caused by new deployments
+// Only swallow the error when we really reload. preventDefault() makes the failed import
+// resolve to `undefined`, which crashed lazy pages ("Cannot read properties of undefined
+// (reading 'default')") whenever a second failure came within the reload cool-down.
 window.addEventListener('vite:preloadError', (event) => {
-  event.preventDefault();
-  const lastReload = Number(sessionStorage.getItem('chunk_reload_ts') || '0');
+  let lastReload = 0;
+  try {
+    lastReload = Number(sessionStorage.getItem('chunk_reload_ts') || '0');
+  } catch {
+    /* storage unavailable */
+  }
   if (Date.now() - lastReload > 10000) {
-    sessionStorage.setItem('chunk_reload_ts', String(Date.now()));
+    event.preventDefault();
+    try {
+      sessionStorage.setItem('chunk_reload_ts', String(Date.now()));
+    } catch {
+      /* storage unavailable */
+    }
     window.location.reload();
   }
+  // Otherwise let the import fail normally, so the page shows a proper "update" message.
 });
 
 // Handle unhandled Promise rejections for dynamic module imports

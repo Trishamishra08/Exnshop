@@ -98,7 +98,7 @@ export default function SellerProfile() {
           searchLocation: res.data.searchLocation || '',
           latitude: res.data.latitude || '',
           longitude: res.data.longitude || '',
-          serviceRadiusKm: (res.data.serviceRadiusKm || 10).toString(),
+          serviceRadiusKm: String(Math.round(Number(res.data.serviceRadiusKm) || 10)),
           logo: res.data.logo || '',
           channels: res.data.channels && res.data.channels.length > 0 ? res.data.channels : ['Quick'],
         });
@@ -208,9 +208,9 @@ export default function SellerProfile() {
       return;
     }
 
-    const radius = parseFloat(editFormData.serviceRadiusKm);
-    if (isNaN(radius) || radius < 0.1 || radius > 300) {
-      showToast('Service radius must be between 0.1 and 300 km', 'error');
+    const radius = Math.round(Number(editFormData.serviceRadiusKm));
+    if (!Number.isFinite(radius) || radius < 1 || radius > 300) {
+      showToast('Service radius must be between 1 and 300 km', 'error');
       return;
     }
     if (editFormData.channels.length === 0) {
@@ -972,14 +972,17 @@ export default function SellerProfile() {
                     </label>
                     <input
                       type="number"
-                      step="0.5"
-                      min="0.1"
+                      step="1"
+                      min="1"
                       max="300"
+                      inputMode="numeric"
                       value={editFormData.serviceRadiusKm}
+                      onKeyDown={(e) => ['e', 'E', '+', '-', '.', ','].includes(e.key) && e.preventDefault()}
                       onChange={(e) =>
                         setEditFormData((prev) => ({
                           ...prev,
-                          serviceRadiusKm: e.target.value,
+                          // Whole kilometres only (no decimal point)
+                          serviceRadiusKm: e.target.value.replace(/\D/g, '').slice(0, 3),
                         }))
                       }
                       className="w-full px-3.5 py-2 rounded-xl border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"

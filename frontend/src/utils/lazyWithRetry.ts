@@ -38,6 +38,10 @@ export function lazyWithRetry<T extends ComponentType<any>>(
 
     try {
       const component = await componentImport();
+      // A swallowed preload error resolves the import to nothing: treat it as a failed chunk.
+      if (!component || !(component as any).default) {
+        throw new Error(`Failed to fetch dynamically imported module (${componentName})`);
+      }
       // Clear flag on successful load
       sessionStorage.removeItem(pageHasBeenReloadedKey);
       return component;
@@ -74,13 +78,19 @@ export default lazyWithRetry;
  * so the next tap gets the current version, instead of failing every time.
  */
 export async function importWithRetry<T>(load: () => Promise<T>): Promise<T> {
+  // A swallowed preload error resolves the import to nothing: treat it as a failed chunk.
+  const loadChecked = async () => {
+    const mod = await load();
+    if (!mod) throw new Error('Failed to fetch dynamically imported module');
+    return mod;
+  };
   try {
-    return await load();
+    return await loadChecked();
   } catch (first) {
     if (!isDynamicImportError(first)) throw first;
     await new Promise((r) => setTimeout(r, 600));
     try {
-      return await load();
+      return await loadChecked();
     } catch (second) {
       const lastReloadTs = Number(sessionStorage.getItem('chunk_reload_ts') || '0');
       if (isDynamicImportError(second) && Date.now() - lastReloadTs > 10000) {

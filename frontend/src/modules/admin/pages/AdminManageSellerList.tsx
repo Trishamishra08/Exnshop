@@ -319,7 +319,7 @@ export default function AdminManageSellerList({ pending = false }: { pending?: b
                 supportsInstantDelivery: seller.supportsInstantDelivery ?? true,
                 balance: seller.balance || 0,
             });
-            setNewRadius(seller.serviceRadiusKm || 10);
+            setNewRadius(Math.round(Number(seller.serviceRadiusKm) || 10));
             setEditError('');
             setIsEditModalOpen(true);
         }
@@ -1333,17 +1333,18 @@ export default function AdminManageSellerList({ pending = false }: { pending?: b
                                                 <div className="flex gap-2">
                                                     <input
                                                         type="number"
-                                                        min="0.1"
+                                                        min="1"
                                                         max="300"
-                                                        step="0.1"
+                                                        step="1"
                                                         value={newRadius}
-                                                        onChange={(e) => setNewRadius(parseFloat(e.target.value))}
+                                                        onKeyDown={(e) => ['e', 'E', '+', '-', '.', ','].includes(e.key) && e.preventDefault()}
+                                                        onChange={(e) => setNewRadius(Math.round(Number(e.target.value.replace(/\D/g, '')) || 0))}
                                                         className="w-full px-3 py-2 border border-neutral-300 rounded text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500 bg-white"
                                                     />
                                                     <button
                                                         type="button"
                                                         onClick={handleUpdateRadius}
-                                                        disabled={isUpdatingRadius || newRadius === editingSeller.serviceRadiusKm}
+                                                        disabled={isUpdatingRadius || newRadius < 1 || newRadius > 300 || newRadius === editingSeller.serviceRadiusKm}
                                                         className="px-4 py-2 bg-teal-600 text-white rounded text-sm font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
                                                     >
                                                         {isUpdatingRadius ? 'Updating...' : 'Update Radius'}
