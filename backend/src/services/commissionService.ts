@@ -354,6 +354,18 @@ export const createPendingCommissions = async (orderId: string) => {
  * Distribute commissions for an order (Pending -> Paid)
  */
 export const distributeCommissions = async (orderId: string) => {
+  // E-commerce COD has no earning records yet (those are made on online payment), so
+  // make them here, whoever marks it delivered (admin, seller or the courier update).
+  // Without them nothing reached the seller's hold/wallet and no commission was taken.
+  try {
+    const ecom: any = await Order.findById(orderId).select("channel").lean();
+    if (ecom?.channel === "ECommerce" && !(await Commission.exists({ order: orderId, type: "SELLER" }))) {
+      await createPendingCommissions(orderId);
+    }
+  } catch (err) {
+    console.error("[Commission] Could not create missing commission records:", err);
+  }
+
   const session = await mongoose.startSession();
   session.startTransaction();
 
