@@ -23,7 +23,7 @@ import * as returnController from "../modules/admin/controllers/adminReturnContr
 // Customer Controllers
 import * as customerController from "../modules/admin/controllers/adminCustomerController";
 import { getSidebarCounts } from "../modules/admin/controllers/adminSidebarCountsController";
-import { getAdminSalesReport, getAdminLedger } from "../modules/admin/controllers/adminReportController";
+import { getAdminSalesReport, getAdminLedger, getAdminEarningsLedgerReport } from "../modules/admin/controllers/adminReportController";
 import { getCustomerAccountView, getSellerAccountView } from "../modules/admin/controllers/adminAccountViewController";
 
 // Delivery Controllers
@@ -412,6 +412,7 @@ router.patch("/claims/:id/decide", decideClaim);
 router.get("/sidebar-counts", getSidebarCounts);
 router.get("/reports/sales", getAdminSalesReport);
 router.get("/reports/ledger", getAdminLedger);
+router.get("/reports/earnings-ledger", getAdminEarningsLedgerReport);
 router.get("/support-tickets", getAllTickets);
 router.get("/support-tickets/:id", getTicketByIdAdmin);
 router.post("/support-tickets/:id/reply", replyToTicketAsAdmin);

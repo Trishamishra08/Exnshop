@@ -212,3 +212,26 @@ export const getAdminLedger = asyncHandler(async (req: Request, res: Response) =
     pagination: { page, limit, total, pages: Math.ceil(total / limit) },
   });
 });
+
+/**
+ * GET /admin/reports/earnings-ledger?from=YYYY-MM-DD&to=YYYY-MM-DD&type=&page=&limit=
+ * Exnshop's own earnings, one row per event, with opening and closing balance.
+ */
+export const getAdminEarningsLedgerReport = asyncHandler(async (req: Request, res: Response) => {
+  const { getAdminEarningsLedger } = await import("../../../services/adminEarningsLedgerService");
+  const day = (v: any, end: boolean) => {
+    const s = String(v || "").trim();
+    if (!/^d{4}-d{2}-d{2}$/.test(s)) return undefined;
+    return new Date(`${s}T${end ? "23:59:59.999" : "00:00:00.000"}+05:30`);
+  };
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const limit = Math.min(5000, Math.max(1, Number(req.query.limit) || 20));
+  const data = await getAdminEarningsLedger({
+    from: day(req.query.from, false),
+    to: day(req.query.to, true),
+    type: req.query.type ? String(req.query.type) : undefined,
+    page,
+    limit,
+  });
+  return res.status(200).json({ success: true, data: data.rows, summary: data.summary, pagination: { page, limit, total: data.total, pages: Math.ceil(data.total / limit) } });
+});
