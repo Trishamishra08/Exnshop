@@ -31,6 +31,7 @@ export const listSellerShippingMethods = asyncHandler(async (req: Request, res: 
     const method = String(req.query.method || "");
     if (method === "Self" || method === "Company") query.shippingMethod = method;
     if (method === "none") query.shippingMethod = { $exists: false };
+    if (method === "requested") query["shippingMethodRequest.status"] = "Pending";
     const search = String(req.query.search || "").trim();
     if (search) {
       const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");

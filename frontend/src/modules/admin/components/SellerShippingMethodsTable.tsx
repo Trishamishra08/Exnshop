@@ -141,6 +141,7 @@ export default function SellerShippingMethodsTable({ refreshKey = 0 }: { refresh
             <option value="Company">Ship by Company</option>
             <option value="Self">Self shipping</option>
             <option value="none">Not chosen</option>
+            <option value="requested">Change requested</option>
           </select>
         </div>
       </div>
@@ -149,6 +150,9 @@ export default function SellerShippingMethodsTable({ refreshKey = 0 }: { refresh
         <span className={`px-2.5 py-1 rounded-full border font-semibold ${PILL.Company}`}>Ship by Company: {counts.Company}</span>
         <span className={`px-2.5 py-1 rounded-full border font-semibold ${PILL.Self}`}>Self shipping: {counts.Self}</span>
         <span className={`px-2.5 py-1 rounded-full border font-semibold ${PILL.none}`}>Not chosen: {counts.none}</span>
+        <button type="button" onClick={() => setFilter('requested')} className="px-2.5 py-1 rounded-full border font-semibold bg-rose-50 text-rose-700 border-rose-200">
+          Change requested: {rows.filter((r) => r.pendingRequest).length}
+        </button>
       </div>
 
       {loading ? (
@@ -177,7 +181,7 @@ export default function SellerShippingMethodsTable({ refreshKey = 0 }: { refresh
                   <td className="p-3">
                     <span className={`px-2.5 py-0.5 rounded-full border text-xs font-semibold ${PILL[r.method || 'none']}`}>{label(r.method)}</span>
                     {r.pendingRequest && (
-                      <p className="text-[11px] text-amber-700 mt-1">Asked to switch to {label(r.pendingRequest.requestedMethod)} (see requests below)</p>
+                      <p className="text-[11px] text-amber-700 mt-1">Asked to switch to {label(r.pendingRequest.requestedMethod)} (see requests above)</p>
                     )}
                   </td>
                   <td className="p-3">

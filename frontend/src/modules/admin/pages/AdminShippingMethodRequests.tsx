@@ -63,8 +63,8 @@ export default function AdminShippingMethodRequests() {
 
   return (
     <div className="p-4 sm:p-6">
-      <SellerShippingMethodsTable refreshKey={refreshKey} />
-      <div className="bg-white rounded-lg shadow-sm border border-neutral-200">
+      {/* Sellers' change requests first, so pending ones are seen straight away */}
+      <div className="bg-white rounded-lg shadow-sm border border-neutral-200 mb-6">
         <div className="bg-teal-600 text-white px-6 py-4 rounded-t-lg flex items-center justify-between flex-wrap gap-3">
           <div>
             <h2 className="text-lg font-semibold">Shipping Method Change Requests</h2>
@@ -130,6 +130,8 @@ export default function AdminShippingMethodRequests() {
           </div>
         )}
       </div>
+
+      <SellerShippingMethodsTable refreshKey={refreshKey} />
 
       {target && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" onClick={() => setTarget(null)}>
