@@ -547,12 +547,25 @@ const ADMIN_TEST_BYPASS_MOBILE = "9876543210";
 const ADMIN_TEST_BYPASS_OTP = "123456";
 
 /**
+ * Test accounts that always log in with the fixed code 123456 (no SMS/email is sent),
+ * for end-to-end testing. Extra ones can be added with TEST_OTP_MOBILES / TEST_OTP_EMAILS
+ * (comma-separated). REMOVE these before going live: anyone knowing them can log in.
+ */
+const FIXED_TEST_OTP = "123456";
+const listFromEnv = (v?: string) => (v || "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+const FIXED_OTP_MOBILES = new Set<string>(["8839044030", ...listFromEnv(process.env.TEST_OTP_MOBILES)]);
+const FIXED_OTP_EMAILS = new Set<string>(["seller@exnshop.io", ...listFromEnv(process.env.TEST_OTP_EMAILS)]);
+const isFixedOtpEmail = (email: string) => FIXED_OTP_EMAILS.has(String(email || "").trim().toLowerCase());
+
+/**
  * Every mobile number and email defaults to the fixed test OTP 123456 — no
  * real SMS/email is sent, and login/signup accepts only this code. Set
  * OTP_UNIVERSAL_BYPASS=false to turn this off (e.g. before going live with
  * real users) and fall back to actually sending/verifying a random OTP.
  */
 function getSpecialOtpForMobile(mobile: string): string | null {
+  // Named test accounts always use the fixed code, whatever OTP_UNIVERSAL_BYPASS says.
+  if (FIXED_OTP_MOBILES.has(normalizeMobileTo10(String(mobile || "")))) return FIXED_TEST_OTP;
   // Fixed test codes work only while OTP_UNIVERSAL_BYPASS=true (testing). Off by default.
   if (process.env.OTP_UNIVERSAL_BYPASS !== "true") return null;
   if (String(mobile).trim() === ADMIN_TEST_BYPASS_MOBILE) return ADMIN_TEST_BYPASS_OTP;
@@ -835,6 +848,16 @@ export async function sendEmailOtp(
   awaitDelivery: boolean = true,
 ): Promise<OtpResponse> {
   try {
+    // Test account: fixed code, no email sent.
+    if (isFixedOtpEmail(email)) {
+      await saveEmailOtpToDb(email, FIXED_TEST_OTP, userType);
+      return {
+        success: true,
+        sessionId: "EMAIL_SESSION_" + email.trim().toLowerCase(),
+        message: "OTP sent to your email",
+      };
+    }
+
     const otp = generateOTP(6);
 
     await saveEmailOtpToDb(email, otp, userType);
@@ -880,6 +903,9 @@ export async function verifyEmailOtp(
   userType: "Seller" | "Admin" | "Customer" | "Delivery",
 ): Promise<boolean> {
   const normalizedOtp = String(otpInput).trim().replace(/\s/g, "");
+
+  // Test account: only the fixed code is accepted.
+  if (isFixedOtpEmail(email)) return normalizedOtp === FIXED_TEST_OTP;
 
   if (!normalizedOtp || normalizedOtp.length < 4 || normalizedOtp.length > 6) {
     return false;
