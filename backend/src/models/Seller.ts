@@ -374,10 +374,12 @@ const SellerSchema = new Schema<ISeller>(
       },
     },
     // Service radius in kilometers (default: 10km if not specified)
+    // Whole kilometres (a decimal from older clients is rounded)
     serviceRadiusKm: {
       type: Number,
       default: 10,
-      min: [0.1, 'Service radius must be at least 0.1 km'],
+      set: (v: any) => (v === null || v === undefined || v === '' ? v : Math.round(Number(v))),
+      min: [1, 'Service radius must be at least 1 km'],
       max: [300, 'Service radius cannot exceed 300 km'],
     },
 

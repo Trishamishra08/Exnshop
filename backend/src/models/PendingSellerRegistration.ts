@@ -48,7 +48,7 @@ const PendingSellerRegistrationSchema = new Schema<IPendingSellerRegistration>({
     type: { type: String, enum: ["Point"] },
     coordinates: { type: [Number] },
   },
-  serviceRadiusKm: { type: Number, default: 10 },
+  serviceRadiusKm: { type: Number, default: 10, set: (v: any) => (v === null || v === undefined || v === "" ? v : Math.round(Number(v))) },
   channels: { type: [String], enum: ["Quick", "ECommerce"], default: [] },
   shippingMethod: { type: String, enum: ["Self", "Company"] },
   createdAt: { type: Date, default: Date.now, expires: 1800 }, // 30 minutes

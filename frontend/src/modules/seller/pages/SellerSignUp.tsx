@@ -50,8 +50,8 @@ export default function SellerSignUp() {
     if (name === 'mobile') {
       setFormData((p) => ({ ...p, mobile: value.replace(/\D/g, '').slice(0, 10) }));
     } else if (name === 'serviceRadiusKm') {
-      const parts = value.replace(/[^0-9.]/g, '').split('.');
-      setFormData((p) => ({ ...p, serviceRadiusKm: parts.length > 2 ? `${parts[0]}.${parts[1]}` : value.replace(/[^0-9.]/g, '') }));
+      // Whole kilometres only (no decimal point)
+      setFormData((p) => ({ ...p, serviceRadiusKm: value.replace(/\D/g, '').slice(0, 3) }));
     } else {
       setFormData((p) => ({ ...p, [name]: value }));
     }
@@ -103,8 +103,8 @@ export default function SellerSignUp() {
     if (!formData.shippingMethod) { setError('Choose how your orders will be delivered'); return; }
     if (!formData.searchLocation || !formData.latitude || !formData.longitude) { setError('Please select your store location'); return; }
     if (!formData.city) { setError('Please enter your city'); return; }
-    const radius = parseFloat(formData.serviceRadiusKm);
-    if (isNaN(radius) || radius < 0.1 || radius > 300) { setError('Service radius must be between 0.1 and 300 km'); return; }
+    const radius = Number(formData.serviceRadiusKm);
+    if (!Number.isInteger(radius) || radius < 1 || radius > 300) { setError('Service radius must be a whole number between 1 and 300 km'); return; }
 
     setLoading(true);
     setError('');
@@ -408,8 +408,8 @@ export default function SellerSignUp() {
                   <div>
                     <label className={labelCls}>Radius (km) <span className="text-red-500">*</span></label>
                     <input type="number" name="serviceRadiusKm" value={formData.serviceRadiusKm} onChange={handleInputChange}
-                      onKeyDown={(e) => ['e', 'E', '+', '-'].includes(e.key) && e.preventDefault()}
-                      placeholder="e.g. 10" required min="0.1" max="300" step="0.1" disabled={loading}
+                      onKeyDown={(e) => ['e', 'E', '+', '-', '.', ','].includes(e.key) && e.preventDefault()}
+                      placeholder="e.g. 10" required min="1" max="300" step="1" inputMode="numeric" disabled={loading}
                       className="w-full h-10 px-3 text-xs font-semibold text-slate-900 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 focus:bg-white transition-all placeholder:text-slate-400 placeholder:font-normal" />
                   </div>
                   <div>

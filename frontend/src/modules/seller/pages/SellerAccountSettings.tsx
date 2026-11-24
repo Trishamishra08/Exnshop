@@ -158,7 +158,7 @@ const SellerAccountSettings = () => {
                     latitude: data.latitude || (locationCoords[1]?.toString() || ''),
                     longitude: data.longitude || (locationCoords[0]?.toString() || ''),
                     searchLocation: data.searchLocation || data.address || '',
-                    serviceRadiusKm: (data.serviceRadiusKm || 10).toString(),
+                    serviceRadiusKm: String(Math.round(Number(data.serviceRadiusKm) || 10)),
                 });
                 setSameAsReturnAddress(!data.returnAddress || data.returnAddress === data.address);
             } else {
@@ -258,9 +258,10 @@ const SellerAccountSettings = () => {
             }
 
             // Validate service radius
-            const radius = parseFloat(sellerData.serviceRadiusKm);
-            if (isNaN(radius) || radius < 0.1 || radius > 300) {
-                setError('Service radius must be between 0.1 and 300 kilometers');
+            // Whole kilometres only
+            const radius = Math.round(Number(sellerData.serviceRadiusKm));
+            if (!Number.isFinite(radius) || radius < 1 || radius > 300) {
+                setError('Service radius must be between 1 and 300 km');
                 setSaveLoading(false);
                 return;
             }
@@ -281,7 +282,7 @@ const SellerAccountSettings = () => {
                     latitude: data.latitude || (locationCoords[1]?.toString() || ''),
                     longitude: data.longitude || (locationCoords[0]?.toString() || ''),
                     searchLocation: data.searchLocation || data.address || '',
-                    serviceRadiusKm: (data.serviceRadiusKm || 10).toString(),
+                    serviceRadiusKm: String(Math.round(Number(data.serviceRadiusKm) || 10)),
                 });
                 // e.g. "Your changes were sent to the admin for approval…"
                 setNotice(response.message || 'Profile updated');
@@ -801,13 +802,14 @@ const SellerAccountSettings = () => {
                                                             <option value="5">5 km</option>
                                                             <option value="10">10 km</option>
                                                             <option value="20">20 km</option>
+                                                            <option value="25">25 km</option>
                                                             <option value="50">50 km</option>
                                                             <option value="100">100 km</option>
                                                             <option value="150">150 km</option>
                                                             <option value="200">200 km</option>
                                                             <option value="250">250 km</option>
                                                             <option value="300">300 km</option>
-                                                            {![1, 2, 5, 10, 20, 50, 100, 150, 200, 250, 300].includes(Number(sellerData.serviceRadiusKm)) && sellerData.serviceRadiusKm && (
+                                                            {![1, 2, 5, 10, 20, 25, 50, 100, 150, 200, 250, 300].includes(Number(sellerData.serviceRadiusKm)) && sellerData.serviceRadiusKm && (
                                                                 <option value={sellerData.serviceRadiusKm}>{sellerData.serviceRadiusKm} km</option>
                                                             )}
                                                         </select>
