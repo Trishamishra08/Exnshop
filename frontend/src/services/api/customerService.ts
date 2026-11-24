@@ -92,3 +92,12 @@ export const submitCustomerSupport = async (data: SupportContactData): Promise<S
 };
 
 
+
+/**
+ * Permanently delete the customer's account. Pass `forfeitWallet: true` to confirm giving up
+ * a wallet balance. Refused (409) while an order, return or withdrawal is still in progress.
+ */
+export const deleteMyAccount = async (forfeitWallet = false): Promise<{ success: boolean; message: string; code?: string; walletAmount?: number }> => {
+  const response = await api.delete('/customer/profile', { data: { confirm: 'DELETE', forfeitWallet } });
+  return response.data;
+};

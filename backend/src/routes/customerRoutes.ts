@@ -90,6 +90,9 @@ router.get("/profile", authenticate, customerController.getProfile);
 // Update customer profile (protected route)
 router.put("/profile", authenticate, customerController.updateProfile);
 
+// Delete own account (refused while an order, return or withdrawal is in progress)
+router.delete("/profile", authenticate, customerController.deleteAccount);
+
 // Update customer location (protected route)
 router.post("/location", authenticate, customerController.updateLocation);
 

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { getProfile, CustomerProfile } from '../../services/api/customerService';
 import LanguageSelector from '../../components/LanguageSelector';
+import DeleteAccountButton from './components/DeleteAccountButton';
 import { useTranslation } from '../../hooks/useTranslation';
 
 export default function Account() {
@@ -283,6 +284,7 @@ export default function Account() {
             </div>
             <span className="text-neutral-400">›</span>
           </button>
+          <DeleteAccountButton walletAmount={profile?.walletAmount || 0} />
         </div>
       </div>
     </div>

@@ -293,3 +293,104 @@ export const getLocation = asyncHandler(async (req: Request, res: Response) => {
     },
   });
 });
+
+/**
+ * Delete the customer's own account.
+ *
+ * Refused while there is something still in progress (an undelivered order, an open
+ * return/exchange, or a withdrawal being paid out). A wallet balance is forfeited only
+ * when the customer confirms it (`forfeitWallet: true`). The request must carry
+ * `confirm: "DELETE"`.
+ *
+ * Removed: the account, addresses, wishlist, carts, notifications and OTP records.
+ * Kept for accounting/GST records: past orders, payments, refunds and returns, with the
+ * customer's phone and email removed from those orders.
+ */
+export const deleteAccount = asyncHandler(async (req: Request, res: Response) => {
+  const userId = req.user?.userId;
+  if (!userId || (req as any).user?.userType !== "Customer") {
+    return res.status(401).json({ success: false, message: "Unauthorized or not a customer" });
+  }
+  if (String(req.body?.confirm || "").trim().toUpperCase() !== "DELETE") {
+    return res.status(400).json({ success: false, message: 'Type DELETE to confirm deleting your account.' });
+  }
+
+  const customer: any = await Customer.findById(userId);
+  if (!customer) {
+    return res.status(404).json({ success: false, message: "Account not found" });
+  }
+
+  const [Order, Return, WithdrawRequest, Address, Wishlist, Cart, CartItem, Notification, Otp, EmailOtp] = await Promise.all([
+    import("../../../models/Order").then((m) => m.default),
+    import("../../../models/Return").then((m) => m.default),
+    import("../../../models/WithdrawRequest").then((m) => m.default),
+    import("../../../models/Address").then((m) => m.default),
+    import("../../../models/Wishlist").then((m) => m.default),
+    import("../../../models/Cart").then((m) => m.default),
+    import("../../../models/CartItem").then((m) => m.default),
+    import("../../../models/Notification").then((m) => m.default),
+    import("../../../models/Otp").then((m) => m.default),
+    import("../../../models/EmailOtp").then((m) => m.default),
+  ]);
+
+  // Nothing may be left half-way.
+  const activeOrders = await (Order as any).countDocuments({
+    customer: userId,
+    status: { $nin: ["Delivered", "Completed", "Cancelled", "Rejected", "Returned", "RTO"] },
+  });
+  if (activeOrders > 0) {
+    return res.status(409).json({
+      success: false,
+      code: "ACTIVE_ORDERS",
+      message: `You have ${activeOrders} order${activeOrders === 1 ? "" : "s"} still in progress. Delete your account after ${activeOrders === 1 ? "it is" : "they are"} delivered or cancelled.`,
+    });
+  }
+  const openReturns = await (Return as any).countDocuments({ customer: userId, status: { $nin: ["Rejected", "Completed"] } });
+  if (openReturns > 0) {
+    return res.status(409).json({
+      success: false,
+      code: "OPEN_RETURNS",
+      message: "You have a return or exchange in progress. Delete your account after it is completed.",
+    });
+  }
+  const pendingWithdrawals = await (WithdrawRequest as any).countDocuments({
+    userId,
+    userType: "CUSTOMER",
+    status: { $in: ["Pending", "Approved", "Processing"] },
+  });
+  if (pendingWithdrawals > 0) {
+    return res.status(409).json({
+      success: false,
+      code: "PENDING_WITHDRAWAL",
+      message: "A withdrawal from your wallet is still being processed. Delete your account after it is paid out.",
+    });
+  }
+  const wallet = Number(customer.walletAmount || 0);
+  if (wallet > 0 && req.body?.forfeitWallet !== true) {
+    return res.status(409).json({
+      success: false,
+      code: "WALLET_BALANCE",
+      walletAmount: wallet,
+      message: `Your wallet has ₹${wallet.toFixed(2)}. Withdraw it first, or confirm that you give it up.`,
+    });
+  }
+
+  const phone = String(customer.phone || "").trim();
+  const email = String(customer.email || "").trim().toLowerCase();
+  const carts = await (Cart as any).find({ customer: userId }).select("_id").lean();
+
+  await Promise.all([
+    (Address as any).deleteMany({ customer: userId }),
+    (Wishlist as any).deleteMany({ customer: userId }),
+    carts.length ? (CartItem as any).deleteMany({ cart: { $in: carts.map((c: any) => c._id) } }) : null,
+    (Cart as any).deleteMany({ customer: userId }),
+    (Notification as any).deleteMany({ recipientType: "Customer", recipientId: userId }),
+    phone ? (Otp as any).deleteMany({ mobile: phone, userType: "Customer" }) : null,
+    email ? (EmailOtp as any).deleteMany({ email, userType: "Customer" }) : null,
+    // Past orders stay for accounting/GST, without the customer's contact details.
+    (Order as any).updateMany({ customer: userId }, { $set: { customerPhone: "", customerEmail: "" } }),
+  ]);
+  await Customer.deleteOne({ _id: userId });
+
+  return res.status(200).json({ success: true, message: "Your account has been deleted." });
+});
