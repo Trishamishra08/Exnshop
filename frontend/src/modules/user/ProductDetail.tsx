@@ -1,3 +1,4 @@
+import BagIcon from "./components/BagIcon";
 import {
   useParams,
   useNavigate,
@@ -1698,7 +1699,8 @@ export default function ProductDetail() {
                         variant="outline"
                         size="default"
                         onClick={handleAddToCart}
-                        className="px-3 sm:px-4 py-2 text-sm font-semibold h-[38px] lg:h-11 lg:px-8 lg:text-base border-2 border-green-600 text-green-600 hover:bg-green-50 rounded-lg transition-colors whitespace-nowrap">
+                        className="px-3 sm:px-4 py-2 text-sm font-semibold h-[38px] lg:h-11 lg:px-8 lg:text-base border-2 border-green-600 text-green-600 hover:bg-green-50 rounded-lg transition-colors whitespace-nowrap inline-flex items-center gap-1.5">
+                        <BagIcon className="w-4 h-4 lg:w-5 lg:h-5" />
                         {t("customer.addToCart", "Add to Cart")}
                       </Button>
                     </motion.div>

@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import BagIcon from "./components/BagIcon";
 import { useNavigate, Link } from 'react-router-dom';
 import { Product } from '../../types/domain';
 import { useCart } from '../../context/CartContext';
@@ -108,7 +109,12 @@ export default function Wishlist() {
                       disabled={offline}
                       className="w-full border-2 border-green-600 text-green-700 hover:bg-green-50 rounded-lg h-9 sm:h-10 text-xs sm:text-sm font-bold uppercase tracking-wider cursor-pointer shadow-2xs active:scale-95 disabled:border-neutral-200 disabled:text-neutral-500 disabled:bg-neutral-50 disabled:cursor-not-allowed"
                     >
-                      {offline ? "Seller not available" : t("customer.addToCart", "ADD TO CART")}
+                      {offline ? "Seller not available" : (
+                        <span className="inline-flex items-center justify-center gap-1.5">
+                          <BagIcon className="w-4 h-4" />
+                          {t("customer.addToCart", "ADD TO CART")}
+                        </span>
+                      )}
                     </Button>
                   </div>
                 </div>

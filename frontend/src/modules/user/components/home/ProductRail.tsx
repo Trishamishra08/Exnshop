@@ -75,6 +75,10 @@ export default function ProductRail({ section, theme, onViewAll }: { section: Ho
 
   if (products && products.length === 0) return null;
 
+  // Sponsored cards are a little wider so the label, name and button stay readable.
+  const cardWidth = section.sort === "sponsored"
+    ? "w-[36%] min-[360px]:w-[31%] md:w-[20%] lg:w-[15%]"
+    : "w-[30%] min-[360px]:w-[23.5%] md:w-[18%] lg:w-[14%]";
   const title = getTranslatedField(section, "title") || section.title;
   const subtitle = getTranslatedField(section, "subtitle") || section.subtitle;
   const inner = section.tinted ? "px-2.5 sm:px-3" : "px-3 min-[400px]:px-4 md:px-6 lg:px-8";
@@ -132,7 +136,7 @@ export default function ProductRail({ section, theme, onViewAll }: { section: Ho
               </div>
             ))
           : products.map((p) => (
-              <div key={p._id || p.id} className="snap-start flex-shrink-0 w-[30%] min-[360px]:w-[23.5%] md:w-[18%] lg:w-[14%]">
+              <div key={p._id || p.id} className={`snap-start flex-shrink-0 ${cardWidth}`}>
                 <DealCard product={p} theme={theme} />
               </div>
             ))}

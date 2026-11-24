@@ -10,6 +10,7 @@ import Button from '../../../components/ui/button';
 import Badge from '../../../components/ui/badge';
 import StarRating from '../../../components/ui/StarRating';
 import SponsoredTag from './SponsoredTag';
+import BagIcon from './BagIcon';
 
 import { calculateProductPrice } from '../../../utils/priceUtils';
 
@@ -402,7 +403,12 @@ export default function ProductCard({
                 : 'border-accent text-accent bg-white hover:bg-orange-50 active:bg-orange-100 shadow-2xs'
             }`}
           >
-            {isOutOfStock ? 'Out of Stock' : 'ADD'}
+            {isOutOfStock ? 'Out of Stock' : (
+              <span className="inline-flex items-center justify-center gap-1.5">
+                <BagIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                ADD
+              </span>
+            )}
           </Button>
         ) : (
           <div className="flex items-center justify-between bg-accent text-white rounded-lg px-2 h-9 sm:h-10 w-full shadow-2xs">

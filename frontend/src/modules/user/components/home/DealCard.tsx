@@ -5,7 +5,7 @@ import { useWishlist } from "../../../../hooks/useWishlist";
 import { useTranslation } from "../../../../hooks/useTranslation";
 import { calculateProductPrice } from "../../../../utils/priceUtils";
 import type { HomeTheme } from "./homeTheme";
-import SponsoredTag from "../SponsoredTag";
+import BagIcon from "../BagIcon";
 
 /**
  * Compact "Crazy Deals" product card (4 across on a phone, like the mockup):
@@ -78,7 +78,6 @@ function DealCard({ product, theme }: { product: any; theme: HomeTheme }) {
             {discount}% OFF
           </span>
         )}
-        {product.isSponsored && <SponsoredTag until={product.sponsoredUntil} className="absolute bottom-1 left-1" />}
         <button
           type="button"
           aria-label={isWishlisted ? t("common.removeFromWishlist", "Remove from wishlist") : t("common.addToWishlist", "Add to wishlist")}
@@ -95,6 +94,12 @@ function DealCard({ product, theme }: { product: any; theme: HomeTheme }) {
       </div>
 
       <div className="px-1.5 pt-1 pb-1.5 sm:p-2 flex flex-col flex-1">
+        {/* Sponsored: a small label in the text area, so it never covers the photo or gets cut off */}
+        {product.isSponsored && (
+          <span className="self-start mb-0.5 rounded bg-amber-100 text-amber-800 px-1 py-px text-[7.5px] min-[400px]:text-[8.5px] sm:text-[10px] font-bold uppercase tracking-wide leading-none">
+            {t("common.sponsored", "Sponsored")}
+          </span>
+        )}
         {(rating > 0 || reviews > 0) && (
           <div className="flex items-center gap-0.5 text-[8.5px] sm:text-[11px] text-neutral-500 leading-none">
             <span className="text-amber-400">★</span>
@@ -102,7 +107,7 @@ function DealCard({ product, theme }: { product: any; theme: HomeTheme }) {
             {reviews > 0 && <span>({fmtCount(reviews)})</span>}
           </div>
         )}
-        <p className="text-[9.5px] min-[400px]:text-[10.5px] sm:text-[13px] font-semibold text-neutral-900 leading-tight tracking-tight line-clamp-1 mt-0.5">{name}</p>
+        <p className="text-[9.5px] min-[400px]:text-[10.5px] sm:text-[13px] font-semibold text-neutral-900 leading-tight tracking-tight line-clamp-2 min-h-[2.5em] mt-0.5">{name}</p>
         <div className="flex items-baseline gap-1 mt-0.5 flex-wrap">
           <span className="text-[11px] min-[400px]:text-[12.5px] sm:text-base font-bold text-neutral-900 leading-none">{fmt(displayPrice)}</span>
           {mrp && mrp > displayPrice && <span className="text-[8px] min-[400px]:text-[9px] sm:text-[11px] text-neutral-400 line-through leading-none">{fmt(mrp)}</span>}
@@ -130,11 +135,7 @@ function DealCard({ product, theme }: { product: any; theme: HomeTheme }) {
               className="w-full h-6 sm:h-8 rounded-full flex items-center justify-center gap-0.5 sm:gap-1.5 text-[8.5px] min-[400px]:text-[9.5px] sm:text-[13px] font-semibold border whitespace-nowrap"
               style={{ color: theme.brand, borderColor: theme.tintBorder, background: theme.tint }}
             >
-              <svg className="w-2.5 h-2.5 sm:w-4 sm:h-4 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="9" cy="21" r="1" />
-                <circle cx="20" cy="21" r="1" />
-                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-              </svg>
+              <BagIcon className="w-2.5 h-2.5 sm:w-4 sm:h-4" />
               {t("common.addToCart", "Add to Cart")}
             </button>
           )}
