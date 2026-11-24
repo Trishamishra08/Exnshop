@@ -412,6 +412,15 @@ export default function HomeHero({ activeTab = 'all', onTabChange, searchPlaceho
                 {locationDisplayText || t('customer.selectLocation', 'select your location')}
               </span>
             </span>
+            {/* Laptops / desktops guess the location from Wi-Fi or the internet line, often km away */}
+            {userLocation?.source === 'gps' && (userLocation?.accuracy || 0) > 1000 && (
+              <span className="text-[10px] sm:text-[11px] font-semibold text-amber-700 truncate">
+                {t('customer.approxLocation', 'Approximate location (about {{km}} km). Tap to set the exact spot.').replace(
+                  '{{km}}',
+                  String(Math.round((userLocation?.accuracy || 0) / 1000))
+                )}
+              </span>
+            )}
           </span>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="flex-shrink-0 text-neutral-800">
             <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />

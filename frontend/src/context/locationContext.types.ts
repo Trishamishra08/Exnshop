@@ -7,6 +7,12 @@ export interface Location {
   city?: string;
   state?: string;
   pincode?: string;
+  /** "gps": the device's live location (refreshed when the app opens); "manual": an address the customer chose. */
+  source?: 'gps' | 'manual';
+  /** How precise the device said the fix is, in metres (laptops often give 1-20 km). */
+  accuracy?: number;
+  /** When this location was taken (ms since epoch). */
+  updatedAt?: number;
 }
 
 export interface LocationContextType {

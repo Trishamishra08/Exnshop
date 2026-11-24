@@ -226,6 +226,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
               city: undefined,
               state: undefined,
               pincode: undefined,
+              source: 'gps',
+              accuracy: Math.round(accuracy || 0),
+              updatedAt: Date.now(),
             };
             setLocation(tempLocation);
             setIsLocationEnabled(true);
@@ -254,6 +257,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
                 city: address.city,
                 state: address.state,
                 pincode: address.pincode,
+                source: 'gps',
+                accuracy: Math.round(accuracy || 0),
+                updatedAt: Date.now(),
               };
 
               setLocation(newLocation);
@@ -282,6 +288,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
                   latitude,
                   longitude,
                   address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+                  source: 'gps',
+                  accuracy: Math.round(accuracy || 0),
+                  updatedAt: Date.now(),
                 };
                 setLocation(fallbackLocation);
                 setLocationError(null); // Clear error since we have valid coordinates
@@ -378,8 +387,16 @@ export function LocationProvider({ children }: { children: ReactNode }) {
           const city = addr.city || addr.town || addr.village || addr.suburb || addr.county || '';
           const state = addr.state || '';
           const pincode = addr.postcode || '';
-          if (data.display_name) {
-            return { formatted_address: cleanAddress(data.display_name), city, state, pincode };
+          // Build the address from the useful parts only: OpenStreetMap's full name also has
+          // the tehsil / district ("Juni Indore Tahsil"), which reads oddly to customers.
+          const street = [addr.house_number, addr.road].filter(Boolean).join(' ');
+          const area = addr.neighbourhood || addr.suburb || addr.quarter || addr.residential || addr.hamlet || '';
+          const parts = [street, area, addr.city_district && addr.city_district !== city ? addr.city_district : '', city, state, pincode]
+            .map((p: string) => String(p || '').trim())
+            .filter((p: string, i: number, arr: string[]) => p && arr.indexOf(p) === i);
+          const formatted = parts.length >= 2 ? parts.join(', ') : data.display_name;
+          if (formatted) {
+            return { formatted_address: cleanAddress(formatted), city, state, pincode };
           }
         }
       } catch (e) {
@@ -593,6 +610,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       console.warn('[LocationContext] Failed to save to storage:', e);
     }
 
+    // An address the customer picked stays as it is (not replaced by the live location).
+    newLocation = { ...newLocation, source: newLocation.source || 'manual', updatedAt: newLocation.updatedAt || Date.now() };
+
     // Update UI immediately (instant feedback)
     setLocation(newLocation);
     setIsLocationEnabled(true);
@@ -668,6 +688,107 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       .catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location?.address, location?.latitude, location?.longitude]);
+
+  // ── Live location ────────────────────────────────────────────────────────────
+  // When the saved location came from the device (GPS) and location access is allowed,
+  // take a fresh fix when the app opens and whenever it comes back on screen (if the last
+  // fix is over 5 minutes old), so the address follows the customer. An address the
+  // customer picked themselves is never replaced, and no permission prompt is shown.
+  const locationRef = useRef<Location | null>(null);
+  useEffect(() => {
+    locationRef.current = location;
+  }, [location]);
+  const liveRefreshRef = useRef(false);
+
+  const refreshLiveLocation = useCallback(async () => {
+    const current = locationRef.current;
+    if (!current || current.source !== 'gps' || !navigator.geolocation) return;
+    if (liveRefreshRef.current || isRequestingRef.current) return;
+    if (current.updatedAt && Date.now() - current.updatedAt < 5 * 60 * 1000) return;
+    try {
+      if (!('permissions' in navigator) || !navigator.permissions?.query) return;
+      const status = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+      if (status.state !== 'granted') return;
+    } catch {
+      return;
+    }
+
+    liveRefreshRef.current = true;
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude, accuracy } = pos.coords;
+          const latest = locationRef.current;
+          if (!latest || latest.source !== 'gps') return; // the customer picked an address meanwhile
+          const stamp = { accuracy: Math.round(accuracy || 0), updatedAt: Date.now() };
+          const toRad = (d: number) => (d * Math.PI) / 180;
+          const dLat = toRad(latitude - latest.latitude);
+          const dLng = toRad(longitude - latest.longitude);
+          const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(latest.latitude)) * Math.cos(toRad(latitude)) * Math.sin(dLng / 2) ** 2;
+          const movedMeters = 2 * 6371000 * Math.asin(Math.sqrt(h));
+
+          let next: Location;
+          if (movedMeters < 100) {
+            next = { ...latest, ...stamp };
+          } else {
+            const res = await reverseGeocode(latitude, longitude, undefined, true);
+            if (locationRef.current?.source !== 'gps') return;
+            next = {
+              latitude,
+              longitude,
+              address: res.formatted_address || `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`,
+              city: res.city,
+              state: res.state,
+              pincode: res.pincode,
+              source: 'gps',
+              ...stamp,
+            };
+            if (isAuthenticated && user && user.userType === 'Customer') {
+              saveLocationToBackend(next).catch(() => undefined);
+            }
+          }
+          setLocation(next);
+          try {
+            localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(next));
+          } catch {
+            /* private mode */
+          }
+        } catch (err) {
+          console.warn('[LocationContext] Live location refresh failed:', err);
+        } finally {
+          liveRefreshRef.current = false;
+        }
+      },
+      () => {
+        liveRefreshRef.current = false;
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 }
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, user]);
+
+  const refreshLiveRef = useRef(refreshLiveLocation);
+  useEffect(() => {
+    refreshLiveRef.current = refreshLiveLocation;
+  }, [refreshLiveLocation]);
+
+  // When the app opens (after the saved location is restored)…
+  useEffect(() => {
+    if (!isLocationLoading) refreshLiveRef.current();
+  }, [isLocationLoading]);
+
+  // …and when the customer comes back to the app / tab.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') refreshLiveRef.current();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
+  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
