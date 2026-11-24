@@ -213,6 +213,18 @@ export const bulkUpdateStock = async (
 /**
  * Delete product
  */
+/**
+ * Set a product's stock from the product list: { stock } without variants,
+ * { variations: [{ id, stock }] } with variants.
+ */
+export const setProductStock = async (
+  id: string,
+  body: { stock?: number; variations?: { id: string; stock: number }[] }
+): Promise<ApiResponse<{ stock: number; variations: { id: string; stock: number; status: string }[] }>> => {
+  const response = await api.patch(`/products/${id}/stock`, body);
+  return response.data;
+};
+
 export const deleteProduct = async (id: string): Promise<ApiResponse<void>> => {
   const response = await api.delete<ApiResponse<void>>(`/products/${id}`);
   return response.data;

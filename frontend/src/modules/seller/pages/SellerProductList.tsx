@@ -11,6 +11,7 @@ import {
   Category as apiCategory,
 } from "../../../services/api/categoryService";
 import { duplicateProduct } from "../../../services/api/sellerListingService";
+import StockModal, { StockPill } from "../components/StockModal";
 import { useAuth } from "../../../context/AuthContext";
 import StarRating from "../../../components/ui/StarRating";
 
@@ -152,6 +153,26 @@ export default function SellerProductList() {
     sortColumn,
     sortDirection,
   ]);
+
+  // Product whose stock is being updated from the list
+  const [stockProduct, setStockProduct] = useState<any | null>(null);
+  const applyStock = (productId: string, data: any) =>
+    setProducts((ps: any[]) =>
+      ps.map((p: any) =>
+        p._id !== productId
+          ? p
+          : {
+              ...p,
+              stock: data?.stock ?? p.stock,
+              variations: Array.isArray(p.variations)
+                ? p.variations.map((v: any) => {
+                    const u = (data?.variations || []).find((x: any) => x.id === String(v._id));
+                    return u ? { ...v, stock: u.stock, status: u.status } : v;
+                  })
+                : p.variations,
+            }
+      )
+    );
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState<string | null>(null);
@@ -569,6 +590,7 @@ export default function SellerProductList() {
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-2">
                       <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                        {product && <StockPill product={product} />}
                         {badge && (
                           <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${badge.tone}`}>{badge.label}</span>
                         )}
@@ -586,6 +608,13 @@ export default function SellerProductList() {
                         )}
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
+                        {product && (
+                          <button
+                            onClick={() => setStockProduct(product)}
+                            className="px-2.5 py-1.5 text-xs font-semibold text-teal-700 bg-teal-50 rounded-lg">
+                            Stock
+                          </button>
+                        )}
                         <button
                           onClick={() => handleEdit(variation.productId)}
                           className="px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 rounded-lg">
@@ -860,6 +889,17 @@ export default function SellerProductList() {
                       </td>
                       <td className="p-4 align-middle border border-neutral-200">
                         <div className="flex items-center justify-center gap-2">
+                          {(() => {
+                            const prod: any = products.find((p: any) => p._id === variation.productId);
+                            return prod ? (
+                              <button
+                                onClick={() => setStockProduct(prod)}
+                                title="Update stock"
+                                className="hover:opacity-80">
+                                <StockPill product={prod} />
+                              </button>
+                            ) : null;
+                          })()}
                           <button
                             onClick={() => handleEdit(variation.productId)}
                             className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
@@ -1092,6 +1132,14 @@ export default function SellerProductList() {
             </div>
           </div>
         </div>
+      )}
+
+      {stockProduct && (
+        <StockModal
+          product={stockProduct}
+          onClose={() => setStockProduct(null)}
+          onSaved={(data) => applyStock(stockProduct._id, data)}
+        />
       )}
     </div>
   );

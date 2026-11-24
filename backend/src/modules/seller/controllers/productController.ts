@@ -1353,3 +1353,49 @@ export const getAllowedHeaderCategories = asyncHandler(
     });
   }
 );
+
+/**
+ * PATCH /products/:id/stock
+ * Set how many units the seller has, from the product list (no full edit, no re-review).
+ * Body: { stock } for a product without variants, or { variations: [{ id, stock }] }.
+ * Product stock is the sum of its variants' stock (the model syncs it on save).
+ */
+export const setProductStock = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = (req as any).user.userId;
+  const product: any = await Product.findOne({ _id: req.params.id, seller: sellerId });
+  if (!product) return res.status(404).json({ success: false, message: "Product not found" });
+
+  const valid = (n: any) => Number.isInteger(Number(n)) && Number(n) >= 0 && Number(n) <= 100000;
+  const hasVariants = Array.isArray(product.variations) && product.variations.length > 0;
+
+  if (hasVariants) {
+    const list: any[] = Array.isArray(req.body?.variations) ? req.body.variations : [];
+    if (list.length === 0) {
+      return res.status(400).json({ success: false, message: "Send the stock for each variant" });
+    }
+    for (const u of list) {
+      const v = product.variations.find((x: any) => String(x._id) === String(u?.id));
+      if (!v) return res.status(404).json({ success: false, message: "Variant not found" });
+      if (!valid(u.stock)) return res.status(400).json({ success: false, message: "Stock must be a whole number from 0 to 100000" });
+      v.stock = Number(u.stock);
+      if (v.stock === 0) v.status = "Sold out";
+      else if (v.status === "Sold out") v.status = "Available";
+    }
+    product.markModified("variations");
+  } else {
+    if (!valid(req.body?.stock)) {
+      return res.status(400).json({ success: false, message: "Stock must be a whole number from 0 to 100000" });
+    }
+    product.stock = Number(req.body.stock);
+  }
+
+  await product.save();
+  return res.status(200).json({
+    success: true,
+    message: "Stock updated",
+    data: {
+      stock: product.stock,
+      variations: (product.variations || []).map((v: any) => ({ id: String(v._id), stock: v.stock, status: v.status })),
+    },
+  });
+});

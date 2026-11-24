@@ -8,6 +8,7 @@ import {
   updateStock,
   updateProductStatus,
   bulkUpdateStock,
+  setProductStock,
   getBulkUploadTemplate,
   bulkUploadProducts,
   getShops,
@@ -82,6 +83,9 @@ router.patch("/:id/variations/:variationId/stock", updateStock);
 
 // Bulk update stock
 router.patch("/bulk-stock-update", bulkUpdateStock);
+
+// Set stock from the product list (whole product, or each variant)
+router.patch("/:id/stock", setProductStock);
 
 // Update product status (publish, popular, dealOfDay)
 router.patch("/:id/status", updateProductStatus);
