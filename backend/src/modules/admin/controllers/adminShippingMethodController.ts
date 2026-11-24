@@ -37,7 +37,7 @@ export const listSellerShippingMethods = asyncHandler(async (req: Request, res: 
       query.$or = [{ sellerName: rx }, { storeName: rx }, { mobile: rx }, { email: rx }];
     }
     const sellers = await Seller.find(query)
-      .select("sellerName storeName mobile email status shippingMethod shippingMethodChosenAt shippingMethodRequest")
+      .select("sellerName storeName mobile email status shippingMethod shippingMethodChosenAt shippingMethodRequest selfCodDisabled")
       .sort({ storeName: 1 })
       .limit(500)
       .lean();
@@ -51,6 +51,8 @@ export const listSellerShippingMethods = asyncHandler(async (req: Request, res: 
       method: s.shippingMethod || null,
       chosenAt: s.shippingMethodChosenAt || null,
       pendingRequest: s.shippingMethodRequest?.status === "Pending" ? s.shippingMethodRequest : null,
+      // Cash on Delivery for this seller's own deliveries (off = customers must pay online).
+      selfCod: s.selfCodDisabled !== true,
     }));
   }),
 );
@@ -105,5 +107,40 @@ export const updateRates = asyncHandler(async (req: Request, res: Response) =>
       return next;
     },
     "Shipping rates updated",
+  ),
+);
+
+/** PUT /admin/sellers/:sellerId/self-cod { enabled }: Cash on Delivery on/off for a self-delivery seller. */
+export const setSellerSelfCod = asyncHandler(async (req: Request, res: Response) =>
+  run(
+    res,
+    async () => {
+      if (typeof req.body?.enabled !== "boolean") {
+        throw Object.assign(new Error("enabled must be true or false"), { statusCode: 400 });
+      }
+      const Seller = (await import("../../../models/Seller")).default;
+      const seller = await Seller.findByIdAndUpdate(
+        req.params.sellerId,
+        { $set: { selfCodDisabled: !req.body.enabled } },
+        { new: true },
+      ).select("_id");
+      if (!seller) throw Object.assign(new Error("Seller not found"), { statusCode: 404 });
+      return { selfCod: req.body.enabled };
+    },
+    req.body?.enabled ? "Cash on Delivery turned on" : "Cash on Delivery turned off",
+  ),
+);
+
+/** GET /admin/payment-gateways: Razorpay / Cashfree on or off. */
+export const getPaymentGateways = asyncHandler(async (_req: Request, res: Response) =>
+  run(res, async () => (await import("../../../services/paymentControlService")).getOnlineGateways()),
+);
+
+/** PUT /admin/payment-gateways { razorpay?, cashfree? } */
+export const updatePaymentGateways = asyncHandler(async (req: Request, res: Response) =>
+  run(
+    res,
+    async () => (await import("../../../services/paymentControlService")).setOnlineGateways(req.body || {}),
+    "Payment gateways updated",
   ),
 );

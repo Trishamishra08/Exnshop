@@ -38,6 +38,10 @@ export interface IAppSettings extends Document {
       publishableKey?: string;
       secretKey?: string;
     };
+    /** Only the on/off switch; Cashfree keys stay in the server environment. */
+    cashfree?: {
+      enabled: boolean;
+    };
   };
 
   // SMS Gateway Settings
@@ -296,6 +300,9 @@ const AppSettingsSchema = new Schema<IAppSettings>(
         enabled: Boolean,
         publishableKey: String,
         secretKey: String,
+      },
+      cashfree: {
+        enabled: Boolean,
       },
     },
 

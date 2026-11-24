@@ -193,6 +193,8 @@ export interface ISeller extends Document {
    */
   shippingMethod?: "Self" | "Company";
   shippingMethodChosenAt?: Date;
+  /** Admin switched off Cash on Delivery for this seller's own (self) deliveries. */
+  selfCodDisabled?: boolean;
   /** Used to work out each order's ship-by date (see shipByService). */
   handlingTimeDays?: number;
   operatingDays?: number[]; // 0 = Sunday … 6 = Saturday
@@ -569,6 +571,7 @@ const SellerSchema = new Schema<ISeller>(
     shiprocketPickupSyncError: { type: String },
     shippingMethod: { type: String, enum: ["Self", "Company"] },
     shippingMethodChosenAt: { type: Date },
+    selfCodDisabled: { type: Boolean, default: false },
     handlingTimeDays: { type: Number, min: 0, max: 7 },
     operatingDays: { type: [Number] },
     holidays: { type: [String] },

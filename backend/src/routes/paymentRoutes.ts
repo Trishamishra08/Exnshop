@@ -15,6 +15,14 @@ const router = Router();
  */
 router.post('/create-order', authenticate, requireUserType('Customer'), async (req: Request, res: Response) => {
     try {
+
+        // The admin can switch this gateway off (Seller Shipping Methods page).
+        try {
+            const { assertGatewayEnabled } = await import('../services/paymentControlService');
+            await assertGatewayEnabled('razorpay');
+        } catch (gateErr: any) {
+            return res.status(gateErr.statusCode || 400).json({ success: false, message: gateErr.message });
+        }
         const orderIds: string[] = Array.isArray(req.body.orderIds)
             ? req.body.orderIds
             : req.body.orderId
@@ -158,6 +166,14 @@ router.post('/webhook', async (req: Request, res: Response) => {
  */
 router.post('/cashfree/create-order', authenticate, requireUserType('Customer'), async (req: Request, res: Response) => {
     try {
+
+        // The admin can switch this gateway off (Seller Shipping Methods page).
+        try {
+            const { assertGatewayEnabled } = await import('../services/paymentControlService');
+            await assertGatewayEnabled('cashfree');
+        } catch (gateErr: any) {
+            return res.status(gateErr.statusCode || 400).json({ success: false, message: gateErr.message });
+        }
         const orderIds: string[] = Array.isArray(req.body.orderIds)
             ? req.body.orderIds
             : req.body.orderId

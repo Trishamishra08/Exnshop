@@ -179,7 +179,20 @@ export interface AdminSellerShippingRow {
   method: ShippingMethod | null;
   chosenAt: string | null;
   pendingRequest: ShippingMethodRequest | null;
+  /** Cash on Delivery for this seller's own deliveries (false = admin switched it off). */
+  selfCod?: boolean;
 }
+
+/** Cash on Delivery on/off for a self-delivery seller (admin). */
+export const setSellerSelfCod = async (sellerId: string, enabled: boolean) =>
+  (await api.put<Wrapped<{ selfCod: boolean }>>(`/admin/sellers/${sellerId}/self-cod`, { enabled })).data;
+
+export type OnlineGateways = { razorpay: boolean; cashfree: boolean };
+/** Razorpay / Cashfree on or off for customers (admin). */
+export const getPaymentGateways = async (): Promise<OnlineGateways> =>
+  (await api.get<Wrapped<OnlineGateways>>("/admin/payment-gateways")).data.data;
+export const updatePaymentGateways = async (input: Partial<OnlineGateways>): Promise<OnlineGateways> =>
+  (await api.put<Wrapped<OnlineGateways>>("/admin/payment-gateways", input)).data.data;
 
 /** Every E-commerce seller with their shipping method (admin). */
 export const listSellerShippingMethods = async (params?: { search?: string; method?: string }): Promise<AdminSellerShippingRow[]> =>

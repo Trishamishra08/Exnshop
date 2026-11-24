@@ -43,6 +43,11 @@ router.get("/app-settings", async (_req, res) => {
       companyPincode: settings.companyPincode,
       companyCountry: settings.companyCountry,
       paymentMethods: settings.paymentMethods,
+      // Which online gateways the admin has switched on (no keys, only on/off).
+      onlineGateways: {
+        razorpay: (settings as any).paymentGateways?.razorpay?.enabled !== false,
+        cashfree: (settings as any).paymentGateways?.cashfree?.enabled !== false,
+      },
       platformFee: settings.platformFee,
       deliveryCharges: settings.deliveryCharges,
       freeDeliveryThreshold: settings.freeDeliveryThreshold,

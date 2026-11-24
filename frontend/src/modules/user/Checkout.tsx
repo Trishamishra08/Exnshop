@@ -40,6 +40,8 @@ import { isSamePlace } from "../../utils/addressUtils";
 import { goBackOr } from "../../utils/navigation";
 import RazorpayCheckout from "../../components/RazorpayCheckout";
 import CashfreeCheckout from "../../components/CashfreeCheckout";
+import api from "../../services/api/config";
+import { sellerIdOf } from "../../hooks/useUnavailableSellers";
 import { getCustomerWalletBalance } from "../../services/api/customerWalletService";
 
 // const STORAGE_KEY = 'saved_address'; // Removed
@@ -166,6 +168,28 @@ export default function Checkout() {
 
   // Which online gateway the customer picked — only relevant when paymentMethod === "Online"
   const [selectedGateway, setSelectedGateway] = useState<"razorpay" | "cashfree">("razorpay");
+
+  // Admin switches: online gateways on/off, and Cash on Delivery off for some self-delivery sellers.
+  const gatewaySwitch = (appSettings as any)?.onlineGateways || { razorpay: true, cashfree: true };
+  const enabledGateways = (["razorpay", "cashfree"] as const).filter((g) => gatewaySwitch[g] !== false);
+  const onlineAvailable = enabledGateways.length > 0;
+  const [codOffSellers, setCodOffSellers] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    api
+      .get("/customer/products/cod-off-sellers", { skipLoader: true } as any)
+      .then((res) => setCodOffSellers(new Set(res.data?.data || [])))
+      .catch(() => {});
+  }, []);
+  const codBlocked = cart.items.some((i: any) => codOffSellers.has(sellerIdOf(i.product)));
+  useEffect(() => {
+    if (codBlocked && paymentMethod === "COD" && onlineAvailable) setPaymentMethod("Online");
+    else if (!onlineAvailable && paymentMethod === "Online") setPaymentMethod("COD");
+    if (onlineAvailable && !enabledGateways.includes(selectedGateway)) setSelectedGateway(enabledGateways[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [codBlocked, onlineAvailable, gatewaySwitch.razorpay, gatewaySwitch.cashfree]);
+  const codNote = codBlocked
+    ? "Cash on Delivery isn't available for some items in your cart. Please pay online."
+    : "";
 
   // Check if user has placeholder data (needs profile completion)
   const isPlaceholderUser =
@@ -1935,7 +1959,7 @@ export default function Checkout() {
                     <path d="M6 12h.01M18 12h.01" />
                   </>
                 ) },
-              ] as const).map((m) => {
+              ] as const).filter((m) => (m.key === "COD" ? !codBlocked : onlineAvailable)).map((m) => {
                 const selected = paymentMethod === m.key;
                 return (
                   <button
@@ -1958,14 +1982,18 @@ export default function Checkout() {
               })}
             </div>
 
-            {paymentMethod === "Online" && (
+            {codNote && <p className="mt-2 text-xs font-medium text-amber-700">{codNote}</p>}
+            {!onlineAvailable && codBlocked && (
+              <p className="mt-2 text-xs font-medium text-red-700">No payment option is available for these items right now. Please remove them or try again later.</p>
+            )}
+            {paymentMethod === "Online" && onlineAvailable && (
               <div className="mt-3.5">
                 <p className="text-xs font-semibold text-neutral-700 mb-2">Pay using</p>
                 <div className="grid grid-cols-2 gap-3">
                   {([
                     { key: "razorpay", title: "Razorpay" },
                     { key: "cashfree", title: "Cashfree" },
-                  ] as const).map((g) => {
+                  ] as const).filter((g) => enabledGateways.includes(g.key)).map((g) => {
                     const selected = selectedGateway === g.key;
                     return (
                       <button
@@ -2030,7 +2058,9 @@ export default function Checkout() {
             ✓ Order 100% Covered by Wallet (No additional payment needed)
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <>
+          <div className={`grid ${onlineAvailable && !codBlocked ? "grid-cols-2" : "grid-cols-1"} gap-3`}>
+            {onlineAvailable && (
             <button
               onClick={() => setPaymentMethod("Online")}
               className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
@@ -2058,7 +2088,9 @@ export default function Checkout() {
                 (Cards, UPI, NetBanking)
               </p>
             </button>
+            )}
 
+            {!codBlocked && (
             <button
               onClick={() => setPaymentMethod("COD")}
               className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${
@@ -2085,11 +2117,18 @@ export default function Checkout() {
                 (Pay when you receive)
               </p>
             </button>
+            )}
           </div>
+          {codNote && <p className="mt-2 text-[11px] font-medium text-amber-700">{codNote}</p>}
+          {!onlineAvailable && codBlocked && (
+            <p className="mt-2 text-[11px] font-medium text-red-700">No payment option is available for these items right now. Please remove them or try again later.</p>
+          )}
+          </>
         )}
 
-        {!(walletDeduction === grandTotal) && paymentMethod === "Online" && (
-          <div className="grid grid-cols-2 gap-2 mt-3">
+        {!(walletDeduction === grandTotal) && paymentMethod === "Online" && onlineAvailable && (
+          <div className={`grid ${enabledGateways.length > 1 ? "grid-cols-2" : "grid-cols-1"} gap-2 mt-3`}>
+            {enabledGateways.includes("razorpay") && (
             <button
               onClick={() => setSelectedGateway("razorpay")}
               className={`py-2 rounded-lg border text-xs font-semibold transition-all ${
@@ -2099,6 +2138,8 @@ export default function Checkout() {
               }`}>
               Razorpay
             </button>
+            )}
+            {enabledGateways.includes("cashfree") && (
             <button
               onClick={() => setSelectedGateway("cashfree")}
               className={`py-2 rounded-lg border text-xs font-semibold transition-all ${
@@ -2108,6 +2149,7 @@ export default function Checkout() {
               }`}>
               Cashfree
             </button>
+            )}
           </div>
         )}
       </div>

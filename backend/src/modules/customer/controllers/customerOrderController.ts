@@ -659,6 +659,18 @@ Gift Packaging Fee: ₹${giftPackagingFee}`);
       giftPackagingFee
   );
 
+  // Cash on Delivery the admin switched off for a self-delivery seller: the customer pays online.
+  const paysOnline = paymentMethod === "Online" || paymentMethod === "razorpay";
+  const walletCovers = walletAvailable > 0 && Math.min(walletAvailable, finalTotal) >= finalTotal;
+  if (!paysOnline && !walletCovers) {
+    try {
+      const { assertCodAllowedForSellers } = await import("../../../services/paymentControlService");
+      await assertCodAllowedForSellers(Array.from(sellerIds));
+    } catch (codErr: any) {
+      return { success: false, status: codErr.statusCode || 400, message: codErr.message };
+    }
+  }
+
   let walletAmountUsed = 0;
   if (walletAvailable > 0) {
     walletAmountUsed = Math.min(walletAvailable, finalTotal);
