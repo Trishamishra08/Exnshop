@@ -33,6 +33,7 @@ export interface GetProductsParams {
     latitude?: number; // User location latitude
     longitude?: number; // User location longitude
     mode?: 'quick' | 'ecommerce'; // Commerce channel filter
+    headerCategory?: string; // Header category id or slug (home page tab)
 }
 
 export interface ProductListResponse {

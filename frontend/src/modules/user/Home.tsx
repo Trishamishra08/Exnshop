@@ -9,6 +9,7 @@ import BestsellerSection from "./components/BestsellerSection";
 import ProductRail, { prefetchRails } from "./components/home/ProductRail";
 import ProductCard from "./components/ProductCard";
 import { getHomeContent } from "../../services/api/customerHomeService";
+import { getProducts } from "../../services/api/customerProductService";
 import { useLocation } from "../../hooks/useLocation";
 import PageLoader from "../../components/PageLoader";
 import { useThemeContext } from "../../context/ThemeContext";
@@ -55,6 +56,9 @@ export default function Home() {
   const pageContent = resolvePageContent(homeData.pageContent, homeTheme.quick);
 
   const [products, setProducts] = useState<any[]>([]);
+  // Products of the header category tab the customer picked (e.g. "Women Western").
+  const [tabLoading, setTabLoading] = useState(false);
+  const [tabTitle, setTabTitle] = useState("");
 
   // Function to save scroll position before navigation
   const saveScrollPosition = () => {
@@ -199,22 +203,38 @@ export default function Home() {
     };
   }, []);
 
-  // Removed duplicate saveScrollPosition
-  const getFilteredProducts = (tabId: string) => {
-    if (tabId === "all") {
-      return products;
+  // Load the picked header category's products (same location / mode rules as the category pages).
+  useEffect(() => {
+    if (activeTab === "all") {
+      setProducts([]);
+      setTabTitle("");
+      return;
     }
-    return products.filter(
-      (p) =>
-        p.categoryId === tabId ||
-        (p.category && (p.category._id === tabId || p.category.slug === tabId))
-    );
-  };
+    let cancelled = false;
+    setTabLoading(true);
+    getProducts({
+      headerCategory: activeTab,
+      mode: mode === "ECommerce" ? "ecommerce" : "quick",
+      limit: 40,
+      ...(location?.latitude && location?.longitude ? { latitude: location.latitude, longitude: location.longitude } : {}),
+    })
+      .then((res: any) => {
+        if (cancelled) return;
+        setProducts(res?.success ? res.data || [] : []);
+        setTabTitle(res?.headerCategory?.name || "");
+      })
+      .catch(() => {
+        if (!cancelled) setProducts([]);
+      })
+      .finally(() => {
+        if (!cancelled) setTabLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab, mode, location?.latitude, location?.longitude]);
 
-  const filteredProducts = useMemo(
-    () => getFilteredProducts(activeTab),
-    [activeTab, products]
-  );
+  const filteredProducts = useMemo(() => (activeTab === "all" ? [] : products), [activeTab, products]);
 
   // Full-page loader only before the first content arrives — never on refreshes.
   if (!hasLoaded && loading) {
@@ -334,27 +354,56 @@ export default function Home() {
           </>
         )}
 
-        {/* Filtered Products Section */}
-        {activeTab !== "all" && filteredProducts.length > 0 && (
-          <div data-products-section className="mt-6 mb-6 md:mt-8 md:mb-8">
-            <h2 className="text-lg md:text-2xl font-semibold text-neutral-900 mb-3 md:mb-6 px-4 md:px-6 lg:px-8 tracking-tight capitalize">
-              {activeTab === "grocery" ? t("home.groceryItems", "Grocery Items") : activeTab}
-            </h2>
-            <div className="px-4 md:px-6 lg:px-8">
-              <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 md:gap-4">
-                {filteredProducts.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    categoryStyle={true}
-                    showBadge={true}
-                    showPackBadge={false}
-                    showStockInfo={true}
-                  />
-                ))}
+        {/* Products of the picked header category, in their own section */}
+        {activeTab !== "all" && (
+          <section data-products-section className="mx-3 min-[400px]:mx-4 md:mx-6 lg:mx-8 mt-4 mb-6 rounded-2xl bg-white border border-neutral-200 shadow-sm overflow-hidden">
+            <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-3 border-b border-neutral-100">
+              <div className="min-w-0">
+                <h2 className="text-base md:text-xl font-bold text-neutral-900 tracking-tight truncate capitalize">
+                  {tabTitle || activeTab.replace(/-/g, " ")}
+                </h2>
+                <p className="text-[11px] sm:text-xs text-neutral-500">
+                  {tabLoading ? t("common.loading", "Loading…") : `${filteredProducts.length} ${filteredProducts.length === 1 ? "product" : "products"}`}
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={() => navigate("/categories")}
+                className="flex-shrink-0 text-xs sm:text-sm font-semibold text-[#0056FF]"
+              >
+                {t("common.viewAll", "View All")} ›
+              </button>
             </div>
-          </div>
+            <div className="p-2.5 sm:p-4">
+              {tabLoading && filteredProducts.length === 0 ? (
+                <div className="grid grid-cols-2 min-[400px]:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 md:gap-4">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="aspect-[3/4.4] rounded-xl bg-neutral-100 animate-pulse" />
+                  ))}
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="py-10 text-center">
+                  <p className="text-sm font-semibold text-neutral-700">{t("home.noProductsHere", "No products here yet")}</p>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    {t("home.noProductsHint", "Nothing from this category delivers to your location right now. Try another category or change the location.")}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 min-[400px]:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 md:gap-4">
+                  {filteredProducts.map((product: any) => (
+                    <ProductCard
+                      key={product._id || product.id}
+                      product={product}
+                      categoryStyle={true}
+                      showBadge={true}
+                      showPackBadge={false}
+                      showStockInfo={true}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
         )}
 
         {activeTab === "all" && (

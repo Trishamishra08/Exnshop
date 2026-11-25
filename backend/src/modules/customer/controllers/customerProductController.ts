@@ -32,6 +32,7 @@ export const getProducts = async (req: Request, res: Response) => {
       longitude, // User location longitude
       mode, // 'quick' | 'ecommerce' — which catalog tab the customer is browsing
       sponsoredOnly, // "true": only the running ads that match (home page "Sponsored" row)
+      headerCategory, // header category id or slug (home page tab)
     } = req.query;
     const onlySponsored = String(sponsoredOnly) === "true";
 
@@ -156,6 +157,22 @@ export const getProducts = async (req: Request, res: Response) => {
       query.brand = brand;
     }
 
+    // Header category (home page tab): products tagged with it, or in its categories.
+    let headerInfo: { _id: string; name: string; slug: string } | null = null;
+    if (headerCategory) {
+      const hc = String(headerCategory);
+      const HeaderCategory = (await import("../../../models/HeaderCategory")).default as any;
+      const header: any = await HeaderCategory.findOne(
+        mongoose.Types.ObjectId.isValid(hc) ? { _id: hc } : { slug: hc }
+      ).select("name slug").lean();
+      if (!header) {
+        return res.status(200).json({ success: true, data: [], headerCategory: null, pagination: { page: 1, limit: Number(limit), total: 0, pages: 0 } });
+      }
+      headerInfo = { _id: String(header._id), name: header.name, slug: header.slug };
+      const catIds = await Category.find({ headerCategoryId: header._id }).distinct("_id");
+      query.$and = [...(query.$and || []), { $or: [{ headerCategoryId: header._id }, { category: { $in: catIds } }] }];
+    }
+
     if (minPrice || maxPrice) {
       query.price = {};
       if (minPrice) query.price.$gte = Number(minPrice);
@@ -262,6 +279,7 @@ export const getProducts = async (req: Request, res: Response) => {
     return res.status(200).json({
       success: true,
       data: formattedProducts,
+      ...(headerInfo ? { headerCategory: headerInfo } : {}),
       pagination: {
         page: Number(page),
         limit: Number(limit),
