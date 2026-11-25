@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { getAllSellers, updateSellerStatus, deleteSeller, Seller as SellerType, updateSeller, updateSellerCategoryCommissions } from '../../../services/api/sellerService';
 import { getHeaderCategoriesAdmin, HeaderCategory } from '../../../services/api/headerCategoryService';
 import SellerServiceMap from '../components/SellerServiceMap';
+import PickupReturnAddressEditor from '../../seller/components/PickupReturnAddressEditor';
 import ConfirmationModal from '../../../components/ConfirmationModal';
 import { useAdminMode } from '../context/AdminModeContext';
 import { Link } from 'react-router-dom';
@@ -1320,6 +1321,15 @@ export default function AdminManageSellerList({ pending = false }: { pending?: b
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Pickup & return address: where couriers collect parcels and bring returns */}
+                            {editingSeller?._id && (
+                                <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">
+                                    <h4 className="text-sm font-semibold text-neutral-700 mb-1">Pickup &amp; Return Address</h4>
+                                    <p className="text-xs text-neutral-500 mb-3">Saved on its own (not with "Save Changes"). The courier pickup is updated as soon as it is saved.</p>
+                                    <PickupReturnAddressEditor endpoint={`/admin/sellers/${editingSeller._id}/addresses`} showIntro={false} />
+                                </div>
+                            )}
 
                             {/* Service Area Map */}
                             <div className="bg-neutral-50 rounded-lg p-4 border border-neutral-200">

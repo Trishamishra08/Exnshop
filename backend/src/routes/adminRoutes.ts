@@ -5,7 +5,7 @@ import { getRefundRequests, decideRefund } from "../modules/admin/controllers/ad
 import { getDeliveryDocuments, getDeliveryDocumentUrl, reviewDocument } from "../modules/admin/controllers/adminDeliveryDocumentController";
 import { getDeliveryChangeRequests, decideDeliveryChangeRequest, getDeliveryHistory } from "../modules/admin/controllers/adminDeliveryChangeController";
 import { getDeliveryCancellations, decideDeliveryCancellation } from "../modules/admin/controllers/adminDeliveryCancellationController";
-import { getShippingMethodRequests, decideShippingMethod, setSellerShippingMethod, listSellerShippingMethods, setSellerSelfCod, getPaymentGateways, updatePaymentGateways, getRates as getShippingRatesAdmin, updateRates as updateShippingRatesAdmin } from "../modules/admin/controllers/adminShippingMethodController";
+import { getShippingMethodRequests, decideShippingMethod, setSellerShippingMethod, listSellerShippingMethods, setSellerSelfCod, getSellerAddressesAdmin, saveSellerAddressesAdmin, getPaymentGateways, updatePaymentGateways, getRates as getShippingRatesAdmin, updateRates as updateShippingRatesAdmin } from "../modules/admin/controllers/adminShippingMethodController";
 
 // Dashboard Controllers
 import * as dashboardController from "../modules/admin/controllers/adminDashboardController";
@@ -392,6 +392,8 @@ router.get("/sellers/shipping-methods", listSellerShippingMethods);
 router.post("/sellers/:sellerId/shipping-method/decision", decideShippingMethod);
 router.put("/sellers/:sellerId/shipping-method", setSellerShippingMethod);
 router.put("/sellers/:sellerId/self-cod", setSellerSelfCod);
+router.get("/sellers/:sellerId/addresses", getSellerAddressesAdmin);
+router.put("/sellers/:sellerId/addresses", saveSellerAddressesAdmin);
 router.get("/payment-gateways", getPaymentGateways);
 router.put("/payment-gateways", updatePaymentGateways);
 router.get("/refund-requests", getRefundRequests);

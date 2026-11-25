@@ -111,6 +111,20 @@ export const updateRates = asyncHandler(async (req: Request, res: Response) =>
   ),
 );
 
+/** GET / PUT /admin/sellers/:sellerId/addresses: the seller's pickup and return address (admin can fix them). */
+export const getSellerAddressesAdmin = asyncHandler(async (req: Request, res: Response) =>
+  run(res, async () => (await import("../../../services/sellerAddressService")).getSellerAddresses(req.params.sellerId)),
+);
+export const saveSellerAddressesAdmin = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { saveSellerAddresses } = await import("../../../services/sellerAddressService");
+    const result = await saveSellerAddresses(req.params.sellerId, req.body || {});
+    return res.status(200).json({ success: true, message: result.courierMessage || "Addresses saved", warning: result.courierMessage || undefined, data: result.data });
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Could not save the addresses" });
+  }
+});
+
 /** PUT /admin/sellers/:sellerId/self-cod { enabled }: Cash on Delivery on/off for a self-delivery seller. */
 export const setSellerSelfCod = asyncHandler(async (req: Request, res: Response) =>
   run(

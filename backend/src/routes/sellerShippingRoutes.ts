@@ -26,6 +26,24 @@ const handle = (fn: (req: Request) => Promise<any>, successStatus = 200) =>
 
 const sellerId = (req: Request) => String((req as any).user.userId);
 
+// Pickup address (where couriers collect parcels) and return address
+router.get(
+  "/addresses",
+  handle(async (req) => (await import("../services/sellerAddressService")).getSellerAddresses(sellerId(req)))
+);
+router.put(
+  "/addresses",
+  asyncHandler(async (req: Request, res: Response) => {
+    try {
+      const { saveSellerAddresses } = await import("../services/sellerAddressService");
+      const result = await saveSellerAddresses(sellerId(req), req.body || {});
+      return res.status(200).json({ success: true, message: result.courierMessage || "Addresses saved", warning: result.courierMessage || undefined, data: result.data });
+    } catch (err: any) {
+      return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Could not save the addresses" });
+    }
+  })
+);
+
 // Current method, any pending change request, and the courier companies to pick from
 router.get("/method", handle((req) => getShippingMethodState(sellerId(req))));
 

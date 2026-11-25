@@ -195,6 +195,12 @@ export interface ISeller extends Document {
   shippingMethodChosenAt?: Date;
   /** Admin switched off Cash on Delivery for this seller's own (self) deliveries. */
   selfCodDisabled?: boolean;
+  /** Where couriers collect parcels (entered by the seller; used instead of the map pin). */
+  pickupAddress?: SellerPostalAddress;
+  /** Returns go to the pickup address unless this is false. */
+  returnSameAsPickup?: boolean;
+  /** Where returned parcels go when it isn't the pickup address. */
+  returnAddressDetails?: SellerPostalAddress;
   /** Used to work out each order's ship-by date (see shipByService). */
   handlingTimeDays?: number;
   operatingDays?: number[]; // 0 = Sunday … 6 = Saturday
@@ -226,6 +232,31 @@ export interface ISeller extends Document {
   fcmTokenMobile?: string[];   // Mobile push notification tokens
   comparePassword(candidatePassword: string): Promise<boolean>;
 }
+
+export interface SellerPostalAddress {
+  contactName?: string;
+  phone?: string;
+  line1: string;
+  line2?: string;
+  landmark?: string;
+  city: string;
+  state: string;
+  pincode: string;
+}
+
+const PostalAddressSchema = new Schema(
+  {
+    contactName: { type: String, trim: true },
+    phone: { type: String, trim: true },
+    line1: { type: String, trim: true, required: true },
+    line2: { type: String, trim: true },
+    landmark: { type: String, trim: true },
+    city: { type: String, trim: true, required: true },
+    state: { type: String, trim: true, required: true },
+    pincode: { type: String, trim: true, required: true },
+  },
+  { _id: false },
+);
 
 const SellerSchema = new Schema<ISeller>(
   {
@@ -572,6 +603,9 @@ const SellerSchema = new Schema<ISeller>(
     shippingMethod: { type: String, enum: ["Self", "Company"] },
     shippingMethodChosenAt: { type: Date },
     selfCodDisabled: { type: Boolean, default: false },
+    pickupAddress: { type: PostalAddressSchema, default: undefined },
+    returnSameAsPickup: { type: Boolean, default: true },
+    returnAddressDetails: { type: PostalAddressSchema, default: undefined },
     handlingTimeDays: { type: Number, min: 0, max: 7 },
     operatingDays: { type: [Number] },
     holidays: { type: [String] },

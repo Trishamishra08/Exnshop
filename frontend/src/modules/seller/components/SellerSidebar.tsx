@@ -311,6 +311,7 @@ const menuItems: MenuItem[] = [
     ],
   },
   { keyPath: "seller.return", label: "Return", path: "/seller/return" },
+  { keyPath: "seller.pickupAddress", label: "Pickup & Return Address", path: "/seller/pickup-address" },
   {
     keyPath: "common.profile",
     label: "Profile",

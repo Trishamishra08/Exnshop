@@ -207,6 +207,9 @@ const SellerReturnRequest = lazyWithRetry(
 const SellerAccountSettings = lazyWithRetry(
   () => import("./modules/seller/pages/SellerAccountSettings"), "SellerAccountSettings"
 );
+const SellerPickupAddress = lazyWithRetry(
+  () => import("./modules/seller/pages/SellerPickupAddress"), "SellerPickupAddress"
+);
 const SellerProfile = lazyWithRetry(
   () => import("./modules/seller/pages/SellerProfile"), "SellerProfile"
 );
@@ -861,6 +864,10 @@ function App() {
                                       <Route
                                         path="account-settings"
                                         element={<SellerAccountSettings />}
+                                      />
+                                      <Route
+                                        path="pickup-address"
+                                        element={<SellerPickupAddress />}
                                       />
                                       <Route
                                         path="profile"

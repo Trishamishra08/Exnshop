@@ -54,15 +54,31 @@ export const startCourierReturn = async (returnId: string): Promise<{ success: b
       state: address.state || "",
       pincode: address.pincode || "",
     },
-    seller: {
-      name: seller.storeName || seller.sellerName,
-      phone: seller.mobile,
-      email: seller.email,
-      address: seller.returnAddress || sellerAddress?.line1 || seller.address || "",
-      city: sellerAddress?.city || seller.city || "",
-      state: sellerAddress?.state || "",
-      pincode: sellerAddress?.pincode || "",
-    },
+    // Returns go to the seller's return address, or their pickup address when it's the same.
+    seller: (() => {
+      const ra: any = seller.returnSameAsPickup === false ? seller.returnAddressDetails : null;
+      if (ra?.line1 && ra?.pincode) {
+        return {
+          name: ra.contactName || seller.storeName || seller.sellerName,
+          phone: ra.phone || seller.mobile,
+          email: seller.email,
+          address: [ra.line1, ra.line2, ra.landmark].filter(Boolean).join(", "),
+          city: ra.city,
+          state: ra.state,
+          pincode: ra.pincode,
+        };
+      }
+      const pa: any = seller.pickupAddress;
+      return {
+        name: pa?.contactName || seller.storeName || seller.sellerName,
+        phone: pa?.phone || seller.mobile,
+        email: seller.email,
+        address: pa?.line1 ? [pa.line1, pa.line2, pa.landmark].filter(Boolean).join(", ") : seller.returnAddress || sellerAddress?.line1 || seller.address || "",
+        city: sellerAddress?.city || seller.city || "",
+        state: sellerAddress?.state || "",
+        pincode: sellerAddress?.pincode || "",
+      };
+    })(),
     item: {
       name: item.productName || "Item",
       sku: item.sku || String(item.product),

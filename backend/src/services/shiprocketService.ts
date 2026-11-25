@@ -154,6 +154,18 @@ const reverseGeocodeOsm = async (lat: number, lng: number) => {
  * (GOOGLE_MAPS_SERVER_KEY, a key without website restrictions), then OpenStreetMap.
  */
 export const resolveSellerAddress = async (seller: ISeller): Promise<ResolvedAddress> => {
+  // The pickup address the seller entered is used as it is; the map pin is only a fallback.
+  const pa: any = (seller as any).pickupAddress;
+  if (pa?.line1 && pa?.pincode && pa?.state) {
+    return {
+      line1: String(pa.line1).slice(0, 190),
+      line2: [pa.line2, pa.landmark].filter(Boolean).join(", ").slice(0, 190),
+      city: pa.city || seller.city || "",
+      state: pa.state,
+      pincode: pa.pincode,
+    };
+  }
+
   const lat = seller.location?.coordinates?.[1] ?? parseFloat(seller.latitude || "");
   const lng = seller.location?.coordinates?.[0] ?? parseFloat(seller.longitude || "");
   // A website-restricted key is refused for server calls, so a separate server key can be set.
@@ -209,7 +221,7 @@ export const resolveSellerAddress = async (seller: ISeller): Promise<ResolvedAdd
 
   const typed = (seller.address || "").trim();
   // A pincode the seller typed in their address is more exact than one from the map pin.
-  const typedPincode = `${typed} ${seller.searchLocation || ""}`.match(/\b\d{6}\b/)?.[0] || "";
+  const typedPincode = `${typed} ${seller.searchLocation || ""} ${(seller as any).serviceableArea || ""}`.match(/\b\d{6}\b/)?.[0] || "";
   if (typedPincode) pincode = typedPincode;
 
   // Shiprocket rejects line 1 unless it is 10+ chars and contains a house/flat/road number.
@@ -232,6 +244,7 @@ const pickupSignature = (seller: ISeller) =>
     .createHash("sha1")
     .update(
       JSON.stringify([
+        (seller as any).pickupAddress || null,
         seller.address,
         seller.searchLocation,
         seller.city,
@@ -280,7 +293,7 @@ export const syncSellerPickupLocation = async (
   try {
     const address = await resolveSellerAddress(seller);
     if (!address.pincode || !address.state) {
-      return await fail("Could not determine the shop's pincode/state from its map location");
+      return await fail("Add your pickup address with pincode (Seller panel > Pickup & Return Address)");
     }
 
     // Unique and short (Shiprocket nicknames are limited in length).
@@ -290,9 +303,9 @@ export const syncSellerPickupLocation = async (
       `${SHIPROCKET_BASE_URL}/settings/company/addpickup`,
       {
         pickup_location: pickupLocation,
-        name: seller.sellerName || seller.storeName,
+        name: (seller as any).pickupAddress?.contactName || seller.sellerName || seller.storeName,
         email: seller.email,
-        phone: (seller.mobile || "").replace(/\D/g, "").slice(-10),
+        phone: ((seller as any).pickupAddress?.phone || seller.mobile || "").replace(/\D/g, "").slice(-10),
         address: address.line1,
         address_2: address.line2,
         city: address.city,
