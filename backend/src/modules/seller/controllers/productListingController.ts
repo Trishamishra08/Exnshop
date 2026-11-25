@@ -14,6 +14,7 @@ import {
   stripProtectedFields,
 } from "../../../services/productListingService";
 import { resolveListingConfig } from "../../../services/listingConfigService";
+import { describeCategoryGst } from "../../../services/taxService";
 import { deletePrivateDocument, signedDocumentUrl, uploadPrivateDocument } from "../../../services/sellerOnboardingService";
 
 const sellerActor = (req: Request) => ({ actorType: "Seller" as const, actorId: (req as any).user?.userId });
@@ -57,13 +58,14 @@ export const getListingConfig = asyncHandler(async (req: Request, res: Response)
     }),
     AppSettings.getSettings(),
     q.categoryId && mongoose.isValidObjectId(q.categoryId)
-      ? Category.findById(q.categoryId).select("taxId").populate("taxId", "percentage status")
+      ? describeCategoryGst(q.categoryId)
       : null,
   ]);
   // Same rules checkout uses (taxService.computeItemGst): GST is added on top of the
-  // selling price at the category's active tax rate, and only while GST is switched on.
-  const tax: any = category?.taxId;
-  const gstRate = settings?.gstEnabled && tax?.status === "Active" ? Number(tax.percentage) || 0 : 0;
+  // selling price at the category's rate (else its parent's, else its header category's),
+  // and only while GST is switched on. The admin sets it; the seller can't change it.
+  const gstRate = settings?.gstEnabled ? category?.rate || 0 : 0;
+  const gstSource = settings?.gstEnabled ? category?.source || "" : "";
   return res.status(200).json({
     success: true,
     data: {
@@ -74,6 +76,8 @@ export const getListingConfig = asyncHandler(async (req: Request, res: Response)
       },
       pricing: {
         gstRate,
+        gstSource,
+        gstEnabled: Boolean(settings?.gstEnabled),
         platformFee: Number(settings?.platformFee) || 0,
       },
     },

@@ -168,8 +168,35 @@ export default function AdminCategory() {
     // Apply status filter
     filtered = filterCategoriesByStatus(filtered, statusFilter);
 
+    // The tree starts from top-level categories, so a match deeper down (e.g. "Dinnerware"
+    // under "Kitchen & Appliances") needs its parents too, or nothing is shown.
+    if (searchQuery.trim()) {
+      const byId = new Map(flatCategories.map((cat) => [String(cat._id), cat]));
+      const parentOf = (cat: any) => {
+        const pid = cat?.parentId;
+        return pid ? String(typeof pid === "object" ? pid._id : pid) : "";
+      };
+      const withParents = new Map(filtered.map((cat) => [String(cat._id), cat]));
+      for (const cat of filtered) {
+        let pid = parentOf(cat);
+        for (let depth = 0; pid && depth < 10 && !withParents.has(pid); depth++) {
+          const parent = byId.get(pid);
+          if (!parent) break;
+          withParents.set(pid, parent);
+          pid = parentOf(parent);
+        }
+      }
+      filtered = Array.from(withParents.values());
+    }
+
     return filtered;
   }, [categories, searchQuery, statusFilter]);
+
+  // While searching, keep every branch open so the matches are visible.
+  const treeExpandedIds = useMemo(
+    () => (searchQuery.trim() ? new Set(filteredCategories.map((cat) => String(cat._id))) : expandedIds),
+    [searchQuery, filteredCategories, expandedIds]
+  );
 
   // Build tree for tree view
   const categoryTree = useMemo(() => {
@@ -629,7 +656,7 @@ export default function AdminCategory() {
                 onEdit={handleEdit}
                 onDelete={handleDelete}
                 onToggleStatus={handleToggleStatus}
-                expandedIds={expandedIds}
+                expandedIds={treeExpandedIds}
                 onToggleExpand={handleToggleExpand}
               />
             ) : (

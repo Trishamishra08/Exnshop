@@ -1282,16 +1282,16 @@ export default function SellerProductWizard() {
               <Field label="HSN code" required={needsHsn} hint={needsHsn ? '4, 6 or 8 digits' : 'Optional — needed once you are GST registered'}>
                 <input className={inputCls} inputMode="numeric" maxLength={8} value={hsnCode} onChange={(e) => setHsnCode(e.target.value.replace(/\D/g, ''))} />
               </Field>
-              <Field label="GST slab">
-                <select className={inputCls} value={taxId} onChange={(e) => setTaxId(e.target.value)}>
-                  <option value="">Not set</option>
-                  {taxes.map((t) => (
-                    <option key={t._id} value={t._id}>
-                      {t.name}
-                      {t.percentage !== undefined ? ` (${t.percentage}%)` : ''}
-                    </option>
-                  ))}
-                </select>
+              {/* GST is set by the admin on the category (or header category), not by the seller:
+                  show what checkout will charge and where it comes from. */}
+              <Field label="GST">
+                <div className="px-3 py-2 rounded-lg border border-neutral-200 bg-neutral-50 text-sm text-neutral-800">
+                  {(pricing as any)?.gstEnabled === false
+                    ? 'GST is switched off for the marketplace right now.'
+                    : (pricing?.gstRate || 0) > 0
+                      ? `${pricing?.gstRate}% — set by Exnshop on the ${(pricing as any)?.gstSource || 'category'}`
+                      : 'No GST is set for this category. Ask Exnshop support if this product needs GST.'}
+                </div>
               </Field>
               <Field label="Handling time (days)" hint="Time to pack and hand over">
                 <input type="number" min="0" max="30" className={inputCls} value={handlingTimeDays} onChange={(e) => setHandlingTimeDays(e.target.value)} />

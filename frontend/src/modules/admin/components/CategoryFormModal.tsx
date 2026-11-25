@@ -764,14 +764,18 @@ export default function CategoryFormModal({
               className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
             >
               <option value="">No tax (0% GST)</option>
-              {taxes.map((tax) => (
-                <option key={tax._id} value={tax._id}>
-                  {tax.name} ({tax.percentage}%)
-                </option>
-              ))}
+              {taxes
+                // CGST / SGST / IGST are how GST is split on a sale, not slabs for a category.
+                .filter((tax) => !/^(c|s|i|ut)gst/i.test(String(tax.name || '').trim()) || tax._id === formData.taxId)
+                .map((tax) => (
+                  <option key={tax._id} value={tax._id}>
+                    {tax.name} ({tax.percentage}%)
+                  </option>
+                ))}
             </select>
             <p className="mt-1 text-xs text-neutral-500">
-              Every product in this category is taxed at this rate. Leave as "No tax" and customers pay 0% GST on these products.
+              Products are taxed at their main category&apos;s rate. Left as "No tax", a sub-category uses its parent&apos;s rate and a main
+              category uses its header category&apos;s GST (0% if that has none too).
             </p>
           </div>
 

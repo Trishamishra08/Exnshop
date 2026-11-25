@@ -11,6 +11,10 @@ import { ICON_LIBRARY, getIconByName, IconDef } from '../../../utils/iconLibrary
 import { useToast } from '../../../context/ToastContext';
 import ConfirmationModal from '../../../components/ConfirmationModal';
 import { uploadImage } from '../../../services/api/uploadService';
+import { getActiveTaxes, Tax } from '../../../services/api/taxService';
+
+// CGST / SGST / IGST are how GST is split on a sale, not GST slabs to give a category.
+const isSplitTax = (t: Tax) => /^(c|s|i|ut)gst/i.test(String(t.name || '').trim());
 
 export default function AdminHeaderCategory() {
   const { showToast } = useToast();
@@ -29,6 +33,13 @@ export default function AdminHeaderCategory() {
   const [selectedTheme, setSelectedTheme] = useState(''); // This maps to slug
   const [selectedStatus, setSelectedStatus] = useState<'Published' | 'Unpublished'>('Published');
   const [returnWindowDays, setReturnWindowDays] = useState('');
+  const [headerTaxId, setHeaderTaxId] = useState('');
+  const [taxes, setTaxes] = useState<Tax[]>([]);
+  useEffect(() => {
+    getActiveTaxes()
+      .then((res: any) => setTaxes(res?.data || []))
+      .catch(() => setTaxes([]));
+  }, []);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   // Icon search state
@@ -121,6 +132,7 @@ export default function AdminHeaderCategory() {
     setHeaderCategoryImage('');
     setSelectedStatus('Published');
     setReturnWindowDays('');
+    setHeaderTaxId('');
     setEditingId(null);
     setIconSearchTerm('');
   };
@@ -141,6 +153,8 @@ export default function AdminHeaderCategory() {
         status: selectedStatus,
         // Blank = use the marketplace default window.
         returnWindowDays: returnWindowDays.trim() === '' ? undefined : Number(returnWindowDays),
+        // Empty = no GST at this level.
+        taxId: headerTaxId || null,
       };
 
       if (editingId) {
@@ -169,6 +183,8 @@ export default function AdminHeaderCategory() {
     setSelectedTheme(category.slug);
     setSelectedStatus(category.status);
     setReturnWindowDays(category.returnWindowDays === undefined || category.returnWindowDays === null ? '' : String(category.returnWindowDays));
+    const tax = category.taxId as any;
+    setHeaderTaxId(tax ? String(typeof tax === 'object' ? tax._id : tax) : '');
     setIconSearchTerm('');
   };
 
@@ -411,6 +427,28 @@ export default function AdminHeaderCategory() {
                 <option value="Published">Published</option>
                 <option value="Unpublished">Unpublished</option>
               </select>
+            </div>
+
+            {/* GST for this header category's products whose category has no GST of its own */}
+            <div>
+              <label className="block text-sm font-medium text-neutral-700 mb-2">GST slab:</label>
+              <select
+                value={headerTaxId}
+                onChange={(e) => setHeaderTaxId(e.target.value)}
+                className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white"
+              >
+                <option value="">No GST here (0%)</option>
+                {taxes
+                  .filter((t) => !isSplitTax(t) || String(t._id) === headerTaxId)
+                  .map((t) => (
+                    <option key={t._id} value={t._id}>
+                      {t.name} ({t.percentage}%)
+                    </option>
+                  ))}
+              </select>
+              <p className="mt-1 text-xs text-neutral-500">
+                Products use their main category&apos;s GST. If that category has none, this header category&apos;s GST is used.
+              </p>
             </div>
 
             {/* Return / replacement window — set here by the admin, not by sellers */}

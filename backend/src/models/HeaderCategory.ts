@@ -6,6 +6,8 @@ export interface IHeaderCategory extends Document {
     iconName: string;
     /** Optional picture for the customer app's category tab; without it the icon is shown. */
     image?: string;
+    /** GST slab for everything in this header category whose category has no GST of its own. */
+    taxId?: mongoose.Types.ObjectId | null;
     slug: string;
     relatedCategory?: string; // Links to a product category
     order: number;
@@ -23,6 +25,7 @@ const HeaderCategorySchema: Schema = new Schema(
         iconLibrary: { type: String, required: true },
         iconName: { type: String, required: true },
         image: { type: String, trim: true, default: "" },
+        taxId: { type: mongoose.Schema.Types.ObjectId, ref: "Tax", default: null },
         slug: { type: String, required: true, unique: true },
         relatedCategory: { type: String, required: false },
         order: { type: Number, default: 0 },

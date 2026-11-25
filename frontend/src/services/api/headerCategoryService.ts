@@ -16,6 +16,8 @@ export interface HeaderCategory {
     /** Seller side: the real window in days (the category's own value, or the marketplace default). */
     effectiveReturnWindowDays?: number;
     order?: number;
+    /** GST slab for its categories that have none of their own (id, or the populated tax). */
+    taxId?: string | { _id: string; name?: string; percentage?: number } | null;
 }
 
 export const getHeaderCategoriesPublic = async (skipLoader = false): Promise<HeaderCategory[]> => {
