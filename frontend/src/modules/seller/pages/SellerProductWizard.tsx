@@ -547,8 +547,8 @@ export default function SellerProductWizard() {
     variationProblems().forEach((label) => missing.push({ label, step: 'variants' }));
     if (needsHsn && !hsnCode.trim()) missing.push({ label: 'HSN code', step: 'price' });
     if (requiresShipping) {
-      if (!(Number(weightGrams) > 0)) missing.push({ label: 'Package weight', step: 'shipping' });
-      if (!(Number(dimL) > 0 && Number(dimW) > 0 && Number(dimH) > 0)) missing.push({ label: 'Package dimensions', step: 'shipping' });
+      if (!(Number(weightGrams) > 0)) missing.push({ label: 'Package weight', step: 'price' });
+      if (!(Number(dimL) > 0 && Number(dimW) > 0 && Number(dimH) > 0)) missing.push({ label: 'Package dimensions', step: 'price' });
     }
     requiredDocs.forEach((d) => {
       const doc = docs.find((x) => x.docType === d.key);
@@ -1278,6 +1278,35 @@ export default function SellerProductWizard() {
                 </div>
               );
             })()}
+            {/* Weight and size sit with the price: the courier charge comes from them */}
+            <div className="rounded-xl border border-neutral-200 p-3 space-y-3">
+              <p className="text-sm font-semibold text-neutral-900">Package weight &amp; size {requiresShipping ? <span className="text-red-500">*</span> : <span className="text-xs font-normal text-neutral-500">(optional for Quick)</span>}</p>
+              <p className="text-xs text-neutral-500">For one unit, packed and ready to ship. Couriers charge on the larger of the real weight and the size-based (volumetric) weight.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Field label="Package weight (g)" required={requiresShipping}>
+                  <input type="number" min="1" className={inputCls} value={weightGrams} onChange={(e) => setWeightGrams(e.target.value)} />
+                </Field>
+                <Field label="Package size (cm)" required={requiresShipping} hint="Length × width × height">
+                  <div className="grid grid-cols-3 gap-2">
+                    <input type="number" min="0" placeholder="L" className={inputCls} value={dimL} onChange={(e) => setDimL(e.target.value)} />
+                    <input type="number" min="0" placeholder="W" className={inputCls} value={dimW} onChange={(e) => setDimW(e.target.value)} />
+                    <input type="number" min="0" placeholder="H" className={inputCls} value={dimH} onChange={(e) => setDimH(e.target.value)} />
+                  </div>
+                </Field>
+              </div>
+              {requiresShipping && (() => {
+                const lead = rows.find((r) => r.isActive && Number(r.price) > 0);
+                return (
+                  <ShippingChargePreview
+                    weightGrams={weightGrams}
+                    length={dimL}
+                    width={dimW}
+                    height={dimH}
+                    sellingPrice={lead ? customerPrice(lead).selling : undefined}
+                  />
+                );
+              })()}
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <Field label="HSN code" required={needsHsn} hint={needsHsn ? '4, 6 or 8 digits' : 'Optional — needed once you are GST registered'}>
                 <input className={inputCls} inputMode="numeric" maxLength={8} value={hsnCode} onChange={(e) => setHsnCode(e.target.value.replace(/\D/g, ''))} />
@@ -1310,19 +1339,9 @@ export default function SellerProductWizard() {
             ) : (
               <p className="text-xs text-neutral-500">Optional for Quick delivery. Fill it in if you also ship by courier.</p>
             )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Package weight (g)" required={requiresShipping}>
-                <input type="number" min="1" className={inputCls} value={weightGrams} onChange={(e) => setWeightGrams(e.target.value)} />
-              </Field>
-              <Field label="Package size (cm)" required={requiresShipping} hint="Length × width × height">
-                <div className="grid grid-cols-3 gap-2">
-                  <input type="number" min="0" placeholder="L" className={inputCls} value={dimL} onChange={(e) => setDimL(e.target.value)} />
-                  <input type="number" min="0" placeholder="W" className={inputCls} value={dimW} onChange={(e) => setDimW(e.target.value)} />
-                  <input type="number" min="0" placeholder="H" className={inputCls} value={dimH} onChange={(e) => setDimH(e.target.value)} />
-                </div>
-              </Field>
-            </div>
-            {requiresShipping && <ShippingChargePreview weightGrams={weightGrams} length={dimL} width={dimW} height={dimH} />}
+            <p className="text-xs text-neutral-600">
+              Package weight and size are entered in <button type="button" onClick={() => goTo('price')} className="font-semibold text-teal-700 underline">Price &amp; stock</button>, next to the price, so you can see the courier charge.
+            </p>
             <Field label="Return eligibility">
               <div className="grid grid-cols-2 gap-2 max-w-xs">
                 {[true, false].map((b) => (

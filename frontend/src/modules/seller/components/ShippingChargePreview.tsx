@@ -2,7 +2,20 @@ import { useEffect, useState } from 'react';
 import { getShippingChargePreview, type ShippingChargePreview as Preview } from '../../../services/api/shippingMethodService';
 
 /** Shows the courier shipping charge for this product as the seller fills in weight and size. */
-export default function ShippingChargePreview({ weightGrams, length, width, height }: { weightGrams: string; length: string; width: string; height: string }) {
+export default function ShippingChargePreview({
+  weightGrams,
+  length,
+  width,
+  height,
+  sellingPrice,
+}: {
+  weightGrams: string;
+  length: string;
+  width: string;
+  height: string;
+  /** Selling price of one unit: shows what the seller keeps after the courier charge. */
+  sellingPrice?: number;
+}) {
   const [preview, setPreview] = useState<Preview | null>(null);
 
   useEffect(() => {
@@ -30,6 +43,18 @@ export default function ShippingChargePreview({ weightGrams, length, width, heig
             Based on {preview.chargeableGrams} g (the larger of actual and volumetric weight).
           </p>
           <p className="mt-1">If the customer never receives the parcel, no shipping is charged. If the customer returns it after delivery, the return pickup is charged to you as well.</p>
+          {sellingPrice !== undefined && sellingPrice > 0 && (
+            preview.charge >= sellingPrice ? (
+              <p className="mt-2 rounded-lg border border-red-300 bg-red-50 text-red-800 p-2 font-semibold">
+                The courier charge (₹{preview.charge.toFixed(2)}) is more than the selling price (₹{sellingPrice.toFixed(2)}): you would lose
+                ₹{(preview.charge - sellingPrice).toFixed(2)} on every single-item order. Check the weight and size (for one packed unit), or raise the price.
+              </p>
+            ) : (
+              <p className="mt-2 font-semibold">
+                For one unit: selling price ₹{sellingPrice.toFixed(2)} − courier ₹{preview.charge.toFixed(2)} = you get ₹{(sellingPrice - preview.charge).toFixed(2)} before commission.
+              </p>
+            )
+          )}
         </>
       ) : (
         <>
