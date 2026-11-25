@@ -241,6 +241,35 @@ export const getOrderEarningBreakdown = asyncHandler(
       ),
     );
     const { sellerEarnings: _m, ...rest } = breakdown as any;
+
+    // E-commerce: sellers keep item price − commission − courier charge; Exnshop pays the
+    // courier (Shiprocket) for By Company sellers and takes the charge back from them.
+    const ecomOrder: any = await Order.findById(id).select("channel").lean();
+    if (ecomOrder?.channel === "ECommerce") {
+      const { ecommerceSellerEarnings } = await import("../../../services/ecommerceEarningService");
+      const sellers = await ecommerceSellerEarnings(id);
+      const courierTotal = sellers.reduce((t, s) => t + s.courierCharge, 0);
+      return res.status(200).json({
+        success: true,
+        data: {
+          ...rest,
+          ecommerce: true,
+          sellerEarningsList: sellers.map((s) => ({ ...s, amount: s.net })),
+          courier: {
+            total: Math.round(courierTotal * 100) / 100,
+            estimated: sellers.some((s) => s.courierEstimated),
+            companySellers: sellers.filter((s) => s.shippingMethod === "Company").length,
+            selfSellers: sellers.filter((s) => s.shippingMethod === "Self").length,
+          },
+          deliveryBoyCommission: 0,
+          adminDeliveryCommission: Number(rest.totalDeliveryCharge) || 0,
+          totalAdminEarning:
+            Math.round((sellers.reduce((t, s) => t + s.commission, 0) + (Number(rest.platformFee) || 0) + (Number(rest.totalDeliveryCharge) || 0)) * 100) / 100,
+          note: "E-commerce order: shipped by courier, no delivery partner. For By Company sellers Exnshop pays the courier and takes the same charge from the seller's earning.",
+        },
+      });
+    }
+
     const payload = {
       ...rest,
       sellerEarningsList,

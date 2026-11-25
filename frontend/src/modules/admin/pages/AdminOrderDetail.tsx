@@ -551,16 +551,63 @@ export default function AdminOrderDetail() {
                     <span>Admin Commission:</span>
                     <span className="font-medium">-₹{(earningBreakdown.adminProductCommission || 0).toFixed(2)}</span>
                   </div>
-                  {earningBreakdown.sellerEarningsList?.map((s) => (
-                    <div key={s.sellerId} className="flex justify-between pt-1 font-semibold text-blue-900 border-t border-blue-200 mt-1">
-                      <span>Seller Net Earning ({s.sellerName || 'Seller'}):</span>
-                      <span>₹{(s.amount || 0).toFixed(2)}</span>
+                  {(earningBreakdown as any).ecommerce &&
+                    (earningBreakdown.sellerEarningsList as any[] | undefined)?.some((s: any) => s.shippingMethod === 'Company') && (
+                      <div className="flex justify-between text-red-600">
+                        <span>Courier Charge{(earningBreakdown as any).courier?.estimated ? ' (estimated)' : ''}:</span>
+                        <span className="font-medium">-₹{(((earningBreakdown as any).courier?.total) || 0).toFixed(2)}</span>
+                      </div>
+                    )}
+                  {earningBreakdown.sellerEarningsList?.map((s: any) => (
+                    <div key={s.sellerId} className="pt-1 border-t border-blue-200 mt-1">
+                      <div className={`flex justify-between font-semibold ${(s.amount || 0) < 0 ? 'text-red-700' : 'text-blue-900'}`}>
+                        <span>Seller Net Earning ({s.sellerName || 'Seller'}):</span>
+                        <span>₹{(s.amount || 0).toFixed(2)}</span>
+                      </div>
+                      {(earningBreakdown as any).ecommerce && (
+                        <p className="text-[11px] text-neutral-500">
+                          {s.shippingMethod === 'Company'
+                            ? `By Company: ₹${(s.itemTotal || 0).toFixed(2)} − commission ₹${(s.commission || 0).toFixed(2)} − courier ₹${(s.courierCharge || 0).toFixed(2)}${s.courierEstimated ? ' (estimated from weight/size; final at delivery)' : ''}`
+                            : 'Self ship: the seller pays their own courier'}
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
 
-              {/* 3. Delivery Partner */}
+              {/* 3. E-commerce: courier instead of a delivery partner */}
+              {(earningBreakdown as any).ecommerce ? (
+              <div className="bg-purple-50/60 p-3 rounded-lg border border-purple-200">
+                <p className="font-semibold text-xs text-purple-800 uppercase tracking-wider mb-2">Courier (Shiprocket)</p>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-neutral-600">Delivery Charge Collected from Customer:</span>
+                    <span className="font-medium">₹{(earningBreakdown.totalDeliveryCharge || 0).toFixed(2)}</span>
+                  </div>
+                  {((earningBreakdown as any).courier?.companySellers || 0) > 0 && (
+                    <>
+                      <div className="flex justify-between text-purple-700">
+                        <span>Paid to Courier by Exnshop{(earningBreakdown as any).courier?.estimated ? ' (estimated)' : ''}:</span>
+                        <span className="font-medium">-₹{(((earningBreakdown as any).courier?.total) || 0).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-purple-700">
+                        <span>Recovered from Seller Earning:</span>
+                        <span className="font-medium">+₹{(((earningBreakdown as any).courier?.total) || 0).toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
+                  {((earningBreakdown as any).courier?.selfSellers || 0) > 0 && (
+                    <p className="text-xs text-neutral-600">Self-ship seller: ships with their own courier, no courier cost for Exnshop.</p>
+                  )}
+                  <div className="border-t border-purple-200 pt-1.5 mt-1.5 flex justify-between font-semibold text-purple-950">
+                    <span>Delivery Amount Retained by Admin:</span>
+                    <span>₹{(earningBreakdown.adminDeliveryCommission || 0).toFixed(2)}</span>
+                  </div>
+                  <p className="text-[11px] text-neutral-500">No delivery partner on E-commerce orders.</p>
+                </div>
+              </div>
+              ) : (
               <div className="bg-purple-50/60 p-3 rounded-lg border border-purple-200">
                 <p className="font-semibold text-xs text-purple-800 uppercase tracking-wider mb-2">Delivery Partner</p>
                 <div className="space-y-1 text-sm">
@@ -582,6 +629,8 @@ export default function AdminOrderDetail() {
                   </div>
                 </div>
               </div>
+
+              )}
 
               {/* 4. Admin Net Earning */}
               <div className="bg-teal-50 p-3 rounded-lg border border-teal-200">
