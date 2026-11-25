@@ -442,13 +442,29 @@ export const executeReturnRefundAndReversal = async (
         }
         sellerReversed = true;
       } else if (existingCommission && existingCommission.status === "OnHold") {
-        // Debit exact net seller earning from Seller On-Hold Balance
+        // Take the held earning back. A negative earning (courier charge above the sale)
+        // was never held but charged to the wallet, so that part is given back instead.
         const { default: Seller } = await import("../models/Seller");
-        await Seller.findByIdAndUpdate(
-          sellerId,
-          { $inc: { onHoldBalance: -breakdown.sellerNetReversal } },
-          { session }
-        );
+        if (breakdown.sellerNetReversal > 0) {
+          await Seller.findByIdAndUpdate(
+            sellerId,
+            { $inc: { onHoldBalance: -breakdown.sellerNetReversal } },
+            { session }
+          );
+        } else if (breakdown.sellerNetReversal < 0) {
+          await creditWallet(
+            sellerId,
+            "SELLER",
+            -breakdown.sellerNetReversal,
+            `Courier charge above the sale value given back: order #${order.orderNumber} returned`,
+            order._id.toString(),
+            undefined,
+            session,
+            `SHIPSHORT-BACK-${returnReq._id.toString()}`,
+            "SHIPPING_CHARGE_REFUND",
+            returnReq._id.toString()
+          );
+        }
 
         existingCommission.status = "Cancelled";
         await existingCommission.save({ session });
@@ -457,16 +473,32 @@ export const executeReturnRefundAndReversal = async (
         // Take the seller's earning for this item back from their wallet. Always applied, so
         // the customer's refund never fails: if the seller already withdrew it, the wallet
         // goes below zero and is recovered from their next settlement.
-        await chargeWalletDue(
-          "SELLER",
-          sellerId,
-          breakdown.sellerNetReversal,
-          `Return reversal for order #${order.orderNumber} (${returnReq.quantity}x ${orderItem.productName})`,
-          `RETREV-${returnReq._id.toString()}`,
-          "COD_RETURN_REFUND",
-          order._id.toString(),
-          session
-        );
+        if (breakdown.sellerNetReversal >= 0) {
+          await chargeWalletDue(
+            "SELLER",
+            sellerId,
+            breakdown.sellerNetReversal,
+            `Return reversal for order #${order.orderNumber} (${returnReq.quantity}x ${orderItem.productName})`,
+            `RETREV-${returnReq._id.toString()}`,
+            "COD_RETURN_REFUND",
+            order._id.toString(),
+            session
+          );
+        } else {
+          // The earning was negative (courier charge above the sale): give that charge back.
+          await creditWallet(
+            sellerId,
+            "SELLER",
+            -breakdown.sellerNetReversal,
+            `Courier charge above the sale value given back: order #${order.orderNumber} returned`,
+            order._id.toString(),
+            undefined,
+            session,
+            `SHIPSHORT-BACK-${returnReq._id.toString()}`,
+            "SHIPPING_CHARGE_REFUND",
+            returnReq._id.toString()
+          );
+        }
 
         existingCommission.status = "Cancelled";
         await existingCommission.save({ session });

@@ -166,7 +166,9 @@ export const decideSellerChange = async (
     }
   }
   seller.pendingProfileChange = undefined;
-  await seller.save();
+  // Check only the fields being changed, so an unrelated value elsewhere in the seller's
+  // record (e.g. an old balance) can't block the admin's approve / reject.
+  await seller.save({ validateModifiedOnly: true });
 
   await auditSeller({
     sellerId: seller._id,

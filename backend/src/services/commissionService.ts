@@ -550,7 +550,21 @@ export const distributeCommissions = async (orderId: string) => {
         continue;
       }
 
-      if (data.hasHold) {
+      if (data.netAmount < 0) {
+        // The courier charge is more than the sale (after commission): there is nothing to
+        // hold or pay out, and the hold can't go below zero, so the shortfall is taken from
+        // the seller's wallet now (it may go below zero, like other charges).
+        await chargeWalletDue(
+          "SELLER",
+          sellerId,
+          -data.netAmount,
+          `Courier charge above the sale value for order ${order.orderNumber}`,
+          `SHIPSHORT-${orderId}-${sellerId}`,
+          "SHIPPING_CHARGE_DEBIT",
+          orderId,
+          session,
+        );
+      } else if (data.hasHold) {
         // Place seller earning on hold
         await Seller.findByIdAndUpdate(
           sellerId,
@@ -1570,24 +1584,28 @@ export const releaseExpiredEscrow = async (
         const netAmount = sellerNetOf(comm);
         const sellerId = comm.seller.toString();
 
-        // Take it off hold here; creditWallet adds it to the available balance
-        // (incrementing balance here too would credit the seller twice).
-        await Seller.findByIdAndUpdate(
-          sellerId,
-          { $inc: { onHoldBalance: -netAmount } },
-          { session }
-        );
+        // A negative earning (courier charge above the sale) was never held: it was taken
+        // from the wallet at delivery, so there is nothing to release.
+        if (netAmount > 0) {
+          // Take it off hold here; creditWallet adds it to the available balance
+          // (incrementing balance here too would credit the seller twice).
+          await Seller.findByIdAndUpdate(
+            sellerId,
+            { $inc: { onHoldBalance: -netAmount } },
+            { session }
+          );
 
-        await creditWallet(
-          sellerId,
-          "SELLER",
-          netAmount,
-          `Released held sale proceeds after return window expired (Order ${comm.order})`,
-          comm.order.toString(),
-          comm._id.toString(),
-          session,
-          `ESCROW-${comm._id}`
-        );
+          await creditWallet(
+            sellerId,
+            "SELLER",
+            netAmount,
+            `Released held sale proceeds after return window expired (Order ${comm.order})`,
+            comm.order.toString(),
+            comm._id.toString(),
+            session,
+            `ESCROW-${comm._id}`
+          );
+        }
 
         comm.status = "Paid";
         comm.paidAt = new Date();
