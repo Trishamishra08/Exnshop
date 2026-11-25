@@ -21,6 +21,8 @@ interface ProductVariation {
   sellerId: string;
   image: string;
   variation: string;
+  /** The variant's SKU (or the product's), as shown on the customer's product page. */
+  sku: string;
   stock: number | "Unlimited";
   status: string;
   /** Seller-side lifecycle (Draft / Pending / Active / Rejected / Inactive). */
@@ -245,6 +247,7 @@ export default function AdminStockManagement() {
             sellerId: sellerId,
             image: product.mainImage || product.galleryImages[0] || "",
             variation: `${variation.name}: ${variation.value}`,
+            sku: (variation as any).sku || (product as any).sku || "",
             stock:
               variation.stock !== undefined
                 ? variation.stock
@@ -265,6 +268,7 @@ export default function AdminStockManagement() {
           sellerId: sellerId,
           image: product.mainImage || product.galleryImages[0] || "",
           variation: "Default",
+          sku: (product as any).sku || "",
           stock: product.stock || 0,
           status: statusLabel(product.status, product.publish),
           lifecycle: product.status || "Active",
@@ -329,9 +333,11 @@ export default function AdminStockManagement() {
           typeof product.stock === "number" &&
           product.stock > 0 &&
           product.stock < 10);
+      const q = String(searchTerm || "").toLowerCase();
       const matchesSearch =
-        String(product.name || "").toLowerCase().includes(String(searchTerm || "").toLowerCase()) ||
-        String(product.seller || "").toLowerCase().includes(String(searchTerm || "").toLowerCase());
+        String(product.name || "").toLowerCase().includes(q) ||
+        String(product.seller || "").toLowerCase().includes(q) ||
+        String(product.sku || "").toLowerCase().includes(q);
 
       return (
         matchesCategory &&
@@ -570,7 +576,7 @@ export default function AdminStockManagement() {
                       setSearchTerm(e.target.value);
                       setCurrentPage(1);
                     }}
-                    placeholder=""
+                    placeholder="Name, seller or SKU"
                   />
                 </div>
               </div>
@@ -669,7 +675,10 @@ export default function AdminStockManagement() {
                       <td className="p-4 align-middle">
                         {product.id.slice(-6)}
                       </td>
-                      <td className="p-4 align-middle">{product.name}</td>
+                      <td className="p-4 align-middle">
+                        {product.name}
+                        {product.sku && <div className="text-[11px] font-mono text-neutral-500">SKU: {product.sku}</div>}
+                      </td>
                       <td className="p-4 align-middle">{product.seller}</td>
                       <td className="p-4 align-middle">
                         {product.image ? (

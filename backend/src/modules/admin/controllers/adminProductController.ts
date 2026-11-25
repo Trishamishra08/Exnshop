@@ -1018,6 +1018,8 @@ export const getProducts = asyncHandler(async (req: Request, res: Response) => {
     query.$or = [
       { productName: { $regex: search as string, $options: "i" } },
       { sku: { $regex: search as string, $options: "i" } },
+      // Each variant has its own SKU (e.g. "Cham-1"), shown on the customer's product page.
+      { "variations.sku": { $regex: search as string, $options: "i" } },
     ];
   }
   if (category) query.category = category;

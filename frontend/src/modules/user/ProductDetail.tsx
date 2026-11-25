@@ -18,6 +18,7 @@ import Button from '../../components/ui/button';
 import Badge from '../../components/ui/badge';
 import { getProductById, getProducts } from '../../services/api/customerProductService';
 import { useCommerceMode } from '../../context/CommerceModeContext';
+import { useThemeContext } from '../../context/ThemeContext';
 import WishlistButton from '../../components/WishlistButton';
 import StarRating from '../../components/ui/StarRating';
 import {
@@ -34,6 +35,7 @@ import { calculateProductPrice } from '../../utils/priceUtils';
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { setActiveCategory: setHomeTab } = useThemeContext();
   const routerLocation = useRouterLocation();
   const { t, getTranslatedField } = useTranslation();
   const { cart, addToCart, updateQuantity } = useCart();
@@ -777,6 +779,44 @@ export default function ProductDetail() {
         <div className="lg:min-w-0">
         {/* Product Details Card - White section */}
         <div className="bg-white rounded-t-3xl -mt-6 lg:mt-0 lg:rounded-none relative z-10 px-4 md:px-6 lg:px-0 pt-2.5 md:pt-4 pb-2 md:pb-4">
+          {/* Where this product sits: Header › Category › Sub-category (each one opens that listing) */}
+          {(() => {
+            const p: any = product;
+            const header = p?.headerCategoryId && typeof p.headerCategoryId === 'object' ? p.headerCategoryId : null;
+            const cat = p?.category && typeof p.category === 'object' ? p.category : null;
+            const sub = p?.subcategory && typeof p.subcategory === 'object' ? p.subcategory : null;
+            const subSub = p?.subSubCategory && typeof p.subSubCategory === 'object' ? p.subSubCategory : null;
+            const crumbs: { label: string; go: () => void }[] = [];
+            if (header?.name) {
+              crumbs.push({
+                label: header.name,
+                go: () => {
+                  if (header.slug) setHomeTab(header.slug);
+                  navigate('/');
+                },
+              });
+            }
+            if (cat?.name && cat?._id) crumbs.push({ label: cat.name, go: () => navigate(`/category/${cat._id}`) });
+            if (sub?.name && sub?._id && cat?._id) {
+              crumbs.push({ label: sub.name, go: () => navigate(`/category/${cat._id}?subcategory=${sub._id}`) });
+            }
+            if (subSub?.name && subSub?._id && cat?._id) {
+              crumbs.push({ label: subSub.name, go: () => navigate(`/category/${cat._id}?subcategory=${sub?._id || subSub._id}`) });
+            }
+            if (crumbs.length === 0) return null;
+            return (
+              <nav aria-label="Product category" className="mb-1.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 text-[11px] sm:text-xs text-neutral-500">
+                {crumbs.map((c, i) => (
+                  <span key={`${c.label}-${i}`} className="inline-flex items-center gap-1">
+                    {i > 0 && <span aria-hidden="true">›</span>}
+                    <button type="button" onClick={c.go} className="text-teal-700 hover:underline font-medium">
+                      {c.label}
+                    </button>
+                  </span>
+                ))}
+              </nav>
+            );
+          })()}
           {/* Delivery time */}
           <div className="flex items-center gap-0.5 mb-1">
             <svg
@@ -808,6 +848,12 @@ export default function ProductDetail() {
           <h2 className="text-lg md:text-2xl font-bold text-neutral-900 mb-0 leading-tight">
             {getTranslatedField(product, "name")}
           </h2>
+          {/* SKU of the chosen option, so support / admin can find this exact product */}
+          {(((selectedVariant as any)?.sku || (product as any)?.sku) as string) && (
+            <p className="mt-0.5 text-[11px] sm:text-xs text-neutral-500">
+              SKU: <span className="font-mono text-neutral-700 select-all">{(selectedVariant as any)?.sku || (product as any)?.sku}</span>
+            </p>
+          )}
 
           {/* Aggregate rating */}
           <div className="mt-1.5 mb-1">

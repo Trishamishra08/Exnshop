@@ -338,8 +338,11 @@ export const getProductById = async (req: Request, res: Response) => {
       status: "Active",
       publish: true,
     })
-      .populate("category", "name")
-      .populate("subcategory", "name")
+      // Names + slugs for the "Header › Category › Sub-category" links on the product page.
+      .populate("category", "name slug")
+      .populate("subcategory", "name slug")
+      .populate("subSubCategory", "name slug")
+      .populate("headerCategoryId", "name slug")
       .populate("brand", "name")
       .populate(
         "seller",
