@@ -318,6 +318,64 @@ export const getOrderEarningBreakdownSeller = asyncHandler(
     if (!hasItems) {
       return res.status(404).json({ success: false, message: "Order not found" });
     }
+    // E-commerce: show the seller exactly what they keep — item price − commission − courier
+    // charge (By Company). Before a COD order is delivered the courier charge isn't recorded
+    // yet, so it is worked out from the products' weight and size (same rate card).
+    const orderDoc: any = await Order.findById(id).select("channel paymentMethod platformFee orderNumber").lean();
+    if (orderDoc?.channel === "ECommerce") {
+      const items: any[] = await OrderItem.find({ order: id, seller: sellerId, status: { $ne: "Cancelled" } })
+        .select("product quantity total commissionRate shippingCharge")
+        .lean();
+      const { getOrderItemCommissionRate } = await import("../../../services/commissionService");
+      const { parcelCharge } = await import("../../../services/shippingChargeService");
+      const method = await getSellerShippingMethod(String(sellerId));
+      const byCompany = method === "Company";
+      let itemTotal = 0;
+      let commission = 0;
+      let recordedCourier = 0;
+      for (const it of items) {
+        const rate = it.commissionRate || (await getOrderItemCommissionRate(String(it.product), String(sellerId)));
+        itemTotal += Number(it.total) || 0;
+        commission += ((Number(it.total) || 0) * rate) / 100;
+        recordedCourier += Number(it.shippingCharge) || 0;
+      }
+      let courierCharge = 0;
+      let courierEstimated = false;
+      if (byCompany) {
+        if (recordedCourier > 0) courierCharge = recordedCourier;
+        else {
+          courierCharge = await parcelCharge(items.map((i) => ({ product: i.product, quantity: i.quantity })));
+          courierEstimated = true;
+        }
+      }
+      const r2 = (n: number) => Math.round(n * 100) / 100;
+      const isCod = String(orderDoc.paymentMethod || "").toUpperCase() === "COD";
+      const yourEarning = r2(itemTotal - commission - courierCharge);
+      const note = byCompany
+        ? `Exnshop books the courier and ${courierEstimated ? "about " : ""}₹${r2(courierCharge).toFixed(2)} courier charge is taken from your earning${courierEstimated ? " (worked out from the product's weight and size; the final figure is set when the order is delivered)" : ""}. Your earning goes on hold after delivery and is paid once the return window ends. The platform fee is paid by the customer, not by you.`
+        : isCod
+          ? "You ship this and collect the customer's cash. After delivery, the commission and platform fee are taken from your wallet. You pay your own courier."
+          : "You ship this yourself and pay your own courier. Your earning goes on hold after delivery and is paid once the return window ends.";
+      return res.status(200).json({
+        success: true,
+        data: {
+          orderId: id,
+          orderNumber: orderDoc.orderNumber,
+          ecommerce: true,
+          shippingMethod: method,
+          itemTotal: r2(itemTotal),
+          commission: r2(commission),
+          courierCharge: r2(courierCharge),
+          courierEstimated,
+          platformFee: Number(orderDoc.platformFee) || 0,
+          totalAdminEarning: r2(commission),
+          yourEarning,
+          isSelfAssign: !byCompany,
+          note,
+        },
+      });
+    }
+
     const breakdown = await getOrderEarningBreakdown(id);
     const yourEarning = breakdown.sellerEarnings.get(sellerId) ?? 0;
     const payload = {

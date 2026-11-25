@@ -604,10 +604,35 @@ export default function SellerOrderDetail() {
 
           {earningBreakdown && (
             <Card title="Your earning">
-              <InfoRow label="Admin (commission + platform fee)">{money(earningBreakdown.totalAdminEarning ?? 0)}</InfoRow>
-              <InfoRow label="Your earning from this order">
-                <span className="text-green-700">{money(earningBreakdown.yourEarning ?? 0)}</span>
-              </InfoRow>
+              {earningBreakdown.ecommerce ? (
+                <>
+                  <InfoRow label="Item price">{money(earningBreakdown.itemTotal ?? 0)}</InfoRow>
+                  <InfoRow label="Commission">
+                    <span className="text-red-600">− {money(earningBreakdown.commission ?? 0)}</span>
+                  </InfoRow>
+                  {earningBreakdown.shippingMethod === 'Company' && (
+                    <InfoRow label={earningBreakdown.courierEstimated ? 'Courier charge (estimated)' : 'Courier charge'}>
+                      <span className="text-red-600">− {money(earningBreakdown.courierCharge ?? 0)}</span>
+                    </InfoRow>
+                  )}
+                  <div className="border-t border-neutral-200 my-1" />
+                  <InfoRow label="Your earning from this order">
+                    <span className={(earningBreakdown.yourEarning ?? 0) < 0 ? 'text-red-600 font-bold' : 'text-green-700 font-bold'}>
+                      {money(earningBreakdown.yourEarning ?? 0)}
+                    </span>
+                  </InfoRow>
+                  {(earningBreakdown.yourEarning ?? 0) < 0 && (
+                    <p className="text-xs text-red-600 mt-1">The courier charge is more than this order&apos;s value: you lose money on it.</p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <InfoRow label="Admin (commission + platform fee)">{money(earningBreakdown.totalAdminEarning ?? 0)}</InfoRow>
+                  <InfoRow label="Your earning from this order">
+                    <span className="text-green-700">{money(earningBreakdown.yourEarning ?? 0)}</span>
+                  </InfoRow>
+                </>
+              )}
               {earningBreakdown.note && <p className="text-xs text-neutral-500 mt-2">{earningBreakdown.note}</p>}
             </Card>
           )}

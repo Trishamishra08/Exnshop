@@ -230,6 +230,14 @@ export interface SellerEarningBreakdown {
   totalAdminEarning: number;
   yourEarning: number;
   note?: string;
+  /** E-commerce orders: item price − commission − courier charge. */
+  ecommerce?: boolean;
+  shippingMethod?: 'Self' | 'Company';
+  itemTotal?: number;
+  commission?: number;
+  courierCharge?: number;
+  /** True while the courier charge is worked out from weight / size (not yet recorded). */
+  courierEstimated?: boolean;
 }
 
 export const getOrderEarningBreakdown = async (id: string): Promise<ApiResponse<SellerEarningBreakdown>> => {
