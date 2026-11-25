@@ -118,7 +118,7 @@ export const getMyCampaigns = asyncHandler(async (req: Request, res: Response) =
   const archivedParam = String(req.query.archived || "");
   const archivedFilter = archivedParam === "only" ? { archived: true } : archivedParam === "all" ? {} : { archived: { $ne: true } };
   const campaigns = await Campaign.find({ seller: sellerId, ...archivedFilter })
-    .populate("products.product", "productName mainImage price")
+    .populate("products.product", "productName mainImage price category")
     .sort({ createdAt: -1 });
 
   const funds = await getSellerAdFunds(sellerId);
@@ -352,10 +352,16 @@ export const getAllCampaignsAdmin = asyncHandler(async (_req: Request, res: Resp
     .populate("seller", "sellerName storeName")
     .sort({ createdAt: -1 });
 
+  // Why each Active campaign is or isn't showing right now (daily budget used, low wallet…).
+  const { getSpendableBySeller } = await import("../../../services/sellerCreditService");
+  const sellerIds = [...new Set(campaigns.map((c: any) => String(c.seller?._id || c.seller)))];
+  const funds = await getSpendableBySeller(sellerIds);
+
   const withMetrics = await Promise.all(
-    campaigns.map(async (c) => ({
+    campaigns.map(async (c: any) => ({
       ...c.toObject(),
       metrics: await computeCampaignMetrics(c),
+      servingState: getServingState(c, funds.get(String(c.seller?._id || c.seller)) ?? 0),
     }))
   );
 
@@ -380,4 +386,75 @@ export const forcePauseCampaign = asyncHandler(async (req: Request, res: Respons
     return res.status(404).json({ success: false, message: "Campaign not found" });
   }
   return res.status(200).json({ success: true, message: "Campaign paused by admin", data: campaign });
+});
+
+/**
+ * PATCH /campaigns/:id/bids { products?: [{ productId, cpcBid }], dailyBudget?, totalBudget? }
+ * Change the cost-per-click bids and the budgets, also while the campaign is running.
+ * Only products already in the campaign; clicks, spend and impressions are kept.
+ */
+export const updateCampaignBids = asyncHandler(async (req: Request, res: Response) => {
+  const sellerId = (req as any).user.userId;
+  const campaign: any = await Campaign.findOne({ _id: req.params.id, seller: sellerId });
+  if (!campaign) return res.status(404).json({ success: false, message: "Campaign not found" });
+  if (campaign.status === "Completed") {
+    return res.status(400).json({ success: false, message: "This campaign has ended. Create a new one to run the ad again." });
+  }
+  if (campaign.archived) {
+    return res.status(400).json({ success: false, message: "Restore this campaign from the archive first." });
+  }
+
+  const { products, dailyBudget, totalBudget } = req.body || {};
+  const changes: string[] = [];
+
+  if (products !== undefined) {
+    if (!Array.isArray(products) || products.length === 0) {
+      return res.status(400).json({ success: false, message: "Send the bid for each product" });
+    }
+    for (const p of products) {
+      const entry = campaign.products.find((e: any) => String(e.product) === String(p?.productId));
+      if (!entry) return res.status(400).json({ success: false, message: "A product is not in this campaign" });
+      const bid = Math.round(Number(p.cpcBid) * 100) / 100;
+      if (!(bid > 0) || bid > 1000) {
+        return res.status(400).json({ success: false, message: "Each bid must be more than ₹0 and at most ₹1000 per click" });
+      }
+      if (entry.cpcBid !== bid) {
+        changes.push(`bid ₹${entry.cpcBid} → ₹${bid}`);
+        entry.cpcBid = bid;
+      }
+    }
+    campaign.markModified("products");
+  }
+
+  if (dailyBudget !== undefined) {
+    const d = Math.round(Number(dailyBudget) * 100) / 100;
+    if (!(d > 0)) return res.status(400).json({ success: false, message: "Daily budget must be more than ₹0" });
+    if (d !== campaign.dailyBudget) changes.push(`daily budget ₹${campaign.dailyBudget} → ₹${d}`);
+    campaign.dailyBudget = d;
+  }
+  if (totalBudget !== undefined) {
+    const t = Math.round(Number(totalBudget) * 100) / 100;
+    if (!(t > 0)) return res.status(400).json({ success: false, message: "Total budget must be more than ₹0" });
+    if (t < (campaign.spend || 0)) {
+      return res.status(400).json({ success: false, message: `Total budget can't be less than what is already spent (₹${(campaign.spend || 0).toFixed(2)})` });
+    }
+    if (t !== campaign.totalBudget) changes.push(`total budget ₹${campaign.totalBudget} → ₹${t}`);
+    campaign.totalBudget = t;
+  }
+
+  if (campaign.dailyBudget > campaign.totalBudget) {
+    return res.status(400).json({ success: false, message: "Daily budget cannot be more than the total budget" });
+  }
+  const maxBid = Math.max(...campaign.products.map((p: any) => Number(p.cpcBid) || 0));
+  if (campaign.dailyBudget < maxBid) {
+    return res.status(400).json({ success: false, message: `Daily budget must cover at least one click (₹${maxBid})` });
+  }
+
+  if (changes.length === 0) {
+    return res.status(200).json({ success: true, message: "Nothing changed", data: campaign });
+  }
+  await campaign.save();
+  pushHistory(campaign._id, "Bids / budget changed", changes.join(", "));
+
+  return res.status(200).json({ success: true, message: "Saved. The new bid applies to the next click.", data: campaign });
 });

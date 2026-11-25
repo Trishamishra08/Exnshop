@@ -4,6 +4,7 @@ import {
   getMyCampaigns,
   updateCampaign,
   updateCampaignStatus,
+  updateCampaignBids,
   archiveCampaign,
   getCampaignAnalytics,
   deleteCampaign,
@@ -23,6 +24,7 @@ router.get("/bid-feedback", getBidFeedback);
 router.get("/analytics", getCampaignAnalytics);
 router.put("/:id", updateCampaign);
 router.patch("/:id/status", updateCampaignStatus);
+router.patch("/:id/bids", updateCampaignBids);
 router.patch("/:id/archive", archiveCampaign);
 router.delete("/:id", deleteCampaign);
 

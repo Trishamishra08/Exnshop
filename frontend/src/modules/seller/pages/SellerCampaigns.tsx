@@ -11,6 +11,7 @@ import { getProducts, Product } from '../../../services/api/productService';
 import { useToast } from '../../../context/ToastContext';
 import ProductMultiSelect, { SelectedProductBid } from '../components/ProductMultiSelect';
 import CampaignPerformance from '../components/CampaignPerformance';
+import CampaignBidEditor from '../components/CampaignBidEditor';
 
 type Preset = 'all' | 'noSales' | 'noImpressions' | 'topSales';
 const PRESETS: { key: Preset; label: string }[] = [
@@ -28,6 +29,8 @@ export default function SellerCampaigns() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [saving, setSaving] = useState(false);
     const [detailsCampaign, setDetailsCampaign] = useState<Campaign | null>(null);
+    // Campaign whose bids / budget are being changed
+    const [bidCampaign, setBidCampaign] = useState<Campaign | null>(null);
     const [adFunds, setAdFunds] = useState<number | null>(null);
     const [preset, setPreset] = useState<Preset>('all');
     const [showArchived, setShowArchived] = useState(false);
@@ -303,6 +306,15 @@ export default function SellerCampaigns() {
                                                 {campaign.name || getProductsLabel(campaign)}
                                             </button>
                                             {campaign.name && <p className="text-[11px] font-normal text-neutral-400 truncate">{getProductsLabel(campaign)}</p>}
+                                            {/* The bid on each product, right in the list */}
+                                            <div className="mt-1 space-y-0.5">
+                                                {campaign.products.map((p, i) => (
+                                                    <p key={i} className="text-[11px] font-normal text-neutral-600 truncate">
+                                                        {campaign.products.length > 1 && <span>{typeof p.product === 'string' ? 'Product' : p.product?.productName}: </span>}
+                                                        Bid <b className="text-teal-700">₹{p.cpcBid}/click</b>
+                                                    </p>
+                                                ))}
+                                            </div>
                                         </td>
                                         <td className="p-4 align-middle text-xs whitespace-nowrap">
                                             {fmtDateTime(campaign.startDate)}<br />
@@ -326,6 +338,14 @@ export default function SellerCampaigns() {
                                                         className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-medium rounded transition-colors"
                                                     >
                                                         {campaign.status === 'Active' ? 'Pause' : 'Activate'}
+                                                    </button>
+                                                )}
+                                                {(campaign.status === 'Active' || campaign.status === 'Paused' || campaign.status === 'Draft') && !campaign.archived && (
+                                                    <button
+                                                        onClick={() => setBidCampaign(campaign)}
+                                                        className="px-3 py-1.5 border border-teal-300 text-teal-700 hover:bg-teal-50 text-xs font-medium rounded transition-colors whitespace-nowrap"
+                                                    >
+                                                        Change bid
                                                     </button>
                                                 )}
                                                 {campaign.status !== 'Active' && (
@@ -406,6 +426,10 @@ export default function SellerCampaigns() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {bidCampaign && (
+                <CampaignBidEditor campaign={bidCampaign} onClose={() => setBidCampaign(null)} onSaved={fetchData} />
             )}
 
             {detailsCampaign && (

@@ -98,7 +98,23 @@ export default function AdminCampaigns() {
                                             <td className="p-4 align-middle">{campaign.metrics?.overall.orders || 0}</td>
                                             <td className="p-4 align-middle">₹{campaign.metrics?.overall.revenue.toFixed(0) || 0}</td>
                                             <td className="p-4 align-middle">{campaign.metrics?.overall.roas.toFixed(2) || 0}x</td>
-                                            <td className="p-4 align-middle">{statusBadge(campaign.status)}</td>
+                                            <td className="p-4 align-middle">
+                                                {statusBadge(campaign.status)}
+                                                {campaign.status === 'Active' && (campaign as any).servingState && (campaign as any).servingState !== 'Running' && (
+                                                    <div className="mt-1 text-[11px] font-semibold text-amber-700 whitespace-nowrap">
+                                                        {({
+                                                            DailyBudgetReached: "Today's budget used · back tomorrow",
+                                                            TotalBudgetReached: 'Total budget used',
+                                                            LowPayoutBalance: 'Seller wallet too low',
+                                                            Scheduled: 'Starts later',
+                                                            NotRunning: 'Not running',
+                                                        } as Record<string, string>)[(campaign as any).servingState] || (campaign as any).servingState}
+                                                    </div>
+                                                )}
+                                                {campaign.status === 'Active' && (campaign as any).servingState === 'Running' && (
+                                                    <div className="mt-1 text-[11px] font-semibold text-green-700">Showing to customers</div>
+                                                )}
+                                            </td>
                                             <td className="p-4 align-middle">
                                                 {campaign.status === 'Active' && (
                                                     <button

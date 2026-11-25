@@ -19,7 +19,7 @@ export interface CampaignMetricsResult {
 }
 
 export interface CampaignProduct {
-    product: string | { _id: string; productName: string; mainImage?: string; price?: number };
+    product: string | { _id: string; productName: string; mainImage?: string; price?: number; category?: string | { _id: string } };
     cpcBid: number;
     spend: number;
     todaySpend: number;
@@ -103,6 +103,15 @@ export const updateCampaign = async (
     }>
 ): Promise<ApiResponse<Campaign>> => {
     const response = await api.put<ApiResponse<Campaign>>(`/campaigns/${id}`, data);
+    return response.data;
+};
+
+/** Change bids and budgets, also while the campaign is running. */
+export const updateCampaignBids = async (
+    id: string,
+    data: { products?: ProductBidInput[]; dailyBudget?: number; totalBudget?: number }
+): Promise<ApiResponse<Campaign>> => {
+    const response = await api.patch<ApiResponse<Campaign>>(`/campaigns/${id}/bids`, data);
     return response.data;
 };
 
