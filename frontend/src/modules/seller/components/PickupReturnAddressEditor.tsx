@@ -180,10 +180,32 @@ export default function PickupReturnAddressEditor({ endpoint, showIntro = true }
       {/* Return address */}
       <section className={card}>
         <h2 className="text-base font-semibold text-neutral-900 mb-3">Return address</h2>
-        <label className="flex items-center gap-2 text-sm text-neutral-800 cursor-pointer mb-3">
-          <input type="checkbox" checked={returnSame} onChange={(e) => { setReturnSame(e.target.checked); setEditing(true); }} />
-          Same as pickup address
-        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+          {[
+            { same: true, title: 'Same as pickup address', sub: 'Returns come back to the pickup address' },
+            { same: false, title: 'Enter a different address', sub: 'Type the return address yourself' },
+          ].map((o) => (
+            <label
+              key={String(o.same)}
+              className={`flex items-start gap-2 rounded-lg border p-3 cursor-pointer ${returnSame === o.same ? 'border-teal-500 bg-teal-50 ring-1 ring-teal-500' : 'border-neutral-300 bg-white'}`}
+            >
+              <input
+                type="radio"
+                name="return-address-choice"
+                checked={returnSame === o.same}
+                onChange={() => {
+                  setReturnSame(o.same);
+                  setEditing(true);
+                }}
+                className="mt-0.5"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-neutral-900">{o.title}</span>
+                <span className="block text-xs text-neutral-500">{o.sub}</span>
+              </span>
+            </label>
+          ))}
+        </div>
         {!returnSame &&
           (savedReturn && !editing ? (
             <div className="text-sm text-neutral-800 space-y-1">

@@ -810,3 +810,83 @@ export const toggleShopStatus = asyncHandler(
     });
   },
 );
+
+/**
+ * Change the seller's login email or mobile, proved by an OTP sent to the NEW one.
+ * POST /seller/auth/contact-change/send   { type: "email" | "mobile", value }
+ * POST /seller/auth/contact-change/verify { type, value, otp }
+ */
+const contactChangeInput = async (req: Request) => {
+  const sellerId = (req as any).user?.userId;
+  const type = req.body?.type === "mobile" ? "mobile" : req.body?.type === "email" ? "email" : "";
+  if (!type) throw Object.assign(new Error("Choose email or mobile"), { statusCode: 400 });
+  const raw = String(req.body?.value || "").trim();
+  const value = type === "email" ? raw.toLowerCase() : raw.replace(/\D/g, "").slice(-10);
+  if (type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    throw Object.assign(new Error("Enter a valid email address"), { statusCode: 400 });
+  }
+  if (type === "mobile" && !/^[6-9]\d{9}$/.test(value)) {
+    throw Object.assign(new Error("Enter a valid 10-digit mobile number"), { statusCode: 400 });
+  }
+  const seller: any = await Seller.findById(sellerId).select("email mobile sellerName");
+  if (!seller) throw Object.assign(new Error("Seller not found"), { statusCode: 404 });
+  if (String(seller[type] || "").toLowerCase() === value) {
+    throw Object.assign(new Error(`This is already your ${type}`), { statusCode: 400 });
+  }
+  const taken = await Seller.exists({ [type]: value, _id: { $ne: seller._id } });
+  if (taken) {
+    throw Object.assign(new Error(`This ${type} is already used by another seller account`), { statusCode: 409 });
+  }
+  return { seller, type: type as "email" | "mobile", value };
+};
+
+export const sendContactChangeOtp = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { seller, type, value } = await contactChangeInput(req);
+    const result =
+      type === "email"
+        ? await sendEmailOtp(value, "Seller", seller.sellerName, "login", true)
+        : await sendOTPService(value, "Seller", false);
+    if (!result?.success) {
+      return res.status(502).json({ success: false, message: result?.message || "Could not send the code. Try again." });
+    }
+    return res.status(200).json({ success: true, message: `We sent a 6-digit code to ${value}` });
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Could not send the code" });
+  }
+});
+
+export const verifyContactChange = asyncHandler(async (req: Request, res: Response) => {
+  try {
+    const { seller, type, value } = await contactChangeInput(req);
+    const otp = String(req.body?.otp || "").trim();
+    const ok = type === "email" ? await verifyEmailOtp(value, otp, "Seller") : await verifyOTPService(value, otp, "Seller");
+    if (!ok) return res.status(400).json({ success: false, message: "Wrong or expired code" });
+
+    const before = seller[type];
+    const update: any = type === "email" ? { email: value, isEmailVerified: true } : { mobile: value };
+    try {
+      await Seller.updateOne({ _id: seller._id }, { $set: update });
+    } catch (e: any) {
+      if (e?.code === 11000) return res.status(409).json({ success: false, message: `This ${type} is already used by another seller account` });
+      throw e;
+    }
+    await auditSeller({
+      sellerId: seller._id,
+      actorType: "Seller",
+      actorId: seller._id,
+      actorName: seller.sellerName,
+      action: type === "email" ? "EMAIL_CHANGED" : "MOBILE_CHANGED",
+      changes: [{ field: type, from: before, to: value }],
+      remarks: "Verified with a code sent to the new " + type,
+    });
+    if (type === "mobile") queueSellerPickupSync(String(seller._id));
+    return res.status(200).json({
+      success: true,
+      message: type === "email" ? "Email changed. Use it to sign in from now on." : "Mobile number changed. Use it to sign in from now on.",
+      data: update,
+    });
+  } catch (err: any) {
+    return res.status(err.statusCode || 500).json({ success: false, message: err.message || "Could not change it" });
+  }
+});

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import ContactChange from '../components/ContactChange';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getSellerProfile, updateSellerProfile, sendEmailVerification, verifySellerEmail } from '../../../services/api/auth/sellerAuthService';
 import { uploadImage } from '../../../services/api/uploadService';
@@ -616,14 +617,24 @@ const SellerAccountSettings = () => {
                                                                 </button>
                                                             )}
                                                         </div>
+                                                        <ContactChange
+                                                            type="email"
+                                                            current={sellerData.email}
+                                                            onChanged={(v) => setSellerData((prev) => ({ ...prev, email: v, isEmailVerified: true }))}
+                                                        />
                                                     </div>
-                                                    <InputGroup label="Mobile Number" name="mobile" value={sellerData.mobile} onChange={handleInputChange} disabled type="tel" autoComplete="tel" />
+                                                    <div>
+                                                        <InputGroup label="Mobile Number" name="mobile" value={sellerData.mobile} onChange={handleInputChange} disabled type="tel" autoComplete="tel" />
+                                                        <ContactChange
+                                                            type="mobile"
+                                                            current={sellerData.mobile}
+                                                            onChanged={(v) => setSellerData((prev) => ({ ...prev, mobile: v }))}
+                                                        />
+                                                    </div>
                                                     {/* No password: sellers sign in with an OTP sent to their mobile or email. */}
-                                                    {isEditing && (
-                                                        <p className="text-xs text-gray-500 ml-1 -mt-2">
-                                                            Email and mobile are your login IDs. To change them, contact Exnshop support.
-                                                        </p>
-                                                    )}
+                                                    <p className="text-xs text-gray-500 ml-1 -mt-2">
+                                                        Email and mobile are your login IDs, so a change is confirmed with a code sent to the new one.
+                                                    </p>
                                                 </div>
                                             </div>
                                         )}

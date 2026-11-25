@@ -23,4 +23,8 @@ router.put("/toggle-shop-status", authenticate, sellerAuthController.toggleShopS
 router.post("/send-email-verification", authenticate, sellerAuthController.sendEmailVerification);
 router.post("/verify-email", authenticate, sellerAuthController.verifyEmail);
 
+// Change the login email / mobile (OTP sent to the new one)
+router.post("/contact-change/send", authenticate, otpRateLimiter, sellerAuthController.sendContactChangeOtp);
+router.post("/contact-change/verify", authenticate, loginRateLimiter, sellerAuthController.verifyContactChange);
+
 export default router;
