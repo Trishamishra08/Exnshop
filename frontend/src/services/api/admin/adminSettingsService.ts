@@ -70,6 +70,8 @@ export interface AppSettings {
   companyState?: string;
   companyPincode?: string;
   companyCountry?: string;
+  /** Exnshop's own GSTIN, printed as the e-commerce operator GSTIN on sellers' GST/TCS reports. */
+  companyGstin?: string;
   paymentMethods: PaymentMethods;
   paymentGateways?: PaymentGateways;
   smsGateway?: SMSGatewaySettings;

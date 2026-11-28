@@ -19,6 +19,8 @@ export interface IAppSettings extends Document {
   companyState?: string;
   companyPincode?: string;
   companyCountry?: string;
+  /** Exnshop's own GSTIN: the e-commerce operator GSTIN (eco_tcs_gstin) on sellers' GST/TCS reports. */
+  companyGstin?: string;
 
   // Payment Settings
   paymentMethods: {
@@ -269,6 +271,11 @@ const AppSettingsSchema = new Schema<IAppSettings>(
       type: String,
       default: "India",
       trim: true,
+    },
+    companyGstin: {
+      type: String,
+      trim: true,
+      uppercase: true,
     },
 
     // Payment Settings

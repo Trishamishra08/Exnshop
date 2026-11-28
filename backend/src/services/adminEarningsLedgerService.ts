@@ -21,7 +21,7 @@ export interface LedgerRow {
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-const collect = async (): Promise<LedgerRow[]> => {
+export const collectAdminEarnings = async (): Promise<LedgerRow[]> => {
   const rows: LedgerRow[] = [];
 
   // Platform fee and delivery charge: taken from the customer on paid orders.
@@ -75,7 +75,7 @@ const collect = async (): Promise<LedgerRow[]> => {
 };
 
 export const getAdminEarningsLedger = async (opts: { from?: Date; to?: Date; type?: string; page: number; limit: number }) => {
-  const all = await collect();
+  const all = await collectAdminEarnings();
 
   // Opening balance = everything earned before the period starts.
   let opening = 0;

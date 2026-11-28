@@ -329,3 +329,52 @@ export async function sendTicketEmail(
     return { success: false, error: error?.message };
   }
 }
+
+/**
+ * Sends a seller their report files (income statement, GST/TCS report) as attachments,
+ * with the key figures in the body.
+ */
+export async function sendSellerReportEmail(
+  to: string,
+  payload: {
+    storeName: string;
+    periodLabel: string;
+    lines: Array<[string, string]>;
+    note?: string;
+    attachments: Array<{ filename: string; content: Buffer; contentType: string }>;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  const rows = payload.lines
+    .map(
+      ([k, v]) =>
+        `<tr><td style="padding:6px 0;color:#555;font-size:14px;">${escapeHtml(k)}</td><td style="padding:6px 0;text-align:right;font-size:14px;font-weight:bold;">${escapeHtml(v)}</td></tr>`
+    )
+    .join("");
+  try {
+    await getTransporter().sendMail({
+      from: `"${process.env.MAIL_FROM_NAME || "Exnshop"}" <${process.env.MAIL_FROM || process.env.SMTP_USER}>`,
+      to,
+      subject: `[Exnshop Seller] Your report for ${payload.periodLabel}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+          <div style="background-color: #0d9488; color: #ffffff; padding: 16px 24px;">
+            <h2 style="margin: 0; font-size: 20px;">Exnshop Seller report</h2>
+          </div>
+          <div style="padding: 24px; background-color: #ffffff;">
+            <p style="margin: 0 0 12px 0; font-size: 14px;">Hello ${escapeHtml(payload.storeName)},</p>
+            <p style="margin: 0 0 16px 0; font-size: 14px;">Your report for <b>${escapeHtml(payload.periodLabel)}</b> is attached.</p>
+            <table style="width:100%;border-collapse:collapse;">${rows}</table>
+            ${payload.note ? `<p style="margin: 16px 0 0 0; font-size: 14px; white-space: pre-wrap;">${escapeHtml(payload.note)}</p>` : ""}
+            <p style="margin: 16px 0 0 0; font-size: 12px; color: #777;">You can also download these reports any time from Seller panel &gt; Reports.</p>
+          </div>
+        </div>
+      `,
+      text: `Your Exnshop report for ${payload.periodLabel} is attached.\n\n${payload.lines.map(([k, v]) => `${k}: ${v}`).join("\n")}${payload.note ? `\n\n${payload.note}` : ""}`,
+      attachments: payload.attachments,
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error("[EMAIL SERVICE ERROR] Failed to send seller report email:", error?.message);
+    return { success: false, error: error?.message };
+  }
+}

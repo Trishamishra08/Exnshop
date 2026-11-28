@@ -24,6 +24,7 @@ import * as returnController from "../modules/admin/controllers/adminReturnContr
 import * as customerController from "../modules/admin/controllers/adminCustomerController";
 import { getSidebarCounts } from "../modules/admin/controllers/adminSidebarCountsController";
 import { getAdminSalesReport, getAdminLedger, getAdminEarningsLedgerReport, getAdminReportsOverview, getAdminSalesOrderReport } from "../modules/admin/controllers/adminReportController";
+import { getPlatformReport, downloadPlatformReport, downloadGstReportAdmin, searchSellersForReport, getSellerIncomeAdmin, downloadSellerIncomeAdmin, sendSellerReport } from "../modules/admin/controllers/adminReportDownloadController";
 import { getCustomerAccountView, getSellerAccountView } from "../modules/admin/controllers/adminAccountViewController";
 
 // Delivery Controllers
@@ -417,6 +418,13 @@ router.get("/reports/ledger", getAdminLedger);
 router.get("/reports/earnings-ledger", getAdminEarningsLedgerReport);
 router.get("/reports/overview", getAdminReportsOverview);
 router.get("/reports/sales-orders", getAdminSalesOrderReport);
+router.get("/reports/platform", getPlatformReport);
+router.get("/reports/platform/download", downloadPlatformReport);
+router.get("/reports/gst/download", downloadGstReportAdmin);
+router.get("/reports/sellers", searchSellersForReport);
+router.get("/reports/sellers/:sellerId/income", getSellerIncomeAdmin);
+router.get("/reports/sellers/:sellerId/income/download", downloadSellerIncomeAdmin);
+router.post("/reports/sellers/:sellerId/send", sendSellerReport);
 router.get("/support-tickets", getAllTickets);
 router.get("/support-tickets/:id", getTicketByIdAdmin);
 router.post("/support-tickets/:id/reply", replyToTicketAsAdmin);

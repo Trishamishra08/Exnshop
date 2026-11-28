@@ -190,6 +190,8 @@ const SellerCampaigns = lazyWithRetry(
 const SellerRtoDashboard = lazyWithRetry(
   () => import("./modules/seller/pages/SellerRtoDashboard"), "SellerRtoDashboard"
 );
+const SellerIncomeReport = lazyWithRetry(() => import("./modules/seller/pages/SellerIncomeReport"), "SellerIncomeReport");
+const AdminDownloadReports = lazyWithRetry(() => import("./modules/admin/pages/AdminDownloadReports"), "AdminDownloadReports");
 const SellerTaxes = lazyWithRetry(() => import("./modules/seller/pages/SellerTaxes"), "SellerTaxes");
 const SellerProductList = lazyWithRetry(
   () => import("./modules/seller/pages/SellerProductList"), "SellerProductList"
@@ -861,6 +863,7 @@ function App() {
                                         path="reports/sales"
                                         element={<SellerSalesReport />}
                                       />
+                                      <Route path="reports/income" element={<SellerIncomeReport />} />
                                       <Route
                                         path="account-settings"
                                         element={<SellerAccountSettings />}
@@ -1095,6 +1098,7 @@ function App() {
                                       <Route path="reports/sales" element={<AdminSalesReport />} />
                                       <Route path="reports/ledger" element={<AdminLedger />} />
                                       <Route path="reports/admin-ledger" element={<AdminEarningsLedger />} />
+                                      <Route path="reports/download" element={<AdminDownloadReports />} />
                                       <Route
                                         path="faq"
                                         element={<AdminFAQ />}
