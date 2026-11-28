@@ -5,6 +5,8 @@ import { getOrders, Order, GetOrdersParams } from '../../../services/api/orderSe
 import { getPackingSlips, getShippingMethod, type ShippingMethodState } from '../../../services/api/shippingMethodService';
 import { useToast } from '../../../context/ToastContext';
 import { getSellerShippingLabel, type ShippingLabel } from '../../../services/api/shippingLabelService';
+import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
+import { PaymentBadge, paymentMethodLabel } from '../../../utils/paymentDisplay';
 
 const fmtShipBy = (ymd?: string) => (ymd ? new Date(`${ymd}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : '');
 const SHIP_STATE_STYLE: Record<string, string> = {
@@ -53,9 +55,11 @@ export default function SellerOrders() {
   }, [searchParams]);
 
   // Fetch orders from API
+  const { tick: liveTick, isBackground } = useLiveRefresh();
   useEffect(() => {
     const fetchOrders = async () => {
-      setLoading(true);
+      const background = isBackground();
+      if (!background) setLoading(true);
       setError('');
       try {
         const params: GetOrdersParams = {
@@ -99,14 +103,14 @@ export default function SellerOrders() {
           setError(response.message || 'Failed to fetch orders');
         }
       } catch (err: any) {
-        setError(err.response?.data?.message || err.message || 'Failed to fetch orders');
+        if (!background) setError(err.response?.data?.message || err.message || 'Failed to fetch orders');
       } finally {
         setLoading(false);
       }
     };
 
     fetchOrders();
-  }, [dateRange, status, entriesPerPage, searchQuery, currentPage, sortField, sortDirection, channel, shipFilter]);
+  }, [liveTick, dateRange, status, entriesPerPage, searchQuery, currentPage, sortField, sortDirection, channel, shipFilter]);
 
   const handleClearDate = () => {
     setDateRange('');
@@ -535,7 +539,7 @@ export default function SellerOrders() {
                       <div className="mt-2 flex items-end justify-between gap-2">
                         <div className="text-[11px] text-neutral-500">
                           {order.orderDate}
-                          <span className="capitalize"> · {order.paymentMethod || 'COD'}</span>
+                          <span> · {paymentMethodLabel(order.paymentMethod)}</span> <PaymentBadge order={order} />
                         </div>
                         <div className="text-base font-bold text-neutral-900 whitespace-nowrap">₹{order.amount.toFixed(2)}</div>
                       </div>
@@ -752,7 +756,10 @@ export default function SellerOrders() {
                           ₹{order.amount.toFixed(2)}
                         </td>
                         <td className="px-3 sm:px-4 md:px-6 py-3 text-xs sm:text-sm text-neutral-600 capitalize">
-                          {order.paymentMethod || 'COD'}
+                          <div className="flex flex-col items-start gap-0.5">
+                            <span>{paymentMethodLabel(order.paymentMethod)}</span>
+                            <PaymentBadge order={order} />
+                          </div>
                         </td>
                         <td className="px-3 sm:px-4 md:px-6 py-3">
                           <button

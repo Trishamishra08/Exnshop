@@ -18,6 +18,10 @@ export interface Order {
   deliveryBoyName?: string;
   deliveryBoyPhone?: string;
   paymentMethod?: string;
+  /** Live payment state from the order (shown through the shared payment badge). */
+  paymentStatus?: string;
+  onlineAmountPaid?: number;
+  walletAmountUsed?: number;
   channel?: 'Quick' | 'ECommerce';
   /** E-commerce orders only: India dates (YYYY-MM-DD) from the seller's handling settings. */
   shipByDate?: string;

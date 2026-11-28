@@ -7,7 +7,8 @@ import DeliverySlipButton from '../../../components/DeliverySlipButton';
 import { getAdminShippingLabels } from '../../../services/api/shippingLabelService';
 import { getAdminTaxInvoices } from '../../../services/api/taxInvoiceService';
 import { formatDeliveryAddress } from '../../../utils/addressUtils';
-import { paymentLabel } from '../../../utils/paymentDisplay';
+import { PaymentBadge, paymentMethodLabel } from '../../../utils/paymentDisplay';
+import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 
 export default function AdminOrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -62,11 +63,13 @@ export default function AdminOrderDetail() {
   const [markingCodPaid, setMarkingCodPaid] = useState(false);
 
   // Fetch order detail from API
+  const { tick: liveTick, isBackground } = useLiveRefresh();
   useEffect(() => {
     const fetchOrderDetail = async () => {
+      const background = isBackground();
       if (!id) return;
 
-      setLoading(true);
+      if (!background) setLoading(true);
       setError('');
       try {
         const response = await getOrderById(id);
@@ -76,14 +79,14 @@ export default function AdminOrderDetail() {
           setError(response.message || 'Failed to fetch order details');
         }
       } catch (err: any) {
-        setError(err.response?.data?.message || err.message || 'Failed to fetch order details');
+        if (!background) setError(err.response?.data?.message || err.message || 'Failed to fetch order details');
       } finally {
         setLoading(false);
       }
     };
 
     fetchOrderDetail();
-  }, [id]);
+  }, [liveTick, id]);
 
   // Fetch earning breakdown for any order (COD or Online): admin/seller/delivery split
   useEffect(() => {
@@ -105,8 +108,11 @@ export default function AdminOrderDetail() {
     try {
       const res = await markOrderCODPaid(id);
       if (res.success && res.data) {
-        setOrder({ ...order, codPaidToAdminAt: res.data.codPaidToAdminAt, paymentStatus: (res.data.paymentStatus || 'Paid') as any });
-        showToast('COD marked as received. Payment status is now Paid.', 'success');
+        // Show what the server now holds rather than assuming the new status.
+        const fresh = await getOrderById(id).catch(() => null);
+        if (fresh?.success && fresh.data) setOrder(fresh.data);
+        else setOrder({ ...order, codPaidToAdminAt: res.data.codPaidToAdminAt, ...(res.data.paymentStatus ? { paymentStatus: res.data.paymentStatus as any } : {}) });
+        showToast(res.message || 'COD marked as received.', 'success');
       } else {
         showToast(res.message || 'Failed to mark COD as paid', 'error');
       }
@@ -309,7 +315,7 @@ export default function AdminOrderDetail() {
               </div>
               <div>
                 <span className="text-neutral-600">Payment Status:</span>
-                <span className="ml-2 font-medium">{paymentLabel(order as any)}</span>
+                <span className="ml-2"><PaymentBadge order={order as any} /></span>
               </div>
             </div>
           </div>
@@ -469,11 +475,11 @@ export default function AdminOrderDetail() {
             <div className="space-y-2 text-sm">
               <div>
                 <span className="text-neutral-600">Method:</span>
-                <span className="ml-2 font-medium">{order.paymentMethod}</span>
+                <span className="ml-2 font-medium">{paymentMethodLabel(order.paymentMethod)}</span>
               </div>
               <div>
                 <span className="text-neutral-600">Status:</span>
-                <span className="ml-2 font-medium">{paymentLabel(order as any)}</span>
+                <span className="ml-2"><PaymentBadge order={order as any} /></span>
               </div>
               {order.paymentId && (
                 <div>

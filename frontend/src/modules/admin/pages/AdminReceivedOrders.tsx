@@ -4,7 +4,8 @@ import { Link } from 'react-router-dom';
 import { getOrdersByStatus, type Order } from '../../../services/api/admin/adminOrderService';
 import { useAuth } from '../../../context/AuthContext';
 import { useAdminMode } from '../context/AdminModeContext';
-import { PaymentBadge } from '../../../utils/paymentDisplay';
+import { PaymentBadge, paymentMethodLabel } from '../../../utils/paymentDisplay';
+import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 
 type SortField = 'orderId' | 'customerDetails' | 'address' | 'deliveryDate' | 'orderDate' | 'status' | 'deliveryBoyStatus' | 'amount';
 type SortDirection = 'asc' | 'desc';
@@ -25,6 +26,7 @@ export default function AdminReceivedOrders() {
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  const { tick: liveTick, isBackground } = useLiveRefresh();
   useEffect(() => {
     if (!isAuthenticated || !token) {
       setLoading(false);
@@ -32,8 +34,9 @@ export default function AdminReceivedOrders() {
     }
 
     const fetchOrders = async () => {
+      const background = isBackground();
       try {
-        setLoading(true);
+        if (!background) setLoading(true);
         setError(null);
 
         const params: any = {
@@ -68,9 +71,9 @@ export default function AdminReceivedOrders() {
         console.error('Error fetching orders:', err);
         if (err && typeof err === 'object' && 'response' in err) {
           const axiosError = err as { response?: { data?: { message?: string } } };
-          setError(axiosError.response?.data?.message || 'Failed to load orders. Please try again.');
+          if (!background) setError(axiosError.response?.data?.message || 'Failed to load orders. Please try again.');
         } else {
-          setError('Failed to load orders. Please try again.');
+          if (!background) setError('Failed to load orders. Please try again.');
         }
       } finally {
         setLoading(false);
@@ -78,7 +81,7 @@ export default function AdminReceivedOrders() {
     };
 
     fetchOrders();
-  }, [isAuthenticated, token, currentPage, entriesPerPage, searchQuery, dateRange, mode]);
+  }, [liveTick, isAuthenticated, token, currentPage, entriesPerPage, searchQuery, dateRange, mode]);
 
   const handleClearDate = () => {
     setDateRange('');
@@ -589,7 +592,7 @@ export default function AdminReceivedOrders() {
                       <td className="px-4 py-3.5 text-center whitespace-nowrap">
                         <div className="flex flex-col items-center gap-0.5">
                           <span className="font-semibold text-xs text-neutral-800">
-                            {order.paymentMethod || 'COD'}
+                            {paymentMethodLabel(order.paymentMethod)}
                           </span>
                           <PaymentBadge order={order} />
                         </div>

@@ -24,7 +24,7 @@ const tone = {
 export const paymentDisplay = (order: PaymentOrderLike): { label: string; className: string } => {
   const status = order.status || '';
   const pay = order.paymentStatus || 'Pending';
-  const isCod = /^cod$/i.test(order.paymentMethod || 'COD');
+  const isCod = /^cod$/i.test(order.paymentMethod || '');
   const paidOnline = pay === 'Paid' || (order.onlineAmountPaid || 0) > 0 || (order.walletAmountUsed || 0) > 0;
 
   if (pay === 'Refunded') return { label: 'Refunded', className: tone.blue };
@@ -45,6 +45,15 @@ export const paymentDisplay = (order: PaymentOrderLike): { label: string; classN
 
   if (pay === 'Paid') return { label: 'Paid', className: tone.green };
   return { label: isCod ? 'Pay on delivery' : 'Pending', className: tone.amber };
+};
+
+/** The payment method as stored on the order, in words ("—" when the order has none). */
+export const paymentMethodLabel = (method?: string): string => {
+  const m = String(method || '').trim();
+  if (!m) return '—';
+  if (/^cod$/i.test(m)) return 'COD';
+  if (/^(online|razorpay|cashfree|prepaid)$/i.test(m)) return 'Online';
+  return m;
 };
 
 export const paymentLabel = (order: PaymentOrderLike) => paymentDisplay(order).label;

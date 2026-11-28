@@ -178,6 +178,9 @@ export const getOrders = asyncHandler(async (req: Request, res: Response) => {
     deliveryBoyPhone: (order.deliveryBoy as any)?.mobile || "",
     deliveryPreference: order.deliveryPreference,
     paymentMethod: order.paymentMethod,
+    paymentStatus: order.paymentStatus,
+    onlineAmountPaid: (order as any).onlineAmountPaid,
+    walletAmountUsed: (order as any).walletAmountUsed,
     ...(order.channel === "ECommerce" ? shipDatesFor(order as any, handling) : {}),
   }));
 

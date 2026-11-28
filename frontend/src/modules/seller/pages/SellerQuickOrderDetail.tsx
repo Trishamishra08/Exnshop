@@ -51,6 +51,13 @@ export default function SellerQuickOrderDetail({ initialOrder }: { initialOrder?
     fetchOrderDetail();
   }, [id, initialOrder]);
 
+  // Shown inside the order screen, which refreshes the order: take its latest copy (payment status included).
+  useEffect(() => {
+    if (!initialOrder) return;
+    setOrderDetail(initialOrder);
+    setOrderStatus(initialOrder.status);
+  }, [initialOrder]);
+
   // Fetch earning breakdown (COD or Online): your earning, delivery (Self = you get delivery charge)
   useEffect(() => {
     const fetchEarningBreakdown = async () => {

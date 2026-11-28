@@ -8,7 +8,8 @@ import {
 import { useAuth } from "../../../context/AuthContext";
 import { useAdminMode } from "../context/AdminModeContext";
 import AssignDeliveryBoyModal from "../components/AssignDeliveryBoyModal";
-import { PaymentBadge } from '../../../utils/paymentDisplay';
+import { PaymentBadge, paymentMethodLabel } from '../../../utils/paymentDisplay';
+import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 
 type SortField =
   | "orderId"
@@ -40,6 +41,7 @@ export default function AdminPendingOrders() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Fetch orders on component mount
+  const { tick: liveTick, isBackground } = useLiveRefresh();
   useEffect(() => {
     if (!isAuthenticated || !token) {
       setLoading(false);
@@ -47,8 +49,9 @@ export default function AdminPendingOrders() {
     }
 
     const fetchOrders = async () => {
+      const background = isBackground();
       try {
-        setLoading(true);
+        if (!background) setLoading(true);
         setError(null);
 
         const params: any = {
@@ -82,7 +85,7 @@ export default function AdminPendingOrders() {
         }
       } catch (err: any) {
         console.error("Error fetching orders:", err);
-        setError(
+        if (!background) setError(
           err.response?.data?.message ||
           "Failed to load orders. Please try again."
         );
@@ -93,6 +96,7 @@ export default function AdminPendingOrders() {
 
     fetchOrders();
   }, [
+    liveTick,
     isAuthenticated,
     token,
     currentPage,
@@ -622,7 +626,7 @@ export default function AdminPendingOrders() {
                       <td className="px-4 py-3.5 text-center whitespace-nowrap">
                         <div className="flex flex-col items-center gap-0.5">
                           <span className="font-semibold text-xs text-neutral-800">
-                            {order.paymentMethod || 'COD'}
+                            {paymentMethodLabel(order.paymentMethod)}
                           </span>
                           <PaymentBadge order={order} />
                         </div>

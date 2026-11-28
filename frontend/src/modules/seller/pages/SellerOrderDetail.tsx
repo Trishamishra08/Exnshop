@@ -13,6 +13,7 @@ import RefundOrderModal from '../components/RefundOrderModal';
 import CodPaymentStatus from '../components/CodPaymentStatus';
 import DeliverySlipButton from '../../../components/DeliverySlipButton';
 import ExchangeBanner from '../../../components/ExchangeBanner';
+import { useLiveRefresh } from '../../../hooks/useLiveRefresh';
 
 // E-commerce orders are packed by the seller and shipped by courier, so they get
 // their own screen. Quick orders keep the original rider-delivery screen.
@@ -118,11 +119,13 @@ export default function SellerOrderDetail() {
     }
   }, [orderDetail?.shipment?.provider, orderDetail?.shipment?.awbCode]);
 
+  const { tick: liveTick, isBackground } = useLiveRefresh();
   useEffect(() => {
     const fetchOrderDetail = async () => {
+      const background = isBackground();
       if (!id) return;
 
-      setLoading(true);
+      if (!background) setLoading(true);
       setError('');
       try {
         const response = await getOrderById(id);
@@ -133,14 +136,14 @@ export default function SellerOrderDetail() {
           setError(response.message || 'Failed to fetch order details');
         }
       } catch (err: any) {
-        setError(err.response?.data?.message || err.message || 'Failed to fetch order details');
+        if (!background) setError(err.response?.data?.message || err.message || 'Failed to fetch order details');
       } finally {
         setLoading(false);
       }
     };
 
     fetchOrderDetail();
-  }, [id]);
+  }, [liveTick, id]);
 
   // The Quick screen loads its own earning breakdown.
   useEffect(() => {
@@ -148,7 +151,7 @@ export default function SellerOrderDetail() {
     getOrderEarningBreakdown(id)
       .then((res) => res.success && res.data && setEarningBreakdown(res.data))
       .catch(() => setEarningBreakdown(null));
-  }, [id, isECommerce]);
+  }, [liveTick, id, isECommerce]);
 
   const reloadOrder = async () => {
     if (!id) return;
