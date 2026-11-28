@@ -61,7 +61,17 @@ export interface OrderDetail {
   shippingMethod?: 'Self' | 'Company';
   exchangeInfo?: { note: string; payer: 'Customer' | 'Seller'; deliveryCharge: number; collectOldItem: boolean; originalOrderNumber?: string } | null;
   shipDates?: { shipByDate: string; deliverByDate: string; shipState: 'late' | 'today' | 'tomorrow' | 'ok' | null } | null;
-  shipment?: { awbCode: string; courierName: string; trackingUrl: string; status: string; provider?: 'Shiprocket' | 'Self' } | null;
+  shipment?: {
+    awbCode: string;
+    courierName: string;
+    /** Surface / Air: the courier service Exnshop booked on Shiprocket. */
+    courierMode?: 'Surface' | 'Air' | '';
+    /** What Shiprocket charged for this parcel, once the courier is booked. */
+    courierCharge?: number | null;
+    trackingUrl: string;
+    status: string;
+    provider?: 'Shiprocket' | 'Self';
+  } | null;
   deliveryPreference?: 'Self' | 'Admin';
   invoiceNumber: string;
   orderDate: string;
@@ -236,8 +246,12 @@ export interface SellerEarningBreakdown {
   itemTotal?: number;
   commission?: number;
   courierCharge?: number;
-  /** True while the courier charge is worked out from weight / size (not yet recorded). */
+  /** True until the courier is booked: the figure is Shiprocket's current price (or the rate card if Shiprocket gave none). */
   courierEstimated?: boolean;
+  courierName?: string;
+  courierMode?: 'Surface' | 'Air' | '';
+  /** The order is cancelled: no earning and no courier charge. */
+  cancelled?: boolean;
 }
 
 export const getOrderEarningBreakdown = async (id: string): Promise<ApiResponse<SellerEarningBreakdown>> => {

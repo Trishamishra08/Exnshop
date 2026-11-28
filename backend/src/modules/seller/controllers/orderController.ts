@@ -319,57 +319,42 @@ export const getOrderEarningBreakdownSeller = asyncHandler(
       return res.status(404).json({ success: false, message: "Order not found" });
     }
     // E-commerce: show the seller exactly what they keep — item price − commission − courier
-    // charge (By Company). Before a COD order is delivered the courier charge isn't recorded
-    // yet, so it is worked out from the products' weight and size (same rate card).
+    // charge (By Company). The courier charge is what Shiprocket charges for the booked courier,
+    // or Shiprocket's live price for it before the courier is booked.
     const orderDoc: any = await Order.findById(id).select("channel paymentMethod platformFee orderNumber").lean();
     if (orderDoc?.channel === "ECommerce") {
-      const items: any[] = await OrderItem.find({ order: id, seller: sellerId, status: { $ne: "Cancelled" } })
-        .select("product quantity total commissionRate shippingCharge")
-        .lean();
-      const { getOrderItemCommissionRate } = await import("../../../services/commissionService");
-      const { parcelCharge } = await import("../../../services/shippingChargeService");
-      const method = await getSellerShippingMethod(String(sellerId));
-      const byCompany = method === "Company";
-      let itemTotal = 0;
-      let commission = 0;
-      let recordedCourier = 0;
-      for (const it of items) {
-        const rate = it.commissionRate || (await getOrderItemCommissionRate(String(it.product), String(sellerId)));
-        itemTotal += Number(it.total) || 0;
-        commission += ((Number(it.total) || 0) * rate) / 100;
-        recordedCourier += Number(it.shippingCharge) || 0;
-      }
-      let courierCharge = 0;
-      let courierEstimated = false;
-      if (byCompany) {
-        if (recordedCourier > 0) courierCharge = recordedCourier;
-        else {
-          courierCharge = await parcelCharge(items.map((i) => ({ product: i.product, quantity: i.quantity })));
-          courierEstimated = true;
-        }
-      }
-      const r2 = (n: number) => Math.round(n * 100) / 100;
+      const { ecommerceSellerEarnings } = await import("../../../services/ecommerceEarningService");
+      const [mine] = await ecommerceSellerEarnings(id, String(sellerId));
+      const byCompany = mine?.shippingMethod !== "Self";
       const isCod = String(orderDoc.paymentMethod || "").toUpperCase() === "COD";
-      const yourEarning = r2(itemTotal - commission - courierCharge);
-      const note = byCompany
-        ? `Exnshop books the courier and ${courierEstimated ? "about " : ""}₹${r2(courierCharge).toFixed(2)} courier charge is taken from your earning${courierEstimated ? " (worked out from the product's weight and size; the final figure is set when the order is delivered)" : ""}. Your earning goes on hold after delivery and is paid once the return window ends. The platform fee is paid by the customer, not by you.`
-        : isCod
-          ? "You ship this and collect the customer's cash. After delivery, the commission and platform fee are taken from your wallet. You pay your own courier."
-          : "You ship this yourself and pay your own courier. Your earning goes on hold after delivery and is paid once the return window ends.";
+      const charge = `₹${(mine?.courierCharge || 0).toFixed(2)}`;
+      const courier = mine?.courierName ? `${mine.courierName}${mine.courierMode ? ` (${mine.courierMode})` : ""}` : "the courier";
+      const note = !mine || mine.cancelled
+        ? "This order is cancelled, so there is no earning and no courier charge on it."
+        : byCompany
+          ? mine.courierEstimated
+            ? `Exnshop books the courier for you and its charge is taken from your earning. About ${charge} is Shiprocket's current price for ${courier}${mine.courierSource === "rate-card" ? " (worked out from the product's weight and size, as Shiprocket gave no price yet)" : ""}; the exact amount is fixed when you mark the order packed and the courier is booked. Your earning goes on hold after delivery and is paid once the return window ends. The platform fee is paid by the customer, not by you.`
+            : `Exnshop booked ${courier} for this parcel and Shiprocket charged ${charge}; the same amount is taken from your earning. Your earning goes on hold after delivery and is paid once the return window ends. The platform fee is paid by the customer, not by you.`
+          : isCod
+            ? "You ship this and collect the customer's cash. After delivery, the commission and platform fee are taken from your wallet. You pay your own courier."
+            : "You ship this yourself and pay your own courier. Your earning goes on hold after delivery and is paid once the return window ends.";
       return res.status(200).json({
         success: true,
         data: {
           orderId: id,
           orderNumber: orderDoc.orderNumber,
           ecommerce: true,
-          shippingMethod: method,
-          itemTotal: r2(itemTotal),
-          commission: r2(commission),
-          courierCharge: r2(courierCharge),
-          courierEstimated,
+          shippingMethod: mine?.shippingMethod || "Company",
+          itemTotal: mine?.itemTotal || 0,
+          commission: mine?.commission || 0,
+          courierCharge: mine?.courierCharge || 0,
+          courierEstimated: Boolean(mine?.courierEstimated),
+          courierName: mine?.courierName || "",
+          courierMode: mine?.courierMode || "",
+          cancelled: !mine || mine.cancelled,
           platformFee: Number(orderDoc.platformFee) || 0,
-          totalAdminEarning: r2(commission),
-          yourEarning,
+          totalAdminEarning: mine?.commission || 0,
+          yourEarning: mine?.net || 0,
           isSelfAssign: !byCompany,
           note,
         },
@@ -519,6 +504,8 @@ export const getOrderById = asyncHandler(
         ? {
             awbCode: myShipment.awbCode || "",
             courierName: myShipment.courierName || "",
+            courierMode: myShipment.courierMode || "",
+            courierCharge: typeof myShipment.courierCharge === "number" ? myShipment.courierCharge : null,
             trackingUrl: myShipment.trackingUrl || "",
             status: myShipment.status || "",
             provider: myShipment.provider || "Shiprocket",

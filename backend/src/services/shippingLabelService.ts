@@ -1,7 +1,8 @@
 import Order from "../models/Order";
 import OrderItem from "../models/OrderItem";
 import Seller from "../models/Seller";
-import { assignAwbAndRequestPickup, createShiprocketOrder } from "./shiprocketService";
+import { assignAwbAndRequestPickup, createShiprocketOrder, type AwbAssignment, type CourierQuote } from "./shiprocketService";
+import { applyCourierChargeToEarnings, findSellerShipment, quoteSellerParcel } from "./courierChargeService";
 import { companyShippedSellerIds, getSellerShippingMethod } from "./sellerShippingService";
 import { buildTaxInvoices, type TaxInvoice } from "./taxInvoiceService";
 
@@ -10,18 +11,6 @@ import { buildTaxInvoices, type TaxInvoice } from "./taxInvoiceService";
  * shipment). The AWB printed as the label's barcode and Data Matrix comes
  * from Shiprocket when the seller marks the order packed.
  */
-
-const sameId = (a: any, b: any) => Boolean(a && b) && String(a?._id || a) === String(b?._id || b);
-
-/** The shipment entry for one seller's items (mock and older orders may carry no seller on it). */
-const findSellerShipment = (order: any, sellerId: string) => {
-  const shipments: any[] = order.shiprocketShipments || [];
-  const index = shipments.findIndex((s) => sameId(s.seller, sellerId));
-  if (index >= 0) return { shipment: shipments[index], index };
-  if (shipments.length === 1 && !shipments[0].seller) return { shipment: shipments[0], index: 0 };
-  if (shipments.length === 0 && order.shiprocket?.shipmentId) return { shipment: order.shiprocket, index: -1 };
-  return { shipment: undefined, index: -1 };
-};
 
 // Orders whose Shiprocket shipments are being created right now (payment
 // capture and its webhook can both fire for the same order).
@@ -127,12 +116,29 @@ export const ensureSellerAwb = async (
   }
   if (shipment.awbCode) return { success: true, awbCode: shipment.awbCode };
 
-  const result = await assignAwbAndRequestPickup(shipment.shipmentId);
+  // Book the cheapest surface courier ourselves (Shiprocket would otherwise pick by the
+  // account's courier priority, e.g. an Air service), trying the next one if it refuses.
+  const quotes = await quoteSellerParcel(orderId, sellerId, { fresh: true });
+  let result: AwbAssignment = { success: false, isMock: false };
+  let booked: CourierQuote | undefined;
+  if (quotes.length === 0) {
+    result = await assignAwbAndRequestPickup(shipment.shipmentId);
+  } else {
+    for (const quote of quotes.slice(0, 3)) {
+      result = await assignAwbAndRequestPickup(shipment.shipmentId, quote.courierId);
+      if (result.success && result.awbCode) {
+        booked = quote;
+        break;
+      }
+      console.warn(`[Shiprocket] ${quote.courierName} refused shipment ${shipment.shipmentId}: ${result.message}`);
+    }
+  }
   if (!result.success || !result.awbCode) return { success: false, message: result.message };
 
   const update = {
     awbCode: result.awbCode,
-    courierName: result.courierName || shipment.courierName,
+    courierName: result.courierName || booked?.courierName || shipment.courierName,
+    ...(booked ? { courierId: booked.courierId, courierMode: booked.mode, courierCharge: booked.charge } : {}),
     routingCode: result.routingCode || undefined,
     rtoRoutingCode: result.rtoRoutingCode || undefined,
     pickupScheduledAt: result.pickupScheduledAt,
@@ -147,6 +153,13 @@ export const ensureSellerAwb = async (
     order.shiprocket = { ...(order.shiprocket?.toObject?.() || order.shiprocket || {}), ...update };
   }
   await order.save();
+  if (booked) {
+    try {
+      await applyCourierChargeToEarnings(orderId, sellerId, booked.charge);
+    } catch (err: any) {
+      console.error(`[Shiprocket] Could not save the courier charge for order ${order.orderNumber}:`, err.message);
+    }
+  }
   return { success: true, awbCode: result.awbCode, message: result.message };
 };
 

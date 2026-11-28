@@ -604,14 +604,19 @@ export default function SellerOrderDetail() {
 
           {earningBreakdown && (
             <Card title="Your earning">
-              {earningBreakdown.ecommerce ? (
+              {earningBreakdown.ecommerce && earningBreakdown.cancelled ? (
+                <InfoRow label="Your earning from this order">
+                  <span className="text-neutral-600 font-bold">{money(0)}</span>
+                </InfoRow>
+              ) : earningBreakdown.ecommerce ? (
                 <>
                   <InfoRow label="Item price">{money(earningBreakdown.itemTotal ?? 0)}</InfoRow>
                   <InfoRow label="Commission">
                     <span className="text-red-600">− {money(earningBreakdown.commission ?? 0)}</span>
                   </InfoRow>
                   {earningBreakdown.shippingMethod === 'Company' && (
-                    <InfoRow label={earningBreakdown.courierEstimated ? 'Courier charge (estimated)' : 'Courier charge'}>
+                    <InfoRow
+                      label={`Courier charge${earningBreakdown.courierName ? ` · ${earningBreakdown.courierName}` : ''}${earningBreakdown.courierEstimated ? ' (estimated)' : ''}`}>
                       <span className="text-red-600">− {money(earningBreakdown.courierCharge ?? 0)}</span>
                     </InfoRow>
                   )}
@@ -711,7 +716,15 @@ export default function SellerOrderDetail() {
             </Card>
           ) : (
           <Card title="Shipping (courier)">
-            <InfoRow label="Courier">{orderDetail.shipment?.courierName || 'Assigned at pickup'}</InfoRow>
+            <InfoRow label="Courier">
+              {orderDetail.shipment?.courierName || 'Booked when you mark it packed'}
+              {orderDetail.shipment?.courierMode && (
+                <span className="ml-1.5 px-1.5 py-0.5 rounded bg-neutral-100 text-[11px] text-neutral-600">{orderDetail.shipment.courierMode}</span>
+              )}
+            </InfoRow>
+            {typeof orderDetail.shipment?.courierCharge === 'number' && (
+              <InfoRow label="Shiprocket charge">{money(orderDetail.shipment.courierCharge)}</InfoRow>
+            )}
             <InfoRow label="AWB">{orderDetail.shipment?.awbCode || '—'}</InfoRow>
             <InfoRow label="Shipment status">{orderDetail.shipment?.status || 'Not created yet'}</InfoRow>
             {/* Packed but no AWB yet (e.g. Shiprocket was unreachable): let the seller retry. */}

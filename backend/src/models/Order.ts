@@ -191,7 +191,11 @@ export interface IOrder extends Document {
     rtoRoutingCode?: string;
     pickupScheduledAt?: Date;
     awbAssignedAt?: Date;
-    /** "Self" = the seller booked their own courier (courierName + awbCode hold the courier and tracking number). */
+    /** Shiprocket courier booked for this parcel, and what Shiprocket charges for it (freight + COD fee). */
+    courierId?: number;
+    courierMode?: "Surface" | "Air";
+    courierCharge?: number;
+    /** "Self" =the seller booked their own courier (courierName + awbCode hold the courier and tracking number). */
     provider?: "Shiprocket" | "Self";
   }>;
 
@@ -634,6 +638,9 @@ const OrderSchema = new Schema<IOrder>(
         rtoRoutingCode: { type: String, trim: true },
         pickupScheduledAt: { type: Date },
         awbAssignedAt: { type: Date },
+        courierId: { type: Number },
+        courierMode: { type: String, enum: ["Surface", "Air"] },
+        courierCharge: { type: Number, min: 0 },
         provider: { type: String, enum: ["Shiprocket", "Self"] },
       },
     ],

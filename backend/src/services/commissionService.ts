@@ -10,7 +10,8 @@ import Category from "../models/Category";
 import Product from "../models/Product";
 import WalletTransaction from "../models/WalletTransaction";
 import { companyShippedSellerIds } from "./sellerShippingService";
-import { allocateByValue, parcelCharge } from "./shippingChargeService";
+import { allocateByValue } from "./shippingChargeService";
+import { sellerCourierCharge } from "./courierChargeService";
 
 /** What a seller actually receives for an item: price − commission − courier shipping billed to them. */
 export const sellerNetOf = (c: { orderAmount: number; commissionAmount: number; shippingCharge?: number }) =>
@@ -300,7 +301,8 @@ export const createPendingCommissions = async (orderId: string) => {
       for (const d of docs) bySeller.set(String(d.seller), [...(bySeller.get(String(d.seller)) || []), d]);
       for (const sellerId of await companyShippedSellerIds([...bySeller.keys()])) {
         const sellerItems = bySeller.get(sellerId)!;
-        const charge = await parcelCharge(sellerItems.map((i) => ({ product: i.product, quantity: i.quantity })));
+        // What Shiprocket charges for this parcel (booked courier, else its live quote; rate card only as a fallback).
+        const charge = (await sellerCourierCharge(String(orderId), sellerId)).charge;
         const parts = allocateByValue(charge, sellerItems.map((i) => i.total));
         sellerItems.forEach((it, idx) => shippingByItem.set(String(it._id), parts[idx]));
       }

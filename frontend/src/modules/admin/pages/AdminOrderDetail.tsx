@@ -566,9 +566,17 @@ export default function AdminOrderDetail() {
                       </div>
                       {(earningBreakdown as any).ecommerce && (
                         <p className="text-[11px] text-neutral-500">
-                          {s.shippingMethod === 'Company'
-                            ? `By Company: ₹${(s.itemTotal || 0).toFixed(2)} − commission ₹${(s.commission || 0).toFixed(2)} − courier ₹${(s.courierCharge || 0).toFixed(2)}${s.courierEstimated ? ' (estimated from weight/size; final at delivery)' : ''}`
-                            : 'Self ship: the seller pays their own courier'}
+                          {s.cancelled
+                            ? 'Cancelled: no earning and no courier charge'
+                            : s.shippingMethod === 'Company'
+                              ? `By Company: ₹${(s.itemTotal || 0).toFixed(2)} − commission ₹${(s.commission || 0).toFixed(2)} − courier ₹${(s.courierCharge || 0).toFixed(2)}${s.courierName ? ` (${s.courierName}${s.courierMode ? `, ${s.courierMode}` : ''})` : ''}${
+                                  s.courierEstimated
+                                    ? s.courierSource === 'rate-card'
+                                      ? ' — estimated from the rate card, Shiprocket gave no price'
+                                      : " — Shiprocket's current price, fixed when the courier is booked"
+                                    : ' — charged by Shiprocket'
+                                }`
+                              : 'Self ship: the seller pays their own courier'}
                         </p>
                       )}
                     </div>

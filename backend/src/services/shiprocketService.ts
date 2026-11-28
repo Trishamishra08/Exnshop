@@ -600,6 +600,71 @@ export const checkShiprocketServiceability = async (
   }
 };
 
+/** One courier Shiprocket offers for a parcel, with what it will charge the account. */
+export interface CourierQuote {
+  courierId: number;
+  courierName: string;
+  /** Shiprocket's price for this parcel (freight + COD fee), in ₹. */
+  charge: number;
+  freightCharge: number;
+  codCharge: number;
+  mode: "Surface" | "Air";
+}
+
+const isAirCourier = (c: any) => {
+  if (c?.is_surface === true || c?.is_surface === 1) return false;
+  if (c?.is_surface === false || c?.is_surface === 0) return true;
+  return /\bair\b/i.test(String(c?.courier_name || ""));
+};
+
+/**
+ * Couriers for one parcel, cheapest first. Surface couriers come first: left to itself
+ * Shiprocket assigns by the account's courier priority, which can pick an Air service
+ * (e.g. "Delhivery Air") costing far more than the surface one. Air couriers are listed
+ * after every surface one, so they are used only when no surface courier serves the route.
+ * Returns an empty list in mock mode or when Shiprocket gives no quote.
+ */
+export const quoteCouriers = async (params: {
+  pickupPincode: string;
+  deliveryPincode: string;
+  parcel: { weight: number; length: number; breadth: number; height: number };
+  cod: boolean;
+  declaredValue: number;
+}): Promise<CourierQuote[]> => {
+  if (isMockMode() || !params.pickupPincode || !params.deliveryPincode) return [];
+  try {
+    const token = await getAuthToken();
+    const { data } = await axios.get(`${SHIPROCKET_BASE_URL}/courier/serviceability`, {
+      headers: { Authorization: `Bearer ${token}` },
+      params: {
+        pickup_postcode: params.pickupPincode,
+        delivery_postcode: params.deliveryPincode,
+        cod: params.cod ? 1 : 0,
+        weight: params.parcel.weight,
+        length: params.parcel.length,
+        breadth: params.parcel.breadth,
+        height: params.parcel.height,
+        declared_value: Math.max(1, Math.round(params.declaredValue)),
+      },
+    });
+    const couriers: any[] = data?.data?.available_courier_companies || [];
+    const quotes: CourierQuote[] = couriers
+      .filter((c) => c?.courier_company_id && Number(c.rate) > 0 && !c.blocked)
+      .map((c) => ({
+        courierId: Number(c.courier_company_id),
+        courierName: String(c.courier_name || ""),
+        charge: Math.round(Number(c.rate) * 100) / 100,
+        freightCharge: Number(c.freight_charge) || 0,
+        codCharge: Number(c.cod_charges) || 0,
+        mode: isAirCourier(c) ? "Air" : "Surface",
+      }));
+    return quotes.sort((a, b) => (a.mode === b.mode ? a.charge - b.charge : a.mode === "Surface" ? -1 : 1));
+  } catch (error: any) {
+    console.error("[Shiprocket] Courier quote failed:", error?.response?.data || error.message);
+    return [];
+  }
+};
+
 /**
  * Fetches live tracking info for an AWB (airway bill) code.
  */
@@ -641,9 +706,10 @@ export interface AwbAssignment {
  * Asks Shiprocket to pick a courier for a created shipment and issue its AWB
  * (the number the label's barcode and Data Matrix carry), then requests the
  * courier pickup. Shiprocket charges the courier fee to the account's wallet
- * at this point. In mock mode a test AWB is returned instead.
+ * at this point. With `courierId` that courier is booked; without it Shiprocket
+ * picks by the account's courier priority. In mock mode a test AWB is returned instead.
  */
-export const assignAwbAndRequestPickup = async (shipmentId: string): Promise<AwbAssignment> => {
+export const assignAwbAndRequestPickup = async (shipmentId: string, courierId?: number): Promise<AwbAssignment> => {
   if (isMockMode()) {
     // Deterministic 14-digit test AWB so the label can be tried without Shiprocket.
     const digits = crypto.createHash("sha1").update(shipmentId).digest("hex").replace(/\D/g, "");
@@ -663,7 +729,7 @@ export const assignAwbAndRequestPickup = async (shipmentId: string): Promise<Awb
     const headers = { Authorization: `Bearer ${token}` };
     const { data } = await axios.post(
       `${SHIPROCKET_BASE_URL}/courier/assign/awb`,
-      { shipment_id: Number(shipmentId) || shipmentId },
+      { shipment_id: Number(shipmentId) || shipmentId, ...(courierId ? { courier_id: courierId } : {}) },
       { headers }
     );
     const assigned = data?.response?.data || {};
